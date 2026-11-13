@@ -38,27 +38,40 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
     }
 
     companion object {
-        private const val NO_CURRENCY = "XXX"
+        /** ISO 4217 code for "no currency". */
+        const val NO_CURRENCY = "XXX"
         private const val MAX_FRACTION_DIGITS = 3
 
-        /**
-         * Builds the currency for a bill from the ISO 4217 code the model reported.
-         *
-         * When the code is unknown, the number of decimals is inferred from the [amounts] on the bill
-         * so that "12.50" still splits to the cent.
-         */
-        fun resolve(code: String, amounts: Collection<BigDecimal>): BillCurrency {
-            val normalized = code.trim().uppercase(Locale.ROOT)
-            val iso = isoCurrency(normalized)
-            if (iso != null) return BillCurrency(normalized, iso.defaultFractionDigits)
+        /** True for a three-letter currency code the platform knows, such as VND or USD. */
+        fun isKnownCode(code: String): Boolean = isoCurrency(code.trim().uppercase(Locale.ROOT)) != null
 
-            val observedDigits = amounts.maxOfOrNull { it.stripTrailingZeros().scale() } ?: 0
-            val digits = when {
-                observedDigits <= 0 -> 0
-                observedDigits <= 2 -> 2
-                else -> MAX_FRACTION_DIGITS
+        /**
+         * Builds the currency for a bill.
+         *
+         * How finely a bill can be split is decided by the bill itself: never finer than the prices
+         * are printed ([printedDecimals]), and never finer than the currency allows. This is what
+         * keeps a rupiah or forint bill in whole units even though ISO 4217 gives those currencies
+         * two decimals that nobody pays with, while a dollar bill printed with cents splits to the
+         * cent.
+         *
+         * @param printedDecimals decimal places the prices are printed with, or null when unknown.
+         * @param amounts the amounts read from the bill. Decimals they actually carry are kept even
+         *   if [printedDecimals] says fewer.
+         */
+        fun resolve(code: String, printedDecimals: Int?, amounts: Collection<BigDecimal>): BillCurrency {
+            val normalized = code.trim().uppercase(Locale.ROOT)
+            val inAmounts = (amounts.maxOfOrNull { it.stripTrailingZeros().scale() } ?: 0).coerceIn(0, MAX_FRACTION_DIGITS)
+            val onBill = printedDecimals?.let { maxOf(it, inAmounts).coerceIn(0, MAX_FRACTION_DIGITS) }
+
+            val iso = isoCurrency(normalized)
+            if (iso != null) {
+                val allowed = iso.defaultFractionDigits
+                return BillCurrency(normalized, if (onBill == null) allowed else minOf(allowed, onBill))
             }
-            return BillCurrency(if (normalized == NO_CURRENCY) "" else normalized, digits)
+
+            // Unknown currency: go by what the bill shows. A single decimal is shown as two.
+            val digits = onBill ?: inAmounts
+            return BillCurrency(if (normalized == NO_CURRENCY) "" else normalized, if (digits == 1) 2 else digits)
         }
 
         private fun isoCurrency(code: String): Currency? {

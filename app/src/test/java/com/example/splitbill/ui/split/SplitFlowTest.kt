@@ -81,7 +81,7 @@ class SplitFlowTest {
         val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL)),
+            settings = MutableStateFlow(AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")),
             imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
             analyzerFor = { analyzer },

@@ -23,6 +23,7 @@ in-app contacts and an AI "split bill" flow:
 | Stack | minSdk 26, Material 3, single module, MVVM, ML Kit bundled Latin model, official Anthropic Java SDK, model `claude-opus-5-5`. |
 | Privacy | Only OCR text is sent to the model. The photo and the contact list stay on the device. |
 | Money | All arithmetic on the device, in integer minor units. |
+| Currency | Detected from the bill. A bill is split no finer than its prices are printed and no finer than the currency allows. The app's local currency (a setting) is the fallback when a bill shows none. No conversion between currencies. |
 | API key | Entered in Settings (encrypted with the Android Keystore) or preset in `local.properties` for debug builds. |
 | Contacts and payments | Seeded mock contacts and mock payment requests. |
 

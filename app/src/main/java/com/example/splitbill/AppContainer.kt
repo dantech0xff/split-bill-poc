@@ -21,15 +21,20 @@ class AppContainer(context: Context) {
     val imageLoader = BillImageLoader(appContext)
     val recognizer: BillTextRecognizer = MlKitBillTextRecognizer()
 
-    private var cachedAnalyzer: Pair<AppSettings, ClaudeBillAnalyzer>? = null
+    private var cachedAnalyzer: ClaudeBillAnalyzer? = null
+    private var cachedFor: Pair<String, String>? = null
 
-    /** The analyzer for the given key and model. The HTTP client is reused until the settings change. */
+    /** The analyzer for the given key and model. The HTTP client is reused until one of them changes. */
     @Synchronized
     fun analyzerFor(settings: AppSettings): BillAnalyzer {
-        cachedAnalyzer?.let { (cachedSettings, analyzer) ->
-            if (cachedSettings == settings) return analyzer
+        val wanted = settings.apiKey to settings.model
+        cachedAnalyzer?.let { analyzer ->
+            if (cachedFor == wanted) return analyzer
             analyzer.close()
         }
-        return ClaudeBillAnalyzer(settings.apiKey, settings.model).also { cachedAnalyzer = settings to it }
+        return ClaudeBillAnalyzer(settings.apiKey, settings.model).also {
+            cachedAnalyzer = it
+            cachedFor = wanted
+        }
     }
 }

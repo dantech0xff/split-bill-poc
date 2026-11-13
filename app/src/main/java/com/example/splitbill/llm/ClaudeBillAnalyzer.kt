@@ -70,10 +70,10 @@ class ClaudeBillAnalyzer(
     @Volatile
     private var refusalFallbackAccepted = true
 
-    override suspend fun analyze(ocr: OcrResult, instruction: String): BillAnalysis {
-        val userMessage = BillPrompt.userMessage(OcrLayoutEncoder.encode(ocr), instruction)
+    override suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis {
+        val userMessage = BillPrompt.userMessage(OcrLayoutEncoder.encode(ocr), instruction, localCurrency)
         // The SDK call blocks. runInterruptible interrupts it when the caller is cancelled.
-        return runInterruptible(Dispatchers.IO) { interpret(send(userMessage)) }
+        return runInterruptible(Dispatchers.IO) { interpret(send(userMessage), localCurrency) }
     }
 
     override fun close() {
@@ -134,7 +134,7 @@ class ClaudeBillAnalyzer(
         return client.beta().messages().create(builder.build())
     }
 
-    private fun interpret(message: BetaMessage): BillAnalysis {
+    private fun interpret(message: BetaMessage, localCurrency: String): BillAnalysis {
         val stopReason = message.stopReason().orElse(null)
         if (stopReason == BetaStopReason.REFUSAL) {
             val explanation = message.stopDetails().flatMap { it.explanation() }.orElse("")
@@ -148,7 +148,7 @@ class ClaudeBillAnalyzer(
         if (answer.isBlank()) {
             throw BillAnalyzerException(Kind.BAD_RESPONSE, "Claude returned an empty answer. Please try again.")
         }
-        return BillAnalysisParser.parse(answer)
+        return BillAnalysisParser.parse(answer, localCurrency)
     }
 
     private fun AnthropicServiceException.detail(): String =

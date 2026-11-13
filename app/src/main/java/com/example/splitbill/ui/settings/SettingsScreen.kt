@@ -34,18 +34,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.splitbill.data.settings.AppSettings
+import com.example.splitbill.domain.BillCurrency
 
-/** Where the tester enters the Anthropic API key and, optionally, another model name. */
+/** Where the tester enters the Anthropic API key, the app's local currency and, optionally, another model name. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
-    onSave: (apiKey: String, model: String) -> Unit,
+    onSave: (apiKey: String, model: String, localCurrency: String) -> Unit,
     onBack: () -> Unit,
 ) {
     // Deliberately not saveable: the key must not be copied into the saved instance state.
     var apiKey by remember { mutableStateOf(settings.apiKey) }
     var model by rememberSaveable { mutableStateOf(settings.model) }
+    var localCurrency by rememberSaveable { mutableStateOf(settings.localCurrency) }
+    val currencyIsValid = BillCurrency.isKnownCode(localCurrency)
     var showKey by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -100,6 +103,25 @@ fun SettingsScreen(
                 supportingText = { Text("The request is tuned for claude-opus-5-5.") },
             )
 
+            OutlinedTextField(
+                value = localCurrency,
+                onValueChange = { localCurrency = it.uppercase().take(3) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Local currency") },
+                singleLine = true,
+                isError = !currencyIsValid,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false),
+                supportingText = {
+                    Text(
+                        if (currencyIsValid) {
+                            "The currency this app works in, for example VND. Used when a bill does not show its currency."
+                        } else {
+                            "Enter a three-letter currency code such as VND, USD or EUR."
+                        },
+                    )
+                },
+            )
+
             Text(
                 "This is a proof of concept. A real payment app must not put an API key on the phone: " +
                     "it should call its own server, and the server calls Claude.",
@@ -107,7 +129,11 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Button(onClick = { onSave(apiKey, model) }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
+            Button(
+                onClick = { onSave(apiKey, model, localCurrency) },
+                enabled = currencyIsValid,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Save") }
         }
     }
 }

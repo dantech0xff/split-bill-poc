@@ -70,7 +70,7 @@ class ClaudeBillAnalyzerTest {
     fun `sends OCR rows, the instruction and the answer schema, then parses the bill`() = runTest {
         server.enqueue(messageResponse(billAnswer))
 
-        val analysis = analyzer.analyze(ocr, "Split with Minh") as BillAnalysis.Ready
+        val analysis = analyzer.analyze(ocr, "Split with Minh", "VND") as BillAnalysis.Ready
 
         assertEquals(65_000L, analysis.bill.totalMinor)
         assertEquals("Pho 24", analysis.bill.merchant)
@@ -91,7 +91,7 @@ class ClaudeBillAnalyzerTest {
 
         val content = body.getValue("messages").jsonArray.single().jsonObject.getValue("content").jsonPrimitive.content
         assertTrue(content, content.contains("""1 | [0,0,283,177] "Pho bo" | [848,9,1000,186] "65.000""""))
-        assertTrue(content, content.endsWith("<user_instruction>\nSplit with Minh\n</user_instruction>"))
+        assertTrue(content, content.endsWith("<app_settings>\nlocal_currency: VND\n</app_settings>\n\n<user_instruction>\nSplit with Minh\n</user_instruction>"))
 
         val outputConfig = body.getValue("output_config").jsonObject
         assertEquals("medium", outputConfig.string("effort"))
@@ -100,7 +100,7 @@ class ClaudeBillAnalyzerTest {
         val schema = format.getValue("schema").jsonObject
         assertEquals("false", schema.getValue("additionalProperties").jsonPrimitive.content)
         assertEquals(
-            listOf("status", "merchant", "date", "currency", "items", "charges", "total", "split", "warnings", "message"),
+            listOf("status", "merchant", "date", "currency", "amount_decimals", "items", "charges", "total", "split", "warnings", "message"),
             schema.getValue("required").jsonArray.map { it.jsonPrimitive.content },
         )
     }
@@ -110,7 +110,7 @@ class ClaudeBillAnalyzerTest {
         server.enqueue(errorResponse(400, "invalid_request_error", "Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header."))
         server.enqueue(messageResponse(billAnswer))
 
-        val analysis = analyzer.analyze(ocr, "")
+        val analysis = analyzer.analyze(ocr, "", "VND")
 
         assertTrue(analysis is BillAnalysis.Ready)
         assertEquals(2, server.requestCount)
@@ -127,8 +127,8 @@ class ClaudeBillAnalyzerTest {
         server.enqueue(messageResponse(billAnswer))
         server.enqueue(messageResponse(billAnswer))
 
-        analyzer.analyze(ocr, "")
-        analyzer.analyze(ocr, "")
+        analyzer.analyze(ocr, "", "VND")
+        analyzer.analyze(ocr, "", "VND")
 
         assertEquals(3, server.requestCount)
         repeat(2) { server.takeRequest() }
@@ -160,7 +160,7 @@ class ClaudeBillAnalyzerTest {
             },
         )
 
-        val analysis = analyzer.analyze(ocr, "") as BillAnalysis.Ready
+        val analysis = analyzer.analyze(ocr, "", "VND") as BillAnalysis.Ready
 
         assertEquals(65_000L, analysis.bill.totalMinor)
     }
@@ -171,7 +171,7 @@ class ClaudeBillAnalyzerTest {
         val impatient = ClaudeBillAnalyzer(apiKey = "test-key", baseUrl = server.url("/").toString(), requestTimeout = Duration.ofMillis(300))
 
         val error = try {
-            failure { impatient.analyze(ocr, "") }
+            failure { impatient.analyze(ocr, "", "VND") }
         } finally {
             impatient.close()
         }
@@ -184,7 +184,7 @@ class ClaudeBillAnalyzerTest {
     fun `request that stays invalid reports what the API said`() = runTest {
         repeat(2) { server.enqueue(errorResponse(400, "invalid_request_error", "Your credit balance is too low to access the Anthropic API.")) }
 
-        val error = failure { analyzer.analyze(ocr, "") }
+        val error = failure { analyzer.analyze(ocr, "", "VND") }
 
         assertEquals(Kind.BAD_REQUEST, error.kind)
         assertTrue(error.message, error.message!!.contains("Your credit balance is too low"))
@@ -193,13 +193,13 @@ class ClaudeBillAnalyzerTest {
     @Test
     fun `rejected key and unknown model are told apart`() = runTest {
         server.enqueue(errorResponse(401, "authentication_error", "invalid x-api-key"))
-        assertEquals(Kind.INVALID_API_KEY, failure { analyzer.analyze(ocr, "") }.kind)
+        assertEquals(Kind.INVALID_API_KEY, failure { analyzer.analyze(ocr, "", "VND") }.kind)
 
         server.enqueue(errorResponse(404, "not_found_error", "model: claude-opus-5-5"))
-        assertEquals(Kind.MODEL_NOT_FOUND, failure { analyzer.analyze(ocr, "") }.kind)
+        assertEquals(Kind.MODEL_NOT_FOUND, failure { analyzer.analyze(ocr, "", "VND") }.kind)
 
         server.enqueue(errorResponse(403, "permission_error", "Not allowed."))
-        assertEquals(Kind.NOT_ALLOWED, failure { analyzer.analyze(ocr, "") }.kind)
+        assertEquals(Kind.NOT_ALLOWED, failure { analyzer.analyze(ocr, "", "VND") }.kind)
     }
 
     @Test
@@ -214,7 +214,7 @@ class ClaudeBillAnalyzerTest {
             },
         )
 
-        val error = failure { analyzer.analyze(ocr, "") }
+        val error = failure { analyzer.analyze(ocr, "", "VND") }
 
         assertEquals(Kind.REFUSED, error.kind)
         assertTrue(error.message, error.message!!.contains("This request was declined."))
@@ -224,14 +224,14 @@ class ClaudeBillAnalyzerTest {
     fun `answer cut off by the token limit is not trusted`() = runTest {
         server.enqueue(messageResponse("""{"status": "ok", "items": [""", stopReason = "max_tokens"))
 
-        assertEquals(Kind.BAD_RESPONSE, failure { analyzer.analyze(ocr, "") }.kind)
+        assertEquals(Kind.BAD_RESPONSE, failure { analyzer.analyze(ocr, "", "VND") }.kind)
     }
 
     @Test
     fun `photo that is not a bill comes back as rejected`() = runTest {
         server.enqueue(messageResponse("""{"status": "not_a_bill", "items": [], "charges": [], "total": 0, "message": "This is a street sign."}"""))
 
-        assertEquals(BillAnalysis.Rejected("This is a street sign."), analyzer.analyze(ocr, ""))
+        assertEquals(BillAnalysis.Rejected("This is a street sign."), analyzer.analyze(ocr, "", "VND"))
     }
 
     private suspend fun failure(block: suspend () -> Unit): BillAnalyzerException =

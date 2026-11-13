@@ -49,8 +49,8 @@ fun AppNavHost(container: AppContainer) {
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 settings = settings,
-                onSave = { apiKey, model ->
-                    container.settings.save(apiKey, model)
+                onSave = { apiKey, model, localCurrency ->
+                    container.settings.save(apiKey, model, localCurrency)
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },

@@ -3,20 +3,25 @@ package com.example.splitbill.data.settings
 import android.content.Context
 import androidx.core.content.edit
 import com.example.splitbill.BuildConfig
+import com.example.splitbill.domain.BillCurrency
 import com.example.splitbill.llm.ClaudeBillAnalyzer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.Currency
+import java.util.Locale
 
 data class AppSettings(
     val apiKey: String,
     val model: String,
+    /** ISO 4217 code of the currency this payment app works in, for example "VND". */
+    val localCurrency: String,
 ) {
     val hasApiKey: Boolean get() = apiKey.isNotBlank()
 }
 
 /**
- * Where the Anthropic API key and model name are kept on the device.
+ * Where the Anthropic API key, the model name and the app's local currency are kept on the device.
  *
  * The key is encrypted with [KeystoreCipher] before it is written to preferences. Storing a real
  * API key on a phone is acceptable for a proof of concept only: a shipped app must call its own
@@ -33,12 +38,15 @@ class SettingsStore(
 
     val settings: StateFlow<AppSettings> = state.asStateFlow()
 
-    fun save(apiKey: String, model: String) {
+    /** A [localCurrency] that is not a known currency code is ignored and the previous one is kept. */
+    fun save(apiKey: String, model: String, localCurrency: String) {
         val cleanKey = apiKey.trim()
         val cleanModel = model.trim().ifEmpty { ClaudeBillAnalyzer.DEFAULT_MODEL }
+        val cleanCurrency = localCurrency.trim().uppercase(Locale.ROOT)
         preferences.edit {
             if (cleanKey.isEmpty()) remove(KEY_API_KEY) else putString(KEY_API_KEY, cipher.encrypt(cleanKey))
             putString(KEY_MODEL, cleanModel)
+            if (BillCurrency.isKnownCode(cleanCurrency)) putString(KEY_LOCAL_CURRENCY, cleanCurrency)
         }
         state.value = read()
     }
@@ -48,11 +56,18 @@ class SettingsStore(
         return AppSettings(
             apiKey = storedKey?.takeIf { it.isNotBlank() } ?: defaultApiKey,
             model = preferences.getString(KEY_MODEL, null) ?: ClaudeBillAnalyzer.DEFAULT_MODEL,
+            localCurrency = preferences.getString(KEY_LOCAL_CURRENCY, null) ?: deviceCurrency(),
         )
     }
+
+    /** The currency of the phone's region, as a sensible default for the app's own currency. */
+    private fun deviceCurrency(): String =
+        runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault(FALLBACK_CURRENCY)
 
     private companion object {
         const val KEY_API_KEY = "anthropic_api_key_encrypted"
         const val KEY_MODEL = "model"
+        const val KEY_LOCAL_CURRENCY = "local_currency"
+        const val FALLBACK_CURRENCY = "USD"
     }
 }

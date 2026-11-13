@@ -23,7 +23,8 @@ internal object BillPrompt {
         - items: every purchased line, with its name as printed (fix obvious recognition typos, keep the original language), its quantity, its unit price when shown, and its line total. Fold a discount or surcharge that belongs to one item into that item's amount. Subtotal, total, payment, change and loyalty lines are not items.
         - charges: amounts added to or taken off the item total to reach the bill total, such as tax or VAT, service charge, tip, bill-level discounts or vouchers (negative), and rounding. When the prices already include tax and the tax line is only informational, leave it out of charges.
         - total: the final amount to pay as printed. Items plus charges should equal the total. Check this before you answer. If they still do not reconcile after re-reading the rows, return your best reading and say what does not add up in warnings.
-        - currency: the ISO 4217 code. When it is not printed, infer it from symbols, language, address and the size of the prices. Use "XXX" only if you cannot tell.
+        - currency: the ISO 4217 code. When it is not printed, infer it from symbols, language, address and the size of the prices. When those do not settle it, use the local currency given in <app_settings>, which is the currency the user's payment app works in. Use "XXX" only if you still cannot tell.
+        - amount_decimals: how many decimal places the bill prints its prices with, which is 0 for "70.000 đ" or "Rp 33.000" and 2 for "$12.50". The app never splits finer than this, so report what is printed rather than what the currency allows in theory.
 
         Amounts are plain JSON numbers in the currency's main unit, without thousands separators: 70000 for "70.000 đ", 12.5 for "$12.50". Vietnamese and many European bills use "." for thousands and "," for decimals.
 
@@ -31,7 +32,7 @@ internal object BillPrompt {
 
         <user_instruction> holds what the user typed, in any language. Usually it only asks to split the bill. It can also say who is sharing ("with Minh and Lan"), how many people there are, who had which items ("Minh had the beers", "I didn't drink"), or ask for a change to the amount such as adding a tip. Report this in split:
 
-        - people: the other people the user names, written the way the user wrote them. Names printed on the bill (cashier, server, customer) do not belong here.
+        - people: the other people the user names, written the way the user wrote them. Names printed on the bill (cashier, server, customer) do not belong here. The user is never listed among people, here or in item_assignments: words for the user such as I, me, mình, tôi or aku are expressed only through user_included and includes_user.
         - user_included: false only when the user says they are not taking part in the split.
         - people_count: the total number of people including the user, when the user states it.
         - item_assignments: only for items the user explicitly tied to specific people. Use rule "only" when the item belongs to the people named ("Minh had the beers", "Lan and I shared the dessert"), and rule "all_except" when the people named did not have it ("I didn't drink", "Lan had no dessert"), which leaves it shared by everyone else. includes_user says whether the user is one of the people named. Leave every other item out; the app shares unassigned items between everyone.
@@ -45,8 +46,13 @@ internal object BillPrompt {
         message is one short sentence shown to the user, in the language of their instruction. warnings are short notes, in the same language, about readings that could change what someone pays and that you could not settle from the bill itself, such as a price you could not read or amounts that do not add up. Details you could work out yourself, like an obvious quantity, do not need a warning, and the list stays empty when the amounts read cleanly.
     """.trimIndent()
 
-    fun userMessage(ocrDocument: String, instruction: String): String {
+    /**
+     * @param localCurrency ISO 4217 code of the currency the user's payment app works in. It is
+     *   the model's fallback when the bill itself does not show a currency.
+     */
+    fun userMessage(ocrDocument: String, instruction: String, localCurrency: String): String {
         val wanted = instruction.trim().ifEmpty { DEFAULT_INSTRUCTION }
-        return "$ocrDocument\n\n<user_instruction>\n$wanted\n</user_instruction>"
+        val settings = if (localCurrency.isBlank()) "" else "<app_settings>\nlocal_currency: ${localCurrency.trim()}\n</app_settings>\n\n"
+        return "$ocrDocument\n\n$settings<user_instruction>\n$wanted\n</user_instruction>"
     }
 }

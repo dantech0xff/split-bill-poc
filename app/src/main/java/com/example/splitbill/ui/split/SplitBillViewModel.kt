@@ -16,6 +16,7 @@ import com.example.splitbill.domain.SplitCalculator
 import com.example.splitbill.domain.SplitPlan
 import com.example.splitbill.domain.SplitPlanner
 import com.example.splitbill.domain.SplitResult
+import com.example.splitbill.domain.currencyMismatchNote
 import com.example.splitbill.llm.BillAnalysis
 import com.example.splitbill.llm.BillAnalyzer
 import com.example.splitbill.llm.BillAnalyzerException
@@ -118,16 +119,18 @@ class SplitBillViewModel(
             mutableState.update { it.copy(progress = Progress.ASKING_CLAUDE) }
             // Off the main thread: switching settings closes the previous HTTP client here.
             val analyzer = withContext(Dispatchers.IO) { analyzerFor(appSettings) }
-            when (val analysis = analyzer.analyze(ocr, current.instruction)) {
+            when (val analysis = analyzer.analyze(ocr, current.instruction, appSettings.localCurrency)) {
                 is BillAnalysis.Rejected -> showError(analysis.reason)
                 is BillAnalysis.Ready -> {
-                    val plan = SplitPlanner.fromHint(analysis.splitHint, analysis.bill, contacts)
+                    val foreignCurrencyNote = analysis.bill.currencyMismatchNote(appSettings.localCurrency)
+                    val bill = analysis.bill.copy(warnings = analysis.bill.warnings + listOfNotNull(foreignCurrencyNote))
+                    val plan = SplitPlanner.fromHint(analysis.splitHint, bill, contacts)
                     val result = SplitResultState(
-                        bill = analysis.bill,
+                        bill = bill,
                         summary = analysis.message,
                         ocrDocument = OcrLayoutEncoder.encode(ocr),
                         plan = plan,
-                        split = SplitCalculator.split(analysis.bill, plan.participantIds, plan.sharersByItem()),
+                        split = SplitCalculator.split(bill, plan.participantIds, plan.sharersByItem()),
                     )
                     mutableState.update { it.copy(result = result) }
                 }

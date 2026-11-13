@@ -12,8 +12,12 @@ import com.example.splitbill.ocr.OcrResult
  * backend so the API key never ships inside the app.
  */
 interface BillAnalyzer {
-    /** @throws BillAnalyzerException when the model could not be reached or gave no usable answer. */
-    suspend fun analyze(ocr: OcrResult, instruction: String): BillAnalysis
+    /**
+     * @param localCurrency ISO 4217 code of the currency the user's payment app works in, used
+     *   when the bill does not show its own.
+     * @throws BillAnalyzerException when the model could not be reached or gave no usable answer.
+     */
+    suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis
 }
 
 sealed interface BillAnalysis {

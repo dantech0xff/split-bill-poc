@@ -14,6 +14,7 @@ internal object BillSchema {
         "merchant" to string("Business name, or an empty string when it is not visible."),
         "date" to string("Bill date as YYYY-MM-DD, or an empty string when it is not visible."),
         "currency" to string("ISO 4217 code such as VND or USD."),
+        "amount_decimals" to integer("Decimal places the bill prints its prices with: 0 for \"70.000 đ\" or \"Rp 33.000\", 2 for \"$12.50\"."),
         "items" to array(
             obj(
                 "name" to string("Item name as printed."),
@@ -31,14 +32,14 @@ internal object BillSchema {
         ),
         "total" to number("Final amount to pay."),
         "split" to obj(
-            "people" to array(string("A person named in the user's instruction, as the user wrote it.")),
+            "people" to array(string("Another person named in the user's instruction, as the user wrote it. Never the user.")),
             "user_included" to boolean("False only when the user says they are not taking part."),
             "people_count" to nullable("integer", "Total number of people including the user, or null when the user does not say."),
             "item_assignments" to array(
                 obj(
                     "item_index" to integer("Zero-based position of the item in items."),
                     "rule" to enumOf("only", "all_except"),
-                    "people" to array(string("A person the rule names, as the user wrote the name.")),
+                    "people" to array(string("Another person the rule names, as the user wrote the name. Never the user.")),
                     "includes_user" to boolean("True when the user is one of the people the rule names."),
                 ),
             ),

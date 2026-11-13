@@ -51,7 +51,7 @@ class ClaudeBillAnalyzerOnDeviceTest {
         )
 
         val analysis = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString()).use { analyzer ->
-            analyzer.analyze(ocr, "Split with Minh")
+            analyzer.analyze(ocr, "Split with Minh", localCurrency = "VND")
         }
 
         analysis as BillAnalysis.Ready
@@ -73,7 +73,7 @@ class ClaudeBillAnalyzerOnDeviceTest {
         server.enqueue(json("""{"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}""").setResponseCode(401))
 
         try {
-            ClaudeBillAnalyzer("wrong-key", baseUrl = server.url("/").toString()).use { it.analyze(ocr, "") }
+            ClaudeBillAnalyzer("wrong-key", baseUrl = server.url("/").toString()).use { it.analyze(ocr, "", localCurrency = "VND") }
             fail("A rejected key must not look like a readable bill")
         } catch (e: BillAnalyzerException) {
             assertEquals(BillAnalyzerException.Kind.INVALID_API_KEY, e.kind)

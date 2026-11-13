@@ -34,27 +34,33 @@ internal object BillAnalysisParser {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(text: String): BillAnalysis {
+    /**
+     * @param localCurrency the currency of the user's payment app. A bill whose currency could not
+     *   be told is taken to be in it.
+     */
+    fun parse(text: String, localCurrency: String = ""): BillAnalysis {
         val answer = try {
             json.decodeFromString<BillAnswer>(text)
         } catch (e: IllegalArgumentException) { // includes SerializationException
             throw BillAnalyzerException(Kind.BAD_RESPONSE, "Claude's answer was not in the expected format. Please try again.", e)
         }
         return try {
-            toAnalysis(answer)
+            toAnalysis(answer, localCurrency)
         } catch (e: ArithmeticException) {
             throw BillAnalyzerException(Kind.BAD_RESPONSE, "Claude returned an amount that is not a plausible price. Please try again.", e)
         }
     }
 
-    private fun toAnalysis(answer: BillAnswer): BillAnalysis {
+    private fun toAnalysis(answer: BillAnswer, localCurrency: String): BillAnalysis {
         if (!answer.status.trim().equals("ok", ignoreCase = true)) {
             return BillAnalysis.Rejected(answer.message.trim().ifEmpty { "This photo could not be read as a bill. Try a sharper, well-lit photo." })
         }
 
         val amounts = answer.items.map { it.amount } + answer.charges.map { it.amount } + answer.total
         amounts.forEach(::requirePlausible)
-        val currency = BillCurrency.resolve(answer.currency, amounts)
+        val reportedCode = answer.currency.trim()
+        val code = if (reportedCode.isEmpty() || reportedCode.equals(BillCurrency.NO_CURRENCY, ignoreCase = true)) localCurrency else reportedCode
+        val currency = BillCurrency.resolve(code, answer.amountDecimals, amounts)
 
         val items = answer.items.map { item ->
             BillItem(
@@ -148,6 +154,7 @@ internal data class BillAnswer(
     val merchant: String = "",
     val date: String = "",
     val currency: String = "",
+    @SerialName("amount_decimals") val amountDecimals: Int? = null,
     val items: List<ItemAnswer> = emptyList(),
     val charges: List<ChargeAnswer> = emptyList(),
     @Serializable(with = JsonNumberAsBigDecimal::class) val total: BigDecimal = BigDecimal.ZERO,

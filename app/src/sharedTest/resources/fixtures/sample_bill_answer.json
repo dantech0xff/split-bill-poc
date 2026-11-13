@@ -1,8 +1,9 @@
 {
   "status": "ok",
-  "merchant": "Quán Ốc Ba Miền",
+  "merchant": "QUÁN ỐC BA MIỂN",
   "date": "2026-11-13",
   "currency": "VND",
+  "amount_decimals": 0,
   "items": [
     {
       "name": "Ốc hương rang muối",
@@ -79,5 +80,5 @@
     ]
   },
   "warnings": [],
-  "message": "The bill from Quán Ốc Ba Miền comes to 902,664 VND, split three ways between you, Minh and Lan, and the beers go to Minh only."
+  "message": "I read the bill from Quán Ốc Ba Miển: the total is 902,664 VND, split between you, Minh and Lan, with the beers going to Minh."
 }

@@ -1,6 +1,7 @@
 package com.example.splitbill.llm
 
 import com.example.splitbill.Fixtures
+import com.example.splitbill.domain.BillCurrency
 import com.example.splitbill.domain.ItemAssignmentHint
 import com.example.splitbill.domain.ShareRule
 import kotlinx.coroutines.runBlocking
@@ -24,12 +25,12 @@ class LiveClaudeBillAnalyzerTest {
         assumeTrue("Set ANTHROPIC_API_KEY to run this test against the real API", apiKey.isNotBlank())
 
         val analysis = ClaudeBillAnalyzer(apiKey).use { analyzer ->
-            analyzer.analyze(Fixtures.ocr("sample_bill_ocr.json"), "Split with Minh and Lan. Minh had the beers.")
+            analyzer.analyze(Fixtures.ocr("sample_bill_ocr.json"), "Split with Minh and Lan. Minh had the beers.", localCurrency = "VND")
         }
 
         analysis as BillAnalysis.Ready
         val bill = analysis.bill
-        assertEquals("VND", bill.currency.code)
+        assertEquals(BillCurrency("VND", 0), bill.currency)
         assertEquals(902_664L, bill.totalMinor)
         assertEquals(7, bill.items.size)
         assertEquals(796_000L, bill.itemsTotalMinor)

@@ -5,6 +5,7 @@ import com.example.splitbill.domain.BillReconciler
 import com.example.splitbill.domain.ChargeKind
 import com.example.splitbill.domain.ItemAssignmentHint
 import com.example.splitbill.domain.ShareRule
+import com.example.splitbill.domain.SplitCalculator
 import com.example.splitbill.domain.SplitHint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -190,6 +191,58 @@ class BillAnalysisParserTest {
         assertEquals(listOf("Burger"), bill.items.map { it.name })
         assertEquals(listOf(-200L), bill.charges.map { it.amountMinor })
         assertTrue(bill.warnings.isEmpty())
+    }
+
+    @Test
+    fun `rupiah bill printed without decimals is split in whole rupiah`() {
+        val bill = ready(
+            """
+            {"status": "ok", "merchant": "Warung Sari", "date": "", "currency": "IDR", "amount_decimals": 0,
+             "items": [{"name": "Nasi goreng", "quantity": 2, "unit_price": 35000, "amount": 70000},
+                       {"name": "Es teh", "quantity": 3, "unit_price": 8000, "amount": 24000}],
+             "charges": [{"label": "PB1 10%", "kind": "tax", "amount": 9400}], "total": 103400,
+             "split": {"people": [], "user_included": true, "people_count": 3, "item_assignments": []},
+             "warnings": [], "message": ""}
+            """.trimIndent(),
+        ).bill
+
+        assertEquals(BillCurrency("IDR", 0), bill.currency)
+        assertEquals(103_400L, bill.totalMinor)
+        val thirds = SplitCalculator.split(bill, listOf("a", "b", "c")).shares.map { it.totalMinor }
+        assertEquals("no share may carry decimals nobody can pay", listOf(34_467L, 34_467L, 34_466L), thirds)
+    }
+
+    @Test
+    fun `dollar bill printed with cents is split to the cent`() {
+        val bill = ready(
+            """
+            {"status": "ok", "currency": "USD", "amount_decimals": 2,
+             "items": [{"name": "Burger", "quantity": 2, "unit_price": 10, "amount": 20}],
+             "charges": [], "total": 20,
+             "split": {"people": [], "user_included": true, "people_count": null, "item_assignments": []},
+             "warnings": [], "message": ""}
+            """.trimIndent(),
+        ).bill
+
+        assertEquals(BillCurrency("USD", 2), bill.currency)
+        assertEquals(listOf(667L, 667L, 666L), SplitCalculator.split(bill, listOf("a", "b", "c")).shares.map { it.totalMinor })
+    }
+
+    @Test
+    fun `bill without a recognisable currency is taken to be in the app's local currency`() {
+        val json = """
+            {"status": "ok", "currency": "XXX", "amount_decimals": 0,
+             "items": [{"name": "Com tam", "quantity": 1, "unit_price": 45000, "amount": 45000}],
+             "charges": [], "total": 45000,
+             "split": {"people": [], "user_included": true, "people_count": null, "item_assignments": []},
+             "warnings": [], "message": ""}
+        """.trimIndent()
+
+        val inAppCurrency = (BillAnalysisParser.parse(json, localCurrency = "VND") as BillAnalysis.Ready).bill
+        val withoutSetting = (BillAnalysisParser.parse(json) as BillAnalysis.Ready).bill
+
+        assertEquals(BillCurrency("VND", 0), inAppCurrency.currency)
+        assertEquals(BillCurrency("", 0), withoutSetting.currency)
     }
 
     @Test

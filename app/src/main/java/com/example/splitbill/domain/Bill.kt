@@ -1,6 +1,7 @@
 package com.example.splitbill.domain
 
 import java.math.BigDecimal
+import java.util.Locale
 
 enum class ChargeKind { TAX, SERVICE_CHARGE, TIP, DISCOUNT, ROUNDING, OTHER }
 
@@ -42,4 +43,15 @@ data class Bill(
     val chargesTotalMinor: Long get() = charges.sumOf { it.amountMinor }
 
     fun format(minor: Long): String = currency.format(minor)
+}
+
+/**
+ * The note shown when a bill is not in the currency the user's payment app works in. The amounts
+ * stay in the bill's currency: converting them would need an exchange rate the app does not have.
+ */
+fun Bill.currencyMismatchNote(localCurrency: String): String? {
+    val local = localCurrency.trim().uppercase(Locale.ROOT)
+    val billCurrency = currency.code
+    if (local.isEmpty() || billCurrency.isEmpty() || billCurrency == local) return null
+    return "This bill is in $billCurrency, but your app currency is $local. Amounts are shown in $billCurrency and are not converted."
 }

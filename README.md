@@ -56,6 +56,9 @@ Then give the app an Anthropic API key in one of two ways:
 
   A debug APK built this way contains the key in readable form. Do not hand that APK to anyone.
 
+Settings also holds the app's **local currency** (the currency the payment app works in). It
+defaults to the currency of the phone's region.
+
 Without a real bill at hand, tap **Use the sample bill** on the new-split screen.
 
 ## How it works
@@ -102,7 +105,8 @@ Split with Minh and Lan. Minh had the beers.
   model instead of failing. If the API rejects that beta option, the request is sent again without it,
   and the option is left out for the rest of the session.
 
-The model returns items, charges, the total, the currency, and what the instruction said about people:
+The model returns items, charges, the total, the currency, the number of decimals the prices are
+printed with, and what the instruction said about people:
 who is named, how many people there are, and item rules of two kinds. `only` means the item belongs
 to the people named ("Minh had the beers"). `all_except` means the people named did not have it ("I
 didn't drink"), which leaves it to everyone else. The model does not compute anyone's share.
@@ -110,6 +114,11 @@ didn't drink"), which leaves it to everyone else. The model does not compute any
 ### 3. The arithmetic stays on the device
 
 - Amounts are converted to whole minor units (`BillCurrency`), so nothing is lost to rounding.
+- The currency and its precision come from the bill. A bill is never split finer than its prices
+  are printed, and never finer than the currency allows. So a rupiah, forint or dong bill is split
+  in whole units, and a dollar bill printed with cents is split to the cent.
+- A bill that shows no currency is taken to be in the app's local currency (Settings). A bill in a
+  different currency is split in its own currency and marked with a note; nothing is converted.
 - `BillReconciler` checks that items plus charges equal the total. If they do not, the printed total
   wins and the gap is shown as an explicit "Unallocated difference" line with a warning. A line with
   a negative amount, such as a voucher, is treated as a deduction on the whole bill.
@@ -151,7 +160,7 @@ app/src/sharedTest/resources/ recorded ML Kit output and a recorded Claude answe
 ./gradlew testDebugUnitTest
 ```
 
-72 unit tests cover the split rules (including 2,000 random bills whose shares must add up to the
+80 unit tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
 layout, answer parsing, the Claude client and the UI flow.
 
@@ -182,11 +191,11 @@ ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testDebugUnitTest --tests '*LiveClau
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew assembleDebug` and `assembleRelease` (R8) | both build |
-| Unit tests | `./gradlew testDebugUnitTest` | 71 pass, 1 skipped (the live API test, which needs a key) |
+| Unit tests | `./gradlew testDebugUnitTest` | 79 pass, 1 skipped (the live API test, which needs a key) |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
-| On-device tests | Each test class run with `am instrument` on an Android 14 emulator (x86_64, software emulation) | all pass |
+| On-device tests | Each test class run with `am instrument` on an Android 14 emulator (x86_64, software emulation) | all passed on the first delivery; not re-run since the currency change |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
-| Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill |
+| Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
 
 What has not been verified:
 
@@ -209,10 +218,10 @@ What has not been verified:
   `Authorization: Bearer`.
 - **Mock data.** Contacts are seeded in `SeededContactRepository`, and "Request" creates nothing.
 - **Latin script only.** Chinese, Japanese, Korean and Devanagari need the matching ML Kit artifacts.
-- **Currencies with decimals nobody uses.** Shares are calculated in the ISO 4217 minor unit, which is
-  right for VND, USD, EUR or JPY. For currencies such as IDR, HUF or TWD that have two decimals on
-  paper but are paid in whole units, shares can come out with decimals. `BillCurrency.resolve` is the
-  place to plug in the minor unit your payment product really uses.
+- **No currency conversion.** A bill in another currency than the app's local currency stays in
+  its own currency. Converting would need an exchange rate source.
+- **Bills printed without decimals are split in whole units**, including the rare dollar or euro bill
+  that shows no cents.
 - **First request is slower.** The SDK sets up its JSON machinery on first use. This happens on a
   background thread; later requests in the same app session skip it.
 - **App size.** The debug APK is about 72 MB because the SDK's code is not shrunk. R8 shrinks the code
