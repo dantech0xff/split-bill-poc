@@ -1,0 +1,83 @@
+{
+  "status": "ok",
+  "merchant": "Quán Ốc Ba Miền",
+  "date": "2026-11-13",
+  "currency": "VND",
+  "items": [
+    {
+      "name": "Ốc hương rang muối",
+      "quantity": 1,
+      "unit_price": 165000,
+      "amount": 165000
+    },
+    {
+      "name": "Nghêu hấp sả",
+      "quantity": 1,
+      "unit_price": 95000,
+      "amount": 95000
+    },
+    {
+      "name": "Mực nướng sa tế",
+      "quantity": 1,
+      "unit_price": 185000,
+      "amount": 185000
+    },
+    {
+      "name": "Cơm chiên hải sản",
+      "quantity": 2,
+      "unit_price": 75000,
+      "amount": 150000
+    },
+    {
+      "name": "Rau muống xào tỏi",
+      "quantity": 1,
+      "unit_price": 45000,
+      "amount": 45000
+    },
+    {
+      "name": "Bia Saigon Special",
+      "quantity": 6,
+      "unit_price": 22000,
+      "amount": 132000
+    },
+    {
+      "name": "Nước suối",
+      "quantity": 2,
+      "unit_price": 12000,
+      "amount": 24000
+    }
+  ],
+  "charges": [
+    {
+      "label": "Phí phục vụ (5%)",
+      "kind": "service_charge",
+      "amount": 39800
+    },
+    {
+      "label": "VAT (8%)",
+      "kind": "tax",
+      "amount": 66864
+    }
+  ],
+  "total": 902664,
+  "split": {
+    "people": [
+      "Minh",
+      "Lan"
+    ],
+    "user_included": true,
+    "people_count": 3,
+    "item_assignments": [
+      {
+        "item_index": 5,
+        "rule": "only",
+        "people": [
+          "Minh"
+        ],
+        "includes_user": false
+      }
+    ]
+  },
+  "warnings": [],
+  "message": "The bill from Quán Ốc Ba Miền comes to 902,664 VND, split three ways between you, Minh and Lan, and the beers go to Minh only."
+}
