@@ -15,7 +15,7 @@ import org.junit.Test
  *
  * Skipped unless an API key is provided, because it needs the network and spends a few cents:
  *
- *     ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testDebugUnitTest --tests '*LiveClaudeBillAnalyzerTest*' --rerun
+ *     ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*LiveClaudeBillAnalyzerTest*' --rerun
  */
 class LiveClaudeBillAnalyzerTest {
 

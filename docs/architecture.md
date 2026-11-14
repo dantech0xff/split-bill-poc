@@ -85,7 +85,9 @@ The [README](../README.md) describes each step in detail.
 ### Release signing
 
 No key is stored in the repository. A release build is signed only when all four variables below
-are set; with any of them missing it comes out unsigned, which is what every check uses.
+are set. With none of them set it comes out unsigned, which is what every check uses. With only some
+of them set the build stops and names the missing ones, because that can only be a mistake in the
+release setup. A blank value counts as not set.
 
 | Variable | Meaning |
 |---|---|
@@ -129,8 +131,9 @@ in the pull request like code:
 ./gradlew :app:testProdDebugUnitTest -Pscreenshots=record
 ```
 
-When a comparison fails, the test writes `*_compare.png` next to the reference image. Those files
-are git-ignored, and the workflow keeps them as an artifact.
+When a comparison fails, the test writes a side-by-side image of the old and the new version to
+the `outputs/roborazzi` folder of the app's output directory. The workflow keeps those images in the
+`reports` artifact of the failed run.
 
 ### Dependency checksums
 

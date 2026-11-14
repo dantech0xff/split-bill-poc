@@ -22,7 +22,3 @@ captures/
 
 # OS
 .DS_Store
-
-# Screenshot test failures: comparison images written next to the reference images
-*_compare.png
-*_actual.png

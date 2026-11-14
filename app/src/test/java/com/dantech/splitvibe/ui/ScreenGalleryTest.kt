@@ -64,7 +64,7 @@ import org.robolectric.annotation.GraphicsMode
  *
  * After an intended visual change, record new reference images and review them like code:
  *
- *     ./gradlew :app:testDebugUnitTest --tests '*ScreenGalleryTest*' -Pscreenshots=record
+ *     ./gradlew :app:testProdDebugUnitTest --tests '*ScreenGalleryTest*' -Pscreenshots=record
  */
 @OptIn(ExperimentalRoborazziApi::class)
 @RunWith(AndroidJUnit4::class)

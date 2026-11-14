@@ -50,16 +50,20 @@ jobs:
       - name: Debug package, release package and bundle
         run: ./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease
 
+      # These only run on an emulator, nightly. Compiling them here catches a break before it merges.
+      - name: Dev flavor, device tests and profile module compile
+        run: ./gradlew :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
+
       - name: Keep the reports of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reports
+          # outputs/roborazzi holds the side-by-side image of every screenshot that changed.
           path: |
             **/reports/tests/
             **/reports/lint-results-*
-            app/src/test/screenshots/*_compare.png
-            app/src/test/screenshots/*_actual.png
+            **/outputs/roborazzi/
           retention-days: 7
 
   secrets:

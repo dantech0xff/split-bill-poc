@@ -18,10 +18,17 @@ val debugAnthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KE
 
 // The upload key never lives in the repository. A release build is signed only when all four
 // variables are set, which only the release workflow does. Everywhere else it comes out unsigned.
-val uploadKey: Map<String, String> = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
-    .mapNotNull { name -> providers.environmentVariable("SPLITVIBE_UPLOAD_$name").orNull?.let { name to it } }
+val uploadKeyParts = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+val uploadKey: Map<String, String> = uploadKeyParts
+    // A secret that is missing in a workflow arrives as an empty string, so blank counts as not set.
+    .mapNotNull { part -> providers.environmentVariable("SPLITVIBE_UPLOAD_$part").orNull?.takeIf { it.isNotBlank() }?.let { part to it } }
     .toMap()
-val hasUploadKey = uploadKey.size == 4
+val hasUploadKey = uploadKey.size == uploadKeyParts.size
+// Some but not all of them is a mistake in the release setup. Stopping here beats shipping an unsigned file.
+check(uploadKey.isEmpty() || hasUploadKey) {
+    "Release signing needs all four SPLITVIBE_UPLOAD_ variables or none. Missing: " +
+        (uploadKeyParts - uploadKey.keys).joinToString { "SPLITVIBE_UPLOAD_$it" }
+}
 
 android {
     namespace = "com.dantech.splitvibe"
