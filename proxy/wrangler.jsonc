@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "split-vibe-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "upload_source_maps": true,
+  // Logs hold only what the Worker prints, which is never a bill, a name, an install id or an IP.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "QUOTA_BOOK", "class_name": "QuotaBook" },
+      { "name": "ABUSE_LEDGER", "class_name": "AbuseLedger" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["QuotaBook", "AbuseLedger"] }
+  ]
+}
