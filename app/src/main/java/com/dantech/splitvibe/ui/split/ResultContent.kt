@@ -22,17 +22,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -56,8 +54,10 @@ import com.dantech.splitvibe.data.contacts.Contact
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
+import com.dantech.splitvibe.designsystem.components.SvPersonChip
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
@@ -152,27 +152,20 @@ fun ResultContent(
                         modifier = Modifier.padding(horizontal = SvSpacing.lg),
                         horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                     ) {
-                        FilterChip(
+                        SvPersonChip(
+                            name = ME_LABEL,
                             selected = plan.includeMe,
                             onClick = onToggleMe,
-                            label = { Text(ME_LABEL) },
                             modifier = Modifier.bounceOnChange(plan.includeMe),
                         )
                         plan.selectedContactIds.forEach { id ->
                             // Keyed by person, so a chip stays itself when others are added or removed.
                             key(id) {
-                                InputChip(
-                                    selected = true,
-                                    onClick = { onToggleContact(id) },
-                                    label = { Text(nameOf(id)) },
+                                SvPersonChip(
+                                    name = nameOf(id),
+                                    removeLabel = "Remove ${nameOf(id)}",
+                                    onRemove = { onToggleContact(id) },
                                     modifier = Modifier.popIn(entry),
-                                    trailingIcon = {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Remove ${nameOf(id)}",
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    },
                                 )
                             }
                         }
@@ -220,10 +213,10 @@ fun ResultContent(
             item(key = "shares header") { SvSectionHeader("Each person pays", modifier = rowMotion()) }
             if (result.split.shares.isEmpty()) {
                 item(key = "nobody") {
-                    Text(
-                        "Nobody is sharing this bill yet. Add yourself or pick people.",
-                        modifier = rowMotion().padding(horizontal = SvSpacing.lg),
-                        style = MaterialTheme.typography.bodyMedium,
+                    SvEmptyState(
+                        icon = Icons.Default.Person,
+                        text = "Nobody is sharing this bill yet. Add yourself or pick people.",
+                        modifier = rowMotion(),
                     )
                 }
             }

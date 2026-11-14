@@ -26,6 +26,8 @@ dependencies {
     api(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.material3)
+    // The icons the components draw themselves.
+    implementation(libs.androidx.compose.material.icons.core)
 
     testImplementation(libs.junit)
 }

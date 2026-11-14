@@ -21,13 +21,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,15 +50,25 @@ import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
+import com.dantech.splitvibe.designsystem.components.SvEmptyState
+import com.dantech.splitvibe.designsystem.components.SvFabMenu
+import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
+import com.dantech.splitvibe.designsystem.components.SvFloatingToolbar
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
+import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
+import com.dantech.splitvibe.designsystem.components.SvPersonChip
+import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.motion.SvAmount
@@ -177,6 +198,95 @@ fun CatalogScreen() {
                 }
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     SvBillPhoto(photo = sample, contentDescription = "Sample bill", scanning = true, modifier = Modifier.height(160.dp))
+                }
+            }
+
+            item {
+                SvSectionHeader("People", hint = "SvPersonChip, switched on, off and added, and SvPersonPickRow.")
+                var meIncluded by remember { mutableStateOf(true) }
+                FlowRow(
+                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                ) {
+                    SvPersonChip(name = "Me", selected = meIncluded, onClick = { meIncluded = !meIncluded })
+                    SvPersonChip(name = SAMPLE_PEOPLE[2], selected = false, onClick = {})
+                    SvPersonChip(name = SAMPLE_PEOPLE[0], removeLabel = "Remove ${SAMPLE_PEOPLE[0]}", onRemove = {})
+                }
+                var picked by remember { mutableStateOf(setOf(SAMPLE_PEOPLE[1])) }
+                SAMPLE_PEOPLE.take(2).forEach { name ->
+                    SvPersonPickRow(
+                        name = name,
+                        detail = "@${name.substringAfterLast(' ').lowercase()}",
+                        checked = name in picked,
+                        onCheckedChange = { picked = if (it) picked + name else picked - name },
+                    )
+                }
+            }
+
+            item {
+                SvSectionHeader("Empty", hint = "SvEmptyState, in place of what is not there yet.")
+                SvEmptyState(icon = Icons.Default.Person, text = "Nobody is sharing this bill yet. Add yourself or pick people.")
+            }
+
+            item {
+                SvSectionHeader("Choices", hint = "SvChoiceGroup and SvSplitButton.")
+                var mode by remember { mutableIntStateOf(0) }
+                Column(
+                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
+                ) {
+                    SvChoiceGroup(options = listOf("Equally", "By item", "By amount"), selected = mode, onSelect = { mode = it })
+                    SvSplitButton(
+                        text = "Request all",
+                        onClick = {},
+                        moreLabel = "More ways to request",
+                        options = listOf(SvMenuOption("Request one by one") {}, SvMenuOption("Copy the amounts") {}),
+                    )
+                }
+            }
+
+            item {
+                SvSectionHeader("Floating", hint = "SvFloatingToolbar and SvFabMenu, closed.")
+                var menuOpen by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SvSpacing.lg),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    SvFloatingToolbar {
+                        IconButton(onClick = {}) { Icon(Icons.Default.Edit, contentDescription = "Edit") }
+                        IconButton(onClick = {}) { Icon(Icons.Default.Share, contentDescription = "Share") }
+                        IconButton(onClick = {}) { Icon(Icons.Default.Delete, contentDescription = "Delete") }
+                    }
+                    SvFabMenu(
+                        expanded = menuOpen,
+                        onExpandedChange = { menuOpen = it },
+                        label = "Start a split",
+                        icon = Icons.Default.Add,
+                        items = listOf(
+                            SvFabMenuItem("Take photo", Icons.Default.Add) {
+                            },
+                            SvFabMenuItem("Type it in", Icons.Default.Edit) {},
+                        ),
+                    )
+                }
+            }
+
+            item {
+                SvSectionHeader("Sheet", hint = "SvBottomSheet, opened from a button.")
+                var sheetOpen by remember { mutableStateOf(false) }
+                TextButton(onClick = { sheetOpen = true }, modifier = Modifier.padding(horizontal = SvSpacing.sm)) { Text("Open a sheet") }
+                if (sheetOpen) {
+                    SvBottomSheet(
+                        title = "A sheet",
+                        supportingText = "A short task on top of the screen.",
+                        onDismiss = { sheetOpen = false },
+                        actions = { SvPrimaryButton(text = "Done", onClick = { sheetOpen = false }) },
+                    ) {
+                        SvPersonPickRow(name = SAMPLE_PEOPLE[0], checked = true, onCheckedChange = {})
+                    }
                 }
             }
 

@@ -94,6 +94,10 @@ seen, so a level is a lighter surface instead and nothing is drawn around it.
 Use `Modifier.elevation(level, shape)` before the background of the same shape, and
 `level.surface` for the colour. The components below already do both.
 
+A Material component that draws a shadow of its own gets it switched off and takes a level
+instead, so every shadow in the app looks alike. Where Material offers no way to switch it off,
+as for the button of the floating menu, the design system draws that part itself.
+
 Only the strength of a shadow may be animated, through the `strength` parameter. It changes
 opacity and offset, which are cheap to redraw every frame. The blur radius is fixed per level
 because redrawing it every frame is expensive.
@@ -146,6 +150,14 @@ moves on its own in that case and that a bill can still be split from start to f
 | `SvPrimaryButton` | The main action as a large button across the full width. It is fully round, so it can turn into a round surface. |
 | `SvBottomBar` | The floating bar at the bottom that holds the main action. |
 | `SvPrimaryFab` | The main action as a floating button, for a screen that is mostly a list. |
+| `SvFabMenu` | The main action as a floating button that opens a short menu, for a main action that can start in a few ways. The screen keeps whether it is open and closes it on back. |
+| `SvSplitButton` | A main action with a few close alternatives behind an arrow. |
+| `SvChoiceGroup` | One option out of a few, as joined buttons that a screen reader reads as radio buttons. |
+| `SvFloatingToolbar` | A short row of actions of equal weight that floats over the content. |
+| `SvPersonChip` | A person as a chip with their colour: one that can be switched on and off, or one that was added and is removed with a tap. |
+| `SvPersonPickRow` | A person who can be ticked in a list, such as in a sheet. One tick box for a screen reader, with its own label. |
+| `SvBottomSheet` | A sheet from the bottom for a short task: a title, the content, and the actions at the bottom. It follows the finger and previews the screen behind on a back swipe. |
+| `SvEmptyState` | Takes the place of something that is not there yet, with a soft round icon and a sentence. |
 
 ### The catalog
 
