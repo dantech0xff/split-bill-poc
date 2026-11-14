@@ -191,7 +191,9 @@ class ClaudeBillAnalyzerTest {
             impatient.close()
         }
 
-        assertEquals(Kind.TIMEOUT, error.kind)
+        // The chain of causes is the message, so a failure on another machine shows what was thrown there.
+        val causes = generateSequence<Throwable>(error) { it.cause }.joinToString(" <- ") { "${it.javaClass.name}: ${it.message}" }
+        assertEquals(causes, Kind.TIMEOUT, error.kind)
         assertEquals(2, server.requestCount)
     }
 
