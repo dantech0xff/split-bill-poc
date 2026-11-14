@@ -11,6 +11,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
@@ -38,17 +40,38 @@ enum class SvRowPosition {
  * One row of a group. The rows of a group sit close together on a tinted surface and only the
  * outer corners of the group are fully round, so the group reads as one block without any
  * divider lines. Each row can still be a separate item of a lazy list.
+ */
+@Composable
+fun SvListRow(position: SvRowPosition, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) =
+    GroupRow(position = position, modifier = modifier, action = Modifier, content = content)
+
+/**
+ * A row of a group that can be tapped. A screen reader reads the whole row as one button: [label]
+ * is what the row says, in one sentence, and [onClickLabel] is what a tap does.
  *
- * With [onClick] the whole row is a button; [onClickLabel] tells a screen reader what it does.
+ * The row carries its label itself because a screen reader cannot read the text inside a row
+ * while that text is scrolled out of view or lies under a bar, even when the edge of the row
+ * still shows.
  */
 @Composable
 fun SvListRow(
     position: SvRowPosition,
+    label: String,
+    onClickLabel: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    onClickLabel: String? = null,
     content: @Composable RowScope.() -> Unit,
-) {
+) = GroupRow(
+    position = position,
+    modifier = modifier,
+    action = Modifier
+        .clickable(onClickLabel = onClickLabel, onClick = onClick)
+        .semantics { contentDescription = label },
+    content = content,
+)
+
+@Composable
+private fun GroupRow(position: SvRowPosition, modifier: Modifier, action: Modifier, content: @Composable RowScope.() -> Unit) {
     val outer = SvShapes.groupOuterCorner
     val inner = SvShapes.groupInnerCorner
     val top = if (position == SvRowPosition.Single || position == SvRowPosition.First) outer else inner
@@ -61,9 +84,7 @@ fun SvListRow(
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Row(
-            modifier = Modifier
-                .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
-                .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
+            modifier = action.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )

@@ -112,11 +112,17 @@ fun CatalogScreen() {
 
             item { SvSectionHeader("Grouped rows", hint = "SvListRow, with SvAvatar and an amount.") }
             itemsIndexed(SAMPLE_PEOPLE) { index, name ->
-                SvListRow(position = SvRowPosition.of(index, SAMPLE_PEOPLE.size), onClick = {}, onClickLabel = "Open $name") {
+                val amount = 250_000L + index * 75_340L
+                SvListRow(
+                    position = SvRowPosition.of(index, SAMPLE_PEOPLE.size),
+                    label = "$name, ${sampleMoney(amount)}",
+                    onClickLabel = "Open $name",
+                    onClick = {},
+                ) {
                     SvAvatar(name)
                     Spacer(Modifier.width(SvSpacing.md))
                     Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    SvAmount(250_000L + index * 75_340L, format = ::sampleMoney, style = MaterialTheme.typography.amountMedium)
+                    SvAmount(amount, format = ::sampleMoney, style = MaterialTheme.typography.amountMedium)
                 }
             }
             item {

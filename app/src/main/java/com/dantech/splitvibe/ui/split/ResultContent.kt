@@ -280,21 +280,29 @@ private fun ItemRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SvListRow(position = position, modifier = modifier, onClick = onClick, onClickLabel = "Choose who shares ${item.name}") {
+    val unitPrice = item.unitPriceMinor
+    val quantity = if (unitPrice != null && item.quantity.compareTo(BigDecimal.ONE) != 0) {
+        "${item.quantity.stripTrailingZeros().toPlainString()} × ${bill.format(unitPrice)}"
+    } else {
+        null
+    }
+    val amount = bill.format(item.amountMinor)
+    SvListRow(
+        position = position,
+        label = listOfNotNull(item.name, quantity, amount, sharers).joinToString(", "),
+        onClickLabel = "Choose who shares ${item.name}",
+        onClick = onClick,
+        modifier = modifier,
+    ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.bodyLarge)
-            val unitPrice = item.unitPriceMinor
-            if (unitPrice != null && item.quantity.compareTo(BigDecimal.ONE) != 0) {
-                Text(
-                    "${item.quantity.stripTrailingZeros().toPlainString()} × ${bill.format(unitPrice)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (quantity != null) {
+                Text(quantity, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(sharers, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
         Spacer(Modifier.width(SvSpacing.md))
-        Text(bill.format(item.amountMinor), style = MaterialTheme.typography.amountSmall)
+        Text(amount, style = MaterialTheme.typography.amountSmall)
     }
 }
 
