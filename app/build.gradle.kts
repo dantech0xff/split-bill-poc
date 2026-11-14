@@ -15,6 +15,13 @@ val localProperties = Properties().apply {
 }
 val debugAnthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KEY", "").trim()
 
+// The upload key never lives in the repository. A release build is signed only when all four
+// variables are set, which only the release workflow does. Everywhere else it comes out unsigned.
+val uploadKey: Map<String, String> = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+    .mapNotNull { name -> providers.environmentVariable("SPLITVIBE_UPLOAD_$name").orNull?.let { name to it } }
+    .toMap()
+val hasUploadKey = uploadKey.size == 4
+
 android {
     namespace = "com.dantech.splitvibe"
     // Compose 1.12 and material3 1.5 need the Android 17 SDK to compile against.
@@ -32,6 +39,17 @@ android {
         buildConfigField("String", "DEFAULT_ANTHROPIC_API_KEY", "\"\"")
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("upload") {
+                storeFile = file(uploadKey.getValue("KEYSTORE_FILE"))
+                storePassword = uploadKey.getValue("KEYSTORE_PASSWORD")
+                keyAlias = uploadKey.getValue("KEY_ALIAS")
+                keyPassword = uploadKey.getValue("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "DEFAULT_ANTHROPIC_API_KEY", "\"$debugAnthropicApiKey\"")
@@ -40,8 +58,19 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // POC only: sign release with the debug key so `assembleRelease` yields an installable APK.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload")
+        }
+    }
+
+    // `dev` installs next to the real app under its own id, so test data never mixes with real data.
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+        }
+        create("prod") {
+            dimension = "environment"
         }
     }
 
@@ -65,6 +94,17 @@ android {
             test.systemProperty("roborazzi.test.$screenshots", "true")
             // Draws shadows and other hardware-rendered effects the way a device does.
             test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+        }
+        // An emulator that Gradle downloads, starts and stops itself for the tests in src/androidTest:
+        // ./gradlew :app:pixel6Api34ProdDebugAndroidTest
+        managedDevices {
+            localDevices {
+                create("pixel6Api34") {
+                    device = "Pixel 6"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+            }
         }
     }
 
@@ -135,4 +175,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
