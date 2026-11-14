@@ -17,11 +17,13 @@ import androidx.compose.ui.Modifier
  * made.
  *
  * [step] carries what the step shows, so a step that is being left can still be drawn while it
- * fades out. [stepOf] tells which changes of [step] make a new step; any other change only
- * updates the step on screen.
+ * fades out. [stepOf] names the step: a change of name is a new step, any other change of [step]
+ * only updates the step on screen. The name is part of the key under which the state saved inside
+ * the step comes back after the system ends the app, so it is a plain text that is the same in
+ * every run of the app.
  */
 @Composable
-fun <S> SvSteps(step: S, stepOf: (S) -> Any?, modifier: Modifier = Modifier, content: @Composable (S) -> Unit) {
+fun <S> SvSteps(step: S, stepOf: (S) -> String, modifier: Modifier = Modifier, content: @Composable (S) -> Unit) {
     val leave = SvMotion.stepFadeOut<Float>()
     val arrive = SvMotion.stepFadeIn<Float>()
     SharedTransitionLayout(modifier) {

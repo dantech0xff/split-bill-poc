@@ -35,10 +35,9 @@ fun SplitScreen(
         result != null -> SplitStep.Result(result)
         else -> SplitStep.Input(state)
     }
-    val finish = {
-        viewModel.startNewSplit()
-        onExit()
-    }
+    // The split is left as it is: the screen shrinks back into the button that opened it showing
+    // what it showed, and the next tap on that button starts a new split.
+    val finish = onExit
 
     // Back belongs to the step on screen, not to the one that is fading out.
     when (step) {
@@ -52,7 +51,7 @@ fun SplitScreen(
 
     // One surface with the button that opened this screen, so the screen grows out of that button.
     Box(modifier = Modifier.sharedSurface(SPLIT_SURFACE)) {
-        SvSteps(step = step, stepOf = { it::class }) { shown ->
+        SvSteps(step = step, stepOf = SplitStep::name) { shown ->
             when (shown) {
                 is SplitStep.Sent -> SentContent(bill = shown.result.bill, requests = shown.requests, onDone = finish)
 
@@ -91,9 +90,18 @@ fun SplitScreen(
  * last, so it does not change while it fades out.
  */
 private sealed interface SplitStep {
-    data class Input(val state: SplitUiState) : SplitStep
+    /** Fixed for each step, so that what is saved inside a step comes back after the system ends the app. */
+    val name: String
 
-    data class Result(val result: SplitResultState) : SplitStep
+    data class Input(val state: SplitUiState) : SplitStep {
+        override val name get() = "input"
+    }
 
-    data class Sent(val result: SplitResultState, val requests: List<PaymentRequest>) : SplitStep
+    data class Result(val result: SplitResultState) : SplitStep {
+        override val name get() = "result"
+    }
+
+    data class Sent(val result: SplitResultState, val requests: List<PaymentRequest>) : SplitStep {
+        override val name get() = "sent"
+    }
 }
