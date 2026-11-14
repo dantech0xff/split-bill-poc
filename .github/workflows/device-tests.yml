@@ -1,8 +1,8 @@
 name: Device tests
 
-# The tests that need a real Android runtime: starting the app, the keystore, ML Kit text
-# recognition and the HTTP client. Gradle starts its own emulator for them.
-# They run every night, on request, and whenever the tests or this workflow change.
+# The work that needs a real Android runtime. Gradle starts its own emulator for it.
+# It runs every night, on request, and whenever the device tests, the profile module or this
+# workflow change.
 on:
   schedule:
     - cron: "23 18 * * *"
@@ -10,6 +10,7 @@ on:
   push:
     paths:
       - app/src/androidTest/**
+      - baseline-profile/**
       - .github/workflows/device-tests.yml
 
 permissions:
@@ -20,10 +21,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  device-tests:
-    name: Tests on an Android 14 emulator
+  emulator:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Starting the app, the keystore, ML Kit text recognition and the HTTP client.
+          - name: Tests on an Android 14 emulator
+            task: :app:pixel6Api34ProdDebugAndroidTest
+          # Records which code runs at startup, so a release can ship it precompiled.
+          - name: Record the baseline profile
+            task: :app:generateProdReleaseBaselineProfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -45,16 +56,25 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run the device tests
+      - name: ${{ matrix.name }}
         run: >
-          ./gradlew :app:pixel6Api34ProdDebugAndroidTest
+          ./gradlew ${{ matrix.task }}
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+
+      # Present only after the recording job; a maintainer commits it when it has changed.
+      - name: Keep the recorded profile
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: baseline-profile
+          path: app/src/*/generated/baselineProfiles/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Keep the reports of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: device-test-reports
+          name: reports-${{ strategy.job-index }}
           path: |
             **/reports/androidTests/
             **/outputs/androidTest-results/

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 // Optional developer convenience: put ANTHROPIC_API_KEY=sk-ant-... in local.properties (git-ignored)
@@ -140,6 +141,9 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.exifinterface)
+    // Installs the baseline profile on devices where the store does not do it.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baseline-profile"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
