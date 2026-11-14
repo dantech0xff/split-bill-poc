@@ -46,7 +46,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 
 | # | Phase | Status |
 |---|-------|--------|
-| 1 | [Nền móng kỹ thuật](./phase-01-start.md) | Pending |
+| 1 | [Nền móng kỹ thuật](./phase-01-start.md) | In Progress |
 | 2 | [Hệ thiết kế Expressive, chuyển động và đổ bóng](./phase-02-design-system-expressive.md) | Pending |
 | 3 | [Backend Firebase và cổng AI](./phase-03-firebase-backend-ai-gateway.md) | Pending |
 | 4 | [Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử](./phase-04-bill-capture-editing-split-modes.md) | Pending |
