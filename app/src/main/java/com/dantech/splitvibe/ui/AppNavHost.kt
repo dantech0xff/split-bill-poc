@@ -4,6 +4,7 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -63,7 +64,9 @@ fun AppNavHost() {
             sharedTransitionScope = this,
             transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
             popTransitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
-            predictivePopTransitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
+            // While a back swipe is held, the screen being left also shrinks a little, so it reads as
+            // a card that is being pulled away from the screen behind it.
+            predictivePopTransitionSpec = { fadeIn(fade) togetherWith (fadeOut(fade) + scaleOut(fade, targetScale = 0.85f)) },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 // A view model requested inside a screen lives as long as that screen stays open.
