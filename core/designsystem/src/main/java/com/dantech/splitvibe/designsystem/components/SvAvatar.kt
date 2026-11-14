@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -32,10 +33,13 @@ fun SvAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
+        // The initials follow the size of the circle, not the user's text size: larger text would
+        // not fit in it, and the full name is always written next to the avatar anyway.
+        val initialsSize = with(LocalDensity.current) { (size * 0.36f).toSp() }
         Text(
             text = initials(name),
             color = if (dark) person.onDark else Color.White,
-            style = if (size < 36.dp) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = initialsSize, lineHeight = initialsSize),
         )
     }
 }

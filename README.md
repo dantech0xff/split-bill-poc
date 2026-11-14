@@ -171,7 +171,7 @@ variants and every check in more detail.
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-92 tests cover the split rules (including 2,000 random bills whose shares must add up to the
+97 tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
 layout, answer parsing, the Claude client, the UI flow, app startup, navigation, the dependency
 wiring and the text contrast of the colour palette.
@@ -183,7 +183,8 @@ wiring and the text contrast of the colour palette.
   instruction, analysis, people pre-selected, exact shares, changing who shares an item, request
   confirmation. It replays two recordings of the real pipeline: the text ML Kit read on a device
   and the answer Claude Opus gave for it.
-- `ScreenGalleryTest` draws every screen and compares it with the reference image in
+- `ScreenGalleryTest` draws every screen in the light and the dark theme, and the four main screens
+  with text at twice its size, and compares each with the reference image in
   `app/src/test/screenshots`. After an intended visual change, record new images with
   `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record` and review them like code.
 - `AppStartupTest` and `BackNavigationTest` start the real application and activity: moving between
@@ -220,7 +221,7 @@ ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*Live
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 91 pass, 1 skipped (the live API test, which needs a key) |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 96 pass, 1 skipped (the live API test, which needs a key) |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
 | On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 7 tests pass |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |

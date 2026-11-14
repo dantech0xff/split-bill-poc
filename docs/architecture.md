@@ -39,6 +39,9 @@ module are worth knowing before changing it:
   theme it is a lighter surface and no shadow is drawn. The only part of a shadow that may be
   animated is its strength, which moves opacity and offset. The blur radius is fixed per level
   because changing it every frame is expensive.
+- Screens decide nothing about the look themselves: no theme, no colour value, no shadow, no
+  animation timing, and no experimental Expressive API outside this module.
+  `DesignSystemBoundaryTest` fails when a screen does, and names the line.
 
 ## Inside the app
 
@@ -152,8 +155,14 @@ like code.
 ### Screenshot tests
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
-them with the reference images. `DesignTokensTest` does the same for the elevation levels and the
-amount styles, in the light and the dark theme. After an intended visual change, record new images and review them
+them with the reference images. Every screen has a light and a dark image, and the four main
+screens have one more with text at twice its size, where nothing may be cut off. `DesignTokensTest`
+does the same for the elevation levels and the amount styles.
+
+A picture has to be the same on every run, so two things that move with real time are kept out of
+it. Touch ripples are switched off in the gallery, because the platform draws them on its own clock.
+And the working state, which shows an endless animation, is captured with the animation clock
+stopped at a fixed moment. After an intended visual change, record new images and review them
 in the pull request like code:
 
 ```bash
