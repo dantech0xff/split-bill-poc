@@ -30,8 +30,9 @@ are the same in both modules (`com.dantech.splitvibe.domain`, `.ocr`, `.llm`, `.
 moving a file between them does not change any import.
 
 `:core:designsystem` owns how the app looks. A screen wraps itself in nothing: `MainActivity` applies
-`SplitVibeTheme` once, and screens read colours, type and elevation from it. Two rules in that
-module are worth knowing before changing it:
+`SplitVibeTheme` once, and screens read colours, type and elevation from it.
+[design-system.md](design-system.md) lists the tokens and components. These rules in that module
+are worth knowing before changing it:
 
 - Every colour role takes a fixed lightness step of one of five ramps, so text and its background
   always differ enough to read. `ColorTokensTest` fails when a changed value breaks that.

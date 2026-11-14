@@ -163,7 +163,8 @@ baseline-profile/             records the startup profile and holds the benchmar
 ```
 
 [docs/architecture.md](docs/architecture.md) explains the modules, the navigation, the build
-variants and every check in more detail.
+variants and every check in more detail. [docs/design-system.md](docs/design-system.md) describes
+the look: the palette, the components and the rules for using them.
 
 ## Tests
 

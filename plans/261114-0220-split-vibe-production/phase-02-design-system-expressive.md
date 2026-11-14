@@ -128,7 +128,7 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 - [x] Kiểm tra ranh giới trong CI (`DesignSystemBoundaryTest`, chạy cùng unit test)
 - [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
 - [ ] Tiếp cận và chế độ tắt animation
-- [ ] `docs/design-system.md`
+- [ ] `docs/design-system.md`. Đã viết cho phần đang có; còn bổ sung khi có lớp chuyển động và màn hình danh mục
 
 ## Success Criteria
 
