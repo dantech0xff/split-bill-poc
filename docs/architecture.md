@@ -10,7 +10,7 @@ only what is in the repository now.
 flowchart LR
     app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the Claude client"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
-    design[":core:designsystem<br/>theme, colours, type,<br/>elevation"]
+    design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
@@ -21,7 +21,7 @@ flowchart LR
 |---|---|---|
 | `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `ClaudeBillAnalyzer`, settings storage |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillReconciler`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Contact`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
-| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark), the colour tokens, the text styles for amounts, the elevation levels |
+| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything

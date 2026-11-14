@@ -144,7 +144,7 @@ contact list is never sent: the model only repeats names that appear in the inst
 ## Project layout
 
 ```text
-core/designsystem/            the look of the app: theme, colours, type, elevation
+core/designsystem/            the look of the app: theme, tokens, components, motion
 core/domain/                  plain Kotlin, no Android: the money logic and the data contracts
   domain/     Bill, BillCurrency, BillReconciler, SplitCalculator, SplitPlan, NameMatcher
   ocr/        OcrResult, OcrLayoutEncoder
@@ -172,10 +172,10 @@ the look: the palette, the components and the rules for using them.
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-100 tests cover the split rules (including 2,000 random bills whose shares must add up to the
+109 tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
 layout, answer parsing, the Claude client, the UI flow, app startup, navigation, the dependency
-wiring and the text contrast of the colour palette.
+wiring, the text contrast of the colour palette, the motion, and the design system components.
 
 - The client tests run the real SDK against a local HTTP server and pin down the exact request and
   every kind of API answer: success, invalid key, unknown model, refusal, cut-off answer, fallback
@@ -191,17 +191,23 @@ wiring and the text contrast of the colour palette.
 - `AppStartupTest` and `BackNavigationTest` start the real application and activity: moving between
   the screens, restoring them after the activity is recreated, the back swipe preview, and back
   cancelling running work before it leaves the split screen.
+- `AmountAnimationTest`, `ReducedMotionTest` and `ComponentBehaviourTest` check the motion and the
+  components: an amount that changes mid-run, nothing moving with animations switched off, and what
+  the choice group, the menus and the person chips do when they are tapped and how a screen reader
+  reads them.
 
 ```bash
 ./gradlew :app:pixel6Api34ProdDebugAndroidTest
 ```
 
 The on-device tests cover what only a device can show: starting the app, the real ML Kit recognizer
-on the sample bill, the real Anthropic SDK on the Android runtime, and the Keystore encryption. They
+on the sample bill, the real Anthropic SDK on the Android runtime, the Keystore encryption, and
+splitting the sample bill from the photo to the sent requests. Every tap in them also runs Android's
+accessibility checks on the screen it lands on. They
 need no API key. The command above lets Gradle download, start and stop its own Android 14 emulator;
 `./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
 
-The other checks, all of which also run in GitHub Actions on every branch:
+The other checks, all of which also run in GitHub Actions for every pull request and every push to `main`:
 
 ```bash
 ./gradlew ktlintCheck
@@ -222,9 +228,9 @@ ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*Live
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 99 pass, 1 skipped (the live API test, which needs a key) |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 108 pass, 1 skipped (the live API test, which needs a key) |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
-| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 7 tests pass |
+| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 tests pass |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
 | Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
 

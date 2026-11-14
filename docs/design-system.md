@@ -96,7 +96,12 @@ Use `Modifier.elevation(level, shape)` before the background of the same shape, 
 
 A Material component that draws a shadow of its own gets it switched off and takes a level
 instead, so every shadow in the app looks alike. Where Material offers no way to switch it off,
-as for the button of the floating menu, the design system draws that part itself.
+as for the button of the floating menu, the design system draws that part itself. A menu opens in
+a window of its own, where no shadow can be drawn around it, so it has an outline instead.
+
+A surface that grows into another screen rests flat while it moves, because its shadow would have
+to be blurred again at every size, and fades its shadow back in once it is in place.
+`SvPrimaryFab` does this when it grows into the split screen.
 
 Only the strength of a shadow may be animated, through the `strength` parameter. It changes
 opacity and offset, which are cheap to redraw every frame. The blur radius is fixed per level
@@ -119,7 +124,7 @@ theme's motion scheme.
 | `Modifier.popIn` | The same bounce for an element added to a screen that is already shown, such as a person added to a split. What is there when the screen appears does not pop. |
 | `rowMotion` | A row of a lazy list fades in when it is added, fades out when it is removed, and slides to its new place when the rows above it change. The row needs a key of its own. |
 | `Modifier.sharedSurface` | Marks a surface that grows into the surface with the same name on the next screen, and shrinks back on the way back. The button that opens a split and the split screen are one such pair. |
-| `SvSteps` | Shows one step of a flow at a time and fades between the steps. A shared surface in one step turns into the one with the same name in the next: the button that sends the requests shrinks into the round mark that confirms them. |
+| `SvSteps` | Shows one step of a flow at a time: the step on screen fades out, then the next fades in. A shared surface in one step turns into the one with the same name in the next: the button that sends the requests shrinks into the round mark that confirms them. Each step has a fixed name, because the name is part of the key that brings back what was saved inside the step after the system ends the app. |
 | `Modifier.keepSizeDuringTransition` | Keeps a label at its own size while the surface around it changes shape, so the edge cuts it off instead of it wrapping onto more lines. `SvPrimaryButton` uses it. |
 | `SvMotion.screenChange` | The timing of everything that happens while one screen or step turns into another. |
 
@@ -130,7 +135,9 @@ spring would be over after the first part of the swipe and leave nothing to prev
 Some people switch animations off in the system settings. Compose then ends ordinary animations at
 once by itself. Effects that never end and delays written by hand cannot be known to it, so they
 ask `LocalReducedMotion` and stand still or are skipped: the loading indicator stands still, the
-band over the photo is not drawn, and bounces are skipped. `ReducedMotionTest` checks that nothing
+band over the photo is not drawn, bounces are skipped, and an amount shows its value at once.
+What happens only the first time, such as counting up or popping in, is saved, so a row that
+scrolls out of view and back does not do it again. `ReducedMotionTest` checks that nothing
 moves on its own in that case and that a bill can still be split from start to finish.
 
 ## Components
@@ -179,6 +186,7 @@ one page with sample content (`app/src/debug/.../catalog/CatalogScreen.kt`). The
 - Text contrast is checked by a test for both palettes.
 - The four main screens are drawn with text at twice its size, and nothing may be cut off there.
   Text inside a fixed shape, such as avatar initials, does not grow with the text size.
+- A person chip that removes someone reads as one button that says so, not as a tick box.
 - A row that can be tapped is one button for a screen reader, says what it does, and carries its
   whole label itself. Compose leaves out text that is scrolled out of view or lies under a bar, so
   a row whose edge shows above the bottom bar would otherwise have nothing to read.
