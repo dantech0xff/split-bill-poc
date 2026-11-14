@@ -4,15 +4,17 @@ A proof-of-concept Android app (Kotlin, Jetpack Compose) for an AI "split bill" 
 payment app.
 
 You photograph a bill and type how it should be split. The phone reads the text of the bill with
-on-device OCR, sends that text and its position on the page to Claude, and gets the bill back as
-structured data. The app then does the arithmetic itself and lets you pick the contacts who share
-the bill and who shares each item.
+on-device OCR and sends that text and its position on the page to the app's AI proxy, a Cloudflare
+Worker that asks Claude and sends the bill back as structured data. The app then does the
+arithmetic itself and lets you pick the contacts who share the bill and who shares each item. The
+app holds no API key.
 
 ```mermaid
 flowchart LR
     A[Bill photo + instruction] --> B[ML Kit OCR on the device]
     B --> C[Rows of text with positions]
-    C --> D[Claude Opus]
+    C --> P[AI proxy on Cloudflare]
+    P --> D[Claude Opus]
     D --> E[Items, charges, total, people named in the instruction]
     E --> F[Split calculator on the device]
     F --> G[Pick people, assign items, request money]
@@ -47,20 +49,26 @@ newer.
 The `dev` flavor installs as `com.dantech.splitvibe.dev`, next to the real app and with its own data.
 The `prod` flavor is the app that will be published.
 
-Then give the app an Anthropic API key in one of two ways:
+Reading a bill needs the AI proxy. A debug build looks for it at `http://127.0.0.1:8787`: run it
+on your computer as [docs/proxy.md](docs/proxy.md) describes (`npm ci`, a `.dev.vars` file with the
+key, `npm run dev`), then forward the port to the phone or emulator:
 
-- In the app, open **Settings** (gear icon) and paste the key. It is encrypted with a key from the
-  Android Keystore before it is stored.
-- Or, for debug builds, add this line to `local.properties` (the file is git-ignored) and rebuild:
+```bash
+adb reverse tcp:8787 tcp:8787
+```
 
-  ```properties
-  ANTHROPIC_API_KEY=sk-ant-...
-  ```
+A deployed proxy and Google sign-in are set in `local.properties` (git-ignored). A release build
+requires https, and without an address it is built with AI reading off:
 
-  A debug APK built this way contains the key in readable form. Do not hand that APK to anyone.
+```properties
+splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev
+splitvibe.googleWebClientId=<web client ID>.apps.googleusercontent.com
+```
 
-Settings also holds the app's **local currency** (the currency the payment app works in). It
-defaults to the currency of the phone's region.
+Without signing in, each install gets 3 free reads. **Settings** (gear icon) shows the reads left
+and offers "Sign in with Google" for 10 reads a month, signing out and deleting the account. It
+also holds the app's **local currency** (the currency the payment app works in), which defaults to
+the currency of the phone's region.
 
 Without a real bill at hand, tap **Use the sample bill** on the new-split screen.
 
@@ -96,17 +104,22 @@ Split with Minh and Lan. Minh had the beers.
 </user_instruction>
 ```
 
-### 2. Claude reads the bill
+### 2. Claude reads the bill, through the proxy
 
-`ClaudeBillAnalyzer` calls the Messages API through the official Anthropic Java SDK:
+`GatewayBillAnalyzer` posts the document, the instruction and the local currency to the proxy's
+`POST /v1/bill-analysis` and reads its answer line by line while the model works. The proxy
+([docs/proxy.md](docs/proxy.md)) calls the Messages API through the official Anthropic TypeScript SDK:
 
-- model `claude-opus-5-5` (changeable in Settings), effort `medium`, adaptive thinking left on;
-- the system prompt in `BillPrompt` explains the document format, typical OCR mistakes and what to extract;
-- the answer is constrained to the JSON Schema in `BillSchema` with structured outputs, so it always parses;
+- model `claude-opus-5-5`, effort `medium`, adaptive thinking left on;
+- the system prompt in `proxy/src/prompt.ts` explains the document format, typical OCR mistakes and what to extract;
+- the answer is constrained to the JSON Schema in `proxy/src/schema.ts` with structured outputs, so it always parses;
 - server-side refusal fallbacks are switched on (beta `server-side-fallback-2026-07-01`,
   `fallbacks: "default"`): if a safety classifier declines the request, the API re-runs it on another
-  model instead of failing. If the API rejects that beta option, the request is sent again without it,
-  and the option is left out for the rest of the session.
+  model instead of failing.
+
+The proxy counts the calls (3 free per install, 10 a month per Google account), limits each network
+address, caps the day's spend, and charges a call only once the model has answered. When a read
+fails, reading the same bill again keeps its request id, so the proxy does not charge twice.
 
 The model returns items, charges, the total, the currency, the number of decimals the prices are
 printed with, and what the instruction said about people:
@@ -139,7 +152,9 @@ didn't drink"), which leaves it to everyone else. The model does not compute any
 ### Privacy
 
 Only the OCR text and the typed instruction leave the phone. The photo is never uploaded, and the
-contact list is never sent: the model only repeats names that appear in the instruction.
+contact list is never sent: the model only repeats names that appear in the instruction. The proxy
+keeps no bill text, name or address: it holds counters under salted hashes, and logs one line of
+numbers per request.
 
 ## Project layout
 
@@ -153,18 +168,22 @@ core/domain/                  plain Kotlin, no Android: the money logic and the 
 app/src/main/java/com/dantech/splitvibe/
   di/         the Koin module that wires the app together
   ocr/        BillTextRecognizer (ML Kit), BillImageLoader
-  llm/        ClaudeBillAnalyzer, BillPrompt, BillSchema
-  data/       contacts (seeded), settings (encrypted API key)
+  llm/        GatewayBillAnalyzer, which reads a bill through the AI proxy
+  data/       account (install id, encrypted session, Google sign-in), proxy (the proxy's
+              routes over OkHttp), contacts (seeded), settings (local currency)
   ui/         navigation, home, split (new split, result, sheets, confirmation), settings, theme
 app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
 app/src/androidTest/          on-device tests
-app/src/sharedTest/resources/ recorded ML Kit output and a recorded Claude answer
+app/src/sharedTest/resources/ recorded ML Kit output, a recorded Claude answer, and the request
+                              the app sends for them, which the proxy's tests send too
 baseline-profile/             records the startup profile and holds the benchmarks
+proxy/                        the AI proxy: a Cloudflare Worker in TypeScript, with its tests
 ```
 
 [docs/architecture.md](docs/architecture.md) explains the modules, the navigation, the build
 variants and every check in more detail. [docs/design-system.md](docs/design-system.md) describes
-the look: the palette, the components and the rules for using them.
+the look: the palette, the components and the rules for using them. [docs/proxy.md](docs/proxy.md)
+describes the AI proxy: its routes, its limits, what it keeps, and how to run and deploy it.
 
 ## Tests
 
@@ -172,18 +191,20 @@ the look: the palette, the components and the rules for using them.
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-109 tests cover the split rules (including 2,000 random bills whose shares must add up to the
+129 tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
-layout, answer parsing, the Claude client, the UI flow, app startup, navigation, the dependency
-wiring, the text contrast of the colour palette, the motion, and the design system components.
+layout, answer parsing, the proxy client, the account and sign-in, the UI flow, app startup,
+navigation, the dependency wiring, the text contrast of the colour palette, the motion, and the
+design system components.
 
-- The client tests run the real SDK against a local HTTP server and pin down the exact request and
-  every kind of API answer: success, invalid key, unknown model, refusal, cut-off answer, fallback
-  model, timeout.
+- The proxy client tests run the real client against a local server that answers as the proxy does.
+  They pin down the request, which must match the shared fixture the proxy's tests send, and every
+  kind of answer: the bill, free reads used up, sign-in run out, AI switched off, app too old,
+  rate limits, busy, refused, too long, timeout, and an answer that stops half way.
 - `SplitFlowTest` walks through the real screens without a device (Robolectric): sample photo,
   instruction, analysis, people pre-selected, exact shares, changing who shares an item, request
   confirmation. It replays two recordings of the real pipeline: the text ML Kit read on a device
-  and the answer Claude Opus gave for it.
+  and the answer Claude Opus gave for it, streamed the way the proxy sends it.
 - `ScreenGalleryTest` draws every screen in the light and the dark theme, and the four main screens
   with text at twice its size, and compares each with the reference image in
   `app/src/test/screenshots`. After an intended visual change, record new images with
@@ -201,10 +222,10 @@ wiring, the text contrast of the colour palette, the motion, and the design syst
 ```
 
 The on-device tests cover what only a device can show: starting the app, the real ML Kit recognizer
-on the sample bill, the real Anthropic SDK on the Android runtime, the Keystore encryption, and
-splitting the sample bill from the photo to the sent requests. Every tap in them also runs Android's
-accessibility checks on the screen it lands on. They
-need no API key. The command above lets Gradle download, start and stop its own Android 14 emulator;
+on the sample bill, the proxy client reading a streamed answer on the Android runtime, the Keystore
+encryption of the session, and splitting the sample bill from the photo to the sent requests. Every
+tap in them also runs Android's accessibility checks on the screen it lands on. They need no
+network. The command above lets Gradle download, start and stop its own Android 14 emulator;
 `./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
 
 The other checks, all of which also run in GitHub Actions for every pull request and every push to `main`:
@@ -217,10 +238,11 @@ The other checks, all of which also run in GitHub Actions for every pull request
 ./gradlew :app:lintProdDebug :core:designsystem:lintDebug
 ```
 
-To exercise the real API with your key (a few cents per run):
+The AI proxy has its own 81 tests, which run in the workers runtime against a fake model. From
+`proxy/`:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*LiveClaudeBillAnalyzerTest*' --rerun
+npm test
 ```
 
 ## How it was verified
@@ -228,18 +250,21 @@ ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*Live
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 108 pass, 1 skipped (the live API test, which needs a key) |
-| UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
-| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 tests pass |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 129 pass |
+| UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and proxy client | passes |
+| AI proxy | `npm run typecheck` and `npm test` in `proxy/` | 81 pass; each rule about calls, holds and spend was also broken on purpose to see its test fail |
+| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 tests; the proxy client test on a device has not run yet |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
 | Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
 
 What has not been verified:
 
-- **The live API call from this project.** The model runs above went through the Claude Code command
-  line of the build environment, because that environment could not hold an Anthropic API key. The
-  request this app sends through the SDK is pinned down by tests against a local server, but it has
-  not yet been sent to the live API. Run `LiveClaudeBillAnalyzerTest` with a key to close that gap.
+- **A live call through the proxy.** The proxy is tested against a fake model and the app against a
+  stand-in for the proxy; the request is the same in both. The proxy has not been deployed, so no
+  bill has gone from the app through the proxy to the live API yet. That needs the owner's
+  Cloudflare account, Anthropic key and Google OAuth clients ([docs/proxy.md](docs/proxy.md)).
+- **Google sign-in on a phone.** Credential Manager needs the OAuth clients, so sign-in has only been
+  tested with a stand-in for Google's account picker.
 - **The screens after analysis on a device.** The home and new-split screens were seen running on
   the emulator. The result, item and confirmation screens were exercised only in `SplitFlowTest`,
   because the emulator session ended before the on-device walk-through finished.
@@ -250,21 +275,16 @@ What has not been verified:
 
 ## Known limits
 
-- **API key on the device.** Acceptable for a proof of concept only. A real payment app must call its
-  own backend, and the backend calls Claude. `ClaudeBillAnalyzer` takes a `baseUrl` for that, and
-  `BillAnalyzer` is the interface to implement against a backend. Note that the SDK sends the key as
-  `Authorization: Bearer`.
+- **Free reads are per install.** Clearing the app's data makes a new install with 3 new reads. The
+  proxy's limits per network address and its daily spend caps bound what that can cost.
 - **Mock data.** Contacts are seeded in `SeededContactRepository`, and "Request" creates nothing.
 - **Latin script only.** Chinese, Japanese, Korean and Devanagari need the matching ML Kit artifacts.
 - **No currency conversion.** A bill in another currency than the app's local currency stays in
   its own currency. Converting would need an exchange rate source.
 - **Bills printed without decimals are split in whole units**, including the rare dollar or euro bill
   that shows no cents.
-- **First request is slower.** The SDK sets up its JSON machinery on first use. This happens on a
-  background thread; later requests in the same app session skip it.
-- **App size.** The debug APK is about 72 MB because the SDK's code is not shrunk. R8 shrinks the code
-  from 82 MB to under 6 MB; the release APK is still 46 MB because ML Kit ships native code for four
-  CPU types, which an app bundle would split per device.
+- **App size.** ML Kit ships native code for four CPU types, so the release APK is large; an app
+  bundle splits it per device.
 - **State is in memory.** A split in progress survives rotation but not the app being killed.
 - **English UI strings** are written inline rather than in string resources.
 - **Very long bills** could exceed the answer token limit; the app then asks for two photos.
@@ -273,7 +293,9 @@ What has not been verified:
 
 Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
 (Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
-Koin 4.2.2, Navigation 3 1.2.1, ML Kit text-recognition 16.0.1, anthropic-java 3.8.0.
+Koin 4.2.2, Navigation 3 1.2.1, ML Kit text-recognition 16.0.1, OkHttp 4.12.0, Credential Manager
+1.6.0 with Google ID 1.2.1. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
+wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0.
 
 ## License
 

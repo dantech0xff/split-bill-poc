@@ -8,21 +8,24 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the Claude client"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the AI proxy client"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
     profile -. drives and measures .-> app
+    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude"]
+    app -. HTTPS .-> proxy
 ```
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `ClaudeBillAnalyzer`, settings storage |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillReconciler`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Contact`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
+| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session; described in [proxy.md](proxy.md) |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
@@ -87,14 +90,17 @@ an `entry<ThatKey> { ... }` to the `entryProvider` block, and open it with `back
 flowchart LR
     photo[Bill photo] --> ocr[ML Kit on the device]
     ocr --> rows[OcrLayoutEncoder:<br/>rows of text with positions]
-    rows --> model[ClaudeBillAnalyzer]
-    model --> parser[BillAnalysisParser]
+    rows --> client[GatewayBillAnalyzer]
+    client --> proxy[AI proxy: prompt, schema, Claude]
+    proxy --> parser[BillAnalysisParser]
     parser --> calc[BillReconciler and SplitCalculator]
     calc --> ui[Result screen]
 ```
 
 The model reads the bill and reports what the instruction says about people. It never computes a
-share: the arithmetic is done in `:core:domain`, in whole minor units of the bill's currency.
+share: the arithmetic is done in `:core:domain`, in whole minor units of the bill's currency. The
+proxy streams its answer as lines of JSON, and the app's error kinds follow the proxy's codes: free
+reads used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
 The [README](../README.md) describes each step in detail.
 
 ## Build variants
@@ -138,15 +144,16 @@ reads no secret and never signs or deploys, so untrusted code can run it safely.
 device tests, the profile module or the dependencies.
 
 For the checks to guard `main`, the repository has to require them: in the branch protection of
-`main`, require the status checks "Style, tests, lint and packages" and "Secret scan".
+`main`, require the status checks "Style, tests, lint and packages", "AI proxy" and "Secret scan".
 
 | Check | Command | What it guards |
 |---|---|---|
 | Code style | `./gradlew ktlintCheck` | The rules in `.editorconfig`. `./gradlew ktlintFormat` fixes most findings. |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules, parsing, the Claude client against a local server, the UI flow, app startup, navigation and back handling, text contrast of the palette |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules, parsing, the proxy client and the account against a stand-in for the proxy, the UI flow, app startup, navigation and back handling, text contrast of the palette |
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
 | Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
-| Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build |
+| Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |
+| AI proxy | `npm ci`, `npm run typecheck` and `npm test` in `proxy/` | The Worker's routes, its calls, limits, holds and spend caps, the sign-in and the session, in the workers runtime against a fake model |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
 | Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, and splitting the sample bill from the photo to the sent requests. Every tap also runs Android's accessibility checks on the screen it lands on. Nightly, and when those tests change. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
@@ -204,6 +211,10 @@ again:
 ```bash
 GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest :app:lintProdDebug :core:designsystem:lintDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
 ```
+
+The AI proxy's packages need no such list: `proxy/package-lock.json` records the integrity hash of
+every package, `npm ci` refuses a package that does not match it, and `package.json` pins each one to
+an exact version. Dependabot opens the npm updates for `/proxy`, and the "AI proxy" job checks them.
 
 Three things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
 top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the

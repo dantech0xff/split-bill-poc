@@ -159,7 +159,7 @@ Xóa:
 - [x] `GatewayBillAnalyzer`; trạng thái "AI khả dụng" thay `hasApiKey` ở bốn nơi
 - [x] Xóa `ClaudeBillAnalyzer`, test của nó và thư viện Anthropic Java
 - [x] Đăng nhập Google, đăng xuất, xóa tài khoản, số lượt còn lại
-- [ ] Job kiểm proxy trong CI, Dependabot cho npm, `docs/proxy.md`
+- [x] Job kiểm proxy trong CI, Dependabot cho npm, `docs/proxy.md`
 - [ ] Bộ đánh giá và báo cáo chọn model
 - [ ] Proxy đã triển khai và một lần gọi thật từ bản `prodRelease` thành công
 

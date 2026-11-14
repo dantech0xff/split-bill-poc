@@ -54,6 +54,26 @@ jobs:
       - name: Dev flavor, device tests and profile module compile
         run: ./gradlew :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
 
+      # The AI runs behind the proxy. No package may carry an Anthropic library or key again.
+      - name: No Anthropic code in the packages
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(app/build/outputs/apk/prod/release/*.apk app/build/outputs/bundle/prodRelease/*.aab app/build/outputs/apk/dev/debug/*.apk)
+          if [ "${#packages[@]}" -ne 3 ]; then
+            echo "Expected the release package, the bundle and the dev package, found ${#packages[@]} files"
+            exit 1
+          fi
+          for package in "${packages[@]}"; do
+            # Unpacked first: a grep that stops at its first match would end the pipe early.
+            unzip -p "$package" '*.dex' > classes.bin
+            if grep -aq 'Lcom/anthropic/' classes.bin; then
+              echo "$package holds classes of com.anthropic"
+              exit 1
+            fi
+          done
+          rm classes.bin
+
       - name: Keep the reports of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -65,6 +85,36 @@ jobs:
             **/reports/lint-results-*
             **/outputs/roborazzi/
           retention-days: 7
+
+  proxy:
+    name: AI proxy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: proxy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: proxy/package-lock.json
+
+      # Exactly the versions in the lock file, so a test run cannot pick up a new release.
+      - name: Packages
+        run: npm ci
+
+      # Generates the binding types from wrangler.jsonc, then checks every file.
+      - name: Types
+        run: npm run typecheck
+
+      # The Worker and its Durable Objects run in the workers runtime, against a fake model.
+      - name: Tests
+        run: npm test
 
   secrets:
     name: Secret scan
