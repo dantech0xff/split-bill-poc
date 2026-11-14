@@ -1,7 +1,7 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { clientIp, hashed } from "../src/ledger";
+import { clientIp, hashed, ipKey } from "../src/ledger";
 import { POLICY } from "../src/policy";
 
 // Times are taken from the real clock, which the object's alarm runs on.
@@ -90,5 +90,26 @@ describe("the caller's address", () => {
     expect(clientIp(new Request("https://proxy.test", { headers: { "CF-Connecting-IP": " 203.0.113.7 " } }))).toEqual({ ok: true, ip: "203.0.113.7" });
     expect(clientIp(new Request("https://proxy.test", { cf: { country: "VN" } } as RequestInit))).toEqual({ ok: false });
     expect(clientIp(new Request("https://proxy.test"))).toEqual({ ok: true, ip: "local" });
+  });
+});
+
+describe("an IPv6 address", () => {
+  it("counts by its /64, which one subscriber holds", () => {
+    expect(ipKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(ipKey("2001:0DB8:0000:0000:ffff:0:0:2")).toBe(ipKey("2001:db8::1"));
+    expect(ipKey("2001:db8:0:1::1")).not.toBe(ipKey("2001:db8:0:2::1"));
+    expect(ipKey("::1")).toBe("0:0:0:0::/64");
+    expect(ipKey("64:ff9b::203.0.113.7")).toBe("64:ff9b:0:0::/64");
+  });
+
+  it("that carries an IPv4 address counts as that address, and an IPv4 address counts by itself", () => {
+    expect(ipKey("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(ipKey(" 203.0.113.7 ")).toBe("203.0.113.7");
+  });
+
+  it("that cannot be read is used as it is", () => {
+    for (const odd of ["2001:db8:::1", "1:2:3:4:5:6:7", "1::2::3", "2001:db8::xyz", "local"]) {
+      expect(ipKey(odd)).toBe(odd);
+    }
   });
 });

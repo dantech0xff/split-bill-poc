@@ -8,6 +8,8 @@ import { nextMonthStart, type Allowance } from "../src/quota-book";
 // let the alarm clear a hold in the middle of a test.
 const TRIAL: Allowance = { kind: "trial", limit: POLICY.trialCalls };
 const MONTHLY: Allowance = { kind: "monthly", limit: POLICY.monthlyCalls };
+/** The digest of what a request asks; tests that do not look at it use the same one throughout. */
+const BILL = "digest-of-a-bill";
 
 function book() {
   return env.QUOTA_BOOK.get(env.QUOTA_BOOK.idFromName(crypto.randomUUID()));
@@ -17,8 +19,8 @@ type Book = ReturnType<typeof book>;
 
 /** One call that the model answered: held, then charged. */
 async function call(stub: Book, now: number, allowance: Allowance, requestId: string = crypto.randomUUID()) {
-  const hold = await stub.hold(now, requestId, allowance);
-  if (hold.ok) await stub.commit(now, requestId, allowance);
+  const hold = await stub.hold(now, requestId, allowance, BILL);
+  if (hold.ok) await stub.commit(now, requestId, allowance, BILL);
   return hold;
 }
 
@@ -30,9 +32,18 @@ describe("trial calls", () => {
       expect((await call(stub, now, TRIAL)).ok).toBe(true);
     }
 
-    expect(await stub.hold(now, crypto.randomUUID(), TRIAL)).toMatchObject({ ok: false, code: "quota_exhausted", retryAfter: null });
-    expect(await stub.hold(nextMonthStart(now), crypto.randomUUID(), TRIAL)).toMatchObject({ ok: false, code: "quota_exhausted" });
+    expect(await stub.hold(now, crypto.randomUUID(), TRIAL, BILL)).toMatchObject({ ok: false, code: "quota_exhausted", retryAfter: null });
+    expect(await stub.hold(nextMonthStart(now), crypto.randomUUID(), TRIAL, BILL)).toMatchObject({ ok: false, code: "quota_exhausted" });
     expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null });
+  });
+
+  it("lets exactly three of four requests racing for the calls have one", async () => {
+    const stub = book();
+    const now = Date.now();
+
+    const holds = await Promise.all([1, 2, 3, 4].map(() => stub.hold(now, crypto.randomUUID(), TRIAL, BILL)));
+
+    expect(holds.filter((hold) => hold.ok)).toHaveLength(POLICY.trialCalls);
   });
 });
 
@@ -44,10 +55,10 @@ describe("monthly calls", () => {
       expect((await call(stub, now, MONTHLY)).ok).toBe(true);
     }
 
-    const eleventh = await stub.hold(now, crypto.randomUUID(), MONTHLY);
+    const eleventh = await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL);
     expect(eleventh).toMatchObject({ ok: false, code: "quota_exhausted", retryAfter: Math.ceil((nextMonthStart(now) - now) / 1000) });
 
-    const nextMonth = await stub.hold(nextMonthStart(now), crypto.randomUUID(), MONTHLY);
+    const nextMonth = await stub.hold(nextMonthStart(now), crypto.randomUUID(), MONTHLY, BILL);
     expect(nextMonth).toMatchObject({ ok: true, usage: { used: 0, remaining: 9 } });
   });
 });
@@ -61,7 +72,7 @@ describe("a request id", () => {
       expect((await call(stub, now, TRIAL, id)).ok).toBe(true);
     }
 
-    expect(await stub.hold(now, id, TRIAL)).toMatchObject({ ok: false, code: "retry_limit" });
+    expect(await stub.hold(now, id, TRIAL, BILL)).toMatchObject({ ok: false, code: "retry_limit" });
     expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 1, remaining: 2 });
   });
 
@@ -69,10 +80,20 @@ describe("a request id", () => {
     const stub = book();
     const now = Date.now();
     const id = crypto.randomUUID();
-    expect(await stub.hold(now, id, TRIAL)).toMatchObject({ ok: true, newHold: true });
-    expect(await stub.hold(now, id, TRIAL)).toMatchObject({ ok: true, newHold: false });
+    await stub.hold(now, id, TRIAL, BILL);
+    await stub.hold(now, id, TRIAL, BILL);
 
     expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 0, remaining: 2 });
+  });
+
+  it("is refused when it comes back asking about another bill", async () => {
+    const stub = book();
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await call(stub, now, TRIAL, id);
+
+    expect(await stub.hold(now, id, TRIAL, "digest-of-another-bill")).toMatchObject({ ok: false, code: "request_mismatch" });
+    expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 1, remaining: 2 });
   });
 });
 
@@ -81,19 +102,33 @@ describe("a held call", () => {
     const stub = book();
     const now = Date.now();
     for (let i = 0; i < POLICY.trialCalls; i++) {
-      expect((await stub.hold(now, crypto.randomUUID(), TRIAL)).ok).toBe(true);
+      expect((await stub.hold(now, crypto.randomUUID(), TRIAL, BILL)).ok).toBe(true);
     }
 
-    expect(await stub.hold(now, crypto.randomUUID(), TRIAL)).toMatchObject({ ok: false, code: "quota_exhausted" });
+    expect(await stub.hold(now, crypto.randomUUID(), TRIAL, BILL)).toMatchObject({ ok: false, code: "quota_exhausted" });
   });
 
   it("is given back when the model failed before it could charge", async () => {
     const stub = book();
     const now = Date.now();
     const id = crypto.randomUUID();
-    await stub.hold(now, id, TRIAL);
+    await stub.hold(now, id, TRIAL, BILL);
     await stub.release(now, id);
 
+    expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 0, remaining: 3 });
+  });
+
+  it("stays held while another run of the same request still waits for the model, whichever run fails", async () => {
+    const stub = book();
+    const now = Date.now();
+    const id = crypto.randomUUID();
+    await stub.hold(now, id, TRIAL, BILL);
+    await stub.hold(now, id, TRIAL, BILL);
+
+    await stub.release(now, id);
+    expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 0, remaining: 2 });
+
+    await stub.release(now, id);
     expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 0, remaining: 3 });
   });
 
@@ -102,7 +137,7 @@ describe("a held call", () => {
     const now = Date.now();
     const id = crypto.randomUUID();
     await call(stub, now, TRIAL, id);
-    await stub.hold(now, id, TRIAL);
+    await stub.hold(now, id, TRIAL, BILL);
     await stub.release(now, id);
 
     expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 1, remaining: 2 });
@@ -112,7 +147,7 @@ describe("a held call", () => {
     const stub = book();
     const now = Date.now();
     for (let i = 0; i < POLICY.trialCalls; i++) {
-      await stub.hold(now, crypto.randomUUID(), TRIAL);
+      await stub.hold(now, crypto.randomUUID(), TRIAL, BILL);
     }
 
     expect(await stub.usage(now + POLICY.holdMs - 1, TRIAL)).toMatchObject({ remaining: 0 });
@@ -124,7 +159,7 @@ it("forgets old request ids, so its storage does not grow", async () => {
   const stub = book();
   // Held long enough ago that both the hold and the memory of the request have run out.
   const longAgo = Date.now() - POLICY.requestMemoryMs - POLICY.holdMs;
-  await stub.hold(longAgo, crypto.randomUUID(), TRIAL);
+  await stub.hold(longAgo, crypto.randomUUID(), TRIAL, BILL);
   await call(stub, longAgo, TRIAL);
 
   await runDurableObjectAlarm(stub);

@@ -10,16 +10,16 @@ export type Allowance = { kind: "trial" | "monthly"; limit: number };
 /** How much of its allowance a caller has used. A trial never starts over, so it has no reset time. */
 export type Usage = { limit: number; used: number; remaining: number; period: string; resetsAt: number | null };
 
-/**
- * [newHold] is true when this run took the hold, and false when it shares the hold or charge of an
- * earlier run of the same request. Only the run that took a hold may release it.
- */
 export type HoldResult =
-  | { ok: true; usage: Usage; newHold: boolean }
-  | { ok: false; code: "quota_exhausted" | "retry_limit"; usage: Usage; retryAfter: number | null };
+  | { ok: true; usage: Usage }
+  | { ok: false; code: "quota_exhausted" | "retry_limit" | "request_mismatch"; usage: Usage; retryAfter: number | null };
 
-/** One request id: when it was first held, how often it ran, and when it was charged, if it was. */
-type RequestEntry = { heldAt: number; runs: number; committedAt: number | null };
+/**
+ * One request id: when it was last held, how often it ran, how many of its runs are still waiting
+ * for the model, when it was charged if it was, and a salted digest of what it asked, so that the
+ * id cannot be used again for another bill.
+ */
+type RequestEntry = { heldAt: number; runs: number; active: number; committedAt: number | null; digest: string };
 type Book = { period: string; used: number };
 
 const BOOK = "book";
@@ -31,54 +31,72 @@ const REQUEST = "request:";
  * last call. Storage holds counts and request ids only.
  *
  * A call is held before the model runs, committed once the model has answered, and released when
- * the model failed before it could charge. A hold that is neither committed nor released within
- * [POLICY.holdMs] is given back, so a request cut off half way does not cost the person a call.
+ * no answer came. Each run of a request holds a share of the request's one call and gives its own
+ * share back; the call is given back once no run holds it. A hold that is neither committed nor
+ * released within [POLICY.holdMs] is given back, so a request cut off half way costs nothing.
  */
 export class QuotaBook extends DurableObject {
-  async hold(now: number, requestId: string, allowance: Allowance): Promise<HoldResult> {
+  async hold(now: number, requestId: string, allowance: Allowance, digest: string): Promise<HoldResult> {
     const book = await this.currentBook(now, allowance);
     const requests = await this.liveRequests(now);
     const known = requests.get(requestId);
     if (known) {
+      if (known.digest !== digest) {
+        return { ok: false, code: "request_mismatch", usage: usageOf(book, requests, allowance, now), retryAfter: null };
+      }
       // The same request again, after a dropped connection for instance: it shares the call it
       // already holds or was charged, but it may only run a few times.
       if (known.runs >= POLICY.runsPerRequest) {
         return { ok: false, code: "retry_limit", usage: usageOf(book, requests, allowance, now), retryAfter: null };
       }
       known.runs += 1;
+      known.active += 1;
+      known.heldAt = now;
       await this.ctx.storage.put(REQUEST + requestId, known);
-      return { ok: true, usage: usageOf(book, requests, allowance, now), newHold: false };
+      await this.arm(now);
+      return { ok: true, usage: usageOf(book, requests, allowance, now) };
     }
     const usage = usageOf(book, requests, allowance, now);
     if (usage.remaining <= 0) {
       const retryAfter = usage.resetsAt === null ? null : secondsUntil(now, usage.resetsAt);
       return { ok: false, code: "quota_exhausted", usage, retryAfter };
     }
-    const entry: RequestEntry = { heldAt: now, runs: 1, committedAt: null };
+    const entry: RequestEntry = { heldAt: now, runs: 1, active: 1, committedAt: null, digest };
     requests.set(requestId, entry);
     await this.ctx.storage.put(REQUEST + requestId, entry);
     await this.arm(now);
-    return { ok: true, usage: usageOf(book, requests, allowance, now), newHold: true };
+    return { ok: true, usage: usageOf(book, requests, allowance, now) };
   }
 
   /** Charges the call of [requestId] once the model has answered. Charging the same request twice does nothing. */
-  async commit(now: number, requestId: string, allowance: Allowance): Promise<Usage> {
+  async commit(now: number, requestId: string, allowance: Allowance, digest: string): Promise<Usage> {
     const book = await this.currentBook(now, allowance);
-    const entry = (await this.ctx.storage.get<RequestEntry>(REQUEST + requestId)) ?? { heldAt: now, runs: 1, committedAt: null };
+    const stored = await this.ctx.storage.get<RequestEntry>(REQUEST + requestId);
+    const entry = stored ?? { heldAt: now, runs: 1, active: 1, committedAt: null, digest };
+    entry.active = Math.max(0, entry.active - 1);
     if (entry.committedAt === null) {
       entry.committedAt = now;
       book.used += 1;
       await this.ctx.storage.put({ [BOOK]: book, [REQUEST + requestId]: entry });
-      await this.arm(now);
+    } else {
+      await this.ctx.storage.put(REQUEST + requestId, entry);
     }
+    await this.arm(now);
     return usageOf(book, await this.liveRequests(now), allowance, now);
   }
 
-  /** Gives back the call of [requestId] when the model failed before it could charge. A charged call stays charged. */
+  /**
+   * Gives back this run's share of the call of [requestId] when it got no answer. The call itself
+   * is given back once no run holds it any more; a charged call stays charged.
+   */
   async release(now: number, requestId: string): Promise<void> {
     const entry = await this.ctx.storage.get<RequestEntry>(REQUEST + requestId);
-    if (entry && entry.committedAt === null) {
+    if (!entry) return;
+    entry.active = Math.max(0, entry.active - 1);
+    if (entry.committedAt === null && entry.active === 0) {
       await this.ctx.storage.delete(REQUEST + requestId);
+    } else {
+      await this.ctx.storage.put(REQUEST + requestId, entry);
     }
   }
 

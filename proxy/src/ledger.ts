@@ -107,6 +107,41 @@ export function clientIp(request: Request): { ok: true; ip: string } | { ok: fal
   return { ok: true, ip: "local" };
 }
 
+/**
+ * What the IP limits count by. An IPv6 subscriber holds a whole /64 and phones move between
+ * addresses inside it, so an IPv6 address counts by its /64. An IPv4 address counts by itself,
+ * also when it is written inside IPv6. Anything else is used as it is.
+ */
+export function ipKey(ip: string): string {
+  const address = ip.trim().toLowerCase();
+  if (!address.includes(":")) return address;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(address);
+  if (mapped) return mapped[1];
+  const groups = ipv6Groups(address);
+  return groups === null ? address : `${groups.slice(0, 4).join(":")}::/64`;
+}
+
+/** The eight groups of an IPv6 address, without leading zeros, or null when it is not one. */
+function ipv6Groups(address: string): string[] | null {
+  const halves = address.split("::");
+  if (halves.length > 2) return null;
+  const parts = halves.map((half) => (half === "" ? [] : half.split(":")));
+  // An address may end in IPv4 notation, which stands for its last two groups.
+  const last = parts[parts.length - 1];
+  const dotted = last.length > 0 ? /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(last[last.length - 1]) : null;
+  if (dotted) {
+    const [a, b, c, d] = dotted.slice(1).map(Number);
+    last.splice(last.length - 1, 1, ((a << 8) | b).toString(16), ((c << 8) | d).toString(16));
+  }
+  const written = parts.reduce((count, part) => count + part.length, 0);
+  // "::" stands for one group of zeros or more.
+  const zeros = parts.length === 2 ? 8 - written : 0;
+  if ((parts.length === 2 && zeros < 1) || (parts.length === 1 && written !== 8)) return null;
+  const groups = [...parts[0], ...Array<string>(zeros).fill("0"), ...(parts[1] ?? [])];
+  if (!groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.map((group) => group.replace(/^0+(?=.)/, ""));
+}
+
 function rolledRate(stored: RateWindow | undefined, now: number): RateWindow {
   const rate = stored ? { ...stored } : { minuteStart: now, minuteCount: 0, dayStart: now, dayCount: 0 };
   if (now - rate.minuteStart >= POLICY.minuteMs) {

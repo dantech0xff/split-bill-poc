@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
+import { createRemoteJWKSet, errors, jwtVerify, SignJWT } from "jose";
 import type { Env } from "./index";
 import { hashed } from "./ledger";
 import { POLICY } from "./policy";
@@ -19,10 +19,14 @@ export function signInReady(env: Env): boolean {
 
 /**
  * The account a Google ID token stands for, named by a salted hash of its `sub` so that the `sub`
- * itself is never kept; null unless the token is signed by Google, issued by Google, meant for
- * this app's web client ID, and unexpired.
+ * itself is never kept. The token must be signed by Google, issued by Google, meant for this app's
+ * web client ID, and unexpired; otherwise it is "invalid". When Google's keys cannot be had just
+ * now, the token cannot be judged and the answer is "unavailable".
  */
-export async function googleAccountOf(idToken: string, env: Env): Promise<string | null> {
+export async function googleAccountOf(
+  idToken: string,
+  env: Env,
+): Promise<{ ok: true; account: string } | { ok: false; reason: "invalid" | "unavailable" }> {
   try {
     const { payload } = await jwtVerify(idToken, GOOGLE_KEYS, {
       algorithms: ["RS256"],
@@ -30,10 +34,29 @@ export async function googleAccountOf(idToken: string, env: Env): Promise<string
       audience: env.GOOGLE_CLIENT_ID,
       requiredClaims: ["sub", "exp"],
     });
-    return typeof payload.sub === "string" && payload.sub !== "" ? await hashed(payload.sub, env.HASH_SALT) : null;
-  } catch {
-    return null;
+    if (typeof payload.sub !== "string" || payload.sub === "") return { ok: false, reason: "invalid" };
+    return { ok: true, account: await hashed(payload.sub, env.HASH_SALT) };
+  } catch (error) {
+    const reason = verdictOf(error);
+    if (reason === "unavailable") console.error(JSON.stringify({ event: "google_keys_unavailable", error: error instanceof Error ? error.name : "unknown" }));
+    return { ok: false, reason };
   }
+}
+
+/** Whether a failure to check an ID token says the token is bad, or only that Google's keys could not be fetched. */
+export function verdictOf(error: unknown): "invalid" | "unavailable" {
+  const tokenFaults = [
+    errors.JWTExpired,
+    errors.JWTClaimValidationFailed,
+    errors.JWTInvalid,
+    errors.JWSInvalid,
+    errors.JWSSignatureVerificationFailed,
+    errors.JWKSNoMatchingKey,
+    errors.JWKSMultipleMatchingKeys,
+    errors.JOSEAlgNotAllowed,
+    errors.JOSENotSupported,
+  ];
+  return tokenFaults.some((fault) => error instanceof fault) ? "invalid" : "unavailable";
 }
 
 /** A session for [account], signed by the proxy, that lasts [POLICY.sessionMs]. */

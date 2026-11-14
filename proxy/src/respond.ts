@@ -19,21 +19,32 @@ export type Line =
   | { type: "result"; [field: string]: unknown }
   | { type: "error"; code: string; [field: string]: unknown };
 
+export type StreamTiming = {
+  /** How often a wait line goes out. */
+  waitMs: number;
+  /** How long the work may go on after the caller hung up, before [run]'s signal asks it to stop. */
+  afterHangUpMs: number;
+};
+
 /**
- * A 200 reply whose body is NDJSON: a wait line at once and every [waitMs], then the lines [run]
- * sends, and the end of the body when [run] is done.
+ * A 200 reply whose body is NDJSON: a wait line at once and every [StreamTiming.waitMs], then the
+ * lines [run] sends, and the end of the body when [run] is done. One result or error line ends the
+ * answer; anything [run] sends after it is dropped.
  *
- * [run] goes on when the caller hangs up, so a call that reached the model is still charged and
- * its spend settled; lines sent after that are dropped. The runtime keeps it alive through
- * `waitUntil`.
+ * The runtime keeps [run] going through `waitUntil` when the caller hangs up, but only for 30
+ * seconds. So the signal it gets aborts [StreamTiming.afterHangUpMs] after a hang-up, early enough
+ * for [run] to stop its work and settle what it held before the runtime cuts it off.
  */
 export function lineStream(
   ctx: ExecutionContext,
-  waitMs: number,
-  run: (send: (line: Line) => void) => Promise<void>,
+  timing: StreamTiming,
+  run: (send: (line: Line) => void, hungUp: AbortSignal) => Promise<void>,
 ): Response {
   const encoder = new TextEncoder();
+  const hangUp = new AbortController();
+  let hangUpTimer: ReturnType<typeof setTimeout> | undefined;
   let open = true;
+  let ended = false;
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const body = new ReadableStream<Uint8Array>({
     start(started) {
@@ -41,10 +52,12 @@ export function lineStream(
     },
     cancel() {
       open = false;
+      hangUpTimer = setTimeout(() => hangUp.abort(), timing.afterHangUpMs);
     },
   });
   const send = (line: Line) => {
-    if (!open) return;
+    if (!open || ended) return;
+    if (line.type !== "wait") ended = true;
     try {
       controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
     } catch {
@@ -52,14 +65,15 @@ export function lineStream(
     }
   };
   send({ type: "wait" });
-  const timer = setInterval(() => send({ type: "wait" }), waitMs);
-  const work = run(send)
+  const waitTimer = setInterval(() => send({ type: "wait" }), timing.waitMs);
+  const work = run(send, hangUp.signal)
     .catch((error: unknown) => {
       console.error(JSON.stringify({ event: "line_stream_failed", error: error instanceof Error ? error.name : "unknown" }));
       send({ type: "error", code: "internal" });
     })
     .finally(() => {
-      clearInterval(timer);
+      clearInterval(waitTimer);
+      clearTimeout(hangUpTimer);
       if (!open) return;
       open = false;
       controller.close();

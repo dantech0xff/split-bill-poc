@@ -9,7 +9,7 @@ function lines(text: string): unknown[] {
 it("sends a wait line at once and again while the work runs, then the work's lines, then ends", async () => {
   const ctx = createExecutionContext();
 
-  const response = lineStream(ctx, 20, async (send) => {
+  const response = lineStream(ctx, { waitMs: 20, afterHangUpMs: 1_000 }, async (send) => {
     await new Promise((resolve) => setTimeout(resolve, 90));
     send({ type: "result", answer: 1 });
   });
@@ -26,11 +26,44 @@ it("sends a wait line at once and again while the work runs, then the work's lin
 it("ends with an error line when the work breaks", async () => {
   const ctx = createExecutionContext();
 
-  const response = lineStream(ctx, 1_000, async () => {
+  const response = lineStream(ctx, { waitMs: 1_000, afterHangUpMs: 1_000 }, async () => {
     throw new Error("broken");
   });
   const text = new TextDecoder().decode(await response.arrayBuffer());
   await waitOnExecutionContext(ctx);
 
   expect(lines(text)).toEqual([{ type: "wait" }, { type: "error", code: "internal" }]);
+});
+
+it("sends nothing after the line that ends the answer, also when the work breaks later", async () => {
+  const ctx = createExecutionContext();
+
+  const response = lineStream(ctx, { waitMs: 10, afterHangUpMs: 1_000 }, async (send) => {
+    send({ type: "result", answer: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    send({ type: "error", code: "late" });
+    throw new Error("broken after the answer");
+  });
+  const text = new TextDecoder().decode(await response.arrayBuffer());
+  await waitOnExecutionContext(ctx);
+
+  expect(lines(text)).toEqual([{ type: "wait" }, { type: "result", answer: 1 }]);
+});
+
+it("asks the work to stop a while after the caller hangs up, and not before", async () => {
+  const ctx = createExecutionContext();
+  let stoppedAfter = -1;
+  let hungUpAt = 0;
+
+  const response = lineStream(ctx, { waitMs: 1_000, afterHangUpMs: 60 }, async (_, hungUp) => {
+    await new Promise<void>((resolve) => hungUp.addEventListener("abort", () => resolve()));
+    stoppedAfter = Date.now() - hungUpAt;
+  });
+  const reader = response.body!.getReader();
+  await reader.read();
+  hungUpAt = Date.now();
+  await reader.cancel();
+  await waitOnExecutionContext(ctx);
+
+  expect(stoppedAfter).toBeGreaterThanOrEqual(50);
 });

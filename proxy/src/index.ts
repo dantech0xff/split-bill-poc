@@ -25,6 +25,9 @@ export interface Env {
 
 type Route = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
 
+/** The salt keeps the names of IPs and accounts from being worked back; without one, nothing may run. */
+const MIN_SALT_BYTES = 16;
+
 const ROUTES: Record<string, Record<string, Route>> = {
   "/v1/bill-analysis": { POST: billAnalysis },
   "/v1/session": { POST: sessionRoute },
@@ -39,6 +42,10 @@ export default {
       if (methods === undefined) return errorResponse(404, "path");
       const route = methods[request.method];
       if (route === undefined) return errorResponse(405, "method");
+      if (new TextEncoder().encode(env.HASH_SALT ?? "").byteLength < MIN_SALT_BYTES) {
+        console.error(JSON.stringify({ event: "not_configured", missing: "HASH_SALT" }));
+        return errorResponse(503, "not_configured");
+      }
       return await route(request, env, ctx);
     } catch (error) {
       console.error(JSON.stringify({ event: "request_failed", error: error instanceof Error ? error.name : "unknown" }));

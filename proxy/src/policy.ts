@@ -44,7 +44,14 @@ export const POLICY = {
    * the app waits, so the app hears the outcome rather than timing out first.
    */
   modelDeadlineMs: 120_000,
+  /** One retry covers a dropped connection or a brief overload, but only when the API asks for no longer a wait than this. */
   modelRetries: 1,
+  maxRetryWaitMs: 10_000,
+  /**
+   * How long the model may still work after the app hung up. The runtime cuts a request off 30
+   * seconds after the caller left; stopping before that leaves time to give back and settle.
+   */
+  afterHangUpMs: 25_000,
   /** How often a wait line goes out while the model works, so that no network drops a quiet connection. */
   waitLineMs: 10_000,
 

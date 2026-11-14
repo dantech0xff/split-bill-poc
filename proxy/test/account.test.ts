@@ -1,12 +1,12 @@
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from "jose";
+import { decodeJwt, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf } from "../src/quota-book";
-import { issueSession } from "../src/session";
+import { issueSession, verdictOf } from "../src/session";
 import { network } from "./network";
 import { ANSWER, billRequest, last, model, proxyRequest, send } from "./requests";
 
@@ -85,6 +85,21 @@ describe("signing in", () => {
       const sent = await signIn(token);
       expect(sent.status).toBe(401);
       expect(JSON.parse(sent.body)).toEqual({ error: "id_token" });
+    }
+  });
+
+  it("tells a bad token from Google's keys being out of reach", () => {
+    for (const fault of [
+      new errors.JWTExpired("expired", {}),
+      new errors.JWTClaimValidationFailed("wrong audience", {}),
+      new errors.JWSSignatureVerificationFailed(),
+      new errors.JWSInvalid(),
+      new errors.JWKSNoMatchingKey(),
+    ]) {
+      expect(verdictOf(fault)).toBe("invalid");
+    }
+    for (const outage of [new errors.JWKSTimeout(), new errors.JOSEError("Expected 200 OK from the JSON Web Key Set HTTP response"), new TypeError("fetch failed")]) {
+      expect(verdictOf(outage)).toBe("unavailable");
     }
   });
 

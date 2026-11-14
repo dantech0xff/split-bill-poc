@@ -5,7 +5,7 @@ import sampleAnswer from "../../app/src/sharedTest/resources/fixtures/sample_bil
 import sampleRequest from "../../app/src/sharedTest/resources/fixtures/sample_bill_request.json";
 import { ALLOWANCES } from "../src/identity";
 import worker, { type Env } from "../src/index";
-import { hashed } from "../src/ledger";
+import { hashed, ipKey } from "../src/ledger";
 import { MESSAGES_URL, type Reply, streamed } from "./fake-model";
 import { network } from "./network";
 
@@ -54,12 +54,12 @@ export function billRequest(options: Caller & { body?: unknown; raw?: string } =
 }
 
 /** The model answers every request with [reply]; the returned list grows by one for each request it gets. */
-export function model(reply: Reply | (() => Response | Promise<Response>)): Seen[] {
+export function model(reply: Reply | ((request: Request) => Response | Promise<Response>)): Seen[] {
   const seen: Seen[] = [];
   network.use(
     http.post(MESSAGES_URL, async ({ request }) => {
       seen.push({ body: (await request.clone().json()) as Record<string, unknown>, headers: Object.fromEntries(request.headers) });
-      return typeof reply === "function" ? reply() : streamed(reply);
+      return typeof reply === "function" ? reply(request as unknown as Request) : streamed(reply);
     }),
   );
   return seen;
@@ -82,5 +82,5 @@ export async function spendOf(name: string): Promise<{ spent: number; held: numb
 }
 
 export async function ipName(ip: string): Promise<string> {
-  return `ip:${await hashed(ip, env.HASH_SALT)}`;
+  return `ip:${await hashed(ipKey(ip), env.HASH_SALT)}`;
 }

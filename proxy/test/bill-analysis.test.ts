@@ -312,7 +312,7 @@ describe("spend", () => {
     expect(await spendOf(`install:${install}`)).toMatchObject({ spent: 95_000, held: 0 });
   });
 
-  it("keeps the whole hold as spent when the model fails after it started", async () => {
+  it("keeps the whole hold as spent when the model is overloaded after it started", async () => {
     const events = serverSentEvents(ANSWER);
     const started = events.slice(0, events.indexOf("event: content_block_start"));
     model(() => eventStream(`${started}event: error\ndata: {"type":"error","error":{"type":"overloaded_error","message":"test"}}\n\n`));
@@ -320,7 +320,7 @@ describe("spend", () => {
 
     const sent = await send(billRequest({ install }));
 
-    expect(last(sent)).toEqual({ type: "error", code: "upstream" });
+    expect(last(sent)).toEqual({ type: "error", code: "busy" });
     expect(await quotaOf(install)).toMatchObject({ used: 0, remaining: 3 });
     const prompt = userMessage(sampleRequest.ocrDocument, sampleRequest.instruction, sampleRequest.localCurrency);
     const bytes = (text: string) => new TextEncoder().encode(text).byteLength;

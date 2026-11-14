@@ -17,11 +17,11 @@ export async function sessionRoute(request: Request, env: Env): Promise<Response
   const idToken = typeof body === "object" && body !== null ? (body as Record<string, unknown>).idToken : undefined;
   if (typeof idToken !== "string" || idToken === "" || idToken.length > MAX_ID_TOKEN_CHARS) return errorResponse(400, "input");
 
-  const account = await googleAccountOf(idToken, env);
-  if (account === null) return errorResponse(401, "id_token");
+  const checked = await googleAccountOf(idToken, env);
+  if (!checked.ok) return checked.reason === "invalid" ? errorResponse(401, "id_token") : errorResponse(503, "sign_in_off");
   const now = Date.now();
-  const { session, expiresAt } = await issueSession(account, env, now);
-  const usage = await quotaBook(env, `google:${account}`).usage(now, ALLOWANCES.monthly);
+  const { session, expiresAt } = await issueSession(checked.account, env, now);
+  const usage = await quotaBook(env, `google:${checked.account}`).usage(now, ALLOWANCES.monthly);
   return jsonResponse(200, { session, expiresAt, usage });
 }
 

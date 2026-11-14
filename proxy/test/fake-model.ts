@@ -59,6 +59,25 @@ export function serverSentEvents(reply: Reply): string {
   return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
 }
 
+/** Server-sent events as the API writes them. */
+export function sseOf(events: Array<{ type: string } & Record<string, unknown>>): string {
+  return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
+}
+
+/**
+ * An answer that starts with [events] and then never goes on or ends, as when the model hangs.
+ * Like a real fetch, it breaks off when the request is aborted.
+ */
+export function stalled(events: string, signal: AbortSignal): HttpResponse<ReadableStream<Uint8Array>> {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(events));
+      signal.addEventListener("abort", () => controller.error(new DOMException("The request was aborted", "AbortError")));
+    },
+  });
+  return new HttpResponse(body, { headers: { "content-type": "text/event-stream" } });
+}
+
 /** An error reply of the API, before any answer. */
 export function apiError(status: number, type: string): HttpResponse<string> {
   return new HttpResponse(JSON.stringify({ type: "error", error: { type, message: "test" } }), {
