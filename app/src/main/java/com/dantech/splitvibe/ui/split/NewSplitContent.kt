@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
@@ -48,7 +49,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 @Composable
 fun NewSplitContent(
     state: SplitUiState,
-    hasApiKey: Boolean,
+    aiStatus: AiStatus,
     newCameraTarget: () -> Uri,
     onBack: () -> Unit,
     onPhotoPicked: (Uri) -> Unit,
@@ -99,15 +100,15 @@ fun NewSplitContent(
                 minLines = 2,
             )
 
-            if (!hasApiKey) {
+            aiStatus.notice?.let { SvMessageCard(text = it, isError = false) }
+            state.error?.let { error ->
                 SvMessageCard(
-                    text = "An Anthropic API key is needed to work out the bill.",
-                    isError = false,
-                    action = "Open settings",
+                    text = error,
+                    isError = true,
+                    action = if (state.errorOpensSettings) "Open settings" else null,
                     onAction = onOpenSettings,
                 )
             }
-            state.error?.let { SvMessageCard(text = it, isError = true) }
         }
     }
 }

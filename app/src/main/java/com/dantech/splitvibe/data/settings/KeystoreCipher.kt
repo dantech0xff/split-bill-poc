@@ -10,21 +10,28 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Turns a small secret into text that is safe to keep in preferences, and back. */
+interface TextCipher {
+    fun encrypt(plainText: String): String
+
+    /** Returns null when the value cannot be decrypted, for example after the key was wiped. */
+    fun decrypt(encoded: String): String?
+}
+
 /**
  * Encrypts small secrets with an AES-256-GCM key that lives in the Android Keystore, so the key
  * material cannot be read out of the app's storage.
  */
-class KeystoreCipher(private val alias: String = "split_bill_settings") {
+class KeystoreCipher(private val alias: String) : TextCipher {
 
-    fun encrypt(plainText: String): String {
+    override fun encrypt(plainText: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val payload = cipher.iv + cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return Base64.encodeToString(payload, Base64.NO_WRAP)
     }
 
-    /** Returns null when the value cannot be decrypted, for example after the key was wiped. */
-    fun decrypt(encoded: String): String? = try {
+    override fun decrypt(encoded: String): String? = try {
         val payload = Base64.decode(encoded, Base64.NO_WRAP)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, payload, 0, IV_BYTES))

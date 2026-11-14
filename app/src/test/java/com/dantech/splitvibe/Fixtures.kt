@@ -1,11 +1,10 @@
 package com.dantech.splitvibe
 
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrPoint
 import com.dantech.splitvibe.ocr.OcrResult
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.int
@@ -44,30 +43,24 @@ object Fixtures {
         )
     }
 
-    /** The Messages API response that carries the recorded answer for the sample bill as its text block. */
-    fun claudeAnswer(): MockResponse {
-        val body = buildJsonObject {
-            put("id", "msg_recorded")
-            put("type", "message")
-            put("role", "assistant")
-            put("model", ClaudeBillAnalyzer.DEFAULT_MODEL)
-            put(
-                "content",
-                buildJsonArray {
-                    add(
-                        buildJsonObject {
-                            put("type", "text")
-                            put("text", text("sample_bill_answer.json"))
-                        },
-                    )
-                },
-            )
-            put("stop_reason", "end_turn")
+    /**
+     * The AI proxy's reply to a read of the sample bill: a wait line, then the recorded answer with
+     * the calls left after it.
+     */
+    fun proxyAnswer(): MockResponse {
+        val result = buildJsonObject {
+            put("type", "result")
+            put("answer", Json.parseToJsonElement(text("sample_bill_answer.json")))
             putJsonObject("usage") {
-                put("input_tokens", 2300)
-                put("output_tokens", 800)
+                put("limit", 3)
+                put("used", 1)
+                put("remaining", 2)
+                put("period", "trial")
+                put("resetsAt", JsonNull)
             }
         }
-        return MockResponse().setHeader("content-type", "application/json").setBody(body.toString())
+        return MockResponse()
+            .setHeader("content-type", "application/x-ndjson; charset=utf-8")
+            .setBody("{\"type\":\"wait\"}\n$result\n")
     }
 }

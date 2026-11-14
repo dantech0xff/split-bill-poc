@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.data.account.Account
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.contacts.Contact
 import com.dantech.splitvibe.data.contacts.ContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
@@ -16,20 +18,20 @@ import com.dantech.splitvibe.domain.currencyMismatchNote
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
-import com.dantech.splitvibe.llm.BillPrompt
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
+/** What the instruction field holds until the user types something else. */
+const val DEFAULT_INSTRUCTION = "Split this bill"
 
 enum class Progress { IDLE, LOADING_PHOTO, READING_TEXT, ASKING_CLAUDE }
 
@@ -49,9 +51,11 @@ data class SplitResultState(
 
 data class SplitUiState(
     val photo: Bitmap? = null,
-    val instruction: String = BillPrompt.DEFAULT_INSTRUCTION,
+    val instruction: String = DEFAULT_INSTRUCTION,
     val progress: Progress = Progress.IDLE,
     val error: String? = null,
+    /** The error is fixed by signing in, so it comes with a way to Settings. */
+    val errorOpensSettings: Boolean = false,
     val result: SplitResultState? = null,
     val sentRequests: List<PaymentRequest>? = null,
 ) {
@@ -65,9 +69,10 @@ data class SplitUiState(
 class SplitBillViewModel(
     contactRepository: ContactRepository,
     private val settings: StateFlow<AppSettings>,
+    private val account: StateFlow<Account>,
     private val imageLoader: BillImageLoader,
     private val recognizer: BillTextRecognizer,
-    private val analyzerFor: (AppSettings) -> BillAnalyzer,
+    private val analyzer: BillAnalyzer,
 ) : ViewModel() {
 
     val contacts: List<Contact> = contactRepository.contacts()
@@ -100,8 +105,9 @@ class SplitBillViewModel(
         val photo = current.photo ?: return
         if (current.isBusy) return
         val appSettings = settings.value
-        if (!appSettings.hasApiKey) {
-            mutableState.update { it.copy(error = "Add your Anthropic API key in Settings first.") }
+        // When AI is only switched off, the request still goes out: the proxy may have turned it back on.
+        if (account.value.ai == AiStatus.NOT_SET_UP) {
+            mutableState.update { it.copy(error = AiStatus.NOT_SET_UP.notice) }
             return
         }
 
@@ -113,8 +119,6 @@ class SplitBillViewModel(
             }
 
             mutableState.update { it.copy(progress = Progress.ASKING_CLAUDE) }
-            // Off the main thread: switching settings closes the previous HTTP client here.
-            val analyzer = withContext(Dispatchers.IO) { analyzerFor(appSettings) }
             when (val analysis = analyzer.analyze(ocr, current.instruction, appSettings.localCurrency)) {
                 is BillAnalysis.Rejected -> showError(analysis.reason)
 
@@ -173,18 +177,21 @@ class SplitBillViewModel(
         state.copy(result = result.copy(plan = plan, split = SplitCalculator.split(result.bill, plan.participantIds, plan.sharersByItem())))
     }
 
-    private fun showError(message: String) = mutableState.update { it.copy(error = message) }
+    private fun showError(message: String, opensSettings: Boolean = false) =
+        mutableState.update { it.copy(error = message, errorOpensSettings = opensSettings) }
 
     private fun launchWork(progress: Progress, block: suspend () -> Unit) {
         work?.cancel()
         val job = viewModelScope.launch {
-            mutableState.update { it.copy(progress = progress, error = null) }
+            mutableState.update { it.copy(progress = progress, error = null, errorOpensSettings = false) }
             try {
                 block()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BillAnalyzerException) {
-                showError(e.message ?: "The bill could not be analysed.")
+                val signInHelps = e.kind == BillAnalyzerException.Kind.SIGN_IN_EXPIRED ||
+                    (e.kind == BillAnalyzerException.Kind.QUOTA_EXHAUSTED && account.value.session == null)
+                showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps)
             } catch (e: IOException) {
                 showError("That image could not be opened. Try another photo.")
             } catch (e: Exception) {

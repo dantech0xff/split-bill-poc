@@ -11,12 +11,13 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.data.account.Account
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.di.appModule
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalysisParser
 import com.dantech.splitvibe.llm.BillAnalyzer
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +33,7 @@ import org.koin.dsl.module
 /**
  * Splits the sample bill on a device, from the photo to the sent requests, and checks every screen
  * on the way for accessibility. The text is read by the real recognizer on the device; the model's
- * answer is the one recorded for this bill, so the test needs neither a key nor the network.
+ * answer is the one recorded for this bill, so the test needs neither the AI proxy nor the network.
  */
 @RunWith(AndroidJUnit4::class)
 class SplitFlowOnDeviceTest {
@@ -45,10 +46,13 @@ class SplitFlowOnDeviceTest {
                 viewModel {
                     SplitBillViewModel(
                         contactRepository = get(),
-                        settings = MutableStateFlow(AppSettings("test-key", ClaudeBillAnalyzer.DEFAULT_MODEL, "VND")),
+                        settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+                        account = MutableStateFlow(
+                            Account(installId = "on-device-test", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
+                        ),
                         imageLoader = get(),
                         recognizer = get(),
-                        analyzerFor = { RecordedAnswer },
+                        analyzer = RecordedAnswer,
                     )
                 }
             },

@@ -23,16 +23,17 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
-import com.dantech.splitvibe.llm.BillPrompt
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.settings.SettingsScreen
+import com.dantech.splitvibe.ui.split.DEFAULT_INSTRUCTION
 import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
@@ -76,9 +77,9 @@ class ScreenGalleryTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
-    private val settings = AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")
+    private val settings = AppSettings(localCurrency = "VND")
 
-    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_KEY, SETTINGS }
+    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS }
 
     private var screen by mutableStateOf(Screen.HOME)
 
@@ -147,8 +148,8 @@ class ScreenGalleryTest {
         show(Screen.SETTINGS)
         shot("11-settings")
 
-        show(Screen.SPLIT_WITHOUT_KEY)
-        shot("12-new-split-without-key")
+        show(Screen.SPLIT_WITHOUT_AI)
+        shot("12-new-split-without-ai")
 
         show(Screen.SPLIT)
         shot("02-new-split")
@@ -156,7 +157,7 @@ class ScreenGalleryTest {
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
-        compose.onNodeWithText(BillPrompt.DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
         shot("03-photo-and-instruction")
 
         // The working state shows an endless animation. Its clock is stopped and then moved on by a
@@ -208,7 +209,7 @@ class ScreenGalleryTest {
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
-        compose.onNodeWithText(BillPrompt.DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
@@ -216,14 +217,15 @@ class ScreenGalleryTest {
     }
 
     private fun start(answerDelaySeconds: Long): SplitBillViewModel {
-        server.enqueue(Fixtures.claudeAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
-        val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
+        server.enqueue(Fixtures.proxyAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
+        val proxy = TestProxy(server, context)
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
             settings = MutableStateFlow(settings),
+            account = proxy.account.account,
             imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
-            analyzerFor = { analyzer },
+            analyzer = proxy.analyzer,
         )
         compose.setContent {
             // No touch ripples: they are drawn by the platform on real time, so a picture taken
@@ -233,17 +235,16 @@ class ScreenGalleryTest {
                     when (screen) {
                         Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
 
-                        Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = {
+                        Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
                         }, onExit = {}, onOpenSettings = {})
 
-                        // What a fresh install shows until a key is saved in Settings.
-                        Screen.SPLIT_WITHOUT_KEY -> SplitScreen(viewModel = viewModel, hasApiKey = false, newCameraTarget = {
+                        // What a build without the AI proxy's address shows.
+                        Screen.SPLIT_WITHOUT_AI -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.NOT_SET_UP, newCameraTarget = {
                             Uri.EMPTY
                         }, onExit = {}, onOpenSettings = {})
 
-                        // First use: no key saved yet, so the field shows its placeholder.
-                        Screen.SETTINGS -> SettingsScreen(settings = settings.copy(apiKey = ""), onSave = { _, _, _ -> }, onBack = {})
+                        Screen.SETTINGS -> SettingsScreen(settings = settings, onSave = {}, onBack = {})
                     }
                 }
             }

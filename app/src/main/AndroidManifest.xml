@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Only needed to reach the Anthropic API. OCR runs on the device; photos come from the system
+    <!-- Only needed to reach the app's AI proxy. OCR runs on the device; photos come from the system
          picker or the system camera app, so no storage or camera permission is requested. -->
     <uses-permission android:name="android.permission.INTERNET" />
 

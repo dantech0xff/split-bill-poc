@@ -7,14 +7,20 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
-// Optional developer convenience: put ANTHROPIC_API_KEY=sk-ant-... in local.properties (git-ignored)
-// to pre-fill the key in debug builds. The key is then readable inside that debug APK, so never
-// hand such an APK to anyone. Release builds never embed a key.
+// Where the app reaches the AI proxy (see proxy/ and docs/proxy.md). No key of any kind is built into
+// the app. local.properties (git-ignored) may set splitvibe.aiProxyUrl; a debug build otherwise uses
+// `wrangler dev` on the computer, reached from the phone through `adb reverse tcp:8787 tcp:8787`.
+// A release build must use https, and without the setting it is built with AI reading off.
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use(::load)
 }
-val debugAnthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KEY", "").trim()
+val aiProxyUrl: String? = localProperties.getProperty("splitvibe.aiProxyUrl")?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+val debugAiProxyUrl: String = aiProxyUrl ?: "http://127.0.0.1:8787"
+val releaseAiProxyUrl: String = aiProxyUrl.orEmpty()
+check(releaseAiProxyUrl.isEmpty() || releaseAiProxyUrl.startsWith("https://")) {
+    "splitvibe.aiProxyUrl must start with https:// for release builds, but it is $releaseAiProxyUrl"
+}
 
 // The upload key never lives in the repository. A release build is signed only when all four
 // variables are set, which only the release workflow does. Everywhere else it comes out unsigned.
@@ -44,7 +50,6 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "DEFAULT_ANTHROPIC_API_KEY", "\"\"")
     }
 
     signingConfigs {
@@ -60,9 +65,10 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "DEFAULT_ANTHROPIC_API_KEY", "\"$debugAnthropicApiKey\"")
+            buildConfigField("String", "AI_PROXY_URL", "\"$debugAiProxyUrl\"")
         }
         release {
+            buildConfigField("String", "AI_PROXY_URL", "\"$releaseAiProxyUrl\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -124,7 +130,7 @@ android {
 
     packaging {
         resources {
-            // Duplicate license/metadata files shipped by the Anthropic SDK's JVM dependencies.
+            // License and metadata files that several JVM libraries ship under the same names.
             excludes += setOf(
                 "META-INF/{AL2.0,LGPL2.1}",
                 "META-INF/LICENSE*",
@@ -169,8 +175,8 @@ dependencies {
     // On-device OCR: bundled Latin-script model, works offline without Google Play services downloads.
     implementation(libs.mlkit.text.recognition)
 
-    // Official Anthropic SDK for the JVM (Kotlin uses the Java SDK).
-    implementation(libs.anthropic.java)
+    // Talks to the AI proxy; the answer streams in as lines of JSON.
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

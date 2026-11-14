@@ -17,13 +17,13 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ME_ID
-import com.dantech.splitvibe.llm.BillPrompt
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
@@ -44,11 +44,11 @@ import org.robolectric.annotation.Config
 /**
  * Walks through the whole feature on the real screens, without a device (Robolectric).
  *
- * The view model, the screens, the split logic and the Anthropic SDK client are the real ones. Two
+ * The view model, the screens, the split logic and the AI proxy client are the real ones. Two
  * things are replayed from recordings of the real pipeline for the bundled sample bill, because
  * they cannot run on a development machine: the text ML Kit read on a device
  * (`fixtures/sample_bill_ocr.json`) and the answer Claude Opus gave for it
- * (`fixtures/sample_bill_answer.json`, served by a local HTTP server).
+ * (`fixtures/sample_bill_answer.json`, served the way the proxy streams it by a local HTTP server).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -79,7 +79,7 @@ class SplitFlowTest {
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
-        compose.onNodeWithText(BillPrompt.DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
@@ -136,18 +136,21 @@ class SplitFlowTest {
 
     /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it. */
     private fun showSplitScreen(): SplitBillViewModel {
-        server.enqueue(Fixtures.claudeAnswer())
-        val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
+        server.enqueue(Fixtures.proxyAnswer())
+        val proxy = TestProxy(server, context)
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")),
+            settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+            account = proxy.account.account,
             imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
-            analyzerFor = { analyzer },
+            analyzer = proxy.analyzer,
         )
         compose.setContent {
             SplitVibeTheme {
-                SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
+                SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
+                    Uri.EMPTY
+                }, onExit = {}, onOpenSettings = {})
             }
         }
         return viewModel

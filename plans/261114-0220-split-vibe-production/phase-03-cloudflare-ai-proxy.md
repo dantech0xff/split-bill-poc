@@ -115,9 +115,11 @@ Tạo mới:
 - `app/src/sharedTest/resources/fixtures/sample_bill_request.json` (thân yêu cầu mẫu dùng chung cho test của app và của proxy)
 - `proxy/eval/` (bộ chạy đánh giá và thư mục hóa đơn mẫu)
 - `docs/proxy.md` (chạy ở máy, triển khai, secret)
-- `app/src/main/java/com/dantech/splitvibe/llm/GatewayBillAnalyzer.kt`
-- `app/src/main/java/com/dantech/splitvibe/data/account/` (mã cài đặt, phiên, đăng nhập Google, xóa tài khoản)
-- `app/src/test/java/com/dantech/splitvibe/RecordedBillAnalyzer.kt` (bộ phân tích ghi sẵn cho test)
+- `app/src/main/java/com/dantech/splitvibe/llm/GatewayBillAnalyzer.kt` (đọc hóa đơn qua proxy, ánh xạ mã lỗi thành thông báo; đọc lại cùng hóa đơn sau một lần lỗi thì giữ `requestId` để không bị tính hai lượt)
+- `app/src/main/java/com/dantech/splitvibe/data/proxy/ProxyApi.kt` (OkHttp: bốn đường của proxy, đọc NDJSON từng dòng, hủy coroutine thì hủy cuộc gọi)
+- `app/src/main/java/com/dantech/splitvibe/data/account/` (mã cài đặt, phiên mã hóa bằng Keystore, số lượt còn lại, trạng thái AI; đăng nhập Google và xóa tài khoản ở bước 5)
+- `app/src/test/java/com/dantech/splitvibe/TestProxy.kt` (client proxy thật trỏ vào MockWebServer, dùng cho test luồng và test ảnh chụp; câu trả lời NDJSON của hóa đơn mẫu nằm trong `Fixtures.proxyAnswer()`)
+- `app/src/androidTest/java/com/dantech/splitvibe/llm/GatewayBillAnalyzerOnDeviceTest.kt`
 
 Sửa:
 - `app/build.gradle.kts`, `gradle/libs.versions.toml` (Credential Manager và thư viện Google ID; `AI_PROXY_URL` và `GOOGLE_WEB_CLIENT_ID` vào `BuildConfig`; bỏ `DEFAULT_ANTHROPIC_API_KEY` và thư viện Anthropic Java), `gradle/verification-metadata.xml`
@@ -151,8 +153,8 @@ Xóa:
 - [x] `bill-analysis` có kiểm đầu vào, structured output, `max_tokens`, dòng chờ, quyết toán chi phí
 - [x] Prompt và schema chạy trên proxy, fixture dùng chung
 - [x] `session`, `usage`, `account`, công tắc AI và phiên bản tối thiểu, có test
-- [ ] `GatewayBillAnalyzer`; trạng thái "AI khả dụng" thay `hasApiKey` ở bốn nơi
-- [ ] Xóa `ClaudeBillAnalyzer`, test của nó và thư viện Anthropic Java
+- [x] `GatewayBillAnalyzer`; trạng thái "AI khả dụng" thay `hasApiKey` ở bốn nơi
+- [x] Xóa `ClaudeBillAnalyzer`, test của nó và thư viện Anthropic Java
 - [ ] Đăng nhập Google, đăng xuất, xóa tài khoản, số lượt còn lại
 - [ ] Job kiểm proxy trong CI, Dependabot cho npm, `docs/proxy.md`
 - [ ] Bộ đánh giá và báo cáo chọn model

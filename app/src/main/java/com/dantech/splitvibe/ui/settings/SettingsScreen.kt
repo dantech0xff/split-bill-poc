@@ -14,38 +14,28 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 
-/** Where the tester enters the Anthropic API key, the app's local currency and, optionally, another model name. */
+/** The app's own settings: the currency it works in. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String, localCurrency: String) -> Unit, onBack: () -> Unit) {
-    // Deliberately not saveable: the key must not be copied into the saved instance state.
-    var apiKey by remember { mutableStateOf(settings.apiKey) }
-    var model by rememberSaveable { mutableStateOf(settings.model) }
+fun SettingsScreen(settings: AppSettings, onSave: (localCurrency: String) -> Unit, onBack: () -> Unit) {
     var localCurrency by rememberSaveable { mutableStateOf(settings.localCurrency) }
     val currencyIsValid = BillCurrency.isKnownCode(localCurrency)
-    var showKey by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -69,37 +59,6 @@ fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String
             verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
         ) {
             OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Anthropic API key") },
-                placeholder = { Text("sk-ant-…") },
-                singleLine = true,
-                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.None,
-                    autoCorrectEnabled = false,
-                    keyboardType = KeyboardType.Password,
-                ),
-                trailingIcon = {
-                    TextButton(onClick = { showKey = !showKey }) { Text(if (showKey) "Hide" else "Show") }
-                },
-                supportingText = {
-                    Text("Stored encrypted on this device and sent only to the Anthropic API.")
-                },
-            )
-
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Model") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
-                supportingText = { Text("The request is tuned for claude-opus-5-5.") },
-            )
-
-            OutlinedTextField(
                 value = localCurrency,
                 onValueChange = { localCurrency = it.uppercase().take(3) },
                 modifier = Modifier.fillMaxWidth(),
@@ -118,14 +77,7 @@ fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String
                 },
             )
 
-            Text(
-                "This is a proof of concept. A real payment app must not put an API key on the phone: " +
-                    "it should call its own server, and the server calls Claude.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            SvPrimaryButton("Save", onClick = { onSave(apiKey, model, localCurrency) }, enabled = currencyIsValid)
+            SvPrimaryButton("Save", onClick = { onSave(localCurrency) }, enabled = currencyIsValid)
         }
     }
 }

@@ -20,11 +20,13 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.NeverAsked
+import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.llm.BillAnalyzer
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
@@ -68,7 +70,7 @@ class ReducedMotionTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
-    private val settings = AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")
+    private val settings = AppSettings(localCurrency = "VND")
 
     private val recordedText = object : BillTextRecognizer {
         override suspend fun recognize(image: Bitmap): OcrResult = Fixtures.ocr("sample_bill_ocr.json")
@@ -102,9 +104,8 @@ class ReducedMotionTest {
     @Test
     fun `a bill can be split from start to finish when animations are off`() {
         switchAnimationsOff()
-        server.enqueue(Fixtures.claudeAnswer())
-        val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
-        val viewModel = start(recordedText, analyzerFor = { analyzer })
+        server.enqueue(Fixtures.proxyAnswer())
+        val viewModel = start(recordedText, TestProxy(server, context).analyzer)
 
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
@@ -117,7 +118,7 @@ class ReducedMotionTest {
     }
 
     private fun showWorkingState() {
-        val viewModel = start(neverFinishes, analyzerFor = { error("This test never gets as far as asking the model") })
+        val viewModel = start(neverFinishes, NeverAsked)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { it.photo != null && !it.isBusy } }
         compose.onNodeWithText("Read and split the bill").performClick()
@@ -127,19 +128,22 @@ class ReducedMotionTest {
         compose.mainClock.advanceTimeBy(STEP_MS)
     }
 
-    private fun start(recognizer: BillTextRecognizer, analyzerFor: (AppSettings) -> BillAnalyzer): SplitBillViewModel {
+    private fun start(recognizer: BillTextRecognizer, analyzer: BillAnalyzer): SplitBillViewModel {
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
             settings = MutableStateFlow(settings),
+            account = TestProxy(server, context).account.account,
             imageLoader = BillImageLoader(context),
             recognizer = recognizer,
-            analyzerFor = analyzerFor,
+            analyzer = analyzer,
         )
         compose.setContent {
             // No touch ripples: the platform draws them on real time, which would look like movement.
             CompositionLocalProvider(LocalRippleConfiguration provides null) {
                 SplitVibeTheme {
-                    SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
+                    SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
+                        Uri.EMPTY
+                    }, onExit = {}, onOpenSettings = {})
                 }
             }
         }

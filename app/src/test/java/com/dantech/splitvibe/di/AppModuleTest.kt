@@ -3,9 +3,11 @@ package com.dantech.splitvibe.di
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.contacts.ContactRepository
+import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.settings.SettingsStore
-import com.dantech.splitvibe.llm.BillAnalyzerProvider
+import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
@@ -36,7 +38,9 @@ class AppModuleTest {
         assertNotNull(koin.get<SettingsStore>())
         assertNotNull(koin.get<BillImageLoader>())
         assertNotNull(koin.get<BillTextRecognizer>())
-        assertNotNull(koin.get<BillAnalyzerProvider>())
+        assertNotNull(koin.get<AccountStore>())
+        assertNotNull(koin.get<ProxyApi>())
+        assertNotNull(koin.get<BillAnalyzer>())
         assertNotNull(koin.get<SplitBillViewModel>())
 
         assertSame("long-lived objects are created once", koin.get<SettingsStore>(), koin.get<SettingsStore>())

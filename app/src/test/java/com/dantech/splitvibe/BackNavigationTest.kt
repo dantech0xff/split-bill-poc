@@ -9,8 +9,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.settings.AppSettings
-import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.split.Progress
@@ -46,8 +46,8 @@ class BackNavigationTest {
     }
 
     /**
-     * Replaces the view model before the activity starts. With a saved key and a recognizer that
-     * never finishes, the test can press back while the bill is being read.
+     * Replaces the view model before the activity starts. With a recognizer that never finishes,
+     * the test can press back while the bill is being read.
      */
     @get:Rule(order = 0)
     val stalledBillReading = object : ExternalResource() {
@@ -56,10 +56,11 @@ class BackNavigationTest {
                 viewModel {
                     SplitBillViewModel(
                         contactRepository = get(),
-                        settings = MutableStateFlow(AppSettings("test-key", ClaudeBillAnalyzer.DEFAULT_MODEL, "VND")),
+                        settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+                        account = get<AccountStore>().account,
                         imageLoader = get(),
                         recognizer = neverFinishes,
-                        analyzerFor = { error("This test never gets as far as asking the model") },
+                        analyzer = NeverAsked,
                     ).also { splitViewModel = it }
                 }
             },

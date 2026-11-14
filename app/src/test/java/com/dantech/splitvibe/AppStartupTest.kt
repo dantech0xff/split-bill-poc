@@ -5,7 +5,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -32,14 +31,14 @@ class AppStartupTest {
         compose.onNodeWithText("Split a bill").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
 
-        compose.onNodeWithText("Open settings").performScrollTo().performClick()
-        compose.onNodeWithText("Settings").assertIsDisplayed()
-
-        pressBack()
-        compose.onNodeWithText("New split").assertIsDisplayed()
-
         // The arrow in the top bar, as opposed to the system back button.
         compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Contacts").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Local currency").assertIsDisplayed()
+
+        pressBack()
         compose.onNodeWithText("Contacts").assertIsDisplayed()
     }
 
@@ -52,14 +51,15 @@ class AppStartupTest {
     @Test
     fun `the open screens come back after the system recreates the activity`() {
         compose.onNodeWithText("Split a bill").performClick()
-        compose.onNodeWithText("Open settings").performScrollTo().performClick()
-
         compose.activityRule.scenario.recreate()
-
-        compose.onNodeWithText("Settings").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
         pressBack()
+        compose.onNodeWithText("Contacts").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithText("Local currency").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Contacts").assertIsDisplayed()
     }
 

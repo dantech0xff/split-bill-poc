@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.designsystem.motion.SvSteps
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.ui.SPLIT_SURFACE
@@ -22,7 +23,7 @@ internal const val SEND_SURFACE = "send"
 @Composable
 fun SplitScreen(
     viewModel: SplitBillViewModel,
-    hasApiKey: Boolean,
+    aiStatus: AiStatus,
     newCameraTarget: () -> Uri,
     onExit: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -67,7 +68,7 @@ fun SplitScreen(
 
                 is SplitStep.Input -> NewSplitContent(
                     state = shown.state,
-                    hasApiKey = hasApiKey,
+                    aiStatus = aiStatus,
                     newCameraTarget = newCameraTarget,
                     onBack = {
                         viewModel.cancelWork()

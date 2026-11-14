@@ -7,9 +7,9 @@ import com.dantech.splitvibe.ocr.OcrResult
 /**
  * Turns the OCR output of a bill photo plus the user's instruction into a structured bill.
  *
- * The app only depends on this interface. [ClaudeBillAnalyzer] calls the Anthropic API directly,
- * which is fine for a proof of concept; a production app would implement this against its own
- * backend so the API key never ships inside the app.
+ * The app only depends on this interface. Its implementation in the app asks the app's AI proxy,
+ * which holds the Anthropic key, builds the prompt and counts each person's calls; no key ever
+ * ships inside the app.
  */
 interface BillAnalyzer {
     /**
@@ -31,32 +31,40 @@ sealed interface BillAnalysis {
 class BillAnalyzerException(val kind: Kind, message: String, cause: Throwable? = null) : Exception(message, cause) {
 
     enum class Kind {
-        /** The API rejected the key. */
-        INVALID_API_KEY,
+        /** The calls this install or account may make are used up, for good or until the month turns. */
+        QUOTA_EXHAUSTED,
 
-        /** The key is valid but may not use this model or feature. */
-        NOT_ALLOWED,
+        /** The sign-in was not accepted or has run out; signing in again fixes it. */
+        SIGN_IN_EXPIRED,
 
-        /** The configured model id does not exist or is not available to this account. */
-        MODEL_NOT_FOUND,
+        /** Reading bills with AI is switched off on the server for now. */
+        AI_OFF,
+
+        /** This version of the app is too old to read bills. */
+        UPDATE_REQUIRED,
+
+        /** Too many requests came from this network or person just now. */
         RATE_LIMITED,
 
-        /** The request was rejected as invalid (this is also how the API reports "no credit left"). */
+        /** The model is overloaded, or the service has spent what it may spend today. */
+        BUSY,
+
+        /** The server rejected the request as invalid. */
         BAD_REQUEST,
 
-        /** The API answered with a server-side error or is overloaded. */
+        /** The server had a problem of its own. */
         SERVICE_ERROR,
 
-        /** No usable connection to the API. */
+        /** No usable connection to the server. */
         NETWORK,
 
-        /** The API was reached but did not answer in time. */
+        /** The server was reached but the answer did not come in time. */
         TIMEOUT,
 
-        /** The model declined to answer. */
+        /** The model declined to read the bill. */
         REFUSED,
 
-        /** The answer was cut off or was not the structured bill we asked for. */
+        /** The answer was cut off or was not the structured bill that was asked for. */
         BAD_RESPONSE,
     }
 }

@@ -25,7 +25,8 @@ import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Converts the model's JSON answer (shape defined by [BillSchema]) into the app's [BillAnalysis].
+ * Converts the model's JSON answer (its shape is the schema in the AI proxy's `src/schema.ts`) into
+ * the app's [BillAnalysis].
  *
  * The model's numbers are treated as readings of the bill, not as trusted arithmetic: amounts are
  * converted to integer minor units here and [BillReconciler] checks that they add up.

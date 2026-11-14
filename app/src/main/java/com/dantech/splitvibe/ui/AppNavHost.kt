@@ -19,6 +19,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.motion.SvMotion
@@ -51,8 +52,10 @@ fun AppNavHost() {
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
     val splitViewModel: SplitBillViewModel = koinViewModel()
     val settingsStore: SettingsStore = koinInject()
+    val accountStore: AccountStore = koinInject()
     val imageLoader: BillImageLoader = koinInject()
     val settings by settingsStore.settings.collectAsStateWithLifecycle()
+    val account by accountStore.account.collectAsStateWithLifecycle()
 
     // One timing for the fade between screens and for a surface that grows into the next screen,
     // so both stay together when a back swipe scrubs through them.
@@ -90,7 +93,7 @@ fun AppNavHost() {
                     Screen {
                         SplitScreen(
                             viewModel = splitViewModel,
-                            hasApiKey = settings.hasApiKey,
+                            aiStatus = account.ai,
                             newCameraTarget = imageLoader::newCameraTarget,
                             onExit = { backStack.removeAll { it != HomeKey } },
                             onOpenSettings = { backStack.open(SettingsKey) },
@@ -101,8 +104,8 @@ fun AppNavHost() {
                     Screen {
                         SettingsScreen(
                             settings = settings,
-                            onSave = { apiKey, model, localCurrency ->
-                                settingsStore.save(apiKey, model, localCurrency)
+                            onSave = { localCurrency ->
+                                settingsStore.save(localCurrency)
                                 backStack.remove(SettingsKey)
                             },
                             onBack = { backStack.remove(SettingsKey) },
