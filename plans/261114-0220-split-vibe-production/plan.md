@@ -1,7 +1,7 @@
 ---
 title: "Split Vibe: từ POC lên sản phẩm production"
 description: "Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Android production toàn cầu, giao diện Material 3 Expressive, backend Firebase, có gói Pro."
-status: pending
+status: in-progress
 priority: P1
 effort: "90d"
 branch: feat/production-kickoff
