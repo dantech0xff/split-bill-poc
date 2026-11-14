@@ -41,10 +41,10 @@ jobs:
 
       # The unit tests include the screenshot comparison against app/src/test/screenshots.
       - name: Unit tests and screenshots
-        run: ./gradlew :core:domain:test :app:testProdDebugUnitTest
+        run: ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 
       - name: Android Lint
-        run: ./gradlew :app:lintProdDebug
+        run: ./gradlew :app:lintProdDebug :core:designsystem:lintDebug
 
       # No signing variables exist here, so the release package and bundle come out unsigned.
       - name: Debug package, release package and bundle

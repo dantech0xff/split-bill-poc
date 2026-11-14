@@ -120,8 +120,8 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 ## Todo
 
 - [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
-- [ ] Token và `SplitVibeTheme` (sáng, tối)
-- [ ] Token bóng 4 mức bằng `dropShadow`
+- [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền và theme; token hình khối và khoảng cách làm cùng bộ thành phần
+- [x] Token bóng 4 mức bằng `dropShadow`
 - [ ] Bộ thành phần và màn hình danh mục
 - [ ] Lớp chuyển động theo bảng hành trình
 - [ ] Dựng lại 7 màn hình và 2 bảng trượt hiện có

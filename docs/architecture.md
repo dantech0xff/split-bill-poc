@@ -10,8 +10,10 @@ only what is in the repository now.
 flowchart LR
     app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the Claude client"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
+    design[":core:designsystem<br/>theme, colours, type,<br/>elevation"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
+    app --> design
     profile -. drives and measures .-> app
 ```
 
@@ -19,12 +21,24 @@ flowchart LR
 |---|---|---|
 | `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `ClaudeBillAnalyzer`, settings storage |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillReconciler`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Contact`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark), the colour tokens, the text styles for amounts, the elevation levels |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
 are the same in both modules (`com.dantech.splitvibe.domain`, `.ocr`, `.llm`, `.data.contacts`), so
 moving a file between them does not change any import.
+
+`:core:designsystem` owns how the app looks. A screen wraps itself in nothing: `MainActivity` applies
+`SplitVibeTheme` once, and screens read colours, type and elevation from it. Two rules in that
+module are worth knowing before changing it:
+
+- Every colour role takes a fixed lightness step of one of five ramps, so text and its background
+  always differ enough to read. `ColorTokensTest` fails when a changed value breaks that.
+- Depth is `SvElevation`. In the light theme a level is a soft violet-tinted shadow; in the dark
+  theme it is a lighter surface and no shadow is drawn. The only part of a shadow that may be
+  animated is its strength, which moves opacity and offset. The blur radius is fixed per level
+  because changing it every frame is expensive.
 
 ## Inside the app
 
@@ -119,9 +133,9 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Check | Command | What it guards |
 |---|---|---|
 | Code style | `./gradlew ktlintCheck` | The rules in `.editorconfig`. `./gradlew ktlintFormat` fixes most findings. |
-| Unit tests | `./gradlew :core:domain:test :app:testProdDebugUnitTest` | Split rules, parsing, the Claude client against a local server, the UI flow, app startup, navigation and back handling |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules, parsing, the Claude client against a local server, the UI flow, app startup, navigation and back handling, text contrast of the palette |
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
-| Android Lint | `./gradlew :app:lintProdDebug` | Platform and API misuse |
+| Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
 | Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime. Nightly, and when those tests change. |
@@ -138,7 +152,8 @@ like code.
 ### Screenshot tests
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
-them with the reference images. After an intended visual change, record new images and review them
+them with the reference images. `DesignTokensTest` does the same for the elevation levels and the
+amount styles, in the light and the dark theme. After an intended visual change, record new images and review them
 in the pull request like code:
 
 ```bash
@@ -158,7 +173,7 @@ A version bump therefore needs new checksums. After changing `gradle/libs.versio
 Gradle reports that an artifact failed verification, refresh the file, read the diff and commit it:
 
 ```bash
-GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :app:testProdDebugUnitTest :app:lintProdDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
+GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest :app:lintProdDebug :core:designsystem:lintDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
 ```
 
 The empty Gradle home matters. With a filled cache Gradle skips parent and version-alignment files
