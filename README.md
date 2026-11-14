@@ -33,16 +33,19 @@ flowchart LR
 ## Run it
 
 Requirements: Android Studio with support for Android Gradle Plugin 9.1 (or JDK 17+ and the Android
-SDK with platform 36 on the command line), and a device or emulator running Android 8.0 (API 26) or
+SDK with platform 37 on the command line), and a device or emulator running Android 8.0 (API 26) or
 newer.
 
 ```bash
-./gradlew assembleDebug
+./gradlew :app:assembleDevDebug
 ```
 
 ```bash
-./gradlew installDebug
+./gradlew :app:installDevDebug
 ```
+
+The `dev` flavor installs as `com.dantech.splitvibe.dev`, next to the real app and with its own data.
+The `prod` flavor is the app that will be published.
 
 Then give the app an Anthropic API key in one of two ways:
 
@@ -141,28 +144,36 @@ contact list is never sent: the model only repeats names that appear in the inst
 ## Project layout
 
 ```text
-app/src/main/java/com/dantech/splitvibe/
+core/domain/                  plain Kotlin, no Android: the money logic and the data contracts
   domain/     Bill, BillCurrency, BillReconciler, SplitCalculator, SplitPlan, NameMatcher
-  ocr/        BillTextRecognizer (ML Kit), BillImageLoader, OcrLayoutEncoder, OcrResult
-  llm/        BillAnalyzer, ClaudeBillAnalyzer, BillPrompt, BillSchema, BillAnalysisParser
+  ocr/        OcrResult, OcrLayoutEncoder
+  llm/        BillAnalyzer, BillAnalysisParser
+  data/       Contact
+app/src/main/java/com/dantech/splitvibe/
+  di/         the Koin module that wires the app together
+  ocr/        BillTextRecognizer (ML Kit), BillImageLoader
+  llm/        ClaudeBillAnalyzer, BillPrompt, BillSchema
   data/       contacts (seeded), settings (encrypted API key)
-  ui/         home, split (new split, result, sheets, confirmation), settings, theme
-app/src/test/                 unit tests
+  ui/         navigation, home, split (new split, result, sheets, confirmation), settings, theme
+app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
 app/src/androidTest/          on-device tests
 app/src/sharedTest/resources/ recorded ML Kit output and a recorded Claude answer
+baseline-profile/             records the startup profile and holds the benchmarks
 ```
 
-`domain`, `OcrLayoutEncoder` and most of `llm` are plain Kotlin and run in unit tests without a device.
+[docs/architecture.md](docs/architecture.md) explains the modules, the navigation, the build
+variants and every check in more detail.
 
 ## Tests
 
 ```bash
-./gradlew testDebugUnitTest
+./gradlew :core:domain:test :app:testProdDebugUnitTest
 ```
 
-80 unit tests cover the split rules (including 2,000 random bills whose shares must add up to the
+88 tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
-layout, answer parsing, the Claude client and the UI flow.
+layout, answer parsing, the Claude client, the UI flow, app startup, navigation and the dependency
+wiring.
 
 - The client tests run the real SDK against a local HTTP server and pin down the exact request and
   every kind of API answer: success, invalid key, unknown model, refusal, cut-off answer, fallback
@@ -171,29 +182,46 @@ layout, answer parsing, the Claude client and the UI flow.
   instruction, analysis, people pre-selected, exact shares, changing who shares an item, request
   confirmation. It replays two recordings of the real pipeline: the text ML Kit read on a device
   and the answer Claude Opus gave for it.
+- `ScreenGalleryTest` draws every screen and compares it with the reference image in
+  `app/src/test/screenshots`. After an intended visual change, record new images with
+  `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record` and review them like code.
+- `AppStartupTest` and `BackNavigationTest` start the real application and activity: moving between
+  the screens, restoring them after the activity is recreated, the back swipe preview, and back
+  cancelling running work before it leaves the split screen.
 
 ```bash
-./gradlew connectedDebugAndroidTest
+./gradlew :app:pixel6Api34ProdDebugAndroidTest
 ```
 
-The on-device tests cover what only a device can show: the real ML Kit recognizer on the sample
-bill, the real Anthropic SDK on the Android runtime, and the Keystore encryption. They need no API
-key.
+The on-device tests cover what only a device can show: starting the app, the real ML Kit recognizer
+on the sample bill, the real Anthropic SDK on the Android runtime, and the Keystore encryption. They
+need no API key. The command above lets Gradle download, start and stop its own Android 14 emulator;
+`./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
+
+The other checks, all of which also run in GitHub Actions on every branch:
+
+```bash
+./gradlew ktlintCheck
+```
+
+```bash
+./gradlew :app:lintProdDebug
+```
 
 To exercise the real API with your key (a few cents per run):
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testDebugUnitTest --tests '*LiveClaudeBillAnalyzerTest*' --rerun
+ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*LiveClaudeBillAnalyzerTest*' --rerun
 ```
 
 ## How it was verified
 
 | What | How | Result |
 |---|---|---|
-| Build | `./gradlew assembleDebug` and `assembleRelease` (R8) | both build |
-| Unit tests | `./gradlew testDebugUnitTest` | 79 pass, 1 skipped (the live API test, which needs a key) |
+| Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
+| Unit tests | `./gradlew :core:domain:test :app:testProdDebugUnitTest` | 87 pass, 1 skipped (the live API test, which needs a key) |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
-| On-device tests | Each test class run with `am instrument` on an Android 14 emulator (x86_64, software emulation) | all passed on the first delivery; not re-run since the currency change |
+| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 7 tests pass |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
 | Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
 
@@ -208,7 +236,8 @@ What has not been verified:
   because the emulator session ended before the on-device walk-through finished.
 - **A physical phone.** Everything on-device ran on an emulator.
 - **The release build at runtime.** It builds with R8, but only debug builds were run.
-- **The Gradle `connectedDebugAndroidTest` task itself.** The same test classes were run one by one.
+- **Performance numbers.** The benchmarks in `baseline-profile` exist but have not been run on a
+  real phone yet, so there is no measured cold start or frame time.
 
 ## Known limits
 
@@ -233,8 +262,9 @@ What has not been verified:
 
 ## Toolchain
 
-Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.03.01,
-compileSdk and targetSdk 36, minSdk 26, ML Kit text-recognition 16.0.1, anthropic-java 3.8.0.
+Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
+(Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
+Koin 4.2.2, Navigation 3 1.2.1, ML Kit text-recognition 16.0.1, anthropic-java 3.8.0.
 
 ## License
 
