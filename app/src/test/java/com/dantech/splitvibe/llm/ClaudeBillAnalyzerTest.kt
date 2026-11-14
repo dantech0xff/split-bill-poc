@@ -182,8 +182,10 @@ class ClaudeBillAnalyzerTest {
     @Test
     fun `answer that takes too long is reported as a timeout after one retry`() = runTest {
         repeat(2) { server.enqueue(messageResponse(billAnswer).setHeadersDelay(5, TimeUnit.SECONDS)) }
+        // The address is spelled out: on a machine where "localhost" also means ::1, the retry would
+        // go to that address, where the test server does not listen, and fail to connect instead.
         val impatient =
-            ClaudeBillAnalyzer(apiKey = "test-key", baseUrl = server.url("/").toString(), requestTimeout = Duration.ofMillis(300))
+            ClaudeBillAnalyzer(apiKey = "test-key", baseUrl = "http://127.0.0.1:${server.port}/", requestTimeout = Duration.ofMillis(300))
 
         val error = try {
             failure { impatient.analyze(ocr, "", "VND") }
