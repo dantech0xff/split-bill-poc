@@ -2,12 +2,15 @@ package com.dantech.splitvibe
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 /**
  * Starts the real application class and the real activity, as the launcher would, and moves
@@ -15,6 +18,7 @@ import org.junit.runner.RunWith
  * no longer fit together.
  */
 @RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w412dp-h915dp-xhdpi")
 class AppStartupTest {
 
     @get:Rule
@@ -28,7 +32,14 @@ class AppStartupTest {
         compose.onNodeWithText("Split a bill").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
 
-        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText("Open settings").performScrollTo().performClick()
+        compose.onNodeWithText("Settings").assertIsDisplayed()
+
+        pressBack()
+        compose.onNodeWithText("New split").assertIsDisplayed()
+
+        // The arrow in the top bar, as opposed to the system back button.
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Contacts").assertIsDisplayed()
     }
 
@@ -36,5 +47,23 @@ class AppStartupTest {
     fun `a second start in the same process works`() {
         // Each test gets a new application object; the dependency container must cope with that.
         compose.onNodeWithText("Split Vibe").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the open screens come back after the system recreates the activity`() {
+        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithText("Open settings").performScrollTo().performClick()
+
+        compose.activityRule.scenario.recreate()
+
+        compose.onNodeWithText("Settings").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("New split").assertIsDisplayed()
+        pressBack()
+        compose.onNodeWithText("Contacts").assertIsDisplayed()
+    }
+
+    private fun pressBack() {
+        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
     }
 }
