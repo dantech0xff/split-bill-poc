@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 
 /** Where a row sits in its group, which decides which of its corners are round. */
@@ -48,8 +49,8 @@ fun SvListRow(
     onClickLabel: String? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val outer = 20.dp
-    val inner = 4.dp
+    val outer = SvShapes.groupOuterCorner
+    val inner = SvShapes.groupInnerCorner
     val top = if (position == SvRowPosition.Single || position == SvRowPosition.First) outer else inner
     val bottom = if (position == SvRowPosition.Single || position == SvRowPosition.Last) outer else inner
     Surface(

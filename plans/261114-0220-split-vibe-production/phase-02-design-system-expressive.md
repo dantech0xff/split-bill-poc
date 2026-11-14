@@ -120,7 +120,7 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 ## Todo
 
 - [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
-- [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền, khoảng cách và theme; token hình khối chưa tách riêng, các thành phần đang dùng thang hình khối mặc định của Material
+- [x] Token và `SplitVibeTheme` (sáng, tối): màu, kiểu chữ số tiền, khoảng cách, hình khối, bóng và theme
 - [x] Token bóng 4 mức bằng `dropShadow`
 - [ ] Bộ thành phần và màn hình danh mục. Đã có màn hình danh mục ở bản debug và 12 thành phần mà các màn hình hiện tại dùng. Chưa có nhóm nút, nút tách đôi, nút nổi có menu và thanh công cụ nổi: chưa màn hình nào cần tới, sẽ thêm cùng tính năng dùng chúng ở Phase 4 trở đi
 - [ ] Lớp chuyển động theo bảng hành trình. Đã có: tổng tiền đếm lên và số tiền chạy tới giá trị mới, các hàng vào lần lượt, dòng trạng thái chuyển mượt, biểu tượng tải đổi hình, dấu tích bật ra kèm rung xác nhận, thanh trên co lại theo cuộn, nút mở ra thành màn hình chia hóa đơn và thu về theo ngón tay khi vuốt ngược. Chưa có: ảnh bay vào khung, vệt quét trên ảnh, thẻ người bật nảy và hàng đổi chỗ, nút biến hình thành dấu tích

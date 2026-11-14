@@ -73,6 +73,11 @@ read from `MaterialTheme.typography`:
 Distances come from `SvSpacing`, a 4dp grid: `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24, `xxl` 32.
 `lg` is the margin between content and the edge of the screen.
 
+## Shape
+
+Shapes come from `MaterialTheme.shapes`. `SvShapes` adds the two corner sizes of grouped rows: 20dp on
+the outside of a group and 4dp where two of its rows meet.
+
 ## Elevation
 
 `SvElevation` has four levels. In the light theme a level is a soft shadow tinted with the darkest
