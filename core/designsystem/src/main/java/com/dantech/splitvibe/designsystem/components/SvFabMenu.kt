@@ -82,7 +82,8 @@ private fun MenuButton(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, l
     Box(
         modifier = Modifier
             .size(BUTTON_SIZE)
-            .elevation(SvElevation.Level3, shape)
+            // The shadow keeps one of two fixed shapes, so it is not blurred again at every step of the change.
+            .elevation(SvElevation.Level3, if (open > HALF_WAY) OPEN_SHAPE else CLOSED_SHAPE)
             .background(lerp(colors.primaryContainer, colors.primary, open), shape)
             .clip(shape)
             .toggleable(value = expanded, role = Role.Button, onValueChange = onExpandedChange)
@@ -104,5 +105,7 @@ private fun MenuButton(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, l
 private val BUTTON_SIZE = 56.dp
 private val CLOSED_CORNER = 16.dp
 private val OPEN_CORNER = 28.dp
+private val CLOSED_SHAPE = RoundedCornerShape(CLOSED_CORNER)
+private val OPEN_SHAPE = RoundedCornerShape(OPEN_CORNER)
 private const val HALF_WAY = 0.5f
 private const val QUARTER_TURN = 90f

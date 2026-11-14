@@ -19,21 +19,28 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
 
     fun toMajor(minor: Long): BigDecimal = BigDecimal.valueOf(minor, fractionDigits)
 
+    // Building a formatter is slow, and an amount that runs through the numbers in between is
+    // formatted on every frame. A formatter must not be shared between threads, so each thread
+    // keeps its own, for the last locale it was asked for.
+    private val formatters = ThreadLocal<Pair<Locale, NumberFormat>>()
+
     fun format(minor: Long, locale: Locale = Locale.getDefault()): String {
-        val major = toMajor(minor)
+        val number = formatterFor(locale).format(toMajor(minor))
+        return if (isoCurrency(code) != null || code.isBlank()) number else "$number $code"
+    }
+
+    private fun formatterFor(locale: Locale): NumberFormat {
+        formatters.get()?.let { (cachedLocale, formatter) -> if (cachedLocale == locale) return formatter }
         val iso = isoCurrency(code)
-        if (iso != null) {
-            val formatter = NumberFormat.getCurrencyInstance(locale)
-            formatter.currency = iso
-            formatter.minimumFractionDigits = fractionDigits
-            formatter.maximumFractionDigits = fractionDigits
-            return formatter.format(major)
+        val formatter = if (iso != null) {
+            NumberFormat.getCurrencyInstance(locale).apply { currency = iso }
+        } else {
+            NumberFormat.getNumberInstance(locale)
         }
-        val formatter = NumberFormat.getNumberInstance(locale)
         formatter.minimumFractionDigits = fractionDigits
         formatter.maximumFractionDigits = fractionDigits
-        val number = formatter.format(major)
-        return if (code.isBlank()) number else "$number $code"
+        formatters.set(locale to formatter)
+        return formatter
     }
 
     companion object {
