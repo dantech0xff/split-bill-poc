@@ -73,7 +73,7 @@ Tạo mới:
 - `core/domain/build.gradle.kts`
 - `baseline-profile/build.gradle.kts` và các hành trình đo
 - `.github/workflows/ci.yml`, `.github/workflows/device-tests.yml`, `.github/dependabot.yml`
-- `gradle/verification-metadata.xml` (kiểm chữ ký phụ thuộc)
+- `gradle/verification-metadata.xml` (kiểm checksum phụ thuộc)
 - `app/src/main/java/com/dantech/splitvibe/di/AppModule.kt`
 - `app/src/test/java/com/dantech/splitvibe/di/AppModuleTest.kt` (kiểm đồ thị Koin)
 - `app/src/test/java/com/dantech/splitvibe/ui/ScreenGalleryTest.kt` và thư mục ảnh chuẩn
@@ -103,7 +103,7 @@ Sửa:
 4. Thay `AppContainer` bằng module Koin, viết `AppModuleTest`; đổi tên `SplitVibeApp` và `SplitVibeTheme` ở đủ các chỗ đã liệt kê, kể cả manifest.
 5. Chuyển 3 màn hình sang Navigation 3; kiểm vuốt ngược xem trước trên máy ảo API 36.
 6. Cấu hình ký release bằng biến môi trường (không có thì ra bản chưa ký), xuất AAB, hai flavor `dev` (hậu tố `.dev`) và `prod`.
-7. Viết CI cho pull request và `main`: build debug và release **chưa ký**, unit test, Android Lint, kiểm định dạng mã, so ảnh chụp, quét secret, kiểm wrapper của Gradle. Chỉ dùng sự kiện `pull_request`, ghim mọi action theo mã commit, bật kiểm chữ ký phụ thuộc và Dependabot.
+7. Viết CI cho pull request và `main`: build debug và release **chưa ký**, unit test, Android Lint, kiểm định dạng mã, so ảnh chụp, quét secret, kiểm wrapper của Gradle. Chỉ dùng sự kiện `pull_request`, ghim mọi action theo mã commit, bật kiểm checksum phụ thuộc và Dependabot.
 8. Viết luồng chạy test trên thiết bị bằng Gradle Managed Devices (API 34) chạy hằng đêm cho 3 lớp test có sẵn.
 9. Thêm `:baseline-profile`, sinh profile, viết hành trình đo khởi động và luồng chia hóa đơn; ghi số đo gốc vào `plans/reports/`.
 10. Cập nhật README và viết `docs/architecture.md`.
@@ -160,7 +160,7 @@ Mười một trên mười ba việc đã xong và có bằng chứng. Hai vi�
 Khác với bản plan, và lý do:
 
 - **`compileSdk` là 37.** Compose 1.12 và material3 1.5 chỉ biên dịch được với SDK của Android 17. `targetSdk` vẫn là 36 nên hành vi của app không đổi.
-- **Kiểm checksum thay cho kiểm chữ ký.** `gradle/verification-metadata.xml` ghi SHA-256 của 839 thành phần; đã thử sửa sai một giá trị và build dừng. Kiểm chữ ký PGP cần tải khóa từ máy chủ khóa và nhiều thư viện không ký, nên chưa làm. Tệp phải được sinh từ bộ nhớ đệm Gradle trống, nếu không sẽ thiếu mục và máy CI từ chối (đã gặp và đã sửa). Chủ sản phẩm quyết định có cần thêm kiểm chữ ký không.
+- **Kiểm checksum thay cho kiểm chữ ký.** `gradle/verification-metadata.xml` ghi SHA-256 của 839 thành phần; đã thử sửa sai một giá trị và build dừng. Tệp phải được sinh từ bộ nhớ đệm Gradle trống, nếu không sẽ thiếu mục và máy CI từ chối (đã gặp và đã sửa). Chủ sản phẩm đã chốt ngày 14/11: checksum là đủ, không làm kiểm chữ ký PGP.
 - **Kiểm định dạng mã bằng ktlint**, chạy như một tác vụ Gradle thường. Mã hiện có được định dạng lại một lần, không đổi hành vi.
 - **Luồng thiết bị chạy cả khi có thay đổi liên quan**, không chỉ hằng đêm: test thiết bị, module profile, phiên bản thư viện hoặc checksum đổi là chạy.
 - **Bấm đúp nút quay lại ở Settings giờ chỉ đóng một màn hình.** Trước đây đóng hai, có thể để lại màn hình trắng. Màn hình giờ tự đóng theo tên.
@@ -180,7 +180,8 @@ Việc của chủ sản phẩm:
 2. Chạy `./gradlew :baseline-profile:connectedProdBenchmarkReleaseAndroidTest` trên máy tham chiếu để có số đo gốc.
 3. Kiểm vuốt ngược trên một máy Android 16 và quay lại màn hình.
 4. Xóa nhánh thử `check/screenshot-gate` trên GitHub. Phiên làm việc không có quyền xóa nhánh.
-5. Quyết định có cần kiểm chữ ký PGP ngoài checksum không.
+
+Nhánh này đã vào `main` bằng fast-forward ngày 14/11/2026 theo quyết định của chủ sản phẩm.
 
 ## Risks
 

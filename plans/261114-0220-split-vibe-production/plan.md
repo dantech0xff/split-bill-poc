@@ -47,7 +47,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 | # | Phase | Status |
 |---|-------|--------|
 | 1 | [Nền móng kỹ thuật](./phase-01-start.md) | In Progress |
-| 2 | [Hệ thiết kế Expressive, chuyển động và đổ bóng](./phase-02-design-system-expressive.md) | Pending |
+| 2 | [Hệ thiết kế Expressive, chuyển động và đổ bóng](./phase-02-design-system-expressive.md) | In Progress |
 | 3 | [Backend Firebase và cổng AI](./phase-03-firebase-backend-ai-gateway.md) | Pending |
 | 4 | [Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử](./phase-04-bill-capture-editing-split-modes.md) | Pending |
 | 5 | [Nhóm, số dư và thu tiền không giữ tiền](./phase-05-people-groups-settle-up.md) | Pending |
@@ -292,4 +292,45 @@ Kiểm lại sau khi sửa: 62 dẫn chiếu tới dòng mã trong các tệp gi
 - Files reread: plan.md, phase-01-start, phase-09-quality-compliance-release
 - Decision deltas checked: 3
 - Reconciled stale references: 10
+- Unresolved contradictions: 0
+
+### Session 3 — 2026-11-14
+**Trigger:** Phase 1 xong trên nhánh riêng; bước 1 của Phase 2 cần chủ sản phẩm chọn bảng màu.
+**Questions asked:** 3
+
+#### Questions & Answers
+
+1. **[Scope]** Bạn chọn hướng bảng màu nào cho Split Vibe?
+   - Options: B. Violet (Recommended) | A. Emerald | C. Coral
+   - **Answer:** B. Violet
+   - **Rationale:** Lý do do người lập plan nêu trong lựa chọn và chủ sản phẩm chọn theo: khác hẳn màu xanh lá của đối thủ lớn nhất, hợp với chữ "Vibe", và để dành xanh lá, đỏ cho nghĩa "đã trả", "còn nợ".
+
+2. **[Scope]** Phase 1 đã xong trên nhánh `feat/phase-01-foundation`, CI xanh. Bạn muốn đưa nó vào `main` bằng cách nào?
+   - Options: Mở pull request (Recommended) | Merge thẳng vào main | Chưa, giữ nguyên nhánh
+   - **Answer:** Merge thẳng vào main
+   - **Rationale:** Chủ sản phẩm không nêu lý do. Hệ quả: lần này CI chạy sau khi mã đã vào `main`, không phải trước.
+
+3. **[Risks]** Plan ghi "kiểm chữ ký phụ thuộc", bản đã làm kiểm checksum SHA-256. Có thêm kiểm chữ ký PGP không?
+   - Options: Checksum là đủ (Recommended) | Thêm kiểm chữ ký PGP
+   - **Answer:** Checksum là đủ
+   - **Rationale:** Lý do do người lập plan nêu trong lựa chọn và chủ sản phẩm chọn theo: checksum đã chặn được thư viện bị thay hoặc bị giả; kiểm chữ ký thêm việc quản lý khóa mà nhiều thư viện vẫn không ký.
+
+#### Confirmed Decisions
+- Bảng màu của Split Vibe theo hướng B. Violet.
+- Phase 1 vào `main` bằng fast-forward, không qua pull request.
+- Kiểm phụ thuộc bằng checksum SHA-256; không làm kiểm chữ ký PGP.
+
+#### Action Items
+- [x] Fast-forward `main` tới nhánh Phase 1 và đẩy lên (commit `c9e7bb0`)
+- [x] Ghi lựa chọn bảng màu vào Phase 2
+- [x] Sửa chữ "kiểm chữ ký phụ thuộc" trong Phase 1 thành kiểm checksum
+
+#### Impact on Phases
+- Phase 1: việc kiểm phụ thuộc được coi là xong với checksum.
+- Phase 2: bước 1 xong; bước 2 viết token theo hướng Violet.
+
+### Whole-Plan Consistency Sweep (Session 3)
+- Files reread: plan.md, phase-01-start, phase-02-design-system-expressive
+- Decision deltas checked: 3
+- Reconciled stale references: 4
 - Unresolved contradictions: 0

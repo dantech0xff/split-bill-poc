@@ -1,6 +1,6 @@
 ---
 title: "Phase 2: Hệ thiết kế Expressive, chuyển động và đổ bóng"
-status: todo
+status: in-progress
 phase: 2
 priority: P1
 effort: "10d"
@@ -101,9 +101,9 @@ Sửa (dựng lại trên hệ thiết kế):
 8. Đo ba hành trình trên máy tham chiếu, tối ưu cho tới khi đạt ngân sách, ghi báo cáo số đo.
 9. Kiểm tra tiếp cận và chế độ tắt animation; viết `docs/design-system.md`.
 
-## Ba hướng bảng màu chờ chủ sản phẩm chọn
+## Ba hướng bảng màu: chủ sản phẩm chọn B. Violet
 
-<!-- Updated: 14/11/2026 - bước 1 đã dựng xong, chờ quyết định -->
+<!-- Updated: Validation Session 3 - chủ sản phẩm chọn hướng B. Violet ngày 14/11/2026 -->
 Ba hướng được dựng trên màn hình kết quả thật, với dữ liệu của hóa đơn mẫu, ở cả sáng và tối:
 [ảnh sáng](./assets/palette-directions/three-directions-light.png), [ảnh tối](./assets/palette-directions/three-directions-dark.png).
 
@@ -119,7 +119,7 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 
 ## Todo
 
-- [ ] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
+- [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
 - [ ] Token và `SplitVibeTheme` (sáng, tối)
 - [ ] Token bóng 4 mức bằng `dropShadow`
 - [ ] Bộ thành phần và màn hình danh mục
