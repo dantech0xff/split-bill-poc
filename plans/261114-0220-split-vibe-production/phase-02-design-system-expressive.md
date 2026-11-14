@@ -117,19 +117,19 @@ Sửa (dựng lại trên hệ thiết kế):
 ## Success Criteria
 
 - Mọi màn hình hiện có chỉ dùng thành phần của `:core:designsystem`; kiểm tra ranh giới trong CI xanh.
-- Ma trận ảnh chụp có ảnh chuẩn: mọi màn hình ở sáng và tối; bốn màn hình chính thêm tiếng Việt và cỡ chữ 200%.
+- <!-- Updated: Validation Session 1 - v1.0 chỉ có tiếng Anh --> Ma trận ảnh chụp có ảnh chuẩn: mọi màn hình ở sáng và tối; bốn màn hình chính thêm cỡ chữ 200%.
 - Báo cáo đo trên máy tham chiếu cho thấy ba hành trình đạt ngân sách hiệu năng.
 - Test với animation hệ thống đã tắt: không có hiệu ứng lặp nào chạy, luồng chia hóa đơn vẫn hoàn tất.
 - Kiểm tra tiếp cận tự động của Compose qua trên các màn hình chính; ảnh ở cỡ chữ 200% không cắt chữ.
 - Chủ sản phẩm duyệt giao diện từ bộ ảnh dựng và một bản cài trên máy thật.
-- 80 test cũ và `SplitFlowTest` vẫn qua.
+- Toàn bộ unit test hiện có và `SplitFlowTest` vẫn qua.
 
 ## Risks
 
 | Rủi ro | Dấu hiệu nhận biết | Phản ứng đã định |
 |---|---|---|
 | Bóng làm mờ gây giật trên máy yếu | `frameDurationCpuMs` P95 vượt ngân sách ở màn hình nhiều thẻ | Giảm số phần tử có bóng, dùng bóng theo độ nổi cho danh sách dài |
-| Ảnh dựng trên máy tính khác máy thật ở phần bóng mờ `[UNVERIFIED]` | So ảnh dựng với ảnh chụp máy thật thấy lệch | Duyệt bóng bằng ảnh chụp máy thật; ảnh dựng chỉ dùng chống hồi quy |
+| Bóng trong ảnh dựng lệch so với máy thật. Đường dựng ảnh đã vẽ được cả bốn kiểu bóng (kiểm 14/11, xem `assets/shadow-styles-check.png`), nhưng độ khớp với máy thật chưa được so `[UNVERIFIED]` | So ảnh dựng với ảnh chụp máy thật thấy lệch | Duyệt bóng bằng ảnh chụp máy thật; ảnh dựng chỉ dùng chống hồi quy |
 | Quá nhiều chuyển động gây mệt | Phản hồi của người thử | Giữ chuyển động ở bảng hành trình; có chế độ giảm chuyển động |
 | Chuyển cảnh dùng chung phần tử vướng với Navigation 3 | Phần tử nhảy hoặc nhấp nháy khi vuốt ngược | Dùng `sharedBounds` thay `sharedElement`, hoặc bỏ chuyển cảnh đó ở hành trình bị lỗi |
 | `SplitButtonLayout` đổi tên ở bản stable `[UNVERIFIED]` | Cảnh báo ngừng dùng khi nâng phiên bản | Sửa trong một tệp thành phần duy nhất |

@@ -47,7 +47,7 @@ Phi chức năng:
 Server: callable `reviseSplit`.
 - Yêu cầu: hóa đơn hiện tại và cách chia hiện tại ở dạng có cấu trúc (không gửi lại văn bản OCR), câu lệnh, ngôn ngữ.
 - Trả lời: danh sách thao tác theo schema cố định, mỗi thao tác có loại và tham số, kèm một câu giải thích ngắn.
-- Dùng chung phần kiểm đăng nhập, App Check và hạn mức với `analyzeBill`.
+- Dùng chung phần kiểm đăng nhập, App Check, `requestId` và cách giữ chỗ rồi chốt lượt với `analyzeBill` (Phase 3).
 
 `:core:domain`:
 - `SplitEdit` (kiểu đóng các thao tác) và `applyEdits(bill, plan, edits)` trả về trạng thái mới cùng danh sách thao tác bị loại.
@@ -57,7 +57,7 @@ Server: callable `reviseSplit`.
 App:
 - `VoiceInput` bọc `SpeechRecognizer`.
 - `Exporter` ghi CSV và PDF (`android.graphics.pdf.PdfDocument`).
-- `RecurringBillWorker` dùng WorkManager để tạo bản nháp và thông báo khi tới kỳ.
+- `RecurringBillWorker` dùng WorkManager để tạo bản nháp và thông báo khi tới kỳ. <!-- Red Team: nơi ghi theo lịch không lũy đẳng — 2026-11-14 --> Bản nháp có mã cố định `{templateId}_{periodKey}` và chỉ được tạo khi chưa tồn tại, nên hai máy cùng tài khoản không tạo trùng.
 - Loại chi tiêu: thêm trường `category` vào schema trả lời của `analyzeBill` (kiểu liệt kê cố định); `BillAnalysisParser` đọc trường mới, vắng thì coi là "khác".
 
 Vết mở rộng (ranh giới cổng AI): `reviseSplit` là biến thể thứ hai của cùng một cổng. Phần dùng chung là xác thực, hạn mức, log và cách gọi model; phần riêng là prompt, schema và trọng số hạn mức. Không tách dịch vụ mới.
@@ -66,7 +66,7 @@ Vết mở rộng (ranh giới cổng AI): `reviseSplit` là biến thể thứ 
 
 Tạo mới:
 - `functions/src/revise-split.ts`, `functions/src/revise-prompt.ts`, `functions/eval/revise/` (bộ câu lệnh đánh giá)
-- `core/domain/src/main/kotlin/.../SplitEdit.kt`, `Insights.kt`, `Recurrence.kt` cùng test
+- Trong `core/domain/`: `SplitEdit.kt`, `Insights.kt`, `Recurrence.kt` cùng test
 - `app/src/main/java/com/dantech/splitvibe/assistant/SplitAssistant.kt`, `VoiceInput.kt`
 - `app/src/main/java/com/dantech/splitvibe/ui/insights/`, `ui/recurring/`
 - `app/src/main/java/com/dantech/splitvibe/export/Exporter.kt`
@@ -75,7 +75,8 @@ Tạo mới:
 Sửa:
 - `app/src/main/java/com/dantech/splitvibe/ui/split/ResultContent.kt` (ô chỉnh bằng lời, danh sách đề xuất)
 - `functions/src/schema.ts`, `functions/src/prompt.ts` (trường `category`)
-- `core/domain/.../BillAnalysisParser.kt` và test của nó
+- `BillAnalysisParser.kt` trong `:core:domain` và test của nó
+- `functions/src/delete-account.ts` (xóa mẫu hóa đơn định kỳ)
 - `app/src/main/AndroidManifest.xml` (quyền `RECORD_AUDIO`)
 
 ## Implementation Steps
@@ -108,7 +109,7 @@ Sửa:
 - Từ chối quyền micro: ô gõ vẫn dùng được, không có lỗi.
 - Thống kê tháng trên fixture 20 hóa đơn khớp bảng tính tay.
 - Tệp CSV và PDF xuất từ fixture khớp tệp mẫu; CSV mở được bằng phần mềm bảng tính với đúng dấu thập phân.
-- Với đồng hồ giả, hóa đơn định kỳ hằng tháng tạo đúng một bản nháp mỗi kỳ, kể cả tháng thiếu ngày.
+- Với đồng hồ giả, hóa đơn định kỳ hằng tháng tạo đúng một bản nháp mỗi kỳ, kể cả tháng thiếu ngày và kể cả khi hai máy cùng tài khoản cùng chạy.
 
 ## Risks
 
