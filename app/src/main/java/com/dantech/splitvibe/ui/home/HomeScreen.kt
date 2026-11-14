@@ -33,8 +33,10 @@ import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
+import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.ui.SPLIT_SURFACE
 
 /** The payment app's home: the entry to bill splitting and the user's in-app contacts. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +56,14 @@ fun HomeScreen(contacts: List<Contact>, onSplitBill: () -> Unit, onOpenSettings:
                 },
             )
         },
-        floatingActionButton = { SvPrimaryFab(text = "Split a bill", icon = Icons.Default.Add, onClick = onSplitBill) },
+        floatingActionButton = {
+            SvPrimaryFab(
+                text = "Split a bill",
+                icon = Icons.Default.Add,
+                onClick = onSplitBill,
+                modifier = Modifier.sharedSurface(SPLIT_SURFACE, resize = true),
+            )
+        },
     ) { padding ->
         val direction = LocalLayoutDirection.current
         LazyColumn(

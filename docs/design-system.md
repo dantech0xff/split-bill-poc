@@ -105,6 +105,12 @@ theme's motion scheme.
 | `Modifier.staggeredEntry` | Lets the rows of a screen slide up and fade in one after another when the screen appears. Rows that scroll into view later simply appear. |
 | `SvWorkingRow` | Fades from one status line to the next while work is running. |
 | `SvSuccessMark` | Pops in once, with one short confirming vibration. |
+| `Modifier.sharedSurface` | Marks a surface that grows into the surface with the same name on the next screen, and shrinks back on the way back. The button that opens a split and the split screen are one such pair. |
+| `SvMotion.screenChange` | The timing of everything that happens while one screen turns into another. |
+
+A change of screen has a fixed length instead of a spring. A back swipe scrubs through the change
+with the finger, and only parts of equal length stay together and follow the finger evenly; a
+spring would be over after the first part of the swipe and leave nothing to preview.
 
 Some people switch animations off in the system settings. Compose then ends ordinary animations at
 once by itself. Effects that never end and delays written by hand cannot be known to it, so they

@@ -66,7 +66,8 @@ A wiring mistake fails the checks instead of crashing a screen.
 - A screen closes itself by name (`backStack.remove(SettingsKey)`) instead of popping whatever is on
   top. A double tap on a back arrow is therefore harmless.
 - The system back gesture is handled by `NavDisplay`, which also draws the preview of the previous
-  screen while the finger is down. A screen that needs back for something else declares a
+  screen while the finger is down. The split screen grows out of the button that opens it and
+  shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
   `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
   work before it lets the user leave.
 - Two decorators wrap every screen: one keeps `rememberSaveable` state per screen, the other gives
