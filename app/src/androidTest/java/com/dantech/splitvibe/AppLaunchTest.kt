@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Starts the app on a device the way the launcher does and opens each screen. A local test covers
+ * Starts the app on a device the way the launcher does and opens each screen. (Throwaway run.) A local test covers
  * the same ground on the build machine; this one proves it on the real runtime, where a wrong
  * application class or a missing dependency only shows up when the app starts.
  */

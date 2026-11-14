@@ -1,6 +1,9 @@
 package com.dantech.splitvibe.ui.home
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -50,6 +53,12 @@ fun HomeScreen(contacts: List<Contact>, onSplitBill: () -> Unit, onOpenSettings:
                 title = stringResource(R.string.app_name),
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    // Deliberately wrong, on a throwaway branch: far too small to tap and without a label.
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable(onClick = onOpenSettings),
+                    )
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
