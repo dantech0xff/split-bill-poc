@@ -121,6 +121,14 @@ pull request from a fork can run them. Every action is pinned to a commit.
 | Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime. Nightly, and when those tests change. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
 
+### Secret scan
+
+gitleaks reads every commit with its default rules. It is a net for accidents: a key pasted into a
+file, a token left in a test. It honours a `.gitleaks.toml`, a `.gitleaksignore` and inline
+`gitleaks:allow` markers in the repository, which is how a false positive is silenced. A pull
+request that adds or changes any of those switches part of the scan off, so review such a change
+like code.
+
 ### Screenshot tests
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
