@@ -23,12 +23,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.contacts.Contact
 import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 
 /** Bottom sheet for choosing which contacts share the bill. Changes apply immediately. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,7 +42,7 @@ fun PeoplePickerSheet(contacts: List<Contact>, selectedIds: Set<String>, onToggl
             Text(
                 "Pick people to share with",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm),
             )
             LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                 items(contacts, key = { it.id }) { contact ->
@@ -52,16 +55,15 @@ fun PeoplePickerSheet(contacts: List<Contact>, selectedIds: Set<String>, onToggl
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier
                             .toggleable(value = selected, role = Role.Checkbox, onValueChange = { onToggle(contact.id) })
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = SvSpacing.sm),
                     )
                 }
             }
-            Button(
+            SvPrimaryButton(
+                text = "Done",
                 onClick = onDismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            ) { Text("Done") }
+                modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.md),
+            )
         }
     }
 }
@@ -86,7 +88,7 @@ fun ItemSharersSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding()) {
-            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+            Column(modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm)) {
                 Text(title, style = MaterialTheme.typography.titleLarge)
                 Text(
                     "$amount, split equally between the people ticked below.",
@@ -108,22 +110,24 @@ fun ItemSharersSheet(
                                 role = Role.Checkbox,
                                 onValueChange = { sharing = if (selected) sharing - id else sharing + id },
                             )
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = SvSpacing.sm),
                     )
                 }
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.md),
+                horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = { sharing = people.map { it.first }.toSet() }) { Text("Everyone") }
-                Button(
+                SvPrimaryButton(
+                    text = "Done",
                     onClick = { onConfirm(sharing) },
-                    enabled = sharing.isNotEmpty(),
                     modifier = Modifier.weight(1f),
-                ) { Text("Done") }
+                    enabled = sharing.isNotEmpty(),
+                )
             }
         }
     }

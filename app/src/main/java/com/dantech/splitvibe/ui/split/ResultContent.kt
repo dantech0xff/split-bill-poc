@@ -57,6 +57,7 @@ import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
@@ -125,7 +126,7 @@ fun ResultContent(
             }
 
             items(plan.openNotices() + bill.warnings) { note ->
-                MessageCard(text = note, isError = false, modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
+                SvMessageCard(text = note, isError = false, modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
             }
 
             item {
