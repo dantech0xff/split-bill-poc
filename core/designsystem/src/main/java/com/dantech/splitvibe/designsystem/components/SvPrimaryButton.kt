@@ -44,9 +44,10 @@ fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
  */
 @Composable
 fun SvBottomBar(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val level = SvElevation.Level3
     Surface(
-        modifier = modifier.elevation(SvElevation.Level3, RectangleShape),
-        color = SvElevation.Level3.surface,
+        modifier = modifier.elevation(level, RectangleShape),
+        color = level.surface,
     ) {
         Column(
             modifier = Modifier

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -126,7 +127,7 @@ fun CatalogScreen() {
             }
 
             item { SvSectionHeader("Elevation", hint = "SvCard at each level.") }
-            itemsIndexed(SvElevation.entries) { _, level ->
+            items(SvElevation.entries) { level ->
                 SvCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -266,8 +267,7 @@ fun CatalogScreen() {
                         label = "Start a split",
                         icon = Icons.Default.Add,
                         items = listOf(
-                            SvFabMenuItem("Take photo", Icons.Default.Add) {
-                            },
+                            SvFabMenuItem("Take photo", Icons.Default.Add) {},
                             SvFabMenuItem("Type it in", Icons.Default.Edit) {},
                         ),
                     )

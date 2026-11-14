@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.designsystem.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -14,10 +13,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -75,17 +76,22 @@ fun SvFabMenu(
  */
 @Composable
 private fun MenuButton(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, label: String, icon: ImageVector) {
-    val progress by animateFloatAsState(if (expanded) 1f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "menu button")
-    val open = progress.coerceIn(0f, 1f)
-    val shape = RoundedCornerShape(lerp(CLOSED_CORNER, OPEN_CORNER, open))
+    val progress = animateFloatAsState(if (expanded) 1f else 0f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "menu button")
+    // The change itself is read while drawing, so the button is composed again only twice: when
+    // the change passes its middle on the way open and on the way back.
+    val open = { progress.value.coerceIn(0f, 1f) }
+    val pastMiddle by remember { derivedStateOf { open() > HALF_WAY } }
     val colors = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .size(BUTTON_SIZE)
             // The shadow keeps one of two fixed shapes, so it is not blurred again at every step of the change.
-            .elevation(SvElevation.Level3, if (open > HALF_WAY) OPEN_SHAPE else CLOSED_SHAPE)
-            .background(lerp(colors.primaryContainer, colors.primary, open), shape)
-            .clip(shape)
+            .elevation(SvElevation.Level3, if (pastMiddle) OPEN_SHAPE else CLOSED_SHAPE)
+            .graphicsLayer {
+                shape = RoundedCornerShape(lerp(CLOSED_CORNER, OPEN_CORNER, open()))
+                clip = true
+            }
+            .drawBehind { drawRect(lerp(colors.primaryContainer, colors.primary, open())) }
             .toggleable(value = expanded, role = Role.Button, onValueChange = onExpandedChange)
             .semantics {
                 contentDescription = label
@@ -94,10 +100,10 @@ private fun MenuButton(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, l
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = if (open > HALF_WAY) Icons.Default.Close else icon,
+            imageVector = if (pastMiddle) Icons.Default.Close else icon,
             contentDescription = null,
-            tint = lerp(colors.onPrimaryContainer, colors.onPrimary, open),
-            modifier = Modifier.graphicsLayer { rotationZ = open * QUARTER_TURN },
+            tint = if (pastMiddle) colors.onPrimary else colors.onPrimaryContainer,
+            modifier = Modifier.graphicsLayer { rotationZ = open() * QUARTER_TURN },
         )
     }
 }

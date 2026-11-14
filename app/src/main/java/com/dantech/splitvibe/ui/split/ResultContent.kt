@@ -178,15 +178,15 @@ fun ResultContent(
                     SvSectionHeader("Items", modifier = rowMotion(), hint = "Tap an item to choose who shares it.")
                 }
                 itemsIndexed(bill.items, key = { index, _ -> "item $index" }) { index, item ->
+                    val sharers = sharersByItem[index]?.let { ids ->
+                        participants.filter { it in ids }.joinToString { nameOf(it) }
+                    } ?: "Everyone"
                     ItemRow(
                         bill = bill,
                         item = item,
                         position = SvRowPosition.of(index, bill.items.size),
                         modifier = rowMotion().staggeredEntry(entry, index = index + 1),
-                        sharers =
-                            sharersByItem[index]?.let { ids ->
-                                participants.filter { it in ids }.joinToString { nameOf(it) }
-                            } ?: "Everyone",
+                        sharers = sharers,
                         onClick = { if (participants.size >= 2) editingItem = index else showPeoplePicker = true },
                     )
                 }
@@ -230,20 +230,20 @@ fun ResultContent(
 
             item(key = "sent text") {
                 Column(modifier = rowMotion()) {
-                    TextButton(onClick = { showOcrText = !showOcrText }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    TextButton(onClick = { showOcrText = !showOcrText }, modifier = Modifier.padding(horizontal = SvSpacing.sm)) {
                         Text(if (showOcrText) "Hide what was sent to Claude" else "Show what was sent to Claude")
                     }
                     if (showOcrText) {
                         Text(
                             text = result.ocrDocument,
                             modifier = Modifier
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = SvSpacing.lg)
                                 .horizontalScroll(rememberScrollState()),
                             style = MaterialTheme.typography.bodySmall,
                             fontFamily = FontFamily.Monospace,
                         )
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(SvSpacing.lg))
                 }
             }
         }
