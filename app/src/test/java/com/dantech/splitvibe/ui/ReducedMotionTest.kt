@@ -133,6 +133,7 @@ class ReducedMotionTest {
             contactRepository = SeededContactRepository(),
             settings = MutableStateFlow(settings),
             account = TestProxy(server, context).account.account,
+            canSignIn = true,
             imageLoader = BillImageLoader(context),
             recognizer = recognizer,
             analyzer = analyzer,

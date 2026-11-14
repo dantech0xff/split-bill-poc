@@ -84,7 +84,7 @@ class ScreenGalleryTest {
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
 
-    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN }
+    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN, SETTINGS_SIGN_IN_EXPIRED }
 
     private var screen by mutableStateOf(Screen.HOME)
 
@@ -155,6 +155,9 @@ class ScreenGalleryTest {
 
         show(Screen.SETTINGS_SIGNED_IN)
         shot("16-settings-signed-in")
+
+        show(Screen.SETTINGS_SIGN_IN_EXPIRED)
+        shot("17-settings-sign-in-expired")
 
         show(Screen.SPLIT_WITHOUT_AI)
         shot("12-new-split-without-ai")
@@ -231,6 +234,7 @@ class ScreenGalleryTest {
             contactRepository = SeededContactRepository(),
             settings = MutableStateFlow(settings),
             account = proxy.account.account,
+            canSignIn = true,
             imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
             analyzer = proxy.analyzer,
@@ -266,6 +270,17 @@ class ScreenGalleryTest {
                         Screen.SETTINGS_SIGNED_IN -> SettingsScreen(
                             settings = settings,
                             account = SIGNED_IN,
+                            accountUi = AccountUiState(),
+                            canSignIn = true,
+                            actions = NO_ACTIONS,
+                            onSave = {},
+                            onBack = {},
+                        )
+
+                        // The session ran out: sign in again, or sign out to use this phone's free reads.
+                        Screen.SETTINGS_SIGN_IN_EXPIRED -> SettingsScreen(
+                            settings = settings,
+                            account = SIGNED_IN.copy(session = null, callsLeft = null, signInExpired = true),
                             accountUi = AccountUiState(),
                             canSignIn = true,
                             actions = NO_ACTIONS,

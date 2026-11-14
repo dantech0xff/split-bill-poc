@@ -58,6 +58,7 @@ class BackNavigationTest {
                         contactRepository = get(),
                         settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
                         account = get<AccountStore>().account,
+                        canSignIn = true,
                         imageLoader = get(),
                         recognizer = neverFinishes,
                         analyzer = NeverAsked,

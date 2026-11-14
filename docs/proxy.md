@@ -135,7 +135,8 @@ These steps need the owner's accounts.
    ```
 
 4. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
-   release build. A release build refuses an address that is not https.
+   release build. A release build refuses an address that is not https, and every build stops at
+   a value with a placeholder such as `<your-subdomain>` still in it.
 
    ```properties
    splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev

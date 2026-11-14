@@ -50,6 +50,7 @@ class SplitFlowOnDeviceTest {
                         account = MutableStateFlow(
                             Account(installId = "on-device-test", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
                         ),
+                        canSignIn = true,
                         imageLoader = get(),
                         recognizer = get(),
                         analyzer = RecordedAnswer,

@@ -58,7 +58,8 @@ adb reverse tcp:8787 tcp:8787
 ```
 
 A deployed proxy and Google sign-in are set in `local.properties` (git-ignored). A release build
-requires https, and without an address it is built with AI reading off:
+requires https, and without an address it is built with AI reading off. A value that is not a real
+address or client ID, such as one with a `<placeholder>` still in it, stops the build:
 
 ```properties
 splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev
@@ -66,7 +67,9 @@ splitvibe.googleWebClientId=<web client ID>.apps.googleusercontent.com
 ```
 
 Without signing in, each install gets 3 free reads. **Settings** (gear icon) shows the reads left
-and offers "Sign in with Google" for 10 reads a month, signing out and deleting the account. It
+and offers "Sign in with Google" for 10 reads a month, signing out and deleting the account. When a
+sign-in runs out, the app asks to sign in again and never falls back to the phone's free reads on
+its own; signing out does that. It
 also holds the app's **local currency** (the currency the payment app works in), which defaults to
 the currency of the phone's region.
 
@@ -118,8 +121,9 @@ Split with Minh and Lan. Minh had the beers.
   model instead of failing.
 
 The proxy counts the calls (3 free per install, 10 a month per Google account), limits each network
-address, caps the day's spend, and charges a call only once the model has answered. When a read
-fails, reading the same bill again keeps its request id, so the proxy does not charge twice.
+address, caps the day's spend, and charges a call only once the model has answered. When a read is
+cancelled, fails, or brings an answer the app cannot use, reading the same bill again keeps its
+request id, so the proxy does not charge twice.
 
 The model returns items, charges, the total, the currency, the number of decimals the prices are
 printed with, and what the instruction said about people:

@@ -101,7 +101,8 @@ fun NewSplitContent(
             )
 
             aiStatus.notice?.let { SvMessageCard(text = it, isError = false) }
-            state.error?.let { error ->
+            // An error that only repeats the notice above says nothing new.
+            state.error?.takeIf { it != aiStatus.notice }?.let { error ->
                 SvMessageCard(
                     text = error,
                     isError = true,

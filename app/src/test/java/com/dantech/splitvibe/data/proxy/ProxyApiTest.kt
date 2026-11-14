@@ -12,6 +12,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -90,10 +91,40 @@ class ProxyApiTest {
         assertEquals("Bearer signed-session", request.getHeader("Authorization"))
     }
 
+    @Test
+    fun `an answer of the wrong shape is a bad response, not a crash`() = runBlocking {
+        val answers = listOf(
+            """{"usage":{"limit":"ten","used":0,"remaining":10,"period":"2026-11"},"aiEnabled":true}""",
+            """{"usage":[10],"aiEnabled":true}""",
+            """["usage"]""",
+        )
+        for (answer in answers) {
+            server.enqueue(json(200, answer))
+            try {
+                proxy.api.usage()
+                fail("$answer must not read as calls left")
+            } catch (e: ProxyException) {
+                assertEquals(answer, ProxyApi.BAD_RESPONSE, e.code)
+            }
+        }
+    }
+
+    @Test
+    fun `the client waits long enough for the proxy's wait lines and its model`() {
+        val client = ProxyApi.defaultClient()
+
+        // The proxy sends a wait line every 10 seconds and gives the model 120 seconds.
+        assertTrue("two wait lines may be lost", client.readTimeoutMillis >= 3 * WAIT_LINE_MS)
+        assertTrue("the model's time and the network", client.callTimeoutMillis > MODEL_DEADLINE_MS + client.connectTimeoutMillis)
+        assertEquals(15_000, client.connectTimeoutMillis)
+    }
+
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)
 
     private companion object {
+        const val WAIT_LINE_MS = 10_000
+        const val MODEL_DEADLINE_MS = 120_000
         const val MONTH = """{"limit":10,"used":0,"remaining":10,"period":"2026-11","resetsAt":1796083200000}"""
     }
 }

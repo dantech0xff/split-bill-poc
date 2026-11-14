@@ -24,6 +24,7 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
         callsLeft?.let(store::onCallsLeft)
     }
 
+    /** Also ends a sign-in that has run out: this phone's free reads are used again. */
     suspend fun signOut(context: Context) {
         store.clearSession()
         forgetGoogle(context)
@@ -35,21 +36,25 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
             api.deleteAccount()
         } catch (e: ProxyException) {
             // A session the proxy no longer accepts cannot delete anything; signing in again can.
-            if (e.code == SESSION_REFUSED) store.clearSession()
+            if (e.code == ProxyApi.SESSION_REFUSED) store.expireSession()
             throw e
         }
         store.clearSession()
         forgetGoogle(context)
     }
 
-    /** Asks the proxy how many calls are left and whether AI is on. */
+    /**
+     * Asks the proxy how many calls are left and whether AI is on. A sign-in that has run out is not
+     * an error here: the account then shows that the person has to sign in again.
+     */
     suspend fun refresh() {
         if (!api.isSetUp) return
         val usage = try {
             api.usage()
         } catch (e: ProxyException) {
-            if (e.code == SESSION_REFUSED) store.clearSession()
-            throw e
+            if (e.code != ProxyApi.SESSION_REFUSED) throw e
+            store.expireSession()
+            return
         }
         store.onCallsLeft(usage.callsLeft)
         store.onAiEnabled(usage.aiEnabled)
@@ -63,9 +68,5 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
         } catch (e: Exception) {
             // The session is gone either way; the picker may just preselect the same account next time.
         }
-    }
-
-    companion object {
-        const val SESSION_REFUSED = "session"
     }
 }

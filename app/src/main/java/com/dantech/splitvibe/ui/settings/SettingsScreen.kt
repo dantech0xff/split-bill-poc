@@ -33,6 +33,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.account.Account
@@ -124,19 +127,40 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
 
             val about = when {
                 account.ai == AiStatus.NOT_SET_UP -> account.ai.notice
+
+                account.signInExpired ->
+                    "Your sign-in${account.signedInAs?.let { " as $it" }.orEmpty()} has run out. Sign in again to use your monthly reads."
+
                 signedIn -> "Signed in with Google as ${account.signedInAs ?: "your Google account"}."
+
                 canSignIn -> "Sign in with Google to get reads every month."
+
                 else -> "Signing in is not set up in this build of the app."
             }
-            about?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            // It changes when a sign-in or sign-out has worked, which TalkBack then reads out.
+            about?.let {
+                Text(
+                    it,
+                    modifier = announced,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             when {
                 accountUi.working -> Row(
+                    modifier = announced,
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
                 ) {
                     SvLoadingIndicator(modifier = Modifier.size(40.dp))
                     Text("Working…", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                // Deleting the account needs a session the proxy accepts, so it waits for a new sign-in.
+                account.signInExpired -> Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                    if (canSignIn && account.ai != AiStatus.NOT_SET_UP) SvPrimaryButton("Sign in with Google", onClick = actions.onSignIn)
+                    OutlinedButton(onClick = actions.onSignOut) { Text("Sign out") }
                 }
 
                 signedIn -> FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
@@ -152,7 +176,7 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
                 canSignIn && account.ai != AiStatus.NOT_SET_UP -> SvPrimaryButton("Sign in with Google", onClick = actions.onSignIn)
             }
 
-            accountUi.message?.let { SvMessageCard(text = it, isError = true) }
+            accountUi.message?.let { SvMessageCard(text = it, isError = accountUi.isError, modifier = announced) }
         }
     }
 
@@ -181,6 +205,9 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
         )
     }
 }
+
+/** Read out by TalkBack when it appears or changes: the outcome of what the person just did. */
+private val announced = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
 
 private fun callsLeftText(calls: CallsLeft): String {
     val date = calls.comesBackOn

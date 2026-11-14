@@ -12,8 +12,13 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
+import com.dantech.splitvibe.ocr.OcrLayoutEncoder
+import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrResult
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -24,6 +29,7 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -107,7 +113,12 @@ class GatewayBillAnalyzerTest {
             Case(refusal(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "120"), Kind.RATE_LIMITED, "about 2 minutes"),
             Case(refusal(429, """{"error":"spend_limited"}""").setHeader("Retry-After", "7200"), Kind.RATE_LIMITED, "about 2 hours"),
             Case(refusal(429, """{"error":"busy"}""").setHeader("Retry-After", "30"), Kind.BUSY, "in a minute"),
+            Case(refusal(429, """{"error":"retry_limit"}"""), Kind.SERVICE_ERROR, "did not work after several tries"),
             Case(refusal(400, """{"error":"input"}"""), Kind.BAD_REQUEST, "could not be sent"),
+            Case(refusal(401, """{"error":"install"}"""), Kind.BAD_REQUEST, "could not be sent"),
+            Case(refusal(503, """{"error":"not_configured"}"""), Kind.SERVICE_ERROR, "server had a problem"),
+            Case(refusal(500, """{"error":"internal"}"""), Kind.SERVICE_ERROR, "server had a problem"),
+            Case(refusal(500, """{"error":{"code":"internal"}}"""), Kind.SERVICE_ERROR, "server had a problem"),
             Case(MockResponse().setResponseCode(502).setBody("<html>Bad gateway</html>"), Kind.SERVICE_ERROR, "server had a problem"),
             Case(ndjson("""{"type":"wait"}""", """{"type":"error","code":"refused","usage":$ONE_USED}"""), Kind.REFUSED, "declined"),
             Case(ndjson("""{"type":"error","code":"too_long","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "too long"),
@@ -116,6 +127,9 @@ class GatewayBillAnalyzerTest {
             Case(ndjson("""{"type":"error","code":"busy"}"""), Kind.BUSY, "busy"),
             Case(ndjson("""{"type":"error","code":"upstream"}"""), Kind.SERVICE_ERROR, "server had a problem"),
             Case(ndjson("""{"type":"wait"}""", "not json"), Kind.BAD_RESPONSE, "could not be read"),
+            Case(ndjson("""{"type":"error","code":{"name":"refused"}}"""), Kind.BAD_RESPONSE, "could not be read"),
+            Case(ndjson("""{"type":"result","answer":"Read 7 items.","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "could not be read"),
+            Case(ndjson("""{"type":"result","answer":{"status":"ok","items":"seven"}}"""), Kind.BAD_RESPONSE, "not in the expected format"),
         )
 
         for (case in cases) {
@@ -143,55 +157,137 @@ class GatewayBillAnalyzerTest {
     }
 
     @Test
-    fun `a connection that falls silent is a timeout`() = runBlocking {
+    fun `an answer that falls silent after it started is a timeout`() = runBlocking {
         val impatient = OkHttpClient.Builder().readTimeout(200, TimeUnit.MILLISECONDS).build()
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(2, TimeUnit.SECONDS))
 
-        assertEquals(Kind.TIMEOUT, failureOf { GatewayBillAnalyzer(api, proxy.account).analyze(ocr, INSTRUCTION, "VND") }.kind)
+        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(ocr, INSTRUCTION, "VND") }
+
+        assertEquals(Kind.TIMEOUT, failure.kind)
     }
 
     @Test
-    fun `sends the session once someone has signed in, and forgets it when the proxy refuses it`() = runBlocking {
+    fun `a server that never starts to answer is a network failure, not a slow read`() = runBlocking {
+        val impatient = OkHttpClient.Builder().readTimeout(200, TimeUnit.MILLISECONDS).build()
+        val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+
+        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(ocr, INSTRUCTION, "VND") }
+
+        assertEquals(Kind.NETWORK, failure.kind)
+    }
+
+    @Test
+    fun `a session the proxy refuses ends the sign-in, and the next read is not sent as the install`() = runBlocking {
         proxy.account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
         server.enqueue(refusal(401, """{"error":"session"}"""))
-        server.enqueue(Fixtures.proxyAnswer())
 
-        failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
-        proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }.kind)
+        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }.kind)
 
         assertEquals("Bearer signed-session", server.takeRequest().getHeader("Authorization"))
-        assertNull(proxy.account.account.value.session)
-        assertNull("the next read goes out as the install", server.takeRequest().getHeader("Authorization"))
+        assertEquals("the second read stops on the phone", 1, server.requestCount)
+        assertTrue(proxy.account.account.value.signInExpired)
+    }
+
+    @Test
+    fun `a session that has run out stops the read on the phone`() = runBlocking {
+        var now = 1_000_000L
+        val expiring = TestProxy(server, context, clock = { now })
+        expiring.account.saveSession(Session("signed-session", expiresAt = now + 60_000))
+        now += 60_000
+
+        val failure = failureOf { expiring.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+
+        assertEquals(Kind.SIGN_IN_EXPIRED, failure.kind)
+        assertTrue(failure.message.orEmpty().contains("Sign in again"))
+        assertEquals(0, server.requestCount)
     }
 
     @Test
     fun `reading the same bill again after a failure keeps the request id, so it is not charged twice`() = runBlocking {
-        server.enqueue(refusal(500, """{"error":"internal"}"""))
-        server.enqueue(Fixtures.proxyAnswer())
-        server.enqueue(Fixtures.proxyAnswer())
-        server.enqueue(Fixtures.proxyAnswer())
+        val failures = listOf(
+            refusal(500, """{"error":"internal"}"""),
+            // The answer was cut off after the model had started.
+            ndjson("""{"type":"wait"}"""),
+            // The model answered, so the call was charged, but the answer could not be used.
+            ndjson("""{"type":"wait"}""", """{"type":"error","code":"bad_response","usage":$ONE_USED}"""),
+            ndjson("""{"type":"result","answer":{"status":"ok","items":"seven"},"usage":$ONE_USED}"""),
+        )
+        val ids = mutableListOf<String>()
+        for (failure in failures) {
+            server.enqueue(failure)
+            server.enqueue(Fixtures.proxyAnswer())
 
-        failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
-        proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
-        proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+            failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+            proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+
+            val failed = requestIdOf(server.takeRequest())
+            assertEquals("the read after ${failure.status} is the same request", failed, requestIdOf(server.takeRequest()))
+            ids += failed
+        }
+        server.enqueue(Fixtures.proxyAnswer())
         proxy.analyzer.analyze(ocr, "Split it four ways", "VND")
+        ids += requestIdOf(server.takeRequest())
 
-        val ids = List(4) { requestIdOf(server.takeRequest()) }
-        assertEquals("the read after the failure is the same request", ids[0], ids[1])
-        assertNotEquals("a read that worked is not run again", ids[1], ids[2])
-        assertNotEquals(ids[2], ids[3])
+        assertEquals("a read that worked is not run again, and another instruction is another request", ids.size, ids.toSet().size)
     }
 
     @Test
-    fun `a request that has run as often as the proxy allows gets a new id`() = runBlocking {
-        server.enqueue(refusal(429, """{"error":"retry_limit"}"""))
+    fun `a read that was cancelled keeps its request id for the next try of the same bill`() = runBlocking {
+        // The model is still working when the person cancels.
+        server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(3, TimeUnit.SECONDS))
         server.enqueue(Fixtures.proxyAnswer())
 
-        failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val read = launch(Dispatchers.IO) { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val cancelled = server.takeRequest()
+        read.cancelAndJoin()
         proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
 
-        assertNotEquals(requestIdOf(server.takeRequest()), requestIdOf(server.takeRequest()))
+        assertEquals(requestIdOf(cancelled), requestIdOf(server.takeRequest()))
+    }
+
+    @Test
+    fun `a request the proxy cannot take again under its id gets a new one`() = runBlocking {
+        val refusals = listOf(
+            refusal(429, """{"error":"retry_limit"}"""),
+            // Also what the proxy says when the id was first used with a prompt that has changed since.
+            refusal(400, """{"error":"input"}"""),
+        )
+        for (refused in refusals) {
+            server.enqueue(refused)
+            server.enqueue(Fixtures.proxyAnswer())
+
+            failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+            proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+
+            assertNotEquals(refused.status, requestIdOf(server.takeRequest()), requestIdOf(server.takeRequest()))
+        }
+    }
+
+    @Test
+    fun `a bill with more text than the proxy takes is not sent`() = runBlocking {
+        val rows = List(300) { row -> OcrLine.upright("Item $row ${"x".repeat(80)}", 10f, row * 40f, 990f, row * 40f + 30f) }
+        val long = OcrResult(imageWidth = 1000, imageHeight = 12_000, lines = rows)
+        assertTrue(OcrLayoutEncoder.encode(long).length > 20_000)
+
+        val failure = failureOf { proxy.analyzer.analyze(long, INSTRUCTION, "VND") }
+
+        assertEquals(Kind.BAD_REQUEST, failure.kind)
+        assertTrue(failure.message.orEmpty().contains("too long"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `a build that cannot sign in does not tell the person to sign in`() = runBlocking {
+        val analyzer = GatewayBillAnalyzer(proxy.api, proxy.account, canSignIn = false)
+        server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
+
+        val failure = failureOf { analyzer.analyze(ocr, INSTRUCTION, "VND") }
+
+        assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
+        assertEquals("You have used your 3 free reads.", failure.message)
     }
 
     @Test
@@ -208,7 +304,7 @@ class GatewayBillAnalyzerTest {
     @Test
     fun `a build without the proxy's address sends nothing`() = runBlocking {
         val account = AccountStore(context, proxySetUp = false, cipher = PlainCipher)
-        val analyzer = GatewayBillAnalyzer(ProxyApi("", account, appVersion = 1), account)
+        val analyzer = GatewayBillAnalyzer(ProxyApi("", account, appVersion = 1), account, canSignIn = false)
 
         val failure = failureOf { analyzer.analyze(ocr, INSTRUCTION, "VND") }
 

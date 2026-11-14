@@ -3,6 +3,7 @@ package com.dantech.splitvibe.data.account
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.FakeGoogleAccounts
 import com.dantech.splitvibe.PlainCipher
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.data.proxy.ProxyApi
@@ -109,7 +110,7 @@ class AccountRepositoryTest {
 
     @Test
     fun `an account the proxy could not delete stays signed in, unless its session ran out`() = runBlocking {
-        proxy.account.saveSession(Session("signed-session", FAR_FUTURE))
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         server.enqueue(json(500, """{"error":"internal"}"""))
         server.enqueue(json(401, """{"error":"session"}"""))
 
@@ -119,6 +120,43 @@ class AccountRepositoryTest {
 
         runCatching { repository.deleteAccount(context) }
         assertNull(proxy.account.account.value.session)
+        assertTrue("signing in again can delete it", proxy.account.account.value.signInExpired)
+        assertEquals("minh.tran@example.com", proxy.account.account.value.signedInAs)
+    }
+
+    @Test
+    fun `a sign-in that has run out is not asked about as the install, and signing in again ends it`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        server.enqueue(json(401, """{"error":"session"}"""))
+        server.enqueue(json(200, """{"session":"new-session","expiresAt":${FAR_FUTURE},"usage":$MONTH}"""))
+
+        repository.refresh()
+        assertTrue(proxy.account.account.value.signInExpired)
+        repository.refresh()
+        assertEquals("the second count is not asked for at all", 1, server.requestCount)
+
+        repository.signIn(context)
+
+        assertEquals("Bearer signed-session", server.takeRequest().getHeader("Authorization"))
+        val signIn = server.takeRequest()
+        assertEquals("/v1/session", signIn.requestUrl?.encodedPath)
+        assertNull("signing in carries Google's token, not the old session", signIn.getHeader("Authorization"))
+        assertFalse(proxy.account.account.value.signInExpired)
+        assertEquals("new-session", proxy.account.account.value.session?.token)
+    }
+
+    @Test
+    fun `signing out after the sign-in ran out goes back to this phone's free reads`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE))
+        proxy.account.expireSession()
+        server.enqueue(json(200, """{"usage":{"limit":3,"used":1,"remaining":2,"period":"trial","resetsAt":null},"aiEnabled":true}"""))
+
+        repository.signOut(context)
+        repository.refresh()
+
+        assertFalse(proxy.account.account.value.signInExpired)
+        assertNull("the count is the install's", server.takeRequest().getHeader("Authorization"))
+        assertEquals(2, proxy.account.account.value.callsLeft?.remaining)
     }
 
     @Test
@@ -143,20 +181,6 @@ class AccountRepositoryTest {
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)
-
-    private class FakeGoogleAccounts : GoogleAccounts {
-        var failure: GoogleSignInException? = null
-        var forgotten = false
-
-        override suspend fun pick(activity: Context): GoogleAccount {
-            failure?.let { throw it }
-            return GoogleAccount(idToken = "google-id-token", email = "minh.tran@example.com")
-        }
-
-        override suspend fun forget(context: Context) {
-            forgotten = true
-        }
-    }
 
     private companion object {
         const val FAR_FUTURE = 4_102_444_800_000L

@@ -18,6 +18,7 @@ import com.dantech.splitvibe.domain.currencyMismatchNote
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
+import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
@@ -54,7 +55,7 @@ data class SplitUiState(
     val instruction: String = DEFAULT_INSTRUCTION,
     val progress: Progress = Progress.IDLE,
     val error: String? = null,
-    /** The error is fixed by signing in, so it comes with a way to Settings. */
+    /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
     val result: SplitResultState? = null,
     val sentRequests: List<PaymentRequest>? = null,
@@ -70,6 +71,8 @@ class SplitBillViewModel(
     contactRepository: ContactRepository,
     private val settings: StateFlow<AppSettings>,
     private val account: StateFlow<Account>,
+    /** Whether this build can sign in with Google, which is what some errors ask for. */
+    private val canSignIn: Boolean,
     private val imageLoader: BillImageLoader,
     private val recognizer: BillTextRecognizer,
     private val analyzer: BillAnalyzer,
@@ -88,7 +91,8 @@ class SplitBillViewModel(
         mutableState.value = SplitUiState()
     }
 
-    fun onInstructionChanged(text: String) = mutableState.update { it.copy(instruction = text) }
+    /** The AI proxy takes instructions up to [MAX_INSTRUCTION_CHARS] long, so the field holds no more. */
+    fun onInstructionChanged(text: String) = mutableState.update { it.copy(instruction = text.take(MAX_INSTRUCTION_CHARS)) }
 
     fun onPhotoPicked(uri: Uri) = launchWork(Progress.LOADING_PHOTO) {
         val photo = imageLoader.load(uri)
@@ -189,8 +193,11 @@ class SplitBillViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BillAnalyzerException) {
-                val signInHelps = e.kind == BillAnalyzerException.Kind.SIGN_IN_EXPIRED ||
-                    (e.kind == BillAnalyzerException.Kind.QUOTA_EXHAUSTED && account.value.session == null)
+                val signInHelps = canSignIn &&
+                    (
+                        e.kind == BillAnalyzerException.Kind.SIGN_IN_EXPIRED ||
+                            (e.kind == BillAnalyzerException.Kind.QUOTA_EXHAUSTED && account.value.session == null)
+                        )
                 showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps)
             } catch (e: IOException) {
                 showError("That image could not be opened. Try another photo.")

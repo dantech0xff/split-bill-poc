@@ -142,6 +142,7 @@ class SplitFlowTest {
             contactRepository = SeededContactRepository(),
             settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
             account = proxy.account.account,
+            canSignIn = true,
             imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
             analyzer = proxy.analyzer,

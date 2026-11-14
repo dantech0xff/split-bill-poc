@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -16,16 +17,29 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use(::load)
 }
 val aiProxyUrl: String? = localProperties.getProperty("splitvibe.aiProxyUrl")?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
+// Something that is not an address, such as one with <your-subdomain> still in it, would only turn AI
+// reading off once the app runs, so it stops every build.
+aiProxyUrl?.let { url ->
+    val address = runCatching { URI(url) }.getOrNull()
+    check(address != null && address.scheme in setOf("http", "https") && !address.host.isNullOrEmpty()) {
+        "splitvibe.aiProxyUrl must be an address such as https://split-vibe-proxy.example.workers.dev, but it is $url"
+    }
+}
 val debugAiProxyUrl: String = aiProxyUrl ?: "http://127.0.0.1:8787"
 val releaseAiProxyUrl: String = aiProxyUrl.orEmpty()
-check(releaseAiProxyUrl.isEmpty() || releaseAiProxyUrl.startsWith("https://")) {
-    "splitvibe.aiProxyUrl must start with https:// for release builds, but it is $releaseAiProxyUrl"
+// Only a release build must use https, so only building one checks it: a plain-http address of a
+// computer on the local network still serves debug builds and the tests.
+val releaseAiProxyUrlProblem: String? = releaseAiProxyUrl.takeIf { it.isNotEmpty() && !it.startsWith("https://") }
+    ?.let { "splitvibe.aiProxyUrl must start with https:// for release builds, but it is $it" }
+tasks.matching { it.name.startsWith("pre") && it.name.endsWith("ReleaseBuild") }.configureEach {
+    val problem = releaseAiProxyUrlProblem
+    doFirst { problem?.let { throw GradleException(it) } }
 }
 // The app's web client ID at Google (public): Google's ID tokens for the app are made out to it, and
 // the proxy checks that. Without it the app is built with signing in turned off.
 val googleWebClientId: String = localProperties.getProperty("splitvibe.googleWebClientId")?.trim().orEmpty()
-check(googleWebClientId.isEmpty() || googleWebClientId.endsWith(".apps.googleusercontent.com")) {
-    "splitvibe.googleWebClientId must be a web client ID ending in .apps.googleusercontent.com"
+check(googleWebClientId.isEmpty() || Regex("[A-Za-z0-9-]+\\.apps\\.googleusercontent\\.com").matches(googleWebClientId)) {
+    "splitvibe.googleWebClientId must be a web client ID such as 1234-abcd.apps.googleusercontent.com, but it is $googleWebClientId"
 }
 
 // The upload key never lives in the repository. A release build is signed only when all four

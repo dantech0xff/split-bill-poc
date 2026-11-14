@@ -36,7 +36,7 @@ App chạy được ở chế độ production mà không có API key nào trên
 Chức năng:
 - Proxy có bốn đường: `POST /v1/bill-analysis` (giao kèo bên dưới), `POST /v1/session` (ID token Google đổi lấy phiên), `GET /v1/usage` (số lượt còn lại), `DELETE /v1/account` (xóa mọi thứ proxy giữ về tài khoản).
 - App thử được ngay không cần đăng nhập; trong Settings có đăng nhập Google qua Credential Manager, đăng xuất, xóa tài khoản và số lượt còn lại. Chính sách của Play đòi xóa tài khoản ngay trong app khi app có tài khoản.
-- Công tắc trên proxy: tắt AI (app chuyển sang nhập tay) và phiên bản app tối thiểu.
+- Công tắc trên proxy: tắt AI (app báo AI đang tắt; nhập tay có từ Phase 4) và phiên bản app tối thiểu.
 - Bộ đánh giá chất lượng để chọn model bằng số liệu: dùng model rẻ nhất đạt ngưỡng.
 
 <!-- Updated: Validation Session 1 - ranh giới miễn phí và Pro; Validation Session 5 - giữ ba mức khi chuyển sang Cloudflare -->
@@ -174,7 +174,7 @@ Xóa:
   - vượt giới hạn IP hoặc một trong ba trần chi phí thì bị từ chối kèm `Retry-After`;
   - ID token sai chữ ký, hết hạn hoặc của app khác, và phiên bị sửa, đều bị từ chối;
   - xóa tài khoản thì proxy không còn giữ gì về tài khoản đó.
-- Tắt AI trên proxy thì app chuyển sang nhập tay ngay ở yêu cầu kế tiếp.
+- Tắt AI trên proxy thì ngay ở yêu cầu kế tiếp app báo AI đang tắt; lần đọc sau vẫn hỏi lại proxy, nên bật lại là dùng được ngay. Chuyển sang nhập tay là việc của Phase 4, khi có màn nhập tay.
 - Báo cáo đánh giá nêu model được chọn, độ chính xác trên bộ mẫu, độ trễ p50 và p95, chi phí trung bình mỗi lần đọc.
 
 ## Risks
@@ -182,7 +182,7 @@ Xóa:
 | Rủi ro | Dấu hiệu nhận biết | Phản ứng đã định |
 |---|---|---|
 | Model rẻ đọc sai hóa đơn khó | Bộ đánh giá: tỷ lệ khớp tổng dưới ngưỡng | Dùng model cao hơn làm mặc định hoặc leo thang khi phép đối chiếu trên máy báo lệch |
-| Chi phí AI vượt dự tính | Trần chi phí toàn cục bị chạm | Hạ hạn mức hoặc trần trong `policy.ts`; app vẫn nhập tay được |
+| Chi phí AI vượt dự tính | Trần chi phí toàn cục bị chạm | Hạ hạn mức hoặc trần trong `policy.ts`; từ Phase 4 app vẫn nhập tay được |
 | Lượt dùng thử bị vét bằng cách xóa dữ liệu app | Nhiều mã cài đặt mới trên cùng một IP | Hạ giới hạn lượt thử theo IP, hoặc bỏ lượt thử khi chưa đăng nhập |
 | Giới hạn theo IP chặn nhầm người dùng chung một IP (mạng di động dùng NAT) | Báo lỗi 429 vì IP từ người dùng thật | Nới giới hạn IP, dựa nhiều hơn vào trần chi phí |
 | Xóa tài khoản rồi đăng nhập lại để có lại 10 lượt trong tháng (xóa là phải xóa hết, kể cả bộ đếm) | Nhiều lần xóa tài khoản trên cùng IP | Mức độ như vét lượt dùng thử bằng mã cài đặt mới; giới hạn IP và trần chi phí vẫn chặn chi phí |

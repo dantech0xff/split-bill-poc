@@ -3,7 +3,6 @@ package com.dantech.splitvibe.data.settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import java.security.GeneralSecurityException
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -14,7 +13,7 @@ import javax.crypto.spec.GCMParameterSpec
 interface TextCipher {
     fun encrypt(plainText: String): String
 
-    /** Returns null when the value cannot be decrypted, for example after the key was wiped. */
+    /** Returns null when the value cannot be decrypted, for example after the key was wiped or when the Keystore fails. */
     fun decrypt(encoded: String): String?
 }
 
@@ -36,9 +35,9 @@ class KeystoreCipher(private val alias: String) : TextCipher {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, payload, 0, IV_BYTES))
         String(cipher.doFinal(payload, IV_BYTES, payload.size - IV_BYTES), Charsets.UTF_8)
-    } catch (e: GeneralSecurityException) {
-        null
-    } catch (e: IllegalArgumentException) {
+    } catch (e: Exception) {
+        // Besides a wrong key or damaged text, the Keystore itself can fail, for example with a
+        // ProviderException, and a value that cannot be read must not stop the app from starting.
         null
     }
 

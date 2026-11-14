@@ -1,13 +1,14 @@
 package com.dantech.splitvibe.data.account
 
 import android.content.Context
-import android.content.MutableContextWrapper
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -23,6 +24,9 @@ class GoogleSignInException(val reason: Reason, cause: Throwable? = null) : Exce
 
         /** The phone has no Google account to offer. */
         NO_ACCOUNT,
+
+        /** The phone cannot sign in with Google at all, for example because it has no Google Play services. */
+        UNAVAILABLE,
         FAILED,
     }
 }
@@ -44,12 +48,15 @@ class CredentialManagerGoogleAccounts(private val webClientId: String) : GoogleA
             .addCredentialOption(GetSignInWithGoogleOption.Builder(serverClientId = webClientId).build())
             .build()
         val response = try {
-            // The wrapper lets Credential Manager follow the activity when the system recreates it.
-            CredentialManager.create(activity).getCredential(context = MutableContextWrapper(activity), request = request)
+            CredentialManager.create(activity).getCredential(context = activity, request = request)
         } catch (e: GetCredentialCancellationException) {
             throw GoogleSignInException(GoogleSignInException.Reason.CANCELLED, e)
         } catch (e: NoCredentialException) {
             throw GoogleSignInException(GoogleSignInException.Reason.NO_ACCOUNT, e)
+        } catch (e: GetCredentialProviderConfigurationException) {
+            throw GoogleSignInException(GoogleSignInException.Reason.UNAVAILABLE, e)
+        } catch (e: GetCredentialUnsupportedException) {
+            throw GoogleSignInException(GoogleSignInException.Reason.UNAVAILABLE, e)
         } catch (e: GetCredentialException) {
             throw GoogleSignInException(GoogleSignInException.Reason.FAILED, e)
         }

@@ -18,6 +18,7 @@ class AccountMessagesTest {
     fun `each failure tells the person what to do`() {
         val cases = mapOf(
             GoogleSignInException(GoogleSignInException.Reason.NO_ACCOUNT) to "Add a Google account",
+            GoogleSignInException(GoogleSignInException.Reason.UNAVAILABLE) to "not available on this phone",
             GoogleSignInException(GoogleSignInException.Reason.FAILED) to "did not work",
             ProxyException(401, "id_token", null, null) to "did not accept this Google sign-in",
             ProxyException(503, "sign_in_off", null, null) to "not available right now",

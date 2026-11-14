@@ -22,8 +22,6 @@ data class Session(val token: String, val expiresAt: Long)
  * gets before signing in, which never come back, or the calendar month in UTC such as "2026-11".
  */
 data class CallsLeft(val limit: Int, val used: Int, val remaining: Int, val period: String, val resetsAt: Long?) {
-    val isTrial: Boolean get() = resetsAt == null
-
     /** The day the monthly calls come back, such as "1 December", or null for a trial. */
     val comesBackOn: String?
         get() = resetsAt?.let {
@@ -50,8 +48,13 @@ data class Account(
     /** Null until the proxy has reported a count in this run of the app. */
     val callsLeft: CallsLeft?,
     val ai: AiStatus,
-    /** The Google account's address, shown in Settings while signed in. */
+    /** The Google account's address, shown in Settings while signed in and once the sign-in has run out. */
     val signedInAs: String? = null,
+    /**
+     * Someone signed in, and their session has since run out or the proxy refused it. Until they sign
+     * in again or sign out, no request goes out, neither as them nor as the install in their place.
+     */
+    val signInExpired: Boolean = false,
 )
 
 /**
@@ -66,25 +69,18 @@ class AccountStore(
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val preferences = context.getSharedPreferences("account", Context.MODE_PRIVATE)
-    private val state = MutableStateFlow(
-        storedSession().let { session ->
-            Account(
-                installId = installId(),
-                session = session,
-                callsLeft = null,
-                ai = aiStatus(enabled = true),
-                signedInAs = if (session == null) null else preferences.getString(KEY_SIGNED_IN_AS, null)?.let(cipher::decrypt),
-            )
-        },
-    )
+    private val state = MutableStateFlow(storedAccount())
 
     val account: StateFlow<Account> = state.asStateFlow()
 
-    /** The session to send, or null when there is none or it has run out. */
+    /**
+     * The session to send, or null when there is none. A session that has run out is not sent: it
+     * turns into a sign-in that has run out, see [Account.signInExpired].
+     */
     fun currentSession(): Session? {
         val session = state.value.session ?: return null
         if (session.expiresAt > clock()) return session
-        clearSession()
+        expireSession()
         return null
     }
 
@@ -93,19 +89,37 @@ class AccountStore(
             putString(KEY_SESSION, cipher.encrypt(session.token))
             putLong(KEY_SESSION_EXPIRES_AT, session.expiresAt)
             if (signedInAs == null) remove(KEY_SIGNED_IN_AS) else putString(KEY_SIGNED_IN_AS, cipher.encrypt(signedInAs))
+            remove(KEY_SIGN_IN_EXPIRED)
         }
         // A new person may have signed in, so the old count no longer applies.
-        state.update { it.copy(session = session, signedInAs = signedInAs, callsLeft = null) }
+        state.update { it.copy(session = session, signedInAs = signedInAs, signInExpired = false, callsLeft = null) }
     }
 
-    /** Forgets the session: after signing out, deleting the account, or when the proxy refused it. */
+    /**
+     * The session ran out or the proxy refused it. The person keeps their place as someone who
+     * signed in, and has to sign in again, or sign out to go back to this phone's free reads.
+     */
+    fun expireSession() {
+        // A refusal that arrives after signing out belongs to nobody any more.
+        if (state.value.session == null && !state.value.signInExpired) return
+        preferences.edit {
+            remove(KEY_SESSION)
+            remove(KEY_SESSION_EXPIRES_AT)
+            putBoolean(KEY_SIGN_IN_EXPIRED, true)
+        }
+        // The count was the account's, and no read is possible until the person signs in again.
+        state.update { it.copy(session = null, signInExpired = true, callsLeft = null) }
+    }
+
+    /** Forgets the sign-in, after signing out or deleting the account; the install is the caller again. */
     fun clearSession() {
         preferences.edit {
             remove(KEY_SESSION)
             remove(KEY_SESSION_EXPIRES_AT)
             remove(KEY_SIGNED_IN_AS)
+            remove(KEY_SIGN_IN_EXPIRED)
         }
-        state.update { it.copy(session = null, signedInAs = null, callsLeft = null) }
+        state.update { it.copy(session = null, signedInAs = null, signInExpired = false, callsLeft = null) }
     }
 
     fun onCallsLeft(callsLeft: CallsLeft) = state.update { it.copy(callsLeft = callsLeft) }
@@ -125,10 +139,21 @@ class AccountStore(
         return created
     }
 
-    private fun storedSession(): Session? {
-        val token = preferences.getString(KEY_SESSION, null)?.let(cipher::decrypt) ?: return null
+    private fun storedAccount(): Account {
+        val encrypted = preferences.getString(KEY_SESSION, null)
+        val token = encrypted?.let(cipher::decrypt)
         val expiresAt = preferences.getLong(KEY_SESSION_EXPIRES_AT, 0L)
-        return Session(token, expiresAt).takeIf { expiresAt > clock() }
+        val session = if (token != null && expiresAt > clock()) Session(token, expiresAt) else null
+        // A session that ran out, or that this phone can no longer decrypt, still means someone signed in.
+        val expired = session == null && (encrypted != null || preferences.getBoolean(KEY_SIGN_IN_EXPIRED, false))
+        return Account(
+            installId = installId(),
+            session = session,
+            callsLeft = null,
+            ai = aiStatus(enabled = true),
+            signedInAs = if (session != null || expired) preferences.getString(KEY_SIGNED_IN_AS, null)?.let(cipher::decrypt) else null,
+            signInExpired = expired,
+        )
     }
 
     private companion object {
@@ -136,5 +161,6 @@ class AccountStore(
         const val KEY_SESSION = "session_encrypted"
         const val KEY_SESSION_EXPIRES_AT = "session_expires_at"
         const val KEY_SIGNED_IN_AS = "signed_in_as_encrypted"
+        const val KEY_SIGN_IN_EXPIRED = "sign_in_expired"
     }
 }

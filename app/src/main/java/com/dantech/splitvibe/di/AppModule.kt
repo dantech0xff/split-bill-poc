@@ -26,7 +26,7 @@ val appModule = module {
     single { SettingsStore(androidContext()) }
     single { AccountStore(androidContext(), proxySetUp = BuildConfig.AI_PROXY_URL.toHttpUrlOrNull() != null) }
     single { ProxyApi(BuildConfig.AI_PROXY_URL, account = get(), appVersion = BuildConfig.VERSION_CODE) }
-    single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get()) }
+    single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
     single {
         AccountRepository(
             api = get(),
@@ -44,6 +44,7 @@ val appModule = module {
             contactRepository = get(),
             settings = get<SettingsStore>().settings,
             account = get<AccountStore>().account,
+            canSignIn = get<AccountRepository>().canSignIn,
             imageLoader = get(),
             recognizer = get(),
             analyzer = get(),

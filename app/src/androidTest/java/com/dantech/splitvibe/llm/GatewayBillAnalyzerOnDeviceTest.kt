@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.llm
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.AccountStore
@@ -20,11 +21,13 @@ import org.junit.runner.RunWith
 
 /**
  * Proves on the Android runtime what the local tests cannot: OkHttp reads the streamed answer line
- * by line, and the session goes through the real Keystore encryption on its way into the request.
+ * by line, and the session and the account's address survive the real Keystore encryption, read
+ * back by the next start of the app.
  */
 @RunWith(AndroidJUnit4::class)
 class GatewayBillAnalyzerOnDeviceTest {
 
+    private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private lateinit var account: AccountStore
     private lateinit var analyzer: GatewayBillAnalyzer
@@ -41,8 +44,8 @@ class GatewayBillAnalyzerOnDeviceTest {
     @Before
     fun setUp() {
         server.start()
-        account = AccountStore(ApplicationProvider.getApplicationContext(), proxySetUp = true)
-        analyzer = GatewayBillAnalyzer(ProxyApi(server.url("/").toString(), account, appVersion = 1), account)
+        account = AccountStore(context, proxySetUp = true)
+        analyzer = analyzerFor(account)
     }
 
     @After
@@ -53,7 +56,13 @@ class GatewayBillAnalyzerOnDeviceTest {
 
     @Test
     fun theStreamedAnswerIsReadOnAndroid() = runBlocking {
-        account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
+        account.saveSession(
+            Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000),
+            signedInAs = "minh.tran@example.com",
+        )
+        // As at the next start of the app: both are decrypted from what was stored.
+        val restarted = AccountStore(context, proxySetUp = true)
+        assertEquals("minh.tran@example.com", restarted.account.value.signedInAs)
         server.enqueue(
             ndjson(
                 """{"type":"wait"}""",
@@ -61,12 +70,12 @@ class GatewayBillAnalyzerOnDeviceTest {
             ),
         )
 
-        val analysis = analyzer.analyze(ocr, "Split with Minh", localCurrency = "VND")
+        val analysis = analyzerFor(restarted).analyze(ocr, "Split with Minh", localCurrency = "VND")
 
         analysis as BillAnalysis.Ready
         assertEquals(65_000L, analysis.bill.totalMinor)
         assertEquals(listOf("Minh"), analysis.splitHint.people)
-        assertEquals(9, account.account.value.callsLeft?.remaining)
+        assertEquals(9, restarted.account.value.callsLeft?.remaining)
         val request = server.takeRequest()
         assertEquals("/v1/bill-analysis", request.requestUrl?.encodedPath)
         assertEquals("Bearer signed-session", request.getHeader("Authorization"))
@@ -84,6 +93,9 @@ class GatewayBillAnalyzerOnDeviceTest {
             assertEquals(BillAnalyzerException.Kind.AI_OFF, e.kind)
         }
     }
+
+    private fun analyzerFor(store: AccountStore) =
+        GatewayBillAnalyzer(ProxyApi(server.url("/").toString(), store, appVersion = 1), store, canSignIn = true)
 
     private fun ndjson(vararg lines: String): MockResponse =
         MockResponse().setHeader("content-type", "application/x-ndjson; charset=utf-8").setBody(lines.joinToString("\n", postfix = "\n"))

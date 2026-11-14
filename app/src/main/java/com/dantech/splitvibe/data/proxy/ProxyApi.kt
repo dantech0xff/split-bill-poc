@@ -4,6 +4,7 @@ import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -11,11 +12,11 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.Call
@@ -36,6 +37,9 @@ import okhttp3.Response
 class ProxyException(val status: Int, val code: String, val retryAfterSeconds: Long?, val callsLeft: CallsLeft?) :
     Exception("The AI proxy answered $status with $code")
 
+/** The proxy answered, but the rest of its answer did not come in time. */
+class AnswerTimeoutException(cause: InterruptedIOException) : IOException("The answer stopped coming before it was complete", cause)
+
 /** The model's answer to a bill read, and the calls left after it. */
 data class BillReply(val answer: JsonObject, val callsLeft: CallsLeft?)
 
@@ -45,7 +49,9 @@ data class Usage(val callsLeft: CallsLeft, val aiEnabled: Boolean)
 /**
  * The app's side of the AI proxy's contract (see `proxy/` and `docs/proxy.md`). Every request says
  * which install it comes from and which version of the app, and carries the session once someone
- * has signed in. Cancelling the coroutine of a request cancels the request.
+ * has signed in. Once that sign-in has run out, requests are refused here, the way the proxy
+ * refuses an expired session, so that none goes out as the install in the person's place.
+ * Cancelling the coroutine of a request cancels the request.
  */
 class ProxyApi(
     baseUrl: String,
@@ -66,11 +72,12 @@ class ProxyApi(
 
     /** `POST /v1/session`: trades the ID token Google gave at sign-in for the proxy's session. */
     suspend fun startSession(idToken: String): Pair<Session, CallsLeft?> =
-        send(post("v1/session", buildJsonObject { put("idToken", idToken) })) { response ->
+        // Signing in carries Google's token in place of a session, also when the old one has run out.
+        send(post("v1/session", buildJsonObject { put("idToken", idToken) }, withSession = false)) { response ->
             if (!response.isSuccessful) throw failureOf(response)
             val body = jsonOf(response)
-            val token = body["session"]?.jsonPrimitive?.contentOrNull
-            val expiresAt = body["expiresAt"]?.jsonPrimitive?.longOrNull
+            val token = body.text("session")
+            val expiresAt = body.long("expiresAt")
             if (token.isNullOrEmpty() || expiresAt == null) throw ProxyException(response.code, BAD_RESPONSE, null, null)
             Session(token, expiresAt) to body["usage"]?.let(::callsLeftOf)
         }
@@ -80,7 +87,7 @@ class ProxyApi(
         if (!response.isSuccessful) throw failureOf(response)
         val body = jsonOf(response)
         val callsLeft = body["usage"]?.let(::callsLeftOf) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
-        Usage(callsLeft, aiEnabled = body["aiEnabled"]?.jsonPrimitive?.booleanOrNull ?: true)
+        Usage(callsLeft, aiEnabled = body.boolean("aiEnabled") ?: true)
     }
 
     /** `DELETE /v1/account`: deletes what the proxy keeps about the signed-in account. */
@@ -88,16 +95,20 @@ class ProxyApi(
         if (!response.isSuccessful) throw failureOf(response)
     }
 
-    private fun post(path: String, body: JsonObject): Request = request(path).post(body.toString().toRequestBody(JSON)).build()
+    private fun post(path: String, body: JsonObject, withSession: Boolean = true): Request =
+        request(path, withSession).post(body.toString().toRequestBody(JSON)).build()
 
-    private fun request(path: String): Request.Builder {
+    private fun request(path: String, withSession: Boolean = true): Request.Builder {
         val url = checkNotNull(base) { "This build has no address for the AI proxy" }.newBuilder().addPathSegments(path).build()
-        val current = account.account.value
-        return Request.Builder()
+        val builder = Request.Builder()
             .url(url)
-            .header(INSTALL_HEADER, current.installId)
+            .header(INSTALL_HEADER, account.account.value.installId)
             .header(VERSION_HEADER, appVersion.toString())
-            .apply { account.currentSession()?.let { header("Authorization", "Bearer ${it.token}") } }
+        if (!withSession) return builder
+        val session = account.currentSession()
+        if (session != null) return builder.header("Authorization", "Bearer ${session.token}")
+        if (account.account.value.signInExpired) throw ProxyException(401, SESSION_REFUSED, null, null)
+        return builder
     }
 
     private suspend fun <T> send(request: Request, read: (Response) -> T): T = client.newCall(request).await(read)
@@ -105,10 +116,15 @@ class ProxyApi(
     private fun readAnswer(response: Response): BillReply {
         val source = checkNotNull(response.body).source()
         while (true) {
-            val line = source.readUtf8Line() ?: throw IOException("The answer ended before it was complete")
+            val line = try {
+                source.readUtf8Line()
+            } catch (e: InterruptedIOException) {
+                // The proxy sends a line at least every 10 seconds, so this is silence after it answered.
+                throw AnswerTimeoutException(e)
+            } ?: throw IOException("The answer ended before it was complete")
             if (line.isBlank()) continue
             val message = parse(line) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
-            when (message["type"]?.jsonPrimitive?.contentOrNull) {
+            when (message.text("type")) {
                 "result" -> {
                     val answer = message["answer"] as? JsonObject ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
                     return BillReply(answer, message["usage"]?.let(::callsLeftOf))
@@ -116,7 +132,7 @@ class ProxyApi(
 
                 "error" -> throw ProxyException(
                     status = response.code,
-                    code = message["code"]?.jsonPrimitive?.contentOrNull ?: BAD_RESPONSE,
+                    code = message.text("code") ?: BAD_RESPONSE,
                     retryAfterSeconds = null,
                     callsLeft = message["usage"]?.let(::callsLeftOf),
                 )
@@ -131,7 +147,7 @@ class ProxyApi(
         val body = runCatching { jsonOf(response) }.getOrNull()
         return ProxyException(
             status = response.code,
-            code = body?.get("error")?.jsonPrimitive?.contentOrNull ?: "http_${response.code}",
+            code = body?.text("error") ?: "http_${response.code}",
             retryAfterSeconds = response.header("Retry-After")?.trim()?.toLongOrNull(),
             callsLeft = body?.get("usage")?.let(::callsLeftOf),
         )
@@ -144,6 +160,9 @@ class ProxyApi(
         const val INSTALL_HEADER = "X-SplitVibe-Install"
         const val VERSION_HEADER = "X-SplitVibe-Version"
         const val BAD_RESPONSE = "bad_response"
+
+        /** The proxy's code for a session it does not accept, because it has run out or is not its own. */
+        const val SESSION_REFUSED = "session"
 
         private val JSON = "application/json".toMediaType()
 
@@ -167,13 +186,22 @@ private fun parse(text: String): JsonObject? = try {
 private fun callsLeftOf(element: JsonElement): CallsLeft? {
     val usage = element as? JsonObject ?: return null
     return CallsLeft(
-        limit = usage["limit"]?.jsonPrimitive?.intOrNull ?: return null,
-        used = usage["used"]?.jsonPrimitive?.intOrNull ?: return null,
-        remaining = usage["remaining"]?.jsonPrimitive?.intOrNull ?: return null,
-        period = usage["period"]?.jsonPrimitive?.contentOrNull ?: return null,
-        resetsAt = usage["resetsAt"]?.jsonPrimitive?.longOrNull,
+        limit = usage.int("limit") ?: return null,
+        used = usage.int("used") ?: return null,
+        remaining = usage.int("remaining") ?: return null,
+        period = usage.text("period") ?: return null,
+        resetsAt = usage.long("resetsAt"),
     )
 }
+
+// Fields of the wrong shape read as missing, so a broken answer is a bad response rather than a crash.
+private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+
+private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
+
+private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
+
+private fun JsonObject.boolean(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
 
 /** Runs the call on OkHttp's threads, reading the response with [read] there; cancelling the coroutine cancels the call. */
 private suspend fun <T> Call.await(read: (Response) -> T): T = suspendCancellableCoroutine { continuation ->
