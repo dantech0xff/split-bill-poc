@@ -247,7 +247,7 @@ private const val SCREENSHOTS = "src/test/screenshots"
 private const val PHONE = "w412dp-h915dp-xhdpi"
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
-private const val TALL = "w412dp-h1472dp-xhdpi"
+private const val TALL = "w412dp-h1700dp-xhdpi"
 private const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
 private const val BEERS = "Bia Saigon Special"
 

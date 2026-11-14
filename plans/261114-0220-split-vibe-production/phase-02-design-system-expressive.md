@@ -120,11 +120,11 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 ## Todo
 
 - [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
-- [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền và theme; token hình khối và khoảng cách làm cùng bộ thành phần
+- [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền, khoảng cách và theme; token hình khối chưa tách riêng, các thành phần đang dùng thang hình khối mặc định của Material
 - [x] Token bóng 4 mức bằng `dropShadow`
-- [ ] Bộ thành phần và màn hình danh mục
+- [ ] Bộ thành phần và màn hình danh mục. Đã có thẻ, ảnh đại diện, thanh tiêu đề lớn, nút nổi chính, nút chính lớn, thanh dưới, tiêu đề nhóm và hàng danh sách theo nhóm; chưa có màn hình danh mục
 - [ ] Lớp chuyển động theo bảng hành trình
-- [ ] Dựng lại 7 màn hình và 2 bảng trượt hiện có
+- [ ] Dựng lại 7 màn hình và 2 bảng trượt hiện có. Đã xong màn hình chính và màn hình kết quả ([ảnh trước và sau](./assets/first-look-home-and-result.png)); còn màn hình chia mới, đang xử lý, đã gửi, cài đặt và hai bảng trượt
 - [ ] Kiểm tra ranh giới trong CI
 - [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
 - [ ] Tiếp cận và chế độ tắt animation
