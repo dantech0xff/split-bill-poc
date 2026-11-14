@@ -30,7 +30,7 @@ import java.util.Locale
  * The model's numbers are treated as readings of the bill, not as trusted arithmetic: amounts are
  * converted to integer minor units here and [BillReconciler] checks that they add up.
  */
-internal object BillAnalysisParser {
+object BillAnalysisParser {
 
     private val json = Json { ignoreUnknownKeys = true }
 

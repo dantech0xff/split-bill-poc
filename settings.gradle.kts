@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "split-bill-poc"
 include(":app")
+include(":core:domain")
