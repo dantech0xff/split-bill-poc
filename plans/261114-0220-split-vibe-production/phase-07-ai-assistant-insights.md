@@ -44,10 +44,11 @@ Phi chức năng:
 
 ## Architecture
 
-Server: callable `reviseSplit`.
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+Proxy: đường `POST /v1/split-revision` trên Worker của Phase 3.
 - Yêu cầu: hóa đơn hiện tại và cách chia hiện tại ở dạng có cấu trúc (không gửi lại văn bản OCR), câu lệnh, ngôn ngữ.
 - Trả lời: danh sách thao tác theo schema cố định, mỗi thao tác có loại và tham số, kèm một câu giải thích ngắn.
-- Dùng chung phần kiểm đăng nhập, App Check, `requestId` và cách giữ chỗ rồi chốt lượt với `analyzeBill` (Phase 3).
+- Dùng chung phần xác định người gọi, `requestId`, cách giữ chỗ rồi chốt lượt, giới hạn theo IP và trần chi phí với `bill-analysis` (Phase 3).
 
 `:core:domain`:
 - `SplitEdit` (kiểu đóng các thao tác) và `applyEdits(bill, plan, edits)` trả về trạng thái mới cùng danh sách thao tác bị loại.
@@ -65,7 +66,7 @@ Vết mở rộng (ranh giới cổng AI): `reviseSplit` là biến thể thứ 
 ## Files
 
 Tạo mới:
-- `functions/src/revise-split.ts`, `functions/src/revise-prompt.ts`, `functions/eval/revise/` (bộ câu lệnh đánh giá)
+- `proxy/src/split-revision.ts`, `proxy/src/revise-prompt.ts`, `proxy/eval/revise/` (bộ câu lệnh đánh giá)
 - Trong `core/domain/`: `SplitEdit.kt`, `Insights.kt`, `Recurrence.kt` cùng test
 - `app/src/main/java/com/dantech/splitvibe/assistant/SplitAssistant.kt`, `VoiceInput.kt`
 - `app/src/main/java/com/dantech/splitvibe/ui/insights/`, `ui/recurring/`
@@ -74,9 +75,9 @@ Tạo mới:
 
 Sửa:
 - `app/src/main/java/com/dantech/splitvibe/ui/split/ResultContent.kt` (ô chỉnh bằng lời, danh sách đề xuất)
-- `functions/src/schema.ts`, `functions/src/prompt.ts` (trường `category`)
+- `proxy/src/schema.ts`, `proxy/src/prompt.ts` (trường `category`)
 - `BillAnalysisParser.kt` trong `:core:domain` và test của nó
-- `functions/src/delete-account.ts` (xóa mẫu hóa đơn định kỳ)
+- Mẫu hóa đơn định kỳ nằm trên máy, nên không có gì để xóa trên proxy
 - `app/src/main/AndroidManifest.xml` (quyền `RECORD_AUDIO`)
 
 ## Implementation Steps

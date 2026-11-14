@@ -11,6 +11,9 @@ dependencies: [5]
 
 ## Overview
 
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+> Backend cho dữ liệu dùng chung chưa chốt: Phase 3 đã bỏ Firebase. Khi bắt đầu phase này, chọn backend (ví dụ Durable Objects hoặc D1 trên Cloudflare, hoặc Firebase) rồi sửa các mục bên dưới còn ghi Firebase, Firestore hay `functions/`.
+
 Người nhận yêu cầu mở một link và thấy phần của mình cùng cách trả, không cần cài app. Cả bàn có thể mở cùng một link (hoặc app) và mỗi người tự chạm vào món mình ăn; mọi người thấy cập nhật trực tiếp, rồi người trả tiền chốt cách chia.
 
 Tính năng v1.0 thuộc giai đoạn này: trang web trong "thẻ chia sẻ và trang web"; mỗi người tự nhận món.

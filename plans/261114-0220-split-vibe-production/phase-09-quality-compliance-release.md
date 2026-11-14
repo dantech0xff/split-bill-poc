@@ -47,7 +47,7 @@ Ngôn ngữ: v1.0 chỉ có tiếng Anh. Mọi chuỗi nằm trong tài nguyên 
 
 Rà soát bảo mật:
 - Mô hình mối đe dọa cho cổng AI (đốt chi phí, chèn lệnh qua hóa đơn), rules, trang web công khai, webhook, link mời, sổ nợ và cách nhận tiền.
-- Quét phụ thuộc và quét secret trong CI; kiểm tra bản release không chứa key, không bật gỡ lỗi, không cho phép HTTP thường, không chứa debug provider của App Check.
+- Quét phụ thuộc và quét secret trong CI; kiểm tra bản release không chứa key, không bật gỡ lỗi, không cho phép HTTP thường, địa chỉ proxy là `https`.
 
 <!-- Red Team: xóa tài khoản không mở rộng theo dữ liệu mới — 2026-11-14 -->
 Ma trận xóa tài khoản, kiểm bằng test trên emulator rồi một lần trên prod với tài khoản thử:
@@ -56,7 +56,7 @@ Ma trận xóa tài khoản, kiểm bằng test trên emulator rồi một lần
 |---|---|---|
 | `users/{uid}` và mọi collection con (`people`, `paymentMethods`, `devices`) | Phase 3, 4, 5 | Xóa hết |
 | `usage/{uid}` | Phase 3 | Xóa; giữ một mã băm của tài khoản Google cùng số lượt tới hết kỳ để chống lách hạn mức, và nêu rõ trong chính sách quyền riêng tư |
-| `entitlements/{uid}` và hồ sơ người mua | Phase 8 | Xóa ở Firestore và ở dịch vụ thuê bao |
+| Gói hiệu lực và hồ sơ người mua | Phase 8 | Xóa trên proxy và ở dịch vụ thuê bao |
 | Hóa đơn riêng, bản nháp, mẫu định kỳ | Phase 4, 7 | Xóa hết |
 | Tư cách thành viên nhóm và hóa đơn nhóm | Phase 5 | Thành "Thành viên đã rời", giữ số tiền, chuyển quyền sở hữu hóa đơn |
 | Yêu cầu trả tiền chưa xác nhận | Phase 5 | Xóa bản chụp cách nhận tiền |
@@ -78,8 +78,10 @@ Phát hành:
 Vận hành:
 - Bảng theo dõi: sự cố, phễu sử dụng (quét, phân tích, chia sẻ, đánh dấu đã trả), chi phí AI theo ngày và theo người dùng, số tài khoản ẩn danh mới mỗi ngày.
 - Cảnh báo: tỷ lệ lỗi cổng AI, cầu dao chi tiêu chạm 80%, hàm theo lịch thất bại.
-- Công tắc qua Remote Config: tắt AI (app vẫn nhập tay được), phiên bản tối thiểu được hỗ trợ.
-- Sao lưu Firestore theo lịch và một lần diễn tập khôi phục.
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+- Công tắc trên proxy (có từ Phase 3): tắt AI (app vẫn nhập tay được), phiên bản tối thiểu được hỗ trợ.
+- Chọn cách báo lỗi crash. Mặc định là Android vitals của Play Console; thêm một dịch vụ báo lỗi chỉ khi vitals không đủ.
+- Nếu Phase 5 hoặc 6 đưa dữ liệu người dùng lên server: sao lưu theo lịch và một lần diễn tập khôi phục.
 - Sổ tay sự cố và kênh hỗ trợ người dùng.
 
 ## Architecture
@@ -101,7 +103,7 @@ tag phiên bản ─▶ release.yml trong môi trường GitHub được bảo v
 Tạo mới:
 - `.github/workflows/release.yml`
 - `app/src/androidTest/java/com/dantech/splitvibe/e2e/` (test đầu-cuối trên thiết bị)
-- `firestore-tests/delete-account.test.ts` (ma trận xóa tài khoản)
+- `proxy/test/account.test.ts` (ma trận xóa tài khoản)
 - `docs/privacy-policy.md`, `docs/terms.md` (nguồn của trang web pháp lý), `docs/security-threat-model.md`, `docs/runbook.md`, `docs/release-checklist.md`
 - `web/account-deletion.html`
 
@@ -148,7 +150,7 @@ Sửa:
 - Biểu mẫu An toàn dữ liệu được duyệt; chính sách quyền riêng tư và trang xóa tài khoản truy cập được công khai.
 - Ma trận xóa tài khoản qua trên emulator và một lần trên prod; số dư của các thành viên nhóm còn lại không đổi sau khi một người xóa tài khoản.
 - Luồng phát hành không chạy được nếu thiếu bước duyệt tay; không có tệp khóa tài khoản dịch vụ nào trong secret của repo.
-- Diễn tập: bật công tắc tắt AI thì app chuyển sang nhập tay trong vòng 1 phút; khôi phục Firestore từ bản sao lưu vào project dev thành công.
+- Diễn tập: bật công tắc tắt AI trên proxy thì app chuyển sang nhập tay ngay ở yêu cầu kế tiếp; nếu có dữ liệu trên server, khôi phục từ bản sao lưu vào môi trường dev thành công.
 - `zipalign -c -P 16` trên các APK tách từ AAB cuối báo đạt; `targetSdk` là 36; material3 là bản stable.
 - Chi phí AI trung bình mỗi người dùng hoạt động trong tuần đầu nằm trong ngân sách đã đặt ở Phase 3.
 

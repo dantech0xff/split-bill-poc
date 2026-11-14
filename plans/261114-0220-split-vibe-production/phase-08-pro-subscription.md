@@ -54,7 +54,7 @@ Ranh giới miễn phí và Pro (chủ sản phẩm đã chốt; các con số �
 ```
 App ── SDK mua hàng ── Google Play Billing
         │
-        └─ định danh người mua = uid của Firebase (chỉ sau khi đã liên kết Google)
+        └─ định danh người mua = tài khoản Google mà proxy đã kiểm (chỉ khi đã đăng nhập Google)
 Dịch vụ thuê bao ── webhook ─▶ Cloud Function `onSubscriptionEvent`
                                  1. kiểm khóa bí mật của webhook
                                  2. gọi API của dịch vụ để lấy trạng thái hiện tại của người mua
@@ -73,17 +73,17 @@ Quyết định kỹ thuật (người làm đề xuất): dùng RevenueCat. Đi
 ## Files
 
 Tạo mới:
-- `functions/src/subscription-webhook.ts` cùng test
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+- `proxy/src/subscription-webhook.ts` cùng test
 - `app/src/main/java/com/dantech/splitvibe/billing/BillingRepository.kt`
 - `app/src/main/java/com/dantech/splitvibe/ui/paywall/`
 
 Sửa:
-- `functions/src/quota.ts` (hạn mức theo gói hiệu lực)
-- `functions/src/merge-anonymous-account.ts` (gói giữ theo tài khoản đích)
-- `functions/src/delete-account.ts` (xóa `entitlements` và yêu cầu dịch vụ thuê bao xóa hồ sơ người mua)
+- `proxy/src/quota-book.ts` (hạn mức theo gói hiệu lực)
+- Đường `DELETE /v1/account` của proxy (xóa gói hiệu lực và yêu cầu dịch vụ thuê bao xóa hồ sơ người mua)
 - `app/build.gradle.kts`, `gradle/libs.versions.toml` (SDK mua hàng)
 - `app/src/main/java/com/dantech/splitvibe/ui/settings/SettingsScreen.kt` (trạng thái gói, quản lý thuê bao)
-- `firestore.rules` (client không ghi được `entitlements`)
+- Gói hiệu lực nằm trong một Durable Object chỉ proxy ghi; client không ghi được
 
 ## Implementation Steps
 

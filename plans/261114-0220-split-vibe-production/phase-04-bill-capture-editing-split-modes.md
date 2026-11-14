@@ -29,8 +29,9 @@ Tính năng v1.0 thuộc giai đoạn này: sửa hóa đơn bằng tay; quét t
 
 - Nguồn tỷ giá miễn phí Frankfurter phải dùng **API v2**: kiểm ngày 14/11/2026, v1 trả 30 tiền tệ và không có VND, v2 trả 200 mã và có VND.
 - Google Play sẽ không cho xin quyền đọc danh bạ chỉ để chọn người giao dịch (bắt buộc từ 27/01/2027 với app nhắm Android 17). App dùng bộ chọn liên hệ của hệ thống và không xin quyền `READ_CONTACTS`.
-- Bộ nhớ đệm offline của Firestore bật sẵn trên Android, nên lịch sử và bản nháp dùng luôn Firestore mà không cần thêm cơ sở dữ liệu cục bộ.
-- Firestore gộp các lần ghi theo từng trường, lần ghi sau thắng. Nếu đầu vào và phần mỗi người được ghi riêng lẻ, hai máy sửa offline có thể để lại một tài liệu mà phần chia không còn khớp tổng. Vì vậy hóa đơn luôn được ghi **nguyên cả tài liệu** kèm số phiên bản.
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+- Lịch sử và bản nháp nằm trong một cơ sở dữ liệu trên máy (Room). Có đồng bộ giữa các máy hay không được quyết ở Phase 5 và Phase 6.
+- Hóa đơn luôn được ghi **nguyên cả bản ghi** kèm số phiên bản, để đầu vào và phần mỗi người không bao giờ lệch nhau, kể cả khi sau này có đồng bộ giữa các máy.
 - Ảnh hóa đơn không tải lên server ở v1.0: lời hứa "ảnh không rời máy" được giữ, và không phát sinh chi phí lưu trữ. Hệ quả: ảnh không đồng bộ sang máy khác, chỉ dữ liệu hóa đơn được đồng bộ.
 - <!-- Updated: Validation Session 1 - chữ viết --> v1.0 chỉ đọc hóa đơn chữ Latin. Hóa đơn chữ khác được báo rõ là chưa hỗ trợ và người dùng vẫn nhập tay được.
 
@@ -90,7 +91,7 @@ Tạo mới:
 - `app/src/main/java/com/dantech/splitvibe/ui/history/` (lịch sử và tìm kiếm)
 - `app/src/main/java/com/dantech/splitvibe/data/people/PeopleRepository.kt`, `app/src/main/java/com/dantech/splitvibe/data/fx/FxRepository.kt`
 - `app/src/test/java/com/dantech/splitvibe/TestPeople.kt` (danh sách người mẫu chỉ dùng cho test, thay cho danh bạ giả)
-- `functions/src/fx-rates.ts` cùng test
+- `proxy/src/fx-rates.ts` cùng test (đường tỷ giá trên proxy của Phase 3)
 
 <!-- Red Team: danh sách tệp bỏ sót nơi dùng — 2026-11-14 -->
 Sửa, liệt kê đủ nơi dùng (đường dẫn theo vị trí hiện tại; phần thuộc `:core:domain` đã chuyển chỗ ở Phase 1):
@@ -101,7 +102,7 @@ Sửa, liệt kê đủ nơi dùng (đường dẫn theo vị trí hiện tại;
 - `SplitCalculator.kt`, `SplitPlan.kt`, `Bill.kt` (cách chia mới, `itemId`, `payments`)
 - `app/src/main/java/com/dantech/splitvibe/ui/split/NewSplitContent.kt`, `ResultContent.kt`
 - `app/src/main/AndroidManifest.xml` (bộ lọc intent nhận ảnh chia sẻ)
-- `functions/src/prompt.ts`, `functions/src/delete-account.ts` (xóa `people` và bản nháp), `firestore.rules`
+- `proxy/src/prompt.ts`; hóa đơn, bản nháp và `people` nằm trên máy nên xóa dữ liệu app là đủ
 
 Xóa:
 - `app/src/main/java/com/dantech/splitvibe/data/contacts/ContactRepository.kt`
@@ -114,7 +115,7 @@ Xóa:
 4. Tích hợp bộ quét tài liệu, nhiều trang, đường lùi và bộ lọc nhận ảnh chia sẻ; đổi `analyze` và `encode` sang danh sách trang ở đủ các nơi đã liệt kê; cập nhật prompt.
 5. `PeopleRepository` và bộ chọn liên hệ hệ thống.
 6. Viết hàm tỷ giá theo lịch, `FxRepository`, phần hiển thị quy đổi và sửa tỷ giá.
-7. Lưu hóa đơn và bản nháp vào Firestore với `revision` và rules tương ứng; màn hình lịch sử, tìm kiếm, mở lại, xóa; xử lý xung đột; khôi phục sau khi tiến trình bị hủy.
+7. Lưu hóa đơn và bản nháp vào cơ sở dữ liệu trên máy (Room) với `revision`; màn hình lịch sử, tìm kiếm, mở lại, xóa; khôi phục sau khi tiến trình bị hủy.
 8. Dựng mọi màn hình mới bằng hệ thiết kế, thêm ảnh chuẩn, mở rộng `SplitFlowTest`.
 
 ## Todo
@@ -154,7 +155,7 @@ Xóa:
 | Frankfurter ngừng hoặc đổi API | Hàm theo lịch lỗi, tài liệu ngày không được ghi | App dùng tỷ giá gần nhất và ghi rõ ngày; chỉ thêm nguồn thứ hai sau một sự cố thật |
 | Cách chia phức tạp gây lệch đơn vị lẻ | Test thuộc tính thất bại | Dừng phát hành tính năng đó cho tới khi test qua; đây là bất biến không được nới |
 | Người dùng mất phần sửa khi bị từ chối do xung đột | Phản hồi của người thử | Giữ bản sửa bị từ chối trên máy và cho áp lại lên bản mới |
-| Tìm kiếm trên Firestore hạn chế | Tìm theo chuỗi con không ra | v1.0 tìm theo từ đầu và trường `searchTokens`, lọc thêm trên máy |
+| Tìm kiếm chậm khi lịch sử lớn | Tìm trong vài nghìn hóa đơn mất quá 100 ms | Dùng bảng tìm kiếm toàn văn (FTS) của SQLite trong Room |
 
 ## Security
 

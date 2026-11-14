@@ -203,4 +203,4 @@ Nhánh này đã vào `main` bằng fast-forward ngày 14/11/2026 theo quyết �
 
 ## Next
 
-Phase 2 tạo `:core:designsystem` trên nền thư viện đã nâng. Phase 3 dùng flavor `dev` và `prod` cho hai project Firebase và thêm các module Koin cho Firebase.
+Phase 2 tạo `:core:designsystem` trên nền thư viện đã nâng. Phase 3 dùng flavor `dev` và `prod` cho hai địa chỉ proxy AI trên Cloudflare và thêm module Koin cho cổng AI.

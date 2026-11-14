@@ -1,6 +1,6 @@
 ---
 title: "Split Vibe: từ POC lên sản phẩm production"
-description: "Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Android production toàn cầu, giao diện Material 3 Expressive, backend Firebase, có gói Pro."
+description: "Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Android production toàn cầu, giao diện Material 3 Expressive, AI qua proxy trên Cloudflare, có gói Pro."
 status: in-progress
 priority: P1
 effort: "90d"
@@ -15,7 +15,7 @@ created: 2026-11-14
 
 ## Overview
 
-Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Android production toàn cầu, giao diện Material 3 Expressive, backend Firebase, có gói Pro. POC đã chứng minh được lõi: đọc hóa đơn trên máy, model hiểu câu lệnh, tiền được tính bằng số nguyên trên máy và luôn cộng đủ. Plan này giữ nguyên lõi đó và xây phần còn thiếu của một sản phẩm thật.
+Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Android production toàn cầu, giao diện Material 3 Expressive, AI qua proxy trên Cloudflare, có gói Pro. POC đã chứng minh được lõi: đọc hóa đơn trên máy, model hiểu câu lệnh, tiền được tính bằng số nguyên trên máy và luôn cộng đủ. Plan này giữ nguyên lõi đó và xây phần còn thiếu của một sản phẩm thật.
 
 Ước lượng tổng công là 90 ngày làm việc cho một người làm cùng trợ lý AI, sai số khoảng 40%. Con số này chỉ để so sánh các giai đoạn với nhau, không phải cam kết ngày phát hành.
 
@@ -23,7 +23,8 @@ Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Androi
 
 - Hình thái: app độc lập, không giữ và không chuyển tiền.
 - Tên: Split Vibe, package `com.dantech.splitvibe` (đã đổi, commit `d66096f`).
-- Backend: Firebase, dữ liệu ở `nam5`. Thị trường: toàn cầu ngay từ bản đầu.
+<!-- Updated: Validation Session 5 - AI qua proxy trên Cloudflare; Firebase bỏ khỏi Phase 3 -->
+- AI: gọi qua một proxy trên Cloudflare (Worker), làm theo cách của skim-browser. Backend cho dữ liệu dùng chung (nhóm, trả nợ, trang web) chốt khi bắt đầu Phase 5 và Phase 6. Thị trường: toàn cầu ngay từ bản đầu.
 - v1.0 gồm đủ 12 tính năng đã chọn và có gói Pro ngay từ đầu. Pro chỉ khác ở số lượt AI: 3 lượt dùng thử khi chưa đăng nhập, 10 lượt mỗi tháng khi đã đăng nhập Google, 300 lượt mỗi tháng với Pro.
 - v1.0 chỉ có giao diện tiếng Anh và chỉ đọc hóa đơn chữ Latin.
 - Giao diện: Material 3 Expressive, nhiều animation mượt, đổ bóng đẹp, bố cục sạch.
@@ -48,7 +49,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 |---|-------|--------|
 | 1 | [Nền móng kỹ thuật](./phase-01-start.md) | In Progress |
 | 2 | [Hệ thiết kế Expressive, chuyển động và đổ bóng](./phase-02-design-system-expressive.md) | In Progress |
-| 3 | [Backend Firebase và cổng AI](./phase-03-firebase-backend-ai-gateway.md) | Pending |
+| 3 | [Proxy AI trên Cloudflare](./phase-03-cloudflare-ai-proxy.md) | Pending |
 | 4 | [Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử](./phase-04-bill-capture-editing-split-modes.md) | Pending |
 | 5 | [Nhóm, số dư và thu tiền không giữ tiền](./phase-05-people-groups-settle-up.md) | Pending |
 | 6 | [Trang web cho người nhận và tự nhận món trực tiếp](./phase-06-web-companion-realtime-claim.md) | Pending |
@@ -73,7 +74,7 @@ Ba giai đoạn đầu được viết tới mức tệp và dòng mã. Các gia
 
 Việc chỉ chủ sản phẩm làm được:
 - **Tra cứu nhãn hiệu "Split Vibe" trước khi tạo app trên Play Console.** Vòng thử kín và việc tạo sản phẩm thuê bao đều cần app đã tồn tại trên Play, và sau lần tải lên đầu tiên `applicationId` không đổi được. Chủ sản phẩm quyết định ngày 14/11 tạm giữ tên này và tập trung phát triển trước; việc tra cứu vẫn phải xong trước bước tạo app trên Play.
-- Tài khoản Google Play Console, project Firebase ở gói Blaze, tài khoản API của Anthropic, tài khoản dịch vụ thuê bao.
+- Tài khoản Google Play Console, tài khoản Cloudflare (Workers và Durable Objects), OAuth client của Google cho đăng nhập, tài khoản API của Anthropic, tài khoản dịch vụ thuê bao.
 - Một tên miền cho trang web và link mời.
 - Một máy Android tầm trung làm máy tham chiếu đo hiệu năng.
 - 12 người thử trở lên cho vòng thử kín; người thử ở EU và Ấn Độ cho mã QR SEPA và link UPI nếu có.
@@ -86,7 +87,7 @@ Báo cáo nghiên cứu làm nền:
 
 ## Success Criteria
 
-- [ ] App không chứa API key hay SDK của Anthropic ở mọi biến thể build; mọi lần gọi AI đi qua cổng có App Check và hạn mức.
+- [ ] App không chứa API key hay SDK của Anthropic ở mọi biến thể build; mọi lần gọi AI đi qua proxy có hạn mức, giới hạn theo IP và trần chi phí.
 - [ ] Mọi màn hình dùng hệ thiết kế Expressive và ba hành trình chính đạt ngân sách hiệu năng trên máy tham chiếu.
 - [ ] 12 tính năng v1.0 và gói Pro đạt tiêu chí nghiệm thu trong giai đoạn của chúng.
 - [ ] Test thuộc tính chứng minh tổng các phần bằng tổng hóa đơn ở cả 5 cách chia, và số dư nhóm luôn cộng bằng 0 kể cả với nhiều tiền tệ.
@@ -125,7 +126,7 @@ Báo cáo nghiên cứu làm nền:
 | material3 1.5.0 ra bản stable trước ngày phát hành | Có | Trang phát hành AndroidX | Lùi ngày production, vẫn thử mở được |
 | Một model rẻ hơn Opus đọc hóa đơn đủ tốt | Có | Bộ đánh giá ở Phase 3 | Dùng model cao hơn, hạ hạn mức miễn phí |
 | Lượt dùng thử ẩn danh không bị vét hàng loạt | Có | Số tài khoản ẩn danh mới mỗi ngày | Thêm tín hiệu theo thiết bị hoặc bỏ lượt dùng thử ẩn danh |
-| Firebase đủ cho quy mô ban đầu | Ít khả năng gãy trong đời plan | Hóa đơn hằng tháng và độ trễ | Xem lại kiến trúc dữ liệu; `:core:domain` không phụ thuộc Firebase |
+| Cloudflare Workers và Durable Objects đủ cho proxy AI ở quy mô ban đầu | Ít khả năng gãy trong đời plan | Hóa đơn hằng tháng, độ trễ và lỗi vượt giới hạn của Worker | Xem lại kiến trúc proxy; `:core:domain` không phụ thuộc backend nào |
 | Một người làm kịp phạm vi v1.0 | Có | Giai đoạn trễ quá 40% so với ước lượng | Chủ sản phẩm quyết định: lùi ngày hay chuyển tính năng sang bản sau |
 | Tên "Split Vibe" không trùng nhãn hiệu | Có | Kết quả tra cứu | Đổi tên trước khi tạo app trên Play Console |
 
@@ -350,3 +351,38 @@ Kiểm lại sau khi sửa: 62 dẫn chiếu tới dòng mã trong các tệp gi
 #### Impact on Phases
 - Phase 2: mã đã vào `main`. Hai tiêu chí cần chủ sản phẩm còn mở (duyệt giao diện, số đo trên máy tham chiếu), nên trạng thái vẫn là In Progress.
 - Phase 3 có thể bắt đầu từ `main`.
+
+### Session 5 — 2026-11-14
+**Trigger:** Trước khi bắt đầu Phase 3, chủ sản phẩm nhắn "AI gọi qua proxy trên cloudflare nhé. Giống như skim browser". Proxy của `dantech0xff/skim-browser` đếm lượt theo mã cài đặt và IP, không có tài khoản, nên hai điểm của plan phải hỏi lại.
+**Questions asked:** 2
+
+#### Questions & Answers
+
+1. **[Scope]** Proxy của skim đếm lượt theo mã cài đặt và IP, không cần đăng nhập. Hạn mức đã chốt là 3 lượt thử, 10 lượt mỗi tháng khi đăng nhập Google, 300 lượt mỗi tháng cho Pro. Proxy nên tính lượt thế nào?
+   - Options: Giữ 3 / 10 / 300 (Recommended) | Giống hệt skim
+   - **Answer:** Giữ 3 / 10 / 300
+   - **Rationale:** Lý do do người lập plan nêu trong lựa chọn và chủ sản phẩm chọn theo: chưa đăng nhập thì đếm theo máy và IP như skim; đăng nhập Google thì proxy tự kiểm token Google; Pro thêm ở Phase 8; trần chi phí theo ngày giữ như skim.
+
+2. **[Architecture]** Plan Phase 3 còn dùng Firebase cho đăng nhập, dữ liệu, Crashlytics và Remote Config. Khi AI đã chuyển sang Cloudflare, Firebase có còn giữ không?
+   - Options: Bỏ khỏi Phase 3 (Recommended) | Giữ Firebase cho đăng nhập và dữ liệu
+   - **Answer:** Bỏ khỏi Phase 3
+   - **Rationale:** Lý do do người lập plan nêu trong lựa chọn và chủ sản phẩm chọn theo: AI và việc kiểm đăng nhập nằm hết trên Cloudflare, không cần project Firebase hay gói Blaze; có đồng bộ dữ liệu không thì quyết ở Phase 5 và Phase 6; báo lỗi crash dùng cách khác hoặc để sau.
+
+#### Confirmed Decisions
+- AI gọi qua một Worker trên Cloudflare, theo cách proxy của skim-browser: key là secret của Worker, bộ đếm trong Durable Objects, giới hạn theo IP đã băm, trần chi phí theo người gọi, theo IP và toàn cục.
+- Hạn mức giữ ba mức: 3 lượt thử cho mỗi bản cài chưa đăng nhập, 10 lượt mỗi tháng khi đăng nhập Google (proxy tự kiểm ID token của Google), 300 lượt mỗi tháng cho Pro ở Phase 8.
+- Phase 3 không dùng Firebase. Không có App Check hay Play Integrity, như skim-browser.
+- Prompt và schema vẫn nằm trên proxy (quyết định của vòng phản biện), nên proxy chỉ đọc hóa đơn chứ không là một cổng Claude dùng chung.
+
+#### Action Items
+- [x] Viết lại Phase 3 thành `phase-03-cloudflare-ai-proxy.md`
+- [x] Sửa các phần của Phase 1, 4, 7, 8, 9 còn dựa vào Firebase của Phase 3; ghi chú ở Phase 5 và 6 rằng backend chốt khi bắt đầu
+- [ ] Chủ sản phẩm chuẩn bị tài khoản Cloudflare, key Anthropic và OAuth client của Google trước bước triển khai
+
+#### Impact on Phases
+- Phase 3: viết lại toàn bộ quanh proxy trên Cloudflare.
+- Phase 4: hóa đơn và bản nháp lưu trong cơ sở dữ liệu trên máy; đường tỷ giá chuyển lên proxy.
+- Phase 5 và 6: backend cho dữ liệu dùng chung chưa chốt; các mục ghi Firebase là bản cũ, sửa khi bắt đầu phase.
+- Phase 7: "chỉnh bằng lời" là một đường mới trên proxy.
+- Phase 8: người mua là tài khoản Google mà proxy đã kiểm; gói hiệu lực nằm trên proxy.
+- Phase 9: công tắc tắt AI và phiên bản tối thiểu nằm trên proxy; cách báo lỗi crash chọn ở Phase 9, mặc định là Android vitals của Play Console.

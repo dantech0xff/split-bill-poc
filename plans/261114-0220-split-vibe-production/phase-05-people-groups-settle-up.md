@@ -11,6 +11,9 @@ dependencies: [4]
 
 ## Overview
 
+<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
+> Backend cho dữ liệu dùng chung chưa chốt: Phase 3 đã bỏ Firebase. Khi bắt đầu phase này, chọn backend (ví dụ Durable Objects hoặc D1 trên Cloudflare, hoặc Firebase) rồi sửa các mục bên dưới còn ghi Firebase, Firestore hay `functions/`.
+
 Người dùng lập nhóm (bạn cùng nhà, chuyến đi), thấy số dư cộng dồn qua nhiều hóa đơn và cách trả ít lần chuyển nhất. Khi đòi tiền, mỗi người nhận một yêu cầu kèm link hoặc mã QR đã điền sẵn số tiền theo cách nhận tiền của người đòi, có ảnh tóm tắt đẹp để gửi vào nhóm chat. App theo dõi ai đã trả và nhắc người chưa trả. App không bao giờ giữ hay chuyển tiền.
 
 Tính năng v1.0 thuộc giai đoạn này: nhóm, số dư, tối giản nợ; link và QR trả tiền điền sẵn; thẻ chia sẻ dạng ảnh; theo dõi đã trả và nhắc nợ.
