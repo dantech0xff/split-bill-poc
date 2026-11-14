@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,8 +20,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvFabMenu
 import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
+import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
+import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import org.junit.Assert.assertEquals
@@ -106,15 +109,37 @@ class ComponentBehaviourTest {
     }
 
     @Test
-    fun `an added person is removed with a tap that a screen reader can name`() {
+    fun `an added person reads as one button that removes them`() {
         var removed = false
         compose.setContent {
             SplitVibeTheme { SvPersonChip(name = "Lê Thị Lan", removeLabel = "Remove Lê Thị Lan", onRemove = { removed = true }) }
         }
 
-        compose.onNodeWithContentDescription("Remove Lê Thị Lan", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("Lê Thị Lan").performClick()
+        compose.onNodeWithContentDescription("Remove Lê Thị Lan")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .performClick()
 
         assertTrue(removed)
+    }
+
+    @Test
+    fun `a tappable row reads as one button with its own label`() {
+        var tapped = false
+        compose.setContent {
+            SplitVibeTheme {
+                SvListRow(
+                    position = SvRowPosition.Single,
+                    label = "Bia Saigon Special, 132,000, Minh",
+                    onClickLabel = "Choose who shares Bia Saigon Special",
+                    onClick = { tapped = true },
+                ) { Text("Bia Saigon Special") }
+            }
+        }
+
+        compose.onNodeWithContentDescription("Bia Saigon Special, 132,000, Minh")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .performClick()
+
+        assertTrue(tapped)
     }
 }

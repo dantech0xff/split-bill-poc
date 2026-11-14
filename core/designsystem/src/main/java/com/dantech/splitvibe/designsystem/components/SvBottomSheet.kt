@@ -17,12 +17,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 
 /**
@@ -42,23 +44,37 @@ fun SvBottomSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
-        Column(modifier = Modifier.navigationBarsPadding()) {
-            Column(modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                if (supportingText != null) {
-                    Text(supportingText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            content()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.md),
-                horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
-                verticalAlignment = Alignment.CenterVertically,
-                content = actions,
-            )
+        // The sheet lies in a window of its own, outside every transition between screens or
+        // steps, so nothing in it may take part in one.
+        CompositionLocalProvider(LocalSvSharedTransition provides null) {
+            SheetContent(title, supportingText, actions, content)
         }
+    }
+}
+
+@Composable
+private fun SheetContent(
+    title: String,
+    supportingText: String?,
+    actions: @Composable RowScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier = Modifier.navigationBarsPadding()) {
+        Column(modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm)) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            if (supportingText != null) {
+                Text(supportingText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        content()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            content = actions,
+        )
     }
 }
 

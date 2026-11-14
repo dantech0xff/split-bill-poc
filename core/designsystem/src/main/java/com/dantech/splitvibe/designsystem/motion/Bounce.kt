@@ -5,7 +5,11 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 
@@ -37,10 +41,15 @@ fun Modifier.bounceOnChange(value: Any?): Modifier {
  */
 @Composable
 fun Modifier.popIn(entry: SvEntryState): Modifier {
+    // Saved, so an element in a list that scrolls out of view and back in does not pop in again.
+    var shown by rememberSaveable { mutableStateOf(false) }
     val reduced = LocalReducedMotion.current
-    val scale = remember { Animatable(if (entry.finished && !reduced) ARRIVING_SCALE else 1f) }
+    val scale = remember { Animatable(if (entry.finished && !reduced && !shown) ARRIVING_SCALE else 1f) }
     val spring = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
-    LaunchedEffect(scale) { scale.animateTo(1f, spring) }
+    LaunchedEffect(scale) {
+        shown = true
+        scale.animateTo(1f, spring)
+    }
     return scaledBy(scale)
 }
 

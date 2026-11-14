@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.designsystem.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -20,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.tokens.SvElevation
+import com.dantech.splitvibe.designsystem.tokens.surface
 
 /** One option of a menu: what it says and what it does. */
 class SvMenuOption(val label: String, val onClick: () -> Unit)
@@ -52,7 +56,16 @@ fun SvSplitButton(text: String, onClick: () -> Unit, moreLabel: String, options:
                 }
             },
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        // A menu opens in a window of its own, where no shadow can be drawn around it. So it has an
+        // outline instead of Material's own shadow, and the surface of an elevation level.
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = SvElevation.Level2.surface,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label) },

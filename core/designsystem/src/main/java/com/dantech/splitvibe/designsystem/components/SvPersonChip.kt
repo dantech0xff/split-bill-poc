@@ -9,6 +9,11 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.unit.dp
 
 /**
@@ -28,7 +33,8 @@ fun SvPersonChip(name: String, selected: Boolean, onClick: () -> Unit, modifier:
 
 /**
  * A person who was added to something, as a chip with the person's colour and name and a cross.
- * A tap removes the person; [removeLabel] tells a screen reader so.
+ * A tap removes the person. A screen reader reads the chip as one button that says [removeLabel],
+ * not as the selected tick box Material makes of it.
  */
 @Composable
 fun SvPersonChip(name: String, removeLabel: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
@@ -36,9 +42,16 @@ fun SvPersonChip(name: String, removeLabel: String, onRemove: () -> Unit, modifi
         selected = true,
         onClick = onRemove,
         label = { Text(name) },
-        modifier = modifier,
+        modifier = modifier.clearAndSetSemantics {
+            contentDescription = removeLabel
+            role = Role.Button
+            onClick(label = removeLabel) {
+                onRemove()
+                true
+            }
+        },
         avatar = { SvAvatar(name, size = AVATAR_SIZE) },
-        trailingIcon = { Icon(Icons.Default.Close, contentDescription = removeLabel, modifier = Modifier.size(CROSS_SIZE)) },
+        trailingIcon = { Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(CROSS_SIZE)) },
     )
 }
 

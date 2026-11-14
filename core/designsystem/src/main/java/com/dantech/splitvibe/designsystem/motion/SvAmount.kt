@@ -7,7 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -27,14 +29,20 @@ import kotlin.math.roundToLong
  */
 @Composable
 fun SvAmount(amountMinor: Long, format: (Long) -> String, style: TextStyle, modifier: Modifier = Modifier, countUp: Boolean = false) {
+    // Saved, so an amount in a list that scrolls out of view and back in does not count up again.
+    var countedUp by rememberSaveable { mutableStateOf(!countUp) }
+    // With animations off the amount simply shows its value, without a frame of zero first.
+    val fromZero = !countedUp && !LocalReducedMotion.current
+
     // The run is described as a share of the way from where it started to where it is going, so
     // large amounts keep their exact value at both ends.
-    var from by remember { mutableLongStateOf(if (countUp) 0L else amountMinor) }
+    var from by remember { mutableLongStateOf(if (fromZero) 0L else amountMinor) }
     var to by remember { mutableLongStateOf(amountMinor) }
-    val progress = remember { Animatable(if (countUp) 0f else 1f) }
+    val progress = remember { Animatable(if (fromZero) 0f else 1f) }
     val spec = MaterialTheme.motionScheme.slowEffectsSpec<Float>()
 
     LaunchedEffect(amountMinor) {
+        countedUp = true
         if (progress.value < 1f || to != amountMinor) {
             // A new value may arrive in the middle of a run. The next run starts from the number
             // that is on screen at that moment, so nothing jumps.
