@@ -40,7 +40,7 @@ private val DarkColors = darkColorScheme(
 )
 
 @Composable
-fun SplitBillTheme(content: @Composable () -> Unit) {
+fun SplitVibeTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
         content = content,

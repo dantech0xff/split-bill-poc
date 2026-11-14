@@ -11,6 +11,7 @@ lifecycle = "2.10.0"
 navigationCompose = "2.9.8"
 exifinterface = "1.4.2"
 coroutines = "1.10.2"
+koin = "4.2.2"
 serializationJson = "1.10.0"
 mlkitTextRecognition = "16.0.1"
 anthropic = "3.8.0"
@@ -43,6 +44,10 @@ androidx-compose-material-icons-core = { module = "androidx.compose.material:mat
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
+
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic" }

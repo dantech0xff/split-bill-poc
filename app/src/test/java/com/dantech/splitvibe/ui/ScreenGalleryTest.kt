@@ -32,7 +32,7 @@ import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
-import com.dantech.splitvibe.ui.theme.SplitBillTheme
+import com.dantech.splitvibe.ui.theme.SplitVibeTheme
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -173,7 +173,7 @@ class ScreenGalleryTest {
             analyzerFor = { analyzer },
         )
         compose.setContent {
-            SplitBillTheme {
+            SplitVibeTheme {
                 when (screen) {
                     Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
                     Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})

@@ -3,15 +3,17 @@ package com.dantech.splitvibe.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.dantech.splitvibe.AppContainer
+import com.dantech.splitvibe.data.settings.SettingsStore
+import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
+import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 private object Routes {
     const val HOME = "home"
@@ -20,11 +22,13 @@ private object Routes {
 }
 
 @Composable
-fun AppNavHost(container: AppContainer) {
+fun AppNavHost() {
     val navController = rememberNavController()
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
-    val splitViewModel: SplitBillViewModel = viewModel(factory = SplitBillViewModel.Factory)
-    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val splitViewModel: SplitBillViewModel = koinViewModel()
+    val settingsStore: SettingsStore = koinInject()
+    val imageLoader: BillImageLoader = koinInject()
+    val settings by settingsStore.settings.collectAsStateWithLifecycle()
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
@@ -41,7 +45,7 @@ fun AppNavHost(container: AppContainer) {
             SplitScreen(
                 viewModel = splitViewModel,
                 hasApiKey = settings.hasApiKey,
-                newCameraTarget = container.imageLoader::newCameraTarget,
+                newCameraTarget = imageLoader::newCameraTarget,
                 onExit = { navController.popBackStack(Routes.HOME, inclusive = false) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
             )
@@ -50,7 +54,7 @@ fun AppNavHost(container: AppContainer) {
             SettingsScreen(
                 settings = settings,
                 onSave = { apiKey, model, localCurrency ->
-                    container.settings.save(apiKey, model, localCurrency)
+                    settingsStore.save(apiKey, model, localCurrency)
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() },

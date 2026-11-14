@@ -3,11 +3,7 @@ package com.dantech.splitvibe.ui.split
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.dantech.splitvibe.SplitBillApp
 import com.dantech.splitvibe.data.contacts.Contact
 import com.dantech.splitvibe.data.contacts.ContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
@@ -200,22 +196,6 @@ class SplitBillViewModel(
         job.invokeOnCompletion {
             // Only the latest piece of work may clear the progress indicator.
             if (work === job) mutableState.update { it.copy(progress = Progress.IDLE) }
-        }
-    }
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as SplitBillApp
-                val container = app.container
-                SplitBillViewModel(
-                    contactRepository = container.contacts,
-                    settings = container.settings.settings,
-                    imageLoader = container.imageLoader,
-                    recognizer = container.recognizer,
-                    analyzerFor = container::analyzerFor,
-                )
-            }
         }
     }
 }
