@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.contacts.Contact
-import com.dantech.splitvibe.ui.components.PersonAvatar
+import com.dantech.splitvibe.designsystem.components.SvAvatar
 
 /** Bottom sheet for choosing which contacts share the bill. Changes apply immediately. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,7 +47,7 @@ fun PeoplePickerSheet(contacts: List<Contact>, selectedIds: Set<String>, onToggl
                     ListItem(
                         headlineContent = { Text(contact.name) },
                         supportingContent = { Text("@${contact.handle}") },
-                        leadingContent = { PersonAvatar(contact.name) },
+                        leadingContent = { SvAvatar(contact.name) },
                         trailingContent = { Checkbox(checked = selected, onCheckedChange = null) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier
@@ -99,7 +99,7 @@ fun ItemSharersSheet(
                     val selected = id in sharing
                     ListItem(
                         headlineContent = { Text(name) },
-                        leadingContent = { PersonAvatar(name) },
+                        leadingContent = { SvAvatar(name) },
                         trailingContent = { Checkbox(checked = selected, onCheckedChange = null) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier

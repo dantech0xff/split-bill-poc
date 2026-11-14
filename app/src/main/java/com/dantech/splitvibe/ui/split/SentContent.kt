@@ -24,8 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.domain.Bill
-import com.dantech.splitvibe.ui.components.PersonAvatar
 
 /** Last step: confirms which requests would go out. No real payment request is created. */
 @Composable
@@ -76,7 +76,7 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                 ListItem(
                     headlineContent = { Text(request.contact.name) },
                     supportingContent = { Text("@${request.contact.handle}") },
-                    leadingContent = { PersonAvatar(request.contact.name) },
+                    leadingContent = { SvAvatar(request.contact.name) },
                     trailingContent = {
                         Text(bill.format(request.amountMinor), style = MaterialTheme.typography.titleMedium)
                     },

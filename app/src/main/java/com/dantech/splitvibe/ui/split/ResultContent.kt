@@ -53,12 +53,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.contacts.Contact
+import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.PersonShare
-import com.dantech.splitvibe.ui.components.PersonAvatar
 import java.math.BigDecimal
 
 private const val ME_LABEL = "Me"
@@ -293,7 +293,7 @@ private fun ShareRow(bill: Bill, share: PersonShare, name: String) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PersonAvatar(name)
+        SvAvatar(name)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(if (share.personId == ME_ID) "$name (paid the bill)" else name, style = MaterialTheme.typography.bodyLarge)
