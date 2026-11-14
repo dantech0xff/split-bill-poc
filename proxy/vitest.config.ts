@@ -10,6 +10,7 @@ export default defineConfig({
           ANTHROPIC_API_KEY: "test-anthropic-key",
           HASH_SALT: "test-hash-salt",
           SESSION_SIGNING_KEY: "test-session-signing-key-that-is-long-enough",
+          GOOGLE_CLIENT_ID: "test-web-client.apps.googleusercontent.com",
         },
       },
     }),

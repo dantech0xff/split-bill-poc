@@ -55,6 +55,12 @@ export class AbuseLedger extends DurableObject {
     await this.arm(now);
   }
 
+  /** Deletes everything this object holds, for a deleted account. */
+  async forget(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
   async alarm(): Promise<void> {
     const now = Date.now();
     const rate = await this.ctx.storage.get<RateWindow>(RATE);

@@ -1,3 +1,4 @@
+import { accountRoute, sessionRoute, usageRoute } from "./account";
 import { billAnalysis } from "./bill-analysis";
 import { AbuseLedger } from "./ledger";
 import { QuotaBook } from "./quota-book";
@@ -10,20 +11,35 @@ export interface Env {
   ANTHROPIC_API_KEY: string;
   /** Salt for the hashes that name objects after an IP or an account, so neither is stored as it is. */
   HASH_SALT: string;
-  /** Key that signs the sessions the proxy hands out after a Google sign-in. */
+  /** Key that signs the sessions the proxy hands out after a Google sign-in; at least 32 bytes. */
   SESSION_SIGNING_KEY: string;
+  /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
+  GOOGLE_CLIENT_ID: string;
+  /** "true" while bills may be read with AI; anything else turns AI off without a release. */
+  AI_ENABLED: string;
+  /** The oldest version code of the app that may still read bills. */
+  MIN_APP_VERSION: string;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
   ABUSE_LEDGER: DurableObjectNamespace<AbuseLedger>;
 }
 
+type Route = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
+
+const ROUTES: Record<string, Record<string, Route>> = {
+  "/v1/bill-analysis": { POST: billAnalysis },
+  "/v1/session": { POST: sessionRoute },
+  "/v1/usage": { GET: usageRoute },
+  "/v1/account": { DELETE: accountRoute },
+};
+
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     try {
-      const { pathname } = new URL(request.url);
-      if (pathname === "/v1/bill-analysis") {
-        return request.method === "POST" ? await billAnalysis(request, env, ctx) : errorResponse(405, "method");
-      }
-      return errorResponse(404, "path");
+      const methods = ROUTES[new URL(request.url).pathname];
+      if (methods === undefined) return errorResponse(404, "path");
+      const route = methods[request.method];
+      if (route === undefined) return errorResponse(405, "method");
+      return await route(request, env, ctx);
     } catch (error) {
       console.error(JSON.stringify({ event: "request_failed", error: error instanceof Error ? error.name : "unknown" }));
       return errorResponse(500, "internal");

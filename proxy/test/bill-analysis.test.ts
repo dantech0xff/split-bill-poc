@@ -1,80 +1,27 @@
-import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from "cloudflare:test";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { http, HttpResponse } from "msw";
+import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import sampleAnswer from "../../app/src/sharedTest/resources/fixtures/sample_bill_answer.json";
-import sampleRequest from "../../app/src/sharedTest/resources/fixtures/sample_bill_request.json";
-import worker from "../src/index";
-import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import { SYSTEM_PROMPT, userMessage } from "../src/prompt";
-import type { Allowance } from "../src/quota-book";
 import { BILL_SCHEMA } from "../src/schema";
 import { holdMicro } from "../src/spend";
-import { apiError, eventStream, MESSAGES_URL, type Reply, serverSentEvents, streamed } from "./fake-model";
+import { apiError, eventStream, type Reply, serverSentEvents, streamed } from "./fake-model";
 import { network } from "./network";
-
-const IP = "203.0.113.7";
-const TRIAL: Allowance = { kind: "trial", limit: POLICY.trialCalls };
-const ANSWER: Reply = { text: JSON.stringify(sampleAnswer) };
-
-type Sent = { status: number; headers: Headers; body: string; lines: Array<Record<string, unknown>> };
-/** A request the model got: its JSON body and its headers. */
-type Seen = { body: Record<string, unknown>; headers: Record<string, string> };
-
-/** The worker as the runtime calls it; a test request has no edge properties, which the handler does not need. */
-function fetchWorker(request: Request, ctx: ExecutionContext): Promise<Response> {
-  return worker.fetch(request as Parameters<typeof worker.fetch>[0], env, ctx);
-}
-
-function billRequest(options: { install?: string | null; ip?: string; body?: unknown; raw?: string; cf?: object } = {}): Request {
-  const headers = new Headers({ "content-type": "application/json" });
-  if (options.ip !== "") headers.set("CF-Connecting-IP", options.ip ?? IP);
-  if (options.install !== null) headers.set("X-SplitVibe-Install", options.install ?? crypto.randomUUID());
-  const body = options.raw ?? JSON.stringify(options.body ?? { ...sampleRequest, requestId: crypto.randomUUID() });
-  return new Request("https://proxy.test/v1/bill-analysis", { method: "POST", headers, body, cf: options.cf } as RequestInit);
-}
-
-/** Sends [request] and reads the whole reply, after the work it left running has finished. */
-async function send(request: Request): Promise<Sent> {
-  const ctx = createExecutionContext();
-  const response = await fetchWorker(request, ctx);
-  const body = new TextDecoder().decode(await response.arrayBuffer());
-  await waitOnExecutionContext(ctx);
-  const lines = response.headers.get("content-type")?.startsWith("application/x-ndjson")
-    ? body.trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
-    : [];
-  return { status: response.status, headers: response.headers, body, lines };
-}
-
-/** The model answers every request with [reply]; the returned list grows by one for each request it gets. */
-function model(reply: Reply | (() => Response | Promise<Response>)): Seen[] {
-  const seen: Seen[] = [];
-  network.use(
-    http.post(MESSAGES_URL, async ({ request }) => {
-      seen.push({ body: (await request.clone().json()) as Record<string, unknown>, headers: Object.fromEntries(request.headers) });
-      return typeof reply === "function" ? reply() : streamed(reply);
-    }),
-  );
-  return seen;
-}
-
-function last(sent: Sent): Record<string, unknown> {
-  return sent.lines[sent.lines.length - 1];
-}
-
-function quotaOf(install: string) {
-  return env.QUOTA_BOOK.get(env.QUOTA_BOOK.idFromName(`install:${install}`)).usage(Date.now(), TRIAL);
-}
-
-async function spendOf(name: string): Promise<{ spent: number; held: number } | undefined> {
-  const stub = env.ABUSE_LEDGER.get(env.ABUSE_LEDGER.idFromName(name));
-  return runInDurableObject(stub, (_, state) => state.storage.get<{ spent: number; held: number }>("spend"));
-}
-
-async function ipName(ip: string): Promise<string> {
-  return `ip:${await hashed(ip, "test-hash-salt")}`;
-}
+import {
+  ANSWER,
+  billRequest,
+  fetchWorker,
+  IP,
+  ipName,
+  last,
+  model,
+  quotaOf,
+  sampleAnswer,
+  sampleRequest,
+  send,
+  spendOf,
+} from "./requests";
 
 describe("a bill read", () => {
   it("streams wait lines, then the model's answer with the calls left", async () => {
@@ -167,6 +114,31 @@ describe("the contract", () => {
     const other = await send(new Request("https://proxy.test/v1/other", { method: "POST" }));
     expect(other.status).toBe(404);
     expect(JSON.parse(other.body)).toEqual({ error: "path" });
+  });
+
+  it("is turned off by the AI switch, set to anything but true, before anything is counted", async () => {
+    const seen = model(ANSWER);
+    const install = crypto.randomUUID();
+
+    for (const value of ["false", "", "off"]) {
+      const sent = await send(billRequest({ install }), { AI_ENABLED: value });
+      expect(sent.status).toBe(503);
+      expect(JSON.parse(sent.body)).toEqual({ error: "ai_off" });
+    }
+    expect(seen).toHaveLength(0);
+    expect(await quotaOf(install)).toMatchObject({ used: 0, remaining: 3 });
+  });
+
+  it("asks an app older than the minimum version to update", async () => {
+    const seen = model(ANSWER);
+
+    for (const version of [null, "4", "not a number"]) {
+      const sent = await send(billRequest({ version }), { MIN_APP_VERSION: "5" });
+      expect(sent.status).toBe(426);
+      expect(JSON.parse(sent.body)).toEqual({ error: "update_required" });
+    }
+    expect(seen).toHaveLength(0);
+    expect((await send(billRequest({ version: "5" }), { MIN_APP_VERSION: "5" })).status).toBe(200);
   });
 
   it("refuses an edge request that does not say where it came from", async () => {

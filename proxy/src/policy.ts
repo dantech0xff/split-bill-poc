@@ -17,14 +17,21 @@ export const POLICY = {
   runsPerRequest: 3,
   /** How long a finished request id is remembered, so that running it again is not charged twice. */
   requestMemoryMs: 24 * 60 * 60 * 1000,
+  /** How long a session lasts after a Google sign-in before the app must sign in again. */
+  sessionMs: 30 * 24 * 60 * 60 * 1000,
 
   minuteMs: 60 * 1000,
   dayMs: 24 * 60 * 60 * 1000,
   /** Requests from one hashed IP, across every install and account behind it. */
   ip: { perMinute: 10, perDay: 100 },
-  /** Spend over each fixed 24 hour window: for one caller, for one IP, and for the whole proxy. */
-  callerCapMicro: 1_000_000,
-  ipCapMicro: 3_000_000,
+  /**
+   * Spend over each fixed 24 hour window: for one caller, for one IP, and for the whole proxy. A
+   * call holds the most it could cost (nearly half a dollar with the dearest model and a full
+   * answer) while it runs, though a bill should cost far less. So the caller's cap leaves room for
+   * a day's worth of real calls plus one hold, and the IP's cap for its 100 requests a day.
+   */
+  callerCapMicro: 3_000_000,
+  ipCapMicro: 6_000_000,
   globalCapMicro: 20_000_000,
 
   /** The model that reads bills, and how hard it thinks. The model must have a price in `spend.ts`. */
