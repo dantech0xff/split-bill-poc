@@ -127,6 +127,7 @@ Only a release workflow that a maintainer approves may set them. That workflow d
 ## Checks
 
 Two workflows in `.github/workflows` run the checks, and every action in them is pinned to a commit.
+A third, `checksums.yml`, is described under dependency checksums below.
 `ci.yml` runs for every pull request, including one from a fork, and for every push to `main`. It
 reads no secret and never signs or deploys, so untrusted code can run it safely.
 `device-tests.yml` runs every night, on request, and when a push to this repository changes the
@@ -181,16 +182,24 @@ the `outputs/roborazzi` folder of the app's output directory. The workflow keeps
 `gradle/verification-metadata.xml` holds the SHA-256 of every library and plugin file. Gradle stops
 the build when a downloaded file does not match, which catches a tampered or swapped artifact.
 
-A version bump therefore needs new checksums. After changing `gradle/libs.versions.toml`, or when
-Gradle reports that an artifact failed verification, refresh the file, read the diff and commit it:
+A version bump therefore needs new checksums. The workflow `checksums.yml` works them out on a
+clean machine whenever the version catalog, the Gradle wrapper or a build file changes, also on the
+branches Dependabot pushes, and on request. It commits nothing and keeps the new file as the
+artifact `verification-metadata`. Download it, compare it with the file in the repository, and
+commit it when the difference is only what the version change explains:
+
+```bash
+gh run download --name verification-metadata --dir gradle <run id>
+```
+
+The clean machine matters. With a filled cache Gradle skips parent and version-alignment files it
+has already read, leaves them out of the list, and the next clean machine, such as the CI runner,
+rejects them. The same can be done by hand with an empty Gradle home, which downloads everything
+again:
 
 ```bash
 GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest :app:lintProdDebug :core:designsystem:lintDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
 ```
-
-The empty Gradle home matters. With a filled cache Gradle skips parent and version-alignment files
-it has already read, leaves them out of the list, and the next clean machine, such as the CI
-runner, rejects them. The price is that everything is downloaded again, which takes a while.
 
 Three things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
 top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the

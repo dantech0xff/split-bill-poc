@@ -1,0 +1,74 @@
+name: Dependency checksums
+
+# Works out gradle/verification-metadata.xml on a clean machine and keeps it as an artifact.
+# A clean machine matters: with a filled cache Gradle leaves out files it has already read, and
+# the next clean machine then rejects them.
+#
+# It runs when a library or plugin version changes, also on the branches Dependabot pushes, and on
+# request. It commits nothing: download the artifact, compare it with the file in the repository,
+# and commit it when the difference is only what the version change explains.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - gradle/libs.versions.toml
+      - gradle/wrapper/gradle-wrapper.properties
+      - "**/build.gradle.kts"
+      - settings.gradle.kts
+      - .github/workflows/checksums.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checksums-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: Work out the checksum list
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # No cache on purpose: every file has to be downloaded for Gradle to record it.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          validate-wrappers: true
+          cache-disabled: true
+
+      - name: Let the emulator use hardware virtualisation
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Every task the other workflows run, so every dependency they need is seen. A failing test
+      # must not stop the list from being written, hence --continue.
+      - name: Record the checksum of every dependency
+        run: >
+          ./gradlew --continue --write-verification-metadata sha256
+          ktlintCheck
+          :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
+          :app:lintProdDebug :core:designsystem:lintDebug
+          :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease
+          :app:assembleDevDebug :app:assembleProdDebugAndroidTest
+          :baseline-profile:assembleProdNonMinifiedRelease
+          :app:pixel6Api34ProdDebugAndroidTest :app:generateProdReleaseBaselineProfile
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+
+      - name: Keep the checksum list
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verification-metadata
+          path: gradle/verification-metadata.xml
+          retention-days: 14
