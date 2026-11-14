@@ -1,8 +1,8 @@
 name: Device tests
 
 # The work that needs a real Android runtime. Gradle starts its own emulator for it.
-# It runs every night, on request, and whenever the device tests, the profile module or this
-# workflow change.
+# It runs every night, on request, and whenever the device tests, the profile module, the
+# dependencies or this workflow change.
 on:
   schedule:
     - cron: "23 18 * * *"
@@ -11,6 +11,8 @@ on:
     paths:
       - app/src/androidTest/**
       - baseline-profile/**
+      - gradle/libs.versions.toml
+      - gradle/verification-metadata.xml
       - .github/workflows/device-tests.yml
 
 permissions:
