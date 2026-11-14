@@ -45,3 +45,30 @@ back handling outside it; the keys of `SvBillPhoto` and `SvSuccessMark`; unique 
 motion in the new pieces apart from finding 3; the design-system boundary in `app/src/main`; draw-phase
 reads of animated values; the Koin restore in `SplitFlowOnDeviceTest`; screenshot determinism; the colour
 table and avatar contrast; the CI and checksum workflows.
+
+## What was done
+
+All fifteen findings and the unresolved question were accepted after checking each against the code,
+and fixed in five commits on the branch (`46ce187`, `c37f485`, `791bbba`, `dea953a`, `97d38b4`).
+
+| # | Fix |
+|---|---|
+| 1 | Steps have fixed names; `SvSteps` takes only a name (`stepOf: (S) -> String`), and its comment says why. |
+| 2 | `SvPrimaryFab` rests flat while its shared surface moves and fades its shadow back in through `strength`. The back-swipe reference image shows the difference: the shadow drawn at the corners of the moving surface is gone. |
+| 3 | `SvAmount` and `popIn` save that they have run; with animations off an amount starts at its value. |
+| 4 | The baseline profile was recorded again on the emulator (23,376 rules, 219 for the design system, none for removed classes). While taking it over, a workflow bug showed up: the test job uploaded the committed profile under the same artifact name as the recording job, so a download by name could take the stale copy. The upload now runs only in the recording job. |
+| 5 | Leaving the confirmation no longer resets the split; the button that opens a split already does. |
+| 6 | The remove chip reads as one button with its label; tappable rows have the button role. `ComponentBehaviourTest` checks both. |
+| 7 | `DesignSystemBoundaryTest` covers the listed cases, scans the debug catalog, allows the theme only in the two activities, and fails when it finds fewer than 20 files. |
+| 8 | The split button's menu has no Material shadow, a level surface and an outline. |
+| 9 | The scan band's gradient is built once per size in `drawWithCache` and moved with `translate`. |
+| 10 | `BillCurrency` keeps one formatter per thread for the last locale. |
+| 11 | The floating menu's button uses one of two fixed shapes for its shadow. |
+| 12 | Notices are keyed by their text, and repeated sentences are shown once. |
+| 13 | `ReducedMotionTest` passes a `MotionDurationScale` of 0 to Compose when it switches animations off. |
+| 14 | README and architecture page: 109 unit tests (108 pass, 1 skipped), 8 device tests, the module's contents, and that CI runs for pull requests and pushes to `main`, not every branch. |
+| 15 | ktlint's unused-imports rule is on and the unused imports are gone; `SplitFlowTest` uses `Fixtures.claudeAnswer()`. |
+| Question | A sheet provides no shared transition to its content, so nothing inside it can ask for a lookahead pass that a sheet does not have. |
+
+Checks after the fixes: code style, 109 unit tests, Android Lint on both modules and every package
+build passed locally.
