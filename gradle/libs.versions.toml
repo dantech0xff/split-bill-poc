@@ -1,6 +1,6 @@
 [versions]
 agp = "9.1.1"
-kotlin = "2.3.21"
+kotlin = "2.4.21"
 composeBom = "2026.09.00"
 # Material 3 Expressive first ships in material3 1.5.0; every Compose BOM so far still maps to 1.4.0,
 # so the version is pinned here until a BOM includes it. Do not ship to production on a release candidate.
