@@ -334,3 +334,19 @@ Kiểm lại sau khi sửa: 62 dẫn chiếu tới dòng mã trong các tệp gi
 - Decision deltas checked: 3
 - Reconciled stale references: 4
 - Unresolved contradictions: 0
+
+### Session 4 — 2026-11-14
+**Trigger:** Phase 2 xong trên nhánh `feat/phase-02-design-system`: mọi kiểm tra ở máy, 8 test thiết bị và danh sách checksum trên máy sạch đều xanh, review độc lập đã được sửa hết. Chủ sản phẩm nhắn "Merge đi".
+**Questions asked:** 0 (chủ sản phẩm tự quyết)
+
+#### Confirmed Decisions
+- Phase 2 vào `main` bằng fast-forward, như Phase 1. CI của `main` chạy sau khi mã đã vào.
+
+#### Action Items
+- [x] Fast-forward `main` tới đầu nhánh Phase 2 và đẩy lên
+- [ ] Chủ sản phẩm duyệt giao diện trên máy thật bằng bản dev
+- [ ] Đo ngân sách hiệu năng trên máy tham chiếu
+
+#### Impact on Phases
+- Phase 2: mã đã vào `main`. Hai tiêu chí cần chủ sản phẩm còn mở (duyệt giao diện, số đo trên máy tham chiếu), nên trạng thái vẫn là In Progress.
+- Phase 3 có thể bắt đầu từ `main`.

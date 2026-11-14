@@ -130,6 +130,23 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 - [x] Tiếp cận và chế độ tắt animation. Có test độ tương phản, ảnh cỡ chữ 200%, `ReducedMotionTest`, và kiểm tra tiếp cận tự động trong test thiết bị ở mọi màn hình chính (`AppLaunchTest`, `SplitFlowOnDeviceTest`). Cổng đã được chứng minh chặn được lỗi: một nút không nhãn làm hỏng cả hai test (lần chạy 43576101734). Lần chạy đầu của test chia hóa đơn tìm ra một lỗi thật: hàng món ló lên trên thanh dưới cùng không còn gì để trình đọc màn hình đọc; đã sửa bằng nhãn riêng cho hàng bấm được, và lần chạy 43582946603 qua cả 8 test thiết bị
 - [x] `docs/design-system.md`
 
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 14/11/2026 trên nhánh feat/phase-02-design-system, đã fast-forward vào main -->
+Năm trên bảy tiêu chí đạt và có bằng chứng. Hai tiêu chí còn lại cần chủ sản phẩm: duyệt giao diện trên máy thật, và số đo trên máy tham chiếu.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Mọi màn hình chỉ dùng thành phần của `:core:designsystem`, kiểm tra ranh giới xanh | Đạt | `DesignSystemBoundaryTest` quét cả bản debug, bắt cả bóng mặc định của Material, màu từ tài nguyên hoặc số, animation với thời gian mặc định và `delay`, và hỏng nếu không tìm thấy tệp nào |
+| Ma trận ảnh chuẩn: mọi màn hình sáng và tối, bốn màn hình chính ở cỡ chữ 200% | Đạt | 35 ảnh chuẩn trong `app/src/test/screenshots`, gồm cả ảnh nút yêu cầu đang thu lại thành dấu tích và màn hình danh mục |
+| Ba hành trình đạt ngân sách hiệu năng trên máy tham chiếu | Chưa đạt | Cần máy tham chiếu. Trước khi đo: đã bỏ việc làm mờ lại bóng ở từng khung hình và ghi lại baseline profile cho giao diện mới |
+| Tắt animation hệ thống: không hiệu ứng nào tự chạy, luồng chia hóa đơn vẫn xong | Đạt | `ReducedMotionTest` tắt cả animation của Compose lẫn hiệu ứng riêng của app |
+| Kiểm tra tiếp cận tự động qua ở các màn hình chính; ảnh cỡ chữ 200% không cắt chữ | Đạt | Cổng được chứng minh chặn được lỗi ở lần chạy `43576101734`; `AppLaunchTest` và `SplitFlowOnDeviceTest` qua ở các lần chạy `43582946603`, `43584379214`, `43588796483` |
+| Chủ sản phẩm duyệt giao diện từ ảnh dựng và bản cài trên máy thật | Chưa đạt | Chờ chủ sản phẩm |
+| Unit test hiện có và `SplitFlowTest` vẫn qua | Đạt | 109 test: 65 ở `:core:domain`, 2 ở `:core:designsystem`, 42 ở `:app` (1 bỏ qua vì cần API key thật) |
+
+Review độc lập ([báo cáo](../reports/code-reviewer-261114-1054-phase-02-design-system-review.md)) tìm ra 2 lỗi High, 2 Medium và 11 Low; đã sửa hết trước khi merge.
+
 ## Success Criteria
 
 - Mọi màn hình hiện có chỉ dùng thành phần của `:core:designsystem`; kiểm tra ranh giới trong CI xanh.
