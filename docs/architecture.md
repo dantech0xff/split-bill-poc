@@ -107,8 +107,14 @@ Only a release workflow that a maintainer approves may set them. That workflow d
 
 ## Checks
 
-Two workflows in `.github/workflows` run the checks. Neither reads a secret, signs or deploys, so a
-pull request from a fork can run them. Every action is pinned to a commit.
+Two workflows in `.github/workflows` run the checks, and every action in them is pinned to a commit.
+`ci.yml` runs for every pull request, including one from a fork, and for every push to `main`. It
+reads no secret and never signs or deploys, so untrusted code can run it safely.
+`device-tests.yml` runs every night, on request, and when a push to this repository changes the
+device tests, the profile module or the dependencies.
+
+For the checks to guard `main`, the repository has to require them: in the branch protection of
+`main`, require the status checks "Style, tests, lint and packages" and "Secret scan".
 
 | Check | Command | What it guards |
 |---|---|---|

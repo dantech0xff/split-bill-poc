@@ -1,11 +1,13 @@
 name: CI
 
-# Runs for every branch of this repository and for pull requests from forks.
+# Runs for every pull request, including one from a fork, and for every push to main.
+# A pull request is tested as it would look after merging, which a run on the branch alone is not.
 # Nothing here reads a secret, signs or deploys, so code from a fork can run it safely.
-# Signing and publishing live in a separate workflow that needs a maintainer's approval.
+# Signing and publishing belong in a separate workflow that a maintainer approves; it does not exist yet.
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,8 +19,6 @@ concurrency:
 jobs:
   checks:
     name: Style, tests, lint and packages
-    # A pull request from a branch of this repository already ran when that branch was pushed.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -68,7 +68,6 @@ jobs:
 
   secrets:
     name: Secret scan
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
