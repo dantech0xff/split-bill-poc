@@ -122,13 +122,13 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 - [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
 - [x] Token và `SplitVibeTheme` (sáng, tối): màu, kiểu chữ số tiền, khoảng cách, hình khối, bóng và theme
 - [x] Token bóng 4 mức bằng `dropShadow`
-- [ ] Bộ thành phần và màn hình danh mục. Đã có màn hình danh mục ở bản debug và 12 thành phần mà các màn hình hiện tại dùng. Chưa có nhóm nút, nút tách đôi, nút nổi có menu và thanh công cụ nổi: chưa màn hình nào cần tới, sẽ thêm cùng tính năng dùng chúng ở Phase 4 trở đi
-- [ ] Lớp chuyển động theo bảng hành trình. Đã có: tổng tiền đếm lên và số tiền chạy tới giá trị mới, các hàng vào lần lượt, dòng trạng thái chuyển mượt, biểu tượng tải đổi hình, dấu tích bật ra kèm rung xác nhận, thanh trên co lại theo cuộn, nút mở ra thành màn hình chia hóa đơn và thu về theo ngón tay khi vuốt ngược. Chưa có: ảnh bay vào khung, vệt quét trên ảnh, thẻ người bật nảy và hàng đổi chỗ, nút biến hình thành dấu tích
+- [x] Bộ thành phần và màn hình danh mục. Đủ các thành phần ở mục Architecture: nút chính, nhóm nút (`SvChoiceGroup`), nút tách đôi (`SvSplitButton`), nút nổi có menu (`SvFabMenu`), thanh công cụ nổi (`SvFloatingToolbar`), thẻ có bóng, số tiền chạy số, ảnh đại diện, thẻ người (`SvPersonChip`), hàng (`SvListRow`, `SvPersonPickRow`), bảng trượt (`SvBottomSheet`), trạng thái tải và trạng thái rỗng (`SvEmptyState`). Màn hình danh mục ở bản debug có tất cả. Nút của menu nổi do hệ thiết kế tự vẽ, vì nút của Material có bóng riêng không tắt được; mọi bóng trong app đều lấy từ các mức độ nổi
+- [x] Lớp chuyển động theo bảng hành trình. Có đủ: nút mở ra thành màn hình chia hóa đơn và thu về theo ngón tay khi vuốt ngược; ảnh mới đáp vào khung; vệt quét chạy trên ảnh khi đọc chữ; biểu tượng tải đổi hình; dòng trạng thái chuyển mượt; tổng tiền đếm lên; các hàng vào lần lượt; thẻ người bật nảy khi bật tắt và khi thêm người; số tiền chạy tới giá trị mới; các hàng trượt tới chỗ mới khi đổi người; các bước của luồng chia hóa đơn mờ dần sang nhau; nút yêu cầu thu lại thành dấu tích tròn kèm rung xác nhận; thanh trên co lại theo cuộn. Hai chỗ làm khác bảng: ảnh đến từ bộ chọn ảnh của hệ thống nên trong app không có ảnh thu nhỏ để bay từ đó, ảnh mới lớn dần từ một thẻ nhỏ và bo tròn hơn tới cỡ và góc của khung; và cả nút lẫn dấu tích đều bo tròn hoàn toàn nên nút thu lại thành dấu tích bằng một bề mặt dùng chung giữa hai bước (`SvSteps`, `sharedSurface`), không cần `Morph` của graphics-shapes
 - [x] Dựng lại 7 màn hình và 2 bảng trượt hiện có ([ảnh trước và sau của hai màn hình chính](./assets/first-look-home-and-result.png)). Chủ sản phẩm chưa duyệt
 - [x] Kiểm tra ranh giới trong CI (`DesignSystemBoundaryTest`, chạy cùng unit test)
-- [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
-- [ ] Tiếp cận và chế độ tắt animation. Đã có: test độ tương phản, ảnh cỡ chữ 200%, `ReducedMotionTest`. Chưa có: kiểm tra tiếp cận tự động của Compose
-- [ ] `docs/design-system.md`. Đã viết cho phần đang có; còn bổ sung khi có lớp chuyển động và màn hình danh mục
+- [ ] Đạt ngân sách hiệu năng trên máy tham chiếu. Cần máy tham chiếu của chủ sản phẩm; benchmark đã có (`StartupBenchmark`, `SplitFlowBenchmark`)
+- [x] Tiếp cận và chế độ tắt animation. Có test độ tương phản, ảnh cỡ chữ 200%, `ReducedMotionTest`, và kiểm tra tiếp cận tự động trong test thiết bị ở mọi màn hình chính (`AppLaunchTest`, `SplitFlowOnDeviceTest`). Cổng đã được chứng minh chặn được lỗi: một nút không nhãn làm hỏng cả hai test (lần chạy 43576101734). Lần chạy đầu của test chia hóa đơn tìm ra một lỗi thật: hàng món ló lên trên thanh dưới cùng không còn gì để trình đọc màn hình đọc; đã sửa bằng nhãn riêng cho hàng bấm được, và lần chạy 43582946603 qua cả 8 test thiết bị
+- [x] `docs/design-system.md`
 
 ## Success Criteria
 
