@@ -1,7 +1,10 @@
 [versions]
 agp = "9.1.1"
 kotlin = "2.3.21"
-composeBom = "2026.03.01"
+composeBom = "2026.09.00"
+# Material 3 Expressive first ships in material3 1.5.0; every Compose BOM so far still maps to 1.4.0,
+# so the version is pinned here until a BOM includes it. Do not ship to production on a release candidate.
+material3 = "1.5.0-rc01"
 coreKtx = "1.18.0"
 activityCompose = "1.12.4"
 lifecycle = "2.10.0"
@@ -34,7 +37,7 @@ androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
-androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 androidx-compose-material-icons-core = { module = "androidx.compose.material:material-icons-core" }
 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }

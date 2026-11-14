@@ -17,7 +17,9 @@ val debugAnthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KE
 
 android {
     namespace = "com.dantech.splitvibe"
-    compileSdk = 36
+    // Compose 1.12 and material3 1.5 need the Android 17 SDK to compile against.
+    // The app still targets API 36, so none of Android 17's behaviour changes apply yet.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.dantech.splitvibe"
