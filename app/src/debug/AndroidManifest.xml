@@ -2,6 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Debug builds only: lets the on-device tests talk to a local stand-in for the Anthropic API. -->
-    <application android:networkSecurityConfig="@xml/debug_network_security_config" />
+    <application android:networkSecurityConfig="@xml/debug_network_security_config">
+
+        <!-- Debug builds only: a second launcher entry that shows every design system component. -->
+        <activity
+            android:name=".catalog.CatalogActivity"
+            android:exported="true"
+            android:label="Split Vibe components">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
 
 </manifest>

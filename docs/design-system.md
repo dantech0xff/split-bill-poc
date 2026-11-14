@@ -128,14 +128,20 @@ moves on its own in that case and that a bill can still be split from start to f
 | `SvBottomBar` | The floating bar at the bottom that holds the main action. |
 | `SvPrimaryFab` | The main action as a floating button, for a screen that is mostly a list. |
 
+### The catalog
+
+Debug builds have a second launcher entry, "Split Vibe components", that shows every component on
+one page with sample content (`app/src/debug/.../catalog/CatalogScreen.kt`). The reference images
+`catalog-light.png` and `catalog-dark.png` are that page.
+
 ### Adding a component
 
 1. Put it in `components/`, named `Sv…`, with a comment that says when to use it.
 2. Take colours from `MaterialTheme.colorScheme`, distances from `SvSpacing`, depth from
    `SvElevation`. If a new value is needed, add it as a token first.
-3. Use it on a screen and record the reference images again:
-   `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record`.
-4. Look at the light, dark and large-text images before committing them.
+3. Add it to the catalog, and to the table above.
+4. Record the reference images again: `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record`.
+5. Look at the light, dark and large-text images before committing them.
 
 ## Accessibility
 

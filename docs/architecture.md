@@ -157,8 +157,9 @@ like code.
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
 them with the reference images. Every screen has a light and a dark image, and the four main
-screens have one more with text at twice its size, where nothing may be cut off. `DesignTokensTest`
-does the same for the elevation levels and the amount styles.
+screens have one more with text at twice its size, where nothing may be cut off.
+`ComponentCatalogTest` does the same for the catalog of design system components, so a change to
+a token or a component shows up even when no screen uses it yet.
 
 A picture has to be the same on every run, so two things that move with real time are kept out of
 it. Touch ripples are switched off in the gallery, because the platform draws them on its own clock.
