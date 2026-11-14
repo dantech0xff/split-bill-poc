@@ -16,3 +16,5 @@ ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
 # Composable functions are named like the things they draw, with a capital first letter.
 ktlint_function_naming_ignore_when_annotated_with = Composable
+# Off by default in this ktlint version; on, it reports imports nothing uses.
+ktlint_standard_no-unused-imports = enabled

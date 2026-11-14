@@ -28,11 +28,6 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
-import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -141,7 +136,7 @@ class SplitFlowTest {
 
     /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it. */
     private fun showSplitScreen(): SplitBillViewModel {
-        server.enqueue(recordedClaudeAnswer())
+        server.enqueue(Fixtures.claudeAnswer())
         val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
@@ -165,33 +160,6 @@ class SplitFlowTest {
     private fun awaitState(condition: () -> Boolean) = compose.waitUntil(TIMEOUT_MS) {
         shadowOf(Looper.getMainLooper()).idle()
         condition()
-    }
-
-    /** The Messages API response that carries the recorded answer as its text block. */
-    private fun recordedClaudeAnswer(): MockResponse {
-        val body = buildJsonObject {
-            put("id", "msg_recorded")
-            put("type", "message")
-            put("role", "assistant")
-            put("model", ClaudeBillAnalyzer.DEFAULT_MODEL)
-            put(
-                "content",
-                buildJsonArray {
-                    add(
-                        buildJsonObject {
-                            put("type", "text")
-                            put("text", Fixtures.text("sample_bill_answer.json"))
-                        },
-                    )
-                },
-            )
-            put("stop_reason", "end_turn")
-            putJsonObject("usage") {
-                put("input_tokens", 2300)
-                put("output_tokens", 800)
-            }
-        }
-        return MockResponse().setHeader("content-type", "application/json").setBody(body.toString())
     }
 
     private companion object {

@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
@@ -55,8 +56,15 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w412dp-h915dp-xhdpi")
 class ReducedMotionTest {
 
+    /** The speed of Compose's own animations in the test. The test runs Compose on a clock of its own, which does not read the system setting. */
+    private var animationScale = 1f
+
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createComposeRule(
+        effectContext = object : MotionDurationScale {
+            override val scaleFactor: Float get() = animationScale
+        },
+    )
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
@@ -138,8 +146,10 @@ class ReducedMotionTest {
         return viewModel
     }
 
+    /** Switches animations off the way the system setting does: for the app's own effects and for Compose's animations. */
     private fun switchAnimationsOff() {
         Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        animationScale = 0f
     }
 
     private fun frame(): Bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
