@@ -139,6 +139,7 @@ android {
 
 dependencies {
     implementation(project(":core:domain"))
+    implementation(project(":core:designsystem"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -188,4 +189,6 @@ dependencies {
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    // Checks touch target sizes, contrast and labels on the screens the device tests visit.
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4.accessibility)
 }

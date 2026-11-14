@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +51,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
+import com.dantech.splitvibe.designsystem.components.SvMessageCard
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvWorkingRow
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 
 /** First step of a split: choose the bill photo and say how it should be split. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,8 +95,8 @@ fun NewSplitContent(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(SvSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
         ) {
             PhotoSection(
                 state = state,
@@ -108,14 +116,14 @@ fun NewSplitContent(
             )
 
             if (!hasApiKey) {
-                MessageCard(
+                SvMessageCard(
                     text = "An Anthropic API key is needed to work out the bill.",
                     isError = false,
                     action = "Open settings",
                     onAction = onOpenSettings,
                 )
             }
-            state.error?.let { MessageCard(text = it, isError = true) }
+            state.error?.let { SvMessageCard(text = it, isError = true) }
         }
     }
 }
@@ -133,13 +141,13 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
         if (saved && target != null) onPhotoPicked(target)
     }
 
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+    SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(SvSpacing.lg),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             val photo = state.photo
             if (photo != null) {
@@ -149,7 +157,7 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 320.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(MaterialTheme.shapes.medium),
                     contentScale = ContentScale.Fit,
                 )
             } else {
@@ -161,7 +169,8 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
                 )
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // A flow row: with large text the second button moves to its own line instead of wrapping its label.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm, Alignment.CenterHorizontally)) {
                 OutlinedButton(
                     enabled = !state.isBusy,
                     onClick = {
@@ -197,54 +206,20 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
 
 @Composable
 private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () -> Unit) {
-    Surface(tonalElevation = 3.dp) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (state.isBusy) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = when (state.progress) {
-                        Progress.LOADING_PHOTO -> "Opening the photo…"
-                        Progress.READING_TEXT -> "Reading the bill on this phone…"
-                        Progress.ASKING_CLAUDE -> "Claude is working out the bill…"
-                        Progress.IDLE -> ""
-                    },
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                TextButton(onClick = onCancel) { Text("Cancel") }
-            } else {
-                Button(
-                    onClick = onAnalyze,
-                    enabled = state.photo != null,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Read and split the bill") }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun MessageCard(text: String, isError: Boolean, modifier: Modifier = Modifier, action: String? = null, onAction: () -> Unit = {}) {
-    val colors = MaterialTheme.colorScheme
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isError) colors.errorContainer else colors.tertiaryContainer,
-            contentColor = if (isError) colors.onErrorContainer else colors.onTertiaryContainer,
-        ),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(text, style = MaterialTheme.typography.bodyMedium)
-            if (action != null) {
-                TextButton(onClick = onAction, modifier = Modifier.align(Alignment.End)) { Text(action) }
-            }
+    SvBottomBar {
+        if (state.isBusy) {
+            SvWorkingRow(
+                status = when (state.progress) {
+                    Progress.LOADING_PHOTO -> "Opening the photo…"
+                    Progress.READING_TEXT -> "Reading the bill on this phone…"
+                    Progress.ASKING_CLAUDE -> "Claude is working out the bill…"
+                    Progress.IDLE -> ""
+                },
+                cancelLabel = "Cancel",
+                onCancel = onCancel,
+            )
+        } else {
+            SvPrimaryButton("Read and split the bill", onClick = onAnalyze, enabled = state.photo != null)
         }
     }
 }

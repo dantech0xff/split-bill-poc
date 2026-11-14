@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
@@ -24,23 +26,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvSuccessMark
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Bill
-import com.dantech.splitvibe.ui.components.PersonAvatar
 
 /** Last step: confirms which requests would go out. No real payment request is created. */
 @Composable
 fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) {
     Scaffold(
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
-                Button(
-                    onClick = onDone,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                ) { Text("Done") }
-            }
+            SvBottomBar { SvPrimaryButton("Done", onClick = onDone) }
         },
     ) { padding ->
         LazyColumn(
@@ -52,18 +53,13 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 32.dp),
+                        .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.xxl),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text("Requests sent", style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.height(8.dp))
+                    SvSuccessMark(Icons.Default.CheckCircle)
+                    Spacer(Modifier.height(SvSpacing.lg))
+                    Text("Requests sent", style = MaterialTheme.typography.headlineSmallEmphasized)
+                    Spacer(Modifier.height(SvSpacing.sm))
                     Text(
                         "Demo only: no real payment requests were created.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -72,15 +68,21 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                     )
                 }
             }
-            items(requests, key = { it.contact.id }) { request ->
-                ListItem(
-                    headlineContent = { Text(request.contact.name) },
-                    supportingContent = { Text("@${request.contact.handle}") },
-                    leadingContent = { PersonAvatar(request.contact.name) },
-                    trailingContent = {
-                        Text(bill.format(request.amountMinor), style = MaterialTheme.typography.titleMedium)
-                    },
-                )
+            itemsIndexed(requests, key = { _, request -> request.contact.id }) { index, request ->
+                SvListRow(position = SvRowPosition.of(index, requests.size)) {
+                    SvAvatar(request.contact.name)
+                    Spacer(Modifier.width(SvSpacing.md))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(request.contact.name, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "@${request.contact.handle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(SvSpacing.md))
+                    Text(bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
+                }
             }
         }
     }

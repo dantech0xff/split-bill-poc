@@ -34,6 +34,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 
 /** Where the tester enters the Anthropic API key, the app's local currency and, optionally, another model name. */
@@ -65,8 +67,8 @@ fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(SvSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
         ) {
             OutlinedTextField(
                 value = apiKey,
@@ -125,11 +127,7 @@ fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Button(
-                onClick = { onSave(apiKey, model, localCurrency) },
-                enabled = currencyIsValid,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Save") }
+            SvPrimaryButton("Save", onClick = { onSave(apiKey, model, localCurrency) }, enabled = currencyIsValid)
         }
     }
 }

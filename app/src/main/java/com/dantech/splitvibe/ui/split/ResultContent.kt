@@ -53,12 +53,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.contacts.Contact
+import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvMessageCard
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.motion.SvAmount
+import com.dantech.splitvibe.designsystem.motion.rememberSvEntryState
+import com.dantech.splitvibe.designsystem.motion.staggeredEntry
+import com.dantech.splitvibe.designsystem.tokens.SvElevation
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.amountLarge
+import com.dantech.splitvibe.designsystem.tokens.amountMedium
+import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.PersonShare
-import com.dantech.splitvibe.ui.components.PersonAvatar
 import java.math.BigDecimal
 
 private const val ME_LABEL = "Me"
@@ -88,6 +103,7 @@ fun ResultContent(
     val nameOf: (String) -> String = { id -> if (id == ME_ID) ME_LABEL else contactsById[id]?.name ?: id }
     val participants = plan.participantIds
     val sharersByItem = remember(plan) { plan.sharersByItem() }
+    val entry = rememberSvEntryState()
 
     Scaffold(
         topBar = {
@@ -105,17 +121,25 @@ fun ResultContent(
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            item { TotalCard(bill = bill, summary = result.summary, modifier = Modifier.padding(16.dp)) }
+            item {
+                TotalCard(
+                    bill = bill,
+                    summary = result.summary,
+                    modifier = Modifier
+                        .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)
+                        .staggeredEntry(entry, index = 0),
+                )
+            }
 
             items(plan.openNotices() + bill.warnings) { note ->
-                MessageCard(text = note, isError = false, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                SvMessageCard(text = note, isError = false, modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
             }
 
             item {
-                SectionTitle("Who is sharing?")
+                SvSectionHeader("Who is sharing?")
                 FlowRow(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     FilterChip(selected = plan.includeMe, onClick = onToggleMe, label = { Text(ME_LABEL) })
                     plan.selectedContactIds.forEach { id ->
@@ -137,11 +161,13 @@ fun ResultContent(
             }
 
             if (bill.items.isNotEmpty()) {
-                item { SectionTitle("Items", "Tap an item to choose who shares it.") }
+                item { SvSectionHeader("Items", hint = "Tap an item to choose who shares it.") }
                 itemsIndexed(bill.items) { index, item ->
                     ItemRow(
                         bill = bill,
                         item = item,
+                        position = SvRowPosition.of(index, bill.items.size),
+                        modifier = Modifier.staggeredEntry(entry, index = index + 1),
                         sharers =
                             sharersByItem[index]?.let { ids ->
                                 participants.filter { it in ids }.joinToString { nameOf(it) }
@@ -152,22 +178,29 @@ fun ResultContent(
             }
 
             if (bill.charges.isNotEmpty()) {
-                item { SectionTitle("Taxes, fees and discounts", "Shared in proportion to each person's items.") }
-                items(bill.charges) { charge -> ChargeRow(bill, charge) }
+                item { SvSectionHeader("Taxes, fees and discounts", hint = "Shared in proportion to each person's items.") }
+                itemsIndexed(bill.charges) { index, charge ->
+                    ChargeRow(bill, charge, SvRowPosition.of(index, bill.charges.size))
+                }
             }
 
-            item { SectionTitle("Each person pays") }
+            item { SvSectionHeader("Each person pays") }
             if (result.split.shares.isEmpty()) {
                 item {
                     Text(
                         "Nobody is sharing this bill yet. Add yourself or pick people.",
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = SvSpacing.lg),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
-            items(result.split.shares, key = { it.personId }) { share ->
-                ShareRow(bill = bill, share = share, name = nameOf(share.personId))
+            itemsIndexed(result.split.shares, key = { _, share -> share.personId }) { index, share ->
+                ShareRow(
+                    bill = bill,
+                    share = share,
+                    name = nameOf(share.personId),
+                    position = SvRowPosition.of(index, result.split.shares.size),
+                )
             }
             if (result.split.shares.isNotEmpty()) {
                 item { SharesTotalRow(bill = bill, total = result.split.totalMinor) }
@@ -221,16 +254,17 @@ fun ResultContent(
 
 @Composable
 private fun TotalCard(bill: Bill, summary: String, modifier: Modifier = Modifier) {
-    Card(
+    SvCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        elevation = SvElevation.Level2,
+        color = MaterialTheme.colorScheme.primaryContainer,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(SvSpacing.xl)) {
             Text("Bill total", style = MaterialTheme.typography.labelLarge)
-            Text(bill.format(bill.totalMinor), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            SvAmount(bill.totalMinor, format = bill::format, style = MaterialTheme.typography.amountLarge, countUp = true)
             bill.date?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (summary.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SvSpacing.sm))
                 Text(summary, style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -238,24 +272,15 @@ private fun TotalCard(bill: Bill, summary: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun SectionTitle(title: String, hint: String? = null) {
-    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        if (hint != null) {
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ItemRow(bill: Bill, item: BillItem, sharers: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = "Choose who shares ${item.name}", onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun ItemRow(
+    bill: Bill,
+    item: BillItem,
+    position: SvRowPosition,
+    sharers: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SvListRow(position = position, modifier = modifier, onClick = onClick, onClickLabel = "Choose who shares ${item.name}") {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.bodyLarge)
             val unitPrice = item.unitPriceMinor
@@ -268,33 +293,25 @@ private fun ItemRow(bill: Bill, item: BillItem, sharers: String, onClick: () -> 
             }
             Text(sharers, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
-        Spacer(Modifier.width(12.dp))
-        Text(bill.format(item.amountMinor), style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.width(SvSpacing.md))
+        Text(bill.format(item.amountMinor), style = MaterialTheme.typography.amountSmall)
     }
 }
 
 @Composable
-private fun ChargeRow(bill: Bill, charge: BillCharge) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-    ) {
+private fun ChargeRow(bill: Bill, charge: BillCharge, position: SvRowPosition) {
+    SvListRow(position = position) {
         Text(charge.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Text(bill.format(charge.amountMinor), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(SvSpacing.md))
+        Text(bill.format(charge.amountMinor), style = MaterialTheme.typography.amountSmall)
     }
 }
 
 @Composable
-private fun ShareRow(bill: Bill, share: PersonShare, name: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PersonAvatar(name)
-        Spacer(Modifier.width(12.dp))
+private fun ShareRow(bill: Bill, share: PersonShare, name: String, position: SvRowPosition) {
+    SvListRow(position = position) {
+        SvAvatar(name)
+        Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(if (share.personId == ME_ID) "$name (paid the bill)" else name, style = MaterialTheme.typography.bodyLarge)
             Text(
@@ -303,25 +320,27 @@ private fun ShareRow(bill: Bill, share: PersonShare, name: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(bill.format(share.totalMinor), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(SvSpacing.md))
+        SvAmount(share.totalMinor, format = bill::format, style = MaterialTheme.typography.amountMedium)
     }
 }
 
+/** The proof under the shares: together they are exactly the bill total. */
 @Composable
 private fun SharesTotalRow(bill: Bill, total: Long) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        HorizontalDivider()
-        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("Adds up to the bill total", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Text(bill.format(total), style = MaterialTheme.typography.titleMedium)
-        }
+    Row(
+        modifier = Modifier.padding(horizontal = SvSpacing.xxl, vertical = SvSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.width(SvSpacing.sm))
+        Text("Adds up to the bill total", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        SvAmount(total, format = bill::format, style = MaterialTheme.typography.amountMedium)
     }
 }
 
@@ -329,26 +348,15 @@ private fun SharesTotalRow(bill: Bill, total: Long) {
 private fun RequestBar(result: SplitResultState, onSendRequests: () -> Unit, onPickPeople: () -> Unit) {
     val others = result.split.shares.filter { it.personId != ME_ID && it.totalMinor > 0 }
     val amount = others.sumOf { it.totalMinor }
-    Surface(tonalElevation = 3.dp) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            when {
-                result.plan.selectedContactIds.isEmpty() ->
-                    Button(onClick = onPickPeople, modifier = Modifier.fillMaxWidth()) { Text("Pick people to share with") }
+    SvBottomBar {
+        when {
+            result.plan.selectedContactIds.isEmpty() -> SvPrimaryButton("Pick people to share with", onClick = onPickPeople)
 
-                others.isEmpty() ->
-                    Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Nobody else owes anything") }
+            others.isEmpty() -> SvPrimaryButton("Nobody else owes anything", onClick = {}, enabled = false)
 
-                else -> {
-                    val people = if (others.size == 1) "1 person" else "${others.size} people"
-                    Button(onClick = onSendRequests, modifier = Modifier.fillMaxWidth()) {
-                        Text("Request ${result.bill.format(amount)} from $people")
-                    }
-                }
+            else -> {
+                val people = if (others.size == 1) "1 person" else "${others.size} people"
+                SvPrimaryButton("Request ${result.bill.format(amount)} from $people", onClick = onSendRequests)
             }
         }
     }

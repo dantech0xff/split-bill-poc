@@ -1,6 +1,6 @@
 ---
 title: "Phase 2: Hệ thiết kế Expressive, chuyển động và đổ bóng"
-status: todo
+status: in-progress
 phase: 2
 priority: P1
 effort: "10d"
@@ -101,18 +101,34 @@ Sửa (dựng lại trên hệ thiết kế):
 8. Đo ba hành trình trên máy tham chiếu, tối ưu cho tới khi đạt ngân sách, ghi báo cáo số đo.
 9. Kiểm tra tiếp cận và chế độ tắt animation; viết `docs/design-system.md`.
 
+## Ba hướng bảng màu: chủ sản phẩm chọn B. Violet
+
+<!-- Updated: Validation Session 3 - chủ sản phẩm chọn hướng B. Violet ngày 14/11/2026 -->
+Ba hướng được dựng trên màn hình kết quả thật, với dữ liệu của hóa đơn mẫu, ở cả sáng và tối:
+[ảnh sáng](./assets/palette-directions/three-directions-light.png), [ảnh tối](./assets/palette-directions/three-directions-dark.png).
+
+| Hướng | Màu nhấn (sáng / tối) | Màu phụ thứ ba | Cảm giác |
+|---|---|---|---|
+| A. Emerald | `#006C4C` / `#53DEA8` | Vàng hổ phách `#7A5901` | Gần với bản hiện tại, gợi tiền bạc và sự tin cậy |
+| B. Violet | `#554ACC` / `#CEBDFF` | Hồng mận `#A53167` | Trẻ, năng động, hợp với chữ "Vibe" trong tên |
+| C. Coral | `#A83900` / `#FFB595` | Xanh mòng két `#00696C` | Ấm, gợi ăn uống và bạn bè |
+
+Cách dựng: mỗi hướng là một bộ thang sắc độ (màu nhấn, màu phụ, màu thứ ba, trung tính), mỗi vai trò màu lấy một sắc độ cố định theo bảng của Material 3 (ví dụ `primary` là sắc độ 40 ở sáng và 80 ở tối). Vì vậy chữ và nền luôn lệch nhau ít nhất 50 sắc độ; độ tương phản thấp nhất đo được trong cả sáu bảng là 6,15:1, trên ngưỡng 4,5:1. Đây là màu để chọn hướng. Giá trị cuối cùng của từng token được tinh chỉnh ở bước 2 sau khi có lựa chọn.
+
+Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; chúng sẽ được làm lại theo bảng màu được chọn.
+
 ## Todo
 
-- [ ] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
-- [ ] Token và `SplitVibeTheme` (sáng, tối)
-- [ ] Token bóng 4 mức bằng `dropShadow`
-- [ ] Bộ thành phần và màn hình danh mục
-- [ ] Lớp chuyển động theo bảng hành trình
-- [ ] Dựng lại 7 màn hình và 2 bảng trượt hiện có
-- [ ] Kiểm tra ranh giới trong CI
+- [x] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
+- [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền, khoảng cách và theme; token hình khối chưa tách riêng, các thành phần đang dùng thang hình khối mặc định của Material
+- [x] Token bóng 4 mức bằng `dropShadow`
+- [ ] Bộ thành phần và màn hình danh mục. Đã có màn hình danh mục ở bản debug và 12 thành phần mà các màn hình hiện tại dùng. Chưa có nhóm nút, nút tách đôi, nút nổi có menu và thanh công cụ nổi: chưa màn hình nào cần tới, sẽ thêm cùng tính năng dùng chúng ở Phase 4 trở đi
+- [ ] Lớp chuyển động theo bảng hành trình. Đã có: tổng tiền đếm lên và số tiền chạy tới giá trị mới, các hàng vào lần lượt, dòng trạng thái chuyển mượt, biểu tượng tải đổi hình, dấu tích bật ra kèm rung xác nhận, thanh trên co lại theo cuộn, nút mở ra thành màn hình chia hóa đơn và thu về theo ngón tay khi vuốt ngược. Chưa có: ảnh bay vào khung, vệt quét trên ảnh, thẻ người bật nảy và hàng đổi chỗ, nút biến hình thành dấu tích
+- [x] Dựng lại 7 màn hình và 2 bảng trượt hiện có ([ảnh trước và sau của hai màn hình chính](./assets/first-look-home-and-result.png)). Chủ sản phẩm chưa duyệt
+- [x] Kiểm tra ranh giới trong CI (`DesignSystemBoundaryTest`, chạy cùng unit test)
 - [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
-- [ ] Tiếp cận và chế độ tắt animation
-- [ ] `docs/design-system.md`
+- [ ] Tiếp cận và chế độ tắt animation. Đã có: test độ tương phản, ảnh cỡ chữ 200%, `ReducedMotionTest`. Chưa có: kiểm tra tiếp cận tự động của Compose
+- [ ] `docs/design-system.md`. Đã viết cho phần đang có; còn bổ sung khi có lớp chuyển động và màn hình danh mục
 
 ## Success Criteria
 

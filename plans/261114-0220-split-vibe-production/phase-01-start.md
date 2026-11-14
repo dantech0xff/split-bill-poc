@@ -1,6 +1,6 @@
 ---
 title: "Phase 1: Nền móng kỹ thuật"
-status: todo
+status: in-progress
 phase: 1
 priority: P1
 effort: "6d"
@@ -73,7 +73,7 @@ Tạo mới:
 - `core/domain/build.gradle.kts`
 - `baseline-profile/build.gradle.kts` và các hành trình đo
 - `.github/workflows/ci.yml`, `.github/workflows/device-tests.yml`, `.github/dependabot.yml`
-- `gradle/verification-metadata.xml` (kiểm chữ ký phụ thuộc)
+- `gradle/verification-metadata.xml` (kiểm checksum phụ thuộc)
 - `app/src/main/java/com/dantech/splitvibe/di/AppModule.kt`
 - `app/src/test/java/com/dantech/splitvibe/di/AppModuleTest.kt` (kiểm đồ thị Koin)
 - `app/src/test/java/com/dantech/splitvibe/ui/ScreenGalleryTest.kt` và thư mục ảnh chuẩn
@@ -103,24 +103,26 @@ Sửa:
 4. Thay `AppContainer` bằng module Koin, viết `AppModuleTest`; đổi tên `SplitVibeApp` và `SplitVibeTheme` ở đủ các chỗ đã liệt kê, kể cả manifest.
 5. Chuyển 3 màn hình sang Navigation 3; kiểm vuốt ngược xem trước trên máy ảo API 36.
 6. Cấu hình ký release bằng biến môi trường (không có thì ra bản chưa ký), xuất AAB, hai flavor `dev` (hậu tố `.dev`) và `prod`.
-7. Viết CI cho pull request và `main`: build debug và release **chưa ký**, unit test, Android Lint, kiểm định dạng mã, so ảnh chụp, quét secret, kiểm wrapper của Gradle. Chỉ dùng sự kiện `pull_request`, ghim mọi action theo mã commit, bật kiểm chữ ký phụ thuộc và Dependabot.
+7. Viết CI cho pull request và `main`: build debug và release **chưa ký**, unit test, Android Lint, kiểm định dạng mã, so ảnh chụp, quét secret, kiểm wrapper của Gradle. Chỉ dùng sự kiện `pull_request`, ghim mọi action theo mã commit, bật kiểm checksum phụ thuộc và Dependabot.
 8. Viết luồng chạy test trên thiết bị bằng Gradle Managed Devices (API 34) chạy hằng đêm cho 3 lớp test có sẵn.
 9. Thêm `:baseline-profile`, sinh profile, viết hành trình đo khởi động và luồng chia hóa đơn; ghi số đo gốc vào `plans/reports/`.
 10. Cập nhật README và viết `docs/architecture.md`.
 
 ## Todo
 
-- [ ] Bộ ảnh chuẩn 12 màn hình trước khi nâng thư viện
-- [ ] BOM 2026.09.00 và material3 1.5.0-rc01, khác biệt hình ảnh đã duyệt
-- [ ] Module `:core:domain` gồm cả `Contact`, `BillAnalyzer.kt` và parser công khai
-- [ ] Koin thay `AppContainer`, có `AppModuleTest`
-- [ ] Đổi tên `SplitVibeApp` (kể cả manifest) và `SplitVibeTheme`
-- [ ] Navigation 3 cho 3 màn hình, vuốt ngược xem trước hoạt động
-- [ ] Ký bằng biến môi trường, AAB, flavor `dev` và `prod`
-- [ ] CI không secret cho PR; action ghim theo commit; kiểm chữ ký phụ thuộc; Dependabot
-- [ ] Test trên thiết bị chạy hằng đêm trong CI
-- [ ] Module `:baseline-profile` và số đo gốc
-- [ ] README và `docs/architecture.md`
+- [x] Bộ ảnh chuẩn 12 màn hình trước khi nâng thư viện
+- [x] BOM 2026.09.00 và material3 1.5.0-rc01, khác biệt hình ảnh đã duyệt
+- [x] Module `:core:domain` gồm cả `Contact`, `BillAnalyzer.kt` và parser công khai
+- [x] Koin thay `AppContainer`, có `AppModuleTest`
+- [x] Đổi tên `SplitVibeApp` (kể cả manifest) và `SplitVibeTheme`
+- [x] Navigation 3 cho 3 màn hình, có test tự động cho chuyển màn hình, khôi phục và vuốt ngược xem trước
+- [ ] Kiểm tay vuốt ngược xem trước trên máy ảo API 36, có quay màn hình (cần máy có tăng tốc phần cứng)
+- [x] Ký bằng biến môi trường, AAB, flavor `dev` và `prod`
+- [x] CI không secret cho PR; action ghim theo commit; kiểm checksum phụ thuộc; Dependabot
+- [x] Test trên thiết bị chạy hằng đêm trong CI
+- [x] Module `:baseline-profile`, profile đã ghi và nằm trong bản release
+- [ ] Số đo gốc trên máy thật: khởi động nguội và thời gian khung hình (cần máy tham chiếu của chủ sản phẩm)
+- [x] README và `docs/architecture.md`
 
 ## Success Criteria
 
@@ -135,6 +137,51 @@ Sửa:
 - `:core:domain` là module `kotlin("jvm")`, nên không thể nhập lớp Android.
 - Vuốt ngược xem trước chạy trên cả 3 màn hình ở máy ảo API 36 (kiểm tay, có quay màn hình lưu vào `plans/reports/`).
 - Có số đo gốc: thời gian khởi động nguội và thời gian khung hình của luồng chia hóa đơn.
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 14/11/2026 trên nhánh feat/phase-01-foundation -->
+Mười một trên mười ba việc đã xong và có bằng chứng. Hai việc còn lại cần thứ mà môi trường làm việc không có: một máy ảo API 36 có tăng tốc phần cứng để kiểm tay, và một điện thoại thật để đo.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Build và test không cần biến ký | Đạt | 88 test: 65 ở `:core:domain`, 23 ở `:app` (1 bỏ qua vì cần API key thật). `SplitFlowTest` không đổi dòng nào |
+| App khởi động trên thiết bị sau khi đổi tên lớp `Application` | Đạt | `AppLaunchTest` qua trên máy ảo Android 14, cả ở máy làm việc lẫn trong GitHub Actions |
+| `AppModuleTest` giải được mọi phụ thuộc | Đạt | Chạy trong CI ở mỗi lần kiểm |
+| material3 1.5.0-rc01 và Compose UI 1.12.x | Đạt | Báo cáo phụ thuộc của Gradle: material3 1.5.0-rc01, Compose UI 1.12.1. 13 ảnh chuẩn giống hệt từng điểm ảnh trước và sau khi nâng |
+| So ảnh chụp trong CI xanh, thay đổi cố ý làm CI đỏ | Đạt | Lần chạy `43564589997` xanh, gồm cả baseline profile. Nhánh thử `check/screenshot-gate` đổi một khoảng đệm ở màn hình chính: lần chạy `43563864550` đỏ ở đúng hai bài test có màn hình đó, và gói `reports` có ảnh so sánh |
+| Ba lớp test thiết bị qua trên thiết bị do Gradle quản lý trong CI | Đạt | Lần chạy `43563330640`: 7 test trên `pixel6Api34` (ba lớp cũ và `AppLaunchTest`) |
+| CI của PR không có secret, không `pull_request_target`, action ghim theo commit | Đạt | `.github/workflows/ci.yml`; reviewer độc lập đã đối chiếu từng mã commit với tag |
+| Không còn ký release bằng khóa debug | Đạt | Không biến: bản chưa ký. Đủ bốn biến: bản ký đúng chứng thư. Thiếu biến: build dừng và nêu tên biến thiếu |
+| `:core:domain` là module Kotlin thuần | Đạt | `core/domain/build.gradle.kts` chỉ áp plugin `kotlin.jvm` |
+| Vuốt ngược xem trước trên 3 màn hình ở máy ảo API 36, kiểm tay có quay màn hình | Chưa đạt | Thay bằng `BackNavigationTest`: bắt đầu vuốt, dừng giữa chừng, hủy, rồi vuốt hết. Ảnh chuẩn `14-back-swipe-preview.png` cho thấy màn hình trước hiện ra phía sau. Chưa có bản quay trên API 36 |
+| Có số đo gốc | Chưa đạt | `StartupBenchmark` và `SplitFlowBenchmark` đã viết và biên dịch được, chưa chạy trên máy thật |
+
+Khác với bản plan, và lý do:
+
+- **`compileSdk` là 37.** Compose 1.12 và material3 1.5 chỉ biên dịch được với SDK của Android 17. `targetSdk` vẫn là 36 nên hành vi của app không đổi.
+- **Kiểm checksum thay cho kiểm chữ ký.** `gradle/verification-metadata.xml` ghi SHA-256 của 839 thành phần; đã thử sửa sai một giá trị và build dừng. Tệp phải được sinh từ bộ nhớ đệm Gradle trống, nếu không sẽ thiếu mục và máy CI từ chối (đã gặp và đã sửa). Chủ sản phẩm đã chốt ngày 14/11: checksum là đủ, không làm kiểm chữ ký PGP.
+- **Kiểm định dạng mã bằng ktlint**, chạy như một tác vụ Gradle thường. Mã hiện có được định dạng lại một lần, không đổi hành vi.
+- **Luồng thiết bị chạy cả khi có thay đổi liên quan**, không chỉ hằng đêm: test thiết bị, module profile, phiên bản thư viện hoặc checksum đổi là chạy.
+- **Bấm đúp nút quay lại ở Settings giờ chỉ đóng một màn hình.** Trước đây đóng hai, có thể để lại màn hình trắng. Màn hình giờ tự đóng theo tên.
+- **App bật `enableOnBackInvokedCallback`**, để hiệu ứng xem trước khi vuốt ngược có cả trên Android 13 đến 15.
+- **Hai test mới ngoài danh sách tệp:** `AppStartupTest` và `BackNavigationTest` (máy build), `AppLaunchTest` (thiết bị).
+
+Việc phát hiện thêm trong lúc làm:
+
+- Một test về timeout chỉ lỗi trên máy của GitHub vì ở đó `localhost` còn trỏ tới `::1`. Test giờ dùng thẳng `127.0.0.1`.
+- Bản release đã rút gọn vẫn giữ `INSTANCE` và `serializer()` của ba khóa điều hướng (xem bằng apkanalyzer), là thứ việc khôi phục màn hình cần. Chạy thử bản rút gọn trên thiết bị thì chưa.
+- Android Lint không báo lỗi, có 19 cảnh báo. Một cảnh báo đáng làm ở Phase 9: khai báo `dataExtractionRules` cho sao lưu từ Android 12.
+- [Bản review độc lập](../reports/code-reviewer-261114-0549-phase-01-foundation-review.md) và cách xử lý từng phát hiện.
+
+Việc của chủ sản phẩm:
+
+1. Bật bảo vệ nhánh `main`: bắt buộc hai kiểm tra "Style, tests, lint and packages" và "Secret scan".
+2. Chạy `./gradlew :baseline-profile:connectedProdBenchmarkReleaseAndroidTest` trên máy tham chiếu để có số đo gốc.
+3. Kiểm vuốt ngược trên một máy Android 16 và quay lại màn hình.
+4. Xóa nhánh thử `check/screenshot-gate` trên GitHub. Phiên làm việc không có quyền xóa nhánh.
+
+Nhánh này đã vào `main` bằng fast-forward ngày 14/11/2026 theo quyết định của chủ sản phẩm.
 
 ## Risks
 

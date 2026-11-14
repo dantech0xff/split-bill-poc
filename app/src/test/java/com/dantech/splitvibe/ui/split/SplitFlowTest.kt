@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.llm.BillPrompt
@@ -25,7 +26,6 @@ import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
-import com.dantech.splitvibe.ui.theme.SplitVibeTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject

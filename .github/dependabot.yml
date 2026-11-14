@@ -1,7 +1,9 @@
 version: 2
 updates:
   # Libraries and Gradle plugins from gradle/libs.versions.toml.
-  # A version bump also needs new checksums in gradle/verification-metadata.xml; the README says how.
+  # A version bump also needs new checksums in gradle/verification-metadata.xml. The workflow
+  # checksums.yml works them out for each of these pull requests; docs/architecture.md says how
+  # to take them over.
   - package-ecosystem: gradle
     directory: /
     schedule:

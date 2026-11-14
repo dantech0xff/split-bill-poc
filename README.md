@@ -144,6 +144,7 @@ contact list is never sent: the model only repeats names that appear in the inst
 ## Project layout
 
 ```text
+core/designsystem/            the look of the app: theme, colours, type, elevation
 core/domain/                  plain Kotlin, no Android: the money logic and the data contracts
   domain/     Bill, BillCurrency, BillReconciler, SplitCalculator, SplitPlan, NameMatcher
   ocr/        OcrResult, OcrLayoutEncoder
@@ -162,18 +163,19 @@ baseline-profile/             records the startup profile and holds the benchmar
 ```
 
 [docs/architecture.md](docs/architecture.md) explains the modules, the navigation, the build
-variants and every check in more detail.
+variants and every check in more detail. [docs/design-system.md](docs/design-system.md) describes
+the look: the palette, the components and the rules for using them.
 
 ## Tests
 
 ```bash
-./gradlew :core:domain:test :app:testProdDebugUnitTest
+./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-88 tests cover the split rules (including 2,000 random bills whose shares must add up to the
+100 tests cover the split rules (including 2,000 random bills whose shares must add up to the
 total without anyone owing a negative amount), currency handling, name matching, split planning, row
-layout, answer parsing, the Claude client, the UI flow, app startup, navigation and the dependency
-wiring.
+layout, answer parsing, the Claude client, the UI flow, app startup, navigation, the dependency
+wiring and the text contrast of the colour palette.
 
 - The client tests run the real SDK against a local HTTP server and pin down the exact request and
   every kind of API answer: success, invalid key, unknown model, refusal, cut-off answer, fallback
@@ -182,7 +184,8 @@ wiring.
   instruction, analysis, people pre-selected, exact shares, changing who shares an item, request
   confirmation. It replays two recordings of the real pipeline: the text ML Kit read on a device
   and the answer Claude Opus gave for it.
-- `ScreenGalleryTest` draws every screen and compares it with the reference image in
+- `ScreenGalleryTest` draws every screen in the light and the dark theme, and the four main screens
+  with text at twice its size, and compares each with the reference image in
   `app/src/test/screenshots`. After an intended visual change, record new images with
   `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record` and review them like code.
 - `AppStartupTest` and `BackNavigationTest` start the real application and activity: moving between
@@ -205,7 +208,7 @@ The other checks, all of which also run in GitHub Actions on every branch:
 ```
 
 ```bash
-./gradlew :app:lintProdDebug
+./gradlew :app:lintProdDebug :core:designsystem:lintDebug
 ```
 
 To exercise the real API with your key (a few cents per run):
@@ -219,7 +222,7 @@ ANTHROPIC_API_KEY=sk-ant-... ./gradlew :app:testProdDebugUnitTest --tests '*Live
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :app:testProdDebugUnitTest` | 87 pass, 1 skipped (the live API test, which needs a key) |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 99 pass, 1 skipped (the live API test, which needs a key) |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and SDK client | passes |
 | On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 7 tests pass |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |

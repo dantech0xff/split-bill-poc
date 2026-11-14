@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Looper
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.llm.BillPrompt
 import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
@@ -32,7 +36,6 @@ import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
-import com.dantech.splitvibe.ui.theme.SplitVibeTheme
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
@@ -50,6 +53,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -66,7 +70,7 @@ import org.robolectric.annotation.GraphicsMode
  *
  *     ./gradlew :app:testProdDebugUnitTest --tests '*ScreenGalleryTest*' -Pscreenshots=record
  */
-@OptIn(ExperimentalRoborazziApi::class)
+@OptIn(ExperimentalRoborazziApi::class, ExperimentalMaterial3Api::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = PHONE)
@@ -83,6 +87,9 @@ class ScreenGalleryTest {
 
     private var screen by mutableStateOf(Screen.HOME)
 
+    /** Added to every file name of a walk, so the dark and large-text images sit beside the light ones. */
+    private var suffix = ""
+
     private val recordedMlKitOutput = object : BillTextRecognizer {
         override suspend fun recognize(image: Bitmap): OcrResult = Fixtures.ocr("sample_bill_ocr.json")
     }
@@ -94,7 +101,49 @@ class ScreenGalleryTest {
     fun tearDown() = server.shutdown()
 
     @Test
-    fun `every screen of the split flow`() {
+    fun `every screen of the split flow`() = everyScreen()
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_AT_NIGHT)
+    fun `every screen of the split flow in the dark theme`() {
+        suffix = "-dark"
+        everyScreen()
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = TALL)
+    fun `whole result page`() = wholeResultPage()
+
+    @Test
+    @Config(sdk = [34], qualifiers = TALL_AT_NIGHT)
+    fun `whole result page in the dark theme`() {
+        suffix = "-dark"
+        wholeResultPage()
+    }
+
+    /** Text at twice its size must still fit: nothing may be cut off on the four main screens. */
+    @Test
+    fun `the four main screens with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        suffix = "-large-text"
+        val viewModel = start(answerDelaySeconds = 0)
+        shot("01-home")
+
+        show(Screen.SPLIT)
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        shot("03-photo-and-instruction")
+
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+        shot("05-result-top")
+
+        compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        shot("10-requests-sent")
+    }
+
+    private fun everyScreen() {
         // The answer is held back so the "working" state stays on screen long enough to be drawn.
         val viewModel = start(answerDelaySeconds = 4)
 
@@ -115,9 +164,14 @@ class ScreenGalleryTest {
         compose.onNodeWithText(BillPrompt.DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
         shot("03-photo-and-instruction")
 
+        // The working state shows an endless animation. Its clock is stopped and then moved on by a
+        // fixed amount, so the picture catches the same moment of the animation on every run.
+        compose.mainClock.autoAdvance = false
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.progress == Progress.ASKING_CLAUDE }
+        compose.mainClock.advanceTimeBy(WORKING_ANIMATION_MS)
         shot("04-working")
+        compose.mainClock.autoAdvance = true
 
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
@@ -148,9 +202,7 @@ class ScreenGalleryTest {
         shot("10-requests-sent")
     }
 
-    @Test
-    @Config(sdk = [34], qualifiers = TALL)
-    fun `whole result page`() {
+    private fun wholeResultPage() {
         val viewModel = start(answerDelaySeconds = 0)
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
@@ -163,7 +215,7 @@ class ScreenGalleryTest {
     }
 
     private fun start(answerDelaySeconds: Long): SplitBillViewModel {
-        server.enqueue(recordedClaudeAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
+        server.enqueue(Fixtures.claudeAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
         val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
@@ -173,21 +225,25 @@ class ScreenGalleryTest {
             analyzerFor = { analyzer },
         )
         compose.setContent {
-            SplitVibeTheme {
-                when (screen) {
-                    Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
+            // No touch ripples: they are drawn by the platform on real time, so a picture taken
+            // shortly after a tap would differ by a few pixels from run to run.
+            CompositionLocalProvider(LocalRippleConfiguration provides null) {
+                SplitVibeTheme {
+                    when (screen) {
+                        Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
 
-                    Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = {
-                        Uri.EMPTY
-                    }, onExit = {}, onOpenSettings = {})
+                        Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = {
+                            Uri.EMPTY
+                        }, onExit = {}, onOpenSettings = {})
 
-                    // What a fresh install shows until a key is saved in Settings.
-                    Screen.SPLIT_WITHOUT_KEY -> SplitScreen(viewModel = viewModel, hasApiKey = false, newCameraTarget = {
-                        Uri.EMPTY
-                    }, onExit = {}, onOpenSettings = {})
+                        // What a fresh install shows until a key is saved in Settings.
+                        Screen.SPLIT_WITHOUT_KEY -> SplitScreen(viewModel = viewModel, hasApiKey = false, newCameraTarget = {
+                            Uri.EMPTY
+                        }, onExit = {}, onOpenSettings = {})
 
-                    // First use: no key saved yet, so the field shows its placeholder.
-                    Screen.SETTINGS -> SettingsScreen(settings = settings.copy(apiKey = ""), onSave = { _, _, _ -> }, onBack = {})
+                        // First use: no key saved yet, so the field shows its placeholder.
+                        Screen.SETTINGS -> SettingsScreen(settings = settings.copy(apiKey = ""), onSave = { _, _, _ -> }, onBack = {})
+                    }
                 }
             }
         }
@@ -202,7 +258,7 @@ class ScreenGalleryTest {
     private fun shot(name: String) {
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
-        captureScreenRoboImage(File(SCREENSHOTS, "$name.png"))
+        captureScreenRoboImage(File(SCREENSHOTS, "$name$suffix.png"))
     }
 
     /**
@@ -213,41 +269,16 @@ class ScreenGalleryTest {
         shadowOf(Looper.getMainLooper()).idle()
         condition()
     }
-
-    /** The Messages API response that carries the recorded answer as its text block. */
-    private fun recordedClaudeAnswer(): MockResponse {
-        val body = buildJsonObject {
-            put("id", "msg_recorded")
-            put("type", "message")
-            put("role", "assistant")
-            put("model", ClaudeBillAnalyzer.DEFAULT_MODEL)
-            put(
-                "content",
-                buildJsonArray {
-                    add(
-                        buildJsonObject {
-                            put("type", "text")
-                            put("text", Fixtures.text("sample_bill_answer.json"))
-                        },
-                    )
-                },
-            )
-            put("stop_reason", "end_turn")
-            putJsonObject("usage") {
-                put("input_tokens", 2300)
-                put("output_tokens", 800)
-            }
-        }
-        return MockResponse().setHeader("content-type", "application/json").setBody(body.toString())
-    }
 }
 
 /** Reference images, relative to the module directory the tests run in. */
 private const val SCREENSHOTS = "src/test/screenshots"
 private const val PHONE = "w412dp-h915dp-xhdpi"
+private const val PHONE_AT_NIGHT = "w412dp-h915dp-night-xhdpi"
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
-private const val TALL = "w412dp-h1472dp-xhdpi"
+private const val TALL = "w412dp-h1700dp-xhdpi"
+private const val TALL_AT_NIGHT = "w412dp-h1700dp-night-xhdpi"
 private const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
 private const val BEERS = "Bia Saigon Special"
 
@@ -255,3 +286,4 @@ private const val BEERS = "Bia Saigon Special"
 private const val PAGE_PX = 1150f
 private const val HALF_PAGE_PX = 540f
 private const val TIMEOUT_MS = 60_000L
+private const val WORKING_ANIMATION_MS = 500L

@@ -10,8 +10,10 @@ only what is in the repository now.
 flowchart LR
     app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the Claude client"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
+    design[":core:designsystem<br/>theme, colours, type,<br/>elevation"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
+    app --> design
     profile -. drives and measures .-> app
 ```
 
@@ -19,12 +21,28 @@ flowchart LR
 |---|---|---|
 | `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `ClaudeBillAnalyzer`, settings storage |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillReconciler`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Contact`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark), the colour tokens, the text styles for amounts, the elevation levels |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
 are the same in both modules (`com.dantech.splitvibe.domain`, `.ocr`, `.llm`, `.data.contacts`), so
 moving a file between them does not change any import.
+
+`:core:designsystem` owns how the app looks. A screen wraps itself in nothing: `MainActivity` applies
+`SplitVibeTheme` once, and screens read colours, type and elevation from it.
+[design-system.md](design-system.md) lists the tokens and components. These rules in that module
+are worth knowing before changing it:
+
+- Every colour role takes a fixed lightness step of one of five ramps, so text and its background
+  always differ enough to read. `ColorTokensTest` fails when a changed value breaks that.
+- Depth is `SvElevation`. In the light theme a level is a soft violet-tinted shadow; in the dark
+  theme it is a lighter surface and no shadow is drawn. The only part of a shadow that may be
+  animated is its strength, which moves opacity and offset. The blur radius is fixed per level
+  because changing it every frame is expensive.
+- Screens decide nothing about the look themselves: no theme, no colour value, no shadow, no
+  animation timing, and no experimental Expressive API outside this module.
+  `DesignSystemBoundaryTest` fails when a screen does, and names the line.
 
 ## Inside the app
 
@@ -48,7 +66,8 @@ A wiring mistake fails the checks instead of crashing a screen.
 - A screen closes itself by name (`backStack.remove(SettingsKey)`) instead of popping whatever is on
   top. A double tap on a back arrow is therefore harmless.
 - The system back gesture is handled by `NavDisplay`, which also draws the preview of the previous
-  screen while the finger is down. A screen that needs back for something else declares a
+  screen while the finger is down. The split screen grows out of the button that opens it and
+  shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
   `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
   work before it lets the user leave.
 - Two decorators wrap every screen: one keeps `rememberSaveable` state per screen, the other gives
@@ -107,24 +126,47 @@ Only a release workflow that a maintainer approves may set them. That workflow d
 
 ## Checks
 
-Two workflows in `.github/workflows` run the checks. Neither reads a secret, signs or deploys, so a
-pull request from a fork can run them. Every action is pinned to a commit.
+Two workflows in `.github/workflows` run the checks, and every action in them is pinned to a commit.
+A third, `checksums.yml`, is described under dependency checksums below.
+`ci.yml` runs for every pull request, including one from a fork, and for every push to `main`. It
+reads no secret and never signs or deploys, so untrusted code can run it safely.
+`device-tests.yml` runs every night, on request, and when a push to this repository changes the
+device tests, the profile module or the dependencies.
+
+For the checks to guard `main`, the repository has to require them: in the branch protection of
+`main`, require the status checks "Style, tests, lint and packages" and "Secret scan".
 
 | Check | Command | What it guards |
 |---|---|---|
 | Code style | `./gradlew ktlintCheck` | The rules in `.editorconfig`. `./gradlew ktlintFormat` fixes most findings. |
-| Unit tests | `./gradlew :core:domain:test :app:testProdDebugUnitTest` | Split rules, parsing, the Claude client against a local server, the UI flow, app startup, navigation and back handling |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules, parsing, the Claude client against a local server, the UI flow, app startup, navigation and back handling, text contrast of the palette |
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
-| Android Lint | `./gradlew :app:lintProdDebug` | Platform and API misuse |
+| Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
 | Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime. Nightly, and when those tests change. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
 
+### Secret scan
+
+gitleaks reads every commit with its default rules. It is a net for accidents: a key pasted into a
+file, a token left in a test. It honours a `.gitleaks.toml`, a `.gitleaksignore` and inline
+`gitleaks:allow` markers in the repository, which is how a false positive is silenced. A pull
+request that adds or changes any of those switches part of the scan off, so review such a change
+like code.
+
 ### Screenshot tests
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
-them with the reference images. After an intended visual change, record new images and review them
+them with the reference images. Every screen has a light and a dark image, and the four main
+screens have one more with text at twice its size, where nothing may be cut off.
+`ComponentCatalogTest` does the same for the catalog of design system components, so a change to
+a token or a component shows up even when no screen uses it yet.
+
+A picture has to be the same on every run, so two things that move with real time are kept out of
+it. Touch ripples are switched off in the gallery, because the platform draws them on its own clock.
+And the working state, which shows an endless animation, is captured with the animation clock
+stopped at a fixed moment. After an intended visual change, record new images and review them
 in the pull request like code:
 
 ```bash
@@ -140,16 +182,24 @@ the `outputs/roborazzi` folder of the app's output directory. The workflow keeps
 `gradle/verification-metadata.xml` holds the SHA-256 of every library and plugin file. Gradle stops
 the build when a downloaded file does not match, which catches a tampered or swapped artifact.
 
-A version bump therefore needs new checksums. After changing `gradle/libs.versions.toml`, or when
-Gradle reports that an artifact failed verification, refresh the file, read the diff and commit it:
+A version bump therefore needs new checksums. The workflow `checksums.yml` works them out on a
+clean machine whenever the version catalog, the Gradle wrapper or a build file changes, also on the
+branches Dependabot pushes, and on request. It commits nothing and keeps the new file as the
+artifact `verification-metadata`. Download it, compare it with the file in the repository, and
+commit it when the difference is only what the version change explains:
 
 ```bash
-GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :app:testProdDebugUnitTest :app:lintProdDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
+gh run download --name verification-metadata --dir gradle <run id>
 ```
 
-The empty Gradle home matters. With a filled cache Gradle skips parent and version-alignment files
-it has already read, leaves them out of the list, and the next clean machine, such as the CI
-runner, rejects them. The price is that everything is downloaded again, which takes a while.
+The clean machine matters. With a filled cache Gradle skips parent and version-alignment files it
+has already read, leaves them out of the list, and the next clean machine, such as the CI runner,
+rejects them. The same can be done by hand with an empty Gradle home, which downloads everything
+again:
+
+```bash
+GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest :app:lintProdDebug :core:designsystem:lintDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleDevDebug :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
+```
 
 Three things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
 top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the
