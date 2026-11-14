@@ -10,10 +10,6 @@ import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.ocr.OcrResult
 import java.io.IOException
 import java.io.InterruptedIOException
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -105,12 +101,11 @@ class GatewayBillAnalyzer(private val api: ProxyApi, private val account: Accoun
     }
 
     private fun quotaMessage(callsLeft: CallsLeft?): String {
-        val resetsAt = callsLeft?.resetsAt
-        if (callsLeft == null || resetsAt == null) {
+        val date = callsLeft?.comesBackOn
+        if (callsLeft == null || date == null) {
             val free = callsLeft?.limit?.let { "$it " }.orEmpty()
             return "You have used your ${free}free reads. Sign in with Google in Settings to get more each month."
         }
-        val date = DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH).format(Instant.ofEpochMilli(resetsAt).atZone(ZoneOffset.UTC))
         return "You have used this month's ${callsLeft.limit} reads. They come back on $date."
     }
 

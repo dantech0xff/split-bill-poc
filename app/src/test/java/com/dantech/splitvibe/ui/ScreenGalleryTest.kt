@@ -24,7 +24,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
+import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
@@ -32,6 +35,8 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.settings.AccountActions
+import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.split.DEFAULT_INSTRUCTION
 import com.dantech.splitvibe.ui.split.Progress
@@ -79,7 +84,7 @@ class ScreenGalleryTest {
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
 
-    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS }
+    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN }
 
     private var screen by mutableStateOf(Screen.HOME)
 
@@ -147,6 +152,9 @@ class ScreenGalleryTest {
 
         show(Screen.SETTINGS)
         shot("11-settings")
+
+        show(Screen.SETTINGS_SIGNED_IN)
+        shot("16-settings-signed-in")
 
         show(Screen.SPLIT_WITHOUT_AI)
         shot("12-new-split-without-ai")
@@ -244,7 +252,26 @@ class ScreenGalleryTest {
                             Uri.EMPTY
                         }, onExit = {}, onOpenSettings = {})
 
-                        Screen.SETTINGS -> SettingsScreen(settings = settings, onSave = {}, onBack = {})
+                        // Before signing in, with the count the proxy reported for this install.
+                        Screen.SETTINGS -> SettingsScreen(
+                            settings = settings,
+                            account = SIGNED_OUT,
+                            accountUi = AccountUiState(),
+                            canSignIn = true,
+                            actions = NO_ACTIONS,
+                            onSave = {},
+                            onBack = {},
+                        )
+
+                        Screen.SETTINGS_SIGNED_IN -> SettingsScreen(
+                            settings = settings,
+                            account = SIGNED_IN,
+                            accountUi = AccountUiState(),
+                            canSignIn = true,
+                            actions = NO_ACTIONS,
+                            onSave = {},
+                            onBack = {},
+                        )
                     }
                 }
             }
@@ -290,3 +317,19 @@ private const val HALF_PAGE_PX = 540f
 private const val TIMEOUT_MS = 60_000L
 private const val WORKING_ANIMATION_MS = 500L
 private const val HALFWAY_TO_SENT_MS = 200L
+
+private val SIGNED_OUT = Account(
+    installId = "gallery-install",
+    session = null,
+    callsLeft = CallsLeft(limit = 3, used = 1, remaining = 2, period = "trial", resetsAt = null),
+    ai = AiStatus.AVAILABLE,
+)
+
+private val SIGNED_IN = SIGNED_OUT.copy(
+    session = Session("gallery-session", expiresAt = Long.MAX_VALUE),
+    signedInAs = "minh.tran@example.com",
+    // 1 December 2026, in UTC.
+    callsLeft = CallsLeft(limit = 10, used = 1, remaining = 9, period = "2026-11", resetsAt = 1_796_083_200_000),
+)
+
+private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {})

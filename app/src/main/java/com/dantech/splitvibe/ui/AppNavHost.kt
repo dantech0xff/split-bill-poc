@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -26,7 +27,9 @@ import com.dantech.splitvibe.designsystem.motion.SvMotion
 import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.SettingsScreen
+import com.dantech.splitvibe.ui.settings.SettingsViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
 import kotlinx.serialization.Serializable
@@ -102,8 +105,23 @@ fun AppNavHost() {
                 }
                 entry<SettingsKey> {
                     Screen {
+                        // Lives as long as Settings is open; it asks the proxy for the calls left when it starts.
+                        val settingsViewModel: SettingsViewModel = koinViewModel()
+                        val accountUi by settingsViewModel.ui.collectAsStateWithLifecycle()
+                        // The activity, which Google's account picker is shown over.
+                        val context = LocalContext.current
                         SettingsScreen(
                             settings = settings,
+                            account = account,
+                            accountUi = accountUi,
+                            canSignIn = settingsViewModel.canSignIn,
+                            actions = remember(settingsViewModel, context) {
+                                AccountActions(
+                                    onSignIn = { settingsViewModel.signIn(context) },
+                                    onSignOut = { settingsViewModel.signOut(context) },
+                                    onDeleteAccount = { settingsViewModel.deleteAccount(context) },
+                                )
+                            },
                             onSave = { localCurrency ->
                                 settingsStore.save(localCurrency)
                                 backStack.remove(SettingsKey)

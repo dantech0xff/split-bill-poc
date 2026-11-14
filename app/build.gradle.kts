@@ -21,6 +21,12 @@ val releaseAiProxyUrl: String = aiProxyUrl.orEmpty()
 check(releaseAiProxyUrl.isEmpty() || releaseAiProxyUrl.startsWith("https://")) {
     "splitvibe.aiProxyUrl must start with https:// for release builds, but it is $releaseAiProxyUrl"
 }
+// The app's web client ID at Google (public): Google's ID tokens for the app are made out to it, and
+// the proxy checks that. Without it the app is built with signing in turned off.
+val googleWebClientId: String = localProperties.getProperty("splitvibe.googleWebClientId")?.trim().orEmpty()
+check(googleWebClientId.isEmpty() || googleWebClientId.endsWith(".apps.googleusercontent.com")) {
+    "splitvibe.googleWebClientId must be a web client ID ending in .apps.googleusercontent.com"
+}
 
 // The upload key never lives in the repository. A release build is signed only when all four
 // variables are set, which only the release workflow does. Everywhere else it comes out unsigned.
@@ -50,6 +56,7 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     signingConfigs {
@@ -177,6 +184,12 @@ dependencies {
 
     // Talks to the AI proxy; the answer streams in as lines of JSON.
     implementation(libs.okhttp)
+
+    // Signing in with Google through the system's Credential Manager, which hands the app an ID
+    // token that the proxy checks.
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

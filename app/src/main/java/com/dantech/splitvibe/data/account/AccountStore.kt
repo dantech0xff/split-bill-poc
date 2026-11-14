@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.core.content.edit
 import com.dantech.splitvibe.data.settings.KeystoreCipher
 import com.dantech.splitvibe.data.settings.TextCipher
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +23,12 @@ data class Session(val token: String, val expiresAt: Long)
  */
 data class CallsLeft(val limit: Int, val used: Int, val remaining: Int, val period: String, val resetsAt: Long?) {
     val isTrial: Boolean get() = resetsAt == null
+
+    /** The day the monthly calls come back, such as "1 December", or null for a trial. */
+    val comesBackOn: String?
+        get() = resetsAt?.let {
+            DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH).format(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC))
+        }
 }
 
 /** Whether bills can be read with AI, and what to tell the person when they cannot. */
@@ -40,6 +50,8 @@ data class Account(
     /** Null until the proxy has reported a count in this run of the app. */
     val callsLeft: CallsLeft?,
     val ai: AiStatus,
+    /** The Google account's address, shown in Settings while signed in. */
+    val signedInAs: String? = null,
 )
 
 /**
@@ -55,7 +67,15 @@ class AccountStore(
 ) {
     private val preferences = context.getSharedPreferences("account", Context.MODE_PRIVATE)
     private val state = MutableStateFlow(
-        Account(installId = installId(), session = storedSession(), callsLeft = null, ai = aiStatus(enabled = true)),
+        storedSession().let { session ->
+            Account(
+                installId = installId(),
+                session = session,
+                callsLeft = null,
+                ai = aiStatus(enabled = true),
+                signedInAs = if (session == null) null else preferences.getString(KEY_SIGNED_IN_AS, null)?.let(cipher::decrypt),
+            )
+        },
     )
 
     val account: StateFlow<Account> = state.asStateFlow()
@@ -68,13 +88,14 @@ class AccountStore(
         return null
     }
 
-    fun saveSession(session: Session) {
+    fun saveSession(session: Session, signedInAs: String? = null) {
         preferences.edit {
             putString(KEY_SESSION, cipher.encrypt(session.token))
             putLong(KEY_SESSION_EXPIRES_AT, session.expiresAt)
+            if (signedInAs == null) remove(KEY_SIGNED_IN_AS) else putString(KEY_SIGNED_IN_AS, cipher.encrypt(signedInAs))
         }
         // A new person may have signed in, so the old count no longer applies.
-        state.update { it.copy(session = session, callsLeft = null) }
+        state.update { it.copy(session = session, signedInAs = signedInAs, callsLeft = null) }
     }
 
     /** Forgets the session: after signing out, deleting the account, or when the proxy refused it. */
@@ -82,8 +103,9 @@ class AccountStore(
         preferences.edit {
             remove(KEY_SESSION)
             remove(KEY_SESSION_EXPIRES_AT)
+            remove(KEY_SIGNED_IN_AS)
         }
-        state.update { it.copy(session = null, callsLeft = null) }
+        state.update { it.copy(session = null, signedInAs = null, callsLeft = null) }
     }
 
     fun onCallsLeft(callsLeft: CallsLeft) = state.update { it.copy(callsLeft = callsLeft) }
@@ -113,5 +135,6 @@ class AccountStore(
         const val KEY_INSTALL_ID = "install_id"
         const val KEY_SESSION = "session_encrypted"
         const val KEY_SESSION_EXPIRES_AT = "session_expires_at"
+        const val KEY_SIGNED_IN_AS = "signed_in_as_encrypted"
     }
 }
