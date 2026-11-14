@@ -235,3 +235,9 @@ What has not been verified:
 
 Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.03.01,
 compileSdk and targetSdk 36, minSdk 26, ML Kit text-recognition 16.0.1, anthropic-java 3.8.0.
+
+## License
+
+Copyright © 2026 dantech0xff. The source is published for reference under the
+[PolyForm Strict License 1.0.0](LICENSE): noncommercial use only, with no redistribution
+and no modified versions.
