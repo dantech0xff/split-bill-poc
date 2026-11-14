@@ -1,0 +1,15 @@
+// Session-local only: lets a unit test draw the app's screens to image files without a device.
+// Nothing here is part of the project; the repository's own build files stay untouched.
+def shotsDir = "${rootDir}/screens-out"   // any directory outside the source tree
+allprojects { p ->
+    p.plugins.withId("com.android.application") {
+        p.dependencies.add("testImplementation", "io.github.takahirom.roborazzi:roborazzi:1.76.0")
+        p.tasks.withType(Test).configureEach { t ->
+            t.systemProperty("robolectric.graphicsMode", "NATIVE")
+            t.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+            t.systemProperty("roborazzi.test.record", "true")
+            t.systemProperty("screens.outDir", shotsDir)
+            t.maxHeapSize = "3g"
+        }
+    }
+}

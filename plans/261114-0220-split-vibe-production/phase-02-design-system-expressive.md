@@ -1,0 +1,143 @@
+---
+title: "Phase 2: Hệ thiết kế Expressive, chuyển động và đổ bóng"
+status: todo
+phase: 2
+priority: P1
+effort: "10d"
+dependencies: [1]
+---
+
+# Phase 2: Hệ thiết kế Expressive, chuyển động và đổ bóng
+
+## Overview
+
+Split Vibe có ngôn ngữ thiết kế riêng: Material 3 Expressive, chuyển động mượt và đo được, bóng đổ mềm có ánh màu, bố cục sạch. Toàn bộ màn hình hiện có được dựng lại trên hệ thiết kế đó, và mọi màn hình ở các giai đoạn sau chỉ dùng thành phần của nó.
+
+## Context
+
+- Bốn yêu cầu của chủ sản phẩm: dùng Material Expressive, nhiều animation mượt, đổ bóng đẹp, giao diện clean.
+- Giao diện hiện tại là Material 3 mặc định với bảng màu cố định trong `app/src/main/java/com/dantech/splitvibe/ui/theme/Theme.kt:43`, không có chuyển cảnh riêng và không có bóng đổ tùy biến.
+- Dữ kiện API: [báo cáo giao diện và Play](../reports/researcher-261114-0209-android-expressive-ui-and-play-requirements.md), mục 1 đến 4.
+
+## Key Insights
+
+- Trong material3 1.5.0, `MaterialExpressiveTheme`, `MotionScheme.expressive()`, `ButtonGroup`, `SplitButtonLayout`, `FloatingActionButtonMenu`, thanh công cụ nổi, thanh tiến trình lượn sóng, thanh trên linh hoạt và kiểu chữ nhấn mạnh đều đã ổn định. Chỉ `LoadingIndicator` và `MaterialShapes` còn cần opt-in.
+- `MaterialExpressiveTheme` mặc định chỉ có bảng màu sáng, nên app phải tự cấp bảng màu tối.
+- `Modifier.dropShadow` và `Modifier.innerShadow` (có từ Compose UI 1.9) cho bóng có bán kính, độ lan, màu và độ lệch tùy ý. Bộ đệm của chúng không tính độ lệch, nên **animate độ lệch và độ trong thì rẻ**, còn animate bán kính, độ lan hay kích thước thì phải làm mờ lại từng khung hình.
+- Màu của bóng theo độ nổi (`Modifier.shadow`) chỉ có tác dụng từ Android 9. App hỗ trợ từ Android 8 (minSdk 26), nên bóng thương hiệu dùng `dropShadow`.
+- Chuyển cảnh dùng chung phần tử (`SharedTransitionLayout`, `sharedBounds`) đã ổn định từ animation 1.10.
+- Các animation chuẩn của Compose tự tắt khi người dùng tắt animation hệ thống; hiệu ứng lặp vô hạn do app tự viết thì phải tự kiểm.
+
+## Requirements
+
+Nguyên tắc giao diện sạch:
+1. Mỗi màn hình có một hành động chính, đặt ở nút lớn dưới cùng hoặc nút nổi.
+2. Số tiền là nhân vật chính: kiểu chữ nhấn mạnh, chữ số đều chiều rộng, căn phải.
+3. Khoảng trắng theo lưới 4dp. Nội dung được nhóm bằng khoảng cách và bề mặt, hạn chế đường kẻ.
+4. Một màu nhấn cộng các màu trung tính. Màu chỉ dùng khi mang nghĩa (trạng thái, từng người).
+5. Chuyển động phải giải thích được quan hệ không gian hoặc phản hồi một hành động. Không có chuyển động chỉ để trang trí.
+6. Bóng đổ thể hiện tầng lớp, có 4 mức. Ở chế độ tối, tầng lớp thể hiện bằng bề mặt sáng dần thay cho bóng.
+
+Bảng chuyển động theo hành trình:
+
+| Hành trình | Chuyển động | API |
+|---|---|---|
+| Trang chủ sang chia hóa đơn | Nút quét nở ra thành màn hình | `SharedTransitionLayout`, `sharedBounds` |
+| Chọn ảnh sang xem trước | Ảnh thu nhỏ bay vào khung, góc bo biến đổi | `sharedElement` |
+| Đang đọc hóa đơn | Vệt quét chạy trên ảnh, biểu tượng tải đổi hình, dòng trạng thái chuyển mượt | `graphicsLayer {}`, `LoadingIndicator`, `AnimatedContent` |
+| Kết quả hiện ra | Tổng tiền đếm lên, các món vào lần lượt | `animateItem`, spec không gian của `motionScheme` |
+| Đổi người chia | Thẻ người bật nảy, số tiền lăn tới giá trị mới, hàng đổi chỗ mượt | spec lò xo, `animateItem(placementSpec)` |
+| Bảng trượt từ dưới | Kéo theo tay, có xem trước khi vuốt ngược | `ModalBottomSheet` |
+| Gửi yêu cầu | Nút biến hình thành dấu tích, rung xác nhận | `Morph` của graphics-shapes, `HapticFeedbackType.Confirm` |
+| Lùi màn hình | Thấy trước màn hình phía sau khi vuốt | Navigation 3 |
+| Cuộn danh sách | Thanh trên co lại theo cuộn | thanh trên linh hoạt với `scrollBehavior` |
+
+Ngân sách hiệu năng (đo bằng `FrameTimingMetric` trên máy tham chiếu, ba hành trình: khởi động, chia hóa đơn mẫu, cuộn kết quả):
+- `frameDurationCpuMs` P50 không quá 6 ms và P95 không quá 12 ms.
+- `frameOverrunMs` P95 không dương, tức 95% khung hình xong trước hạn.
+- Khởi động nguội tới khung đầu tiên dưới 1 giây khi có baseline profile.
+- Các ngưỡng này là mục tiêu ban đầu. Chỉ được nới sau khi có số đo gốc của Phase 1 và chủ sản phẩm đồng ý.
+
+Tiếp cận:
+- Độ tương phản chữ từ 4,5:1 trở lên, vùng chạm từ 48dp, cỡ chữ 200% không cắt chữ, có nhãn cho TalkBack.
+- Khi hệ thống tắt animation, không còn hiệu ứng lặp vô hạn nào chạy và mọi luồng vẫn dùng được.
+
+## Architecture
+
+Module `:core:designsystem` (thư viện Android), gồm:
+- `tokens/`: màu (sáng và tối), kiểu chữ (kể cả các kiểu nhấn mạnh), hình khối, khoảng cách, bóng (`SvShadow.Level1` đến `Level4`, mỗi mức gồm một lớp bóng nền bán kính lớn độ đậm thấp và một lớp bóng chính lệch nhỏ có ánh màu), chuyển động (tên gọi theo ý nghĩa, lấy spec từ `MaterialTheme.motionScheme`), bản đồ rung.
+- `theme/SplitVibeTheme.kt`: bọc `MaterialExpressiveTheme` với `MotionScheme.expressive()`.
+- `components/`: nút chính, nhóm nút, nút tách đôi, nút nổi có menu, thanh công cụ nổi, thẻ có bóng, chữ số tiền có hiệu ứng lăn, ảnh đại diện, thẻ người, hàng món, bảng trượt, trạng thái tải, trạng thái rỗng.
+- `motion/`: chuyển cảnh dùng chung phần tử, kiểm tra "giảm chuyển động".
+
+Quy tắc ranh giới:
+- Mã tính năng không gọi `MaterialTheme(`, không tự đặt màu, bóng hay spec animation; chỉ dùng thành phần và token của module này.
+- `@OptIn(ExperimentalMaterial3ExpressiveApi::class)` chỉ xuất hiện trong `:core:designsystem`. Khi material3 đổi API, chỉ module này phải sửa.
+
+## Files
+
+Tạo mới:
+- `core/designsystem/build.gradle.kts` và mã nguồn theo cấu trúc trên
+- `app/src/debug/java/com/dantech/splitvibe/catalog/` (màn hình danh mục thành phần, chỉ có ở bản debug)
+- `docs/design-system.md`
+
+Sửa (dựng lại trên hệ thiết kế):
+- `app/src/main/java/com/dantech/splitvibe/ui/home/HomeScreen.kt`
+- `app/src/main/java/com/dantech/splitvibe/ui/split/NewSplitContent.kt`, `ResultContent.kt`, `SplitSheets.kt`, `SentContent.kt`, `SplitScreen.kt`
+- `app/src/main/java/com/dantech/splitvibe/ui/settings/SettingsScreen.kt`
+- `app/src/main/java/com/dantech/splitvibe/ui/components/PersonAvatar.kt` (chuyển vào hệ thiết kế)
+- `app/src/main/java/com/dantech/splitvibe/ui/theme/Theme.kt` (xóa, thay bằng theme của hệ thiết kế)
+- `app/src/test/java/com/dantech/splitvibe/ui/ScreenGalleryTest.kt` (ma trận ảnh chụp mới)
+
+## Implementation Steps
+
+1. Dựng ba hướng bảng màu trên màn hình kết quả bằng đường dựng ảnh của Roborazzi; chủ sản phẩm chọn một.
+2. Viết token và `SplitVibeTheme` cho cả sáng và tối.
+3. Viết token bóng bằng `dropShadow`, kèm quy tắc: chỉ animate độ lệch và độ trong.
+4. Viết các thành phần và màn hình danh mục ở bản debug.
+5. Viết lớp chuyển động: chuyển cảnh dùng chung phần tử giữa các màn hình, hiệu ứng lăn số, vào lần lượt, biến hình nút thành dấu tích, rung.
+6. Dựng lại từng màn hình hiện có; mỗi màn hình xong thì ghi ảnh chuẩn.
+7. Viết kiểm tra ranh giới chạy trong CI (không có `MaterialTheme(` hay opt-in Expressive ngoài module).
+8. Đo ba hành trình trên máy tham chiếu, tối ưu cho tới khi đạt ngân sách, ghi báo cáo số đo.
+9. Kiểm tra tiếp cận và chế độ tắt animation; viết `docs/design-system.md`.
+
+## Todo
+
+- [ ] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
+- [ ] Token và `SplitVibeTheme` (sáng, tối)
+- [ ] Token bóng 4 mức bằng `dropShadow`
+- [ ] Bộ thành phần và màn hình danh mục
+- [ ] Lớp chuyển động theo bảng hành trình
+- [ ] Dựng lại 7 màn hình và 2 bảng trượt hiện có
+- [ ] Kiểm tra ranh giới trong CI
+- [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
+- [ ] Tiếp cận và chế độ tắt animation
+- [ ] `docs/design-system.md`
+
+## Success Criteria
+
+- Mọi màn hình hiện có chỉ dùng thành phần của `:core:designsystem`; kiểm tra ranh giới trong CI xanh.
+- Ma trận ảnh chụp có ảnh chuẩn: mọi màn hình ở sáng và tối; bốn màn hình chính thêm tiếng Việt và cỡ chữ 200%.
+- Báo cáo đo trên máy tham chiếu cho thấy ba hành trình đạt ngân sách hiệu năng.
+- Test với animation hệ thống đã tắt: không có hiệu ứng lặp nào chạy, luồng chia hóa đơn vẫn hoàn tất.
+- Kiểm tra tiếp cận tự động của Compose qua trên các màn hình chính; ảnh ở cỡ chữ 200% không cắt chữ.
+- Chủ sản phẩm duyệt giao diện từ bộ ảnh dựng và một bản cài trên máy thật.
+- 80 test cũ và `SplitFlowTest` vẫn qua.
+
+## Risks
+
+| Rủi ro | Dấu hiệu nhận biết | Phản ứng đã định |
+|---|---|---|
+| Bóng làm mờ gây giật trên máy yếu | `frameDurationCpuMs` P95 vượt ngân sách ở màn hình nhiều thẻ | Giảm số phần tử có bóng, dùng bóng theo độ nổi cho danh sách dài |
+| Ảnh dựng trên máy tính khác máy thật ở phần bóng mờ `[UNVERIFIED]` | So ảnh dựng với ảnh chụp máy thật thấy lệch | Duyệt bóng bằng ảnh chụp máy thật; ảnh dựng chỉ dùng chống hồi quy |
+| Quá nhiều chuyển động gây mệt | Phản hồi của người thử | Giữ chuyển động ở bảng hành trình; có chế độ giảm chuyển động |
+| Chuyển cảnh dùng chung phần tử vướng với Navigation 3 | Phần tử nhảy hoặc nhấp nháy khi vuốt ngược | Dùng `sharedBounds` thay `sharedElement`, hoặc bỏ chuyển cảnh đó ở hành trình bị lỗi |
+| `SplitButtonLayout` đổi tên ở bản stable `[UNVERIFIED]` | Cảnh báo ngừng dùng khi nâng phiên bản | Sửa trong một tệp thành phần duy nhất |
+
+## Security
+
+Không có bề mặt bảo mật mới. Màn hình danh mục chỉ có trong source set `debug`.
+
+## Next
+
+Mọi màn hình mới ở Phase 4 đến Phase 8 dựng bằng hệ thiết kế này và thêm ảnh chuẩn vào cùng ma trận.
