@@ -28,7 +28,7 @@ Lộ trình 9 giai đoạn đưa POC chia hóa đơn bằng AI thành app Androi
 - v1.0 chỉ có giao diện tiếng Anh và chỉ đọc hóa đơn chữ Latin.
 - Giao diện: Material 3 Expressive, nhiều animation mượt, đổ bóng đẹp, bố cục sạch.
 - Kỹ thuật: Koin cho DI, Navigation 3 cho điều hướng.
-- Repo giữ công khai (mã nguồn mở).
+- Repo giữ công khai để tham khảo, theo giấy phép PolyForm Strict 1.0.0 (tệp `LICENSE`): không dùng cho mục đích thương mại, không phân phối lại, không sửa đổi.
 
 Mặc định do người lập plan đặt, chủ sản phẩm đổi được: chọn model theo số liệu của bộ đánh giá (rẻ nhất đạt ngưỡng, leo thang khi lệch); dùng RevenueCat cho thuê bao; giả định tài khoản Play thuộc loại phải qua vòng thử kín.
 
@@ -72,13 +72,12 @@ Ba giai đoạn đầu được viết tới mức tệp và dòng mã. Các gia
 ## Dependencies
 
 Việc chỉ chủ sản phẩm làm được:
-- **Tra cứu nhãn hiệu "Split Vibe" trước khi tạo app trên Play Console.** Vòng thử kín và việc tạo sản phẩm thuê bao đều cần app đã tồn tại trên Play, và sau lần tải lên đầu tiên `applicationId` không đổi được.
+- **Tra cứu nhãn hiệu "Split Vibe" trước khi tạo app trên Play Console.** Vòng thử kín và việc tạo sản phẩm thuê bao đều cần app đã tồn tại trên Play, và sau lần tải lên đầu tiên `applicationId` không đổi được. Chủ sản phẩm quyết định ngày 14/11 tạm giữ tên này và tập trung phát triển trước; việc tra cứu vẫn phải xong trước bước tạo app trên Play.
 - Tài khoản Google Play Console, project Firebase ở gói Blaze, tài khoản API của Anthropic, tài khoản dịch vụ thuê bao.
 - Một tên miền cho trang web và link mời.
 - Một máy Android tầm trung làm máy tham chiếu đo hiệu năng.
 - 12 người thử trở lên cho vòng thử kín; người thử ở EU và Ấn Độ cho mã QR SEPA và link UPI nếu có.
 - Xác nhận pháp lý: chính sách quyền riêng tư, đại diện tại EU, hồ sơ chuyển dữ liệu xuyên biên giới của Việt Nam.
-- Chọn giấy phép mã nguồn cho repo công khai.
 - Chọn bảng màu thương hiệu từ ảnh dựng ở Phase 2.
 
 Báo cáo nghiên cứu làm nền:
@@ -227,7 +226,7 @@ Câu hỏi của vòng phản biện, hỏi cùng lượt: "Bốn người phả
 - Chỉ chữ Latin ở v1.0: giữ phạm vi; chữ khác vào danh sách sau v1.0.
 - Koin và Navigation 3: lựa chọn của chủ sản phẩm.
 - Chỉ tiếng Anh ở v1.0: đúng quyết định "tiếng Anh là chính".
-- Repo công khai: CI coi pull request là mã không tin cậy; cần một tệp giấy phép.
+- Repo công khai: CI coi pull request là mã không tin cậy; giấy phép được chốt ở Session 2.
 
 #### Action Items
 - [x] Ghi vị trí `nam5` vào Phase 3 và chặn bước 1 của Phase 3 theo quyết định này
@@ -235,7 +234,7 @@ Câu hỏi của vòng phản biện, hỏi cùng lượt: "Bốn người phả
 - [x] Bỏ tiếng Việt khỏi cổng phát hành của Phase 9 và khỏi ma trận ảnh của Phase 2
 - [x] Viết lại Phase 1 với Koin và Navigation 3
 - [x] Thiết kế CI cho repo công khai trong Phase 1 và Phase 9
-- [ ] Chủ sản phẩm chọn giấy phép mã nguồn
+- [x] Chủ sản phẩm chọn giấy phép mã nguồn (xem Session 2)
 
 #### Impact on Phases
 - Phase 1: Koin thay Hilt; Navigation 3 giữ theo quyết định; CI không secret cho pull request.
@@ -243,12 +242,54 @@ Câu hỏi của vòng phản biện, hỏi cùng lượt: "Bốn người phả
 - Phase 3: Firestore `nam5`; ba mức hạn mức; app không còn key ở mọi biến thể build.
 - Phase 4: ghi rõ chỉ đọc chữ Latin và thông báo cho hóa đơn chữ khác.
 - Phase 8: Pro chỉ khác ở số lượt AI.
-- Phase 9: chỉ tiếng Anh; thêm `LICENSE`; luồng phát hành có duyệt tay và OIDC.
+- Phase 9: chỉ tiếng Anh; luồng phát hành có duyệt tay và OIDC. Việc thêm `LICENSE` được làm ngay ở Session 2.
 
-### Whole-Plan Consistency Sweep
+### Whole-Plan Consistency Sweep (Session 1)
 - Files reread: plan.md, phase-01-start, phase-02-design-system-expressive, phase-03-firebase-backend-ai-gateway, phase-04-bill-capture-editing-split-modes, phase-05-people-groups-settle-up, phase-06-web-companion-realtime-claim, phase-07-ai-assistant-insights, phase-08-pro-subscription, phase-09-quality-compliance-release
 - Decision deltas checked: 6
 - Reconciled stale references: 0
 - Unresolved contradictions: 0
 
 Kiểm lại sau khi sửa: 62 dẫn chiếu tới dòng mã trong các tệp giai đoạn đều khớp với mã hiện tại. Còn 6 điểm mang nhãn `[UNVERIFIED]`, mỗi điểm có bước kiểm trong giai đoạn của nó: plugin Gradle của Roborazzi trên AGP 9 (Phase 1), độ khớp của bóng trong ảnh dựng với máy thật và tên `SplitButtonLayout` ở bản stable (Phase 2), chi phí mỗi lần đọc và tính năng device recall (Phase 3), định dạng link của Venmo và Cash App (Phase 5).
+
+### Session 2 — 2026-11-14
+**Trigger:** Ba câu hỏi còn mở ở cuối bước bàn giao plan.
+**Questions asked:** 3
+
+#### Questions & Answers
+
+1. **[Scope]** Gộp nhánh: bạn có muốn mình gộp `feat/production-kickoff` vào `main` không?
+   - Options: câu hỏi mở
+   - **Answer:** có
+   - **Rationale:** `main` mang tên mới và plan trước khi bắt đầu triển khai.
+
+2. **[Risks]** Giấy phép: repo giữ công khai thì cần một tệp `LICENSE`. Bạn chọn giấy phép nào?
+   - Options: câu hỏi mở
+   - **Answer:** Other
+   - **Custom input:** Giấy phép không được thương mại, chỉ sử dụng để tham khảo
+   - **Rationale:** Người lập plan chọn văn bản chuẩn khớp ý này là PolyForm Strict 1.0.0 (cho phép dùng phi thương mại; không cho phân phối lại hay sửa đổi). Chủ sản phẩm đổi được nếu muốn văn bản khác.
+
+3. **[Risks]** Nhãn hiệu: tên "Split Vibe" cần được tra cứu trước khi tạo app trên Play Console… Bạn muốn mình tra thử không?
+   - Options: câu hỏi mở
+   - **Answer:** Other
+   - **Custom input:** Chưa cần, tạm thời đặt tên đó, focus vào phát triển sản phẩm đi đã
+   - **Rationale:** Việc tra cứu được hoãn, không bị bỏ: nó vẫn chặn bước tạo app trên Play.
+
+#### Confirmed Decisions
+- Gộp `feat/production-kickoff` vào `main`.
+- Giấy phép PolyForm Strict 1.0.0; repo là mã nguồn công khai để tham khảo, không phải mã nguồn mở theo nghĩa cho phép dùng lại.
+- Giữ tên Split Vibe trong lúc phát triển; tra cứu nhãn hiệu để sau.
+
+#### Action Items
+- [x] Thêm tệp `LICENSE` và mục License trong README
+- [x] Bỏ việc thêm `LICENSE` khỏi Phase 9
+- [ ] Tra cứu nhãn hiệu trước khi tạo app trên Play Console (chủ sản phẩm)
+
+#### Impact on Phases
+- Phase 9: không còn việc thêm `LICENSE`; bước tra cứu nhãn hiệu giữ nguyên.
+
+### Whole-Plan Consistency Sweep (Session 2)
+- Files reread: plan.md, phase-01-start, phase-09-quality-compliance-release
+- Decision deltas checked: 3
+- Reconciled stale references: 10
+- Unresolved contradictions: 0

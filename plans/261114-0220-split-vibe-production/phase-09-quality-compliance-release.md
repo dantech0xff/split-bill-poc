@@ -69,7 +69,6 @@ Hồ sơ quyền riêng tư và pháp lý (chủ sản phẩm chịu trách nhi�
 - Chế độ đồng ý cho Analytics: mặc định từ chối ở EEA, Anh, Thụy Sĩ cho tới khi người dùng đồng ý.
 - Thỏa thuận xử lý dữ liệu với Google và Anthropic.
 - Đánh giá việc cần đại diện tại EU và hồ sơ chuyển dữ liệu xuyên biên giới của Việt Nam.
-- Giấy phép mã nguồn cho repo công khai (tệp `LICENSE`).
 
 Phát hành:
 - Kênh nội bộ, rồi thử kín (12 người, 14 ngày), rồi thử mở, rồi production theo nấc 5%, 20%, 50%, 100%.
@@ -105,7 +104,6 @@ Tạo mới:
 - `firestore-tests/delete-account.test.ts` (ma trận xóa tài khoản)
 - `docs/privacy-policy.md`, `docs/terms.md` (nguồn của trang web pháp lý), `docs/security-threat-model.md`, `docs/runbook.md`, `docs/release-checklist.md`
 - `web/account-deletion.html`
-- `LICENSE` (sau khi chủ sản phẩm chọn giấy phép)
 
 Sửa:
 - `app/src/main/res/values/strings.xml` (gom mọi chuỗi đang viết thẳng trong mã Compose; hiện tệp chỉ có 1 chuỗi)
@@ -120,7 +118,7 @@ Sửa:
 4. Viết test đầu-cuối trên thiết bị (chặn ở API 34; đo thêm ở API 26, 30, 36).
 5. Rà soát bảo mật theo mô hình mối đe dọa; sửa mọi phát hiện mức cao trước khi đi tiếp.
 6. Viết test ma trận xóa tài khoản; sửa `delete-account.ts` cho tới khi qua.
-7. Soạn chính sách quyền riêng tư, điều khoản, trang xóa tài khoản; điền An toàn dữ liệu và phân loại nội dung; thêm `LICENSE`.
+7. Soạn chính sách quyền riêng tư, điều khoản, trang xóa tài khoản; điền An toàn dữ liệu và phân loại nội dung.
 8. Viết luồng CI phát hành với môi trường được bảo vệ và OIDC; diễn tập một lần trên project dev.
 9. Dựng bảng theo dõi, cảnh báo, sao lưu; diễn tập khôi phục và diễn tập tắt AI.
 10. Kiểm lại 16 KB và API mục tiêu trên AAB cuối; xác nhận material3 đã ở bản stable.
@@ -134,7 +132,7 @@ Sửa:
 - [ ] Test đầu-cuối trên thiết bị
 - [ ] Rà soát bảo mật và sửa phát hiện mức cao
 - [ ] Ma trận xóa tài khoản qua hết
-- [ ] Chính sách quyền riêng tư, điều khoản, trang xóa tài khoản, `LICENSE`
+- [ ] Chính sách quyền riêng tư, điều khoản, trang xóa tài khoản
 - [ ] An toàn dữ liệu, phân loại nội dung, chế độ đồng ý
 - [ ] Đánh giá đại diện EU và hồ sơ xuyên biên giới Việt Nam
 - [ ] Luồng CI phát hành có duyệt tay và OIDC; diễn tập

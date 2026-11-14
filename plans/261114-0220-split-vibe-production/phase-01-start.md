@@ -31,7 +31,7 @@ dependencies: []
 - Nâng thư viện giao diện là thay đổi có rủi ro hình ảnh, nên chụp bộ ảnh chuẩn của 12 màn hình **trước** khi nâng, rồi so lại sau khi nâng.
 - Roborazzi 1.76.0 đã chạy được trên dự án này với AGP 9.1.1 (ngày 14/11, dùng thư viện, chưa dùng plugin Gradle) và vẽ được cả bóng mờ ([ảnh mẫu](./assets/shadow-styles-check.png)). Bài test dựng 12 màn hình được lưu tại [assets/screen-gallery-test.kt.txt](./assets/screen-gallery-test.kt.txt) để làm điểm khởi đầu.
 - Koin không cần plugin Gradle hay bộ sinh mã, nên không vướng câu hỏi tương thích với AGP 9. Vì đồ thị phụ thuộc chỉ được kiểm lúc chạy, cần một unit test kiểm toàn bộ module Koin để lỗi nối dây lộ ra trong CI.
-- Repo là mã nguồn mở, nên CI phải coi mọi pull request là mã không tin cậy: không secret nào được có mặt khi build PR.
+- Repo công khai, nên CI phải coi mọi pull request là mã không tin cậy: không secret nào được có mặt khi build PR.
 
 ## Requirements
 
