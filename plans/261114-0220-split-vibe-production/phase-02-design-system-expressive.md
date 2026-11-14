@@ -101,6 +101,22 @@ Sửa (dựng lại trên hệ thiết kế):
 8. Đo ba hành trình trên máy tham chiếu, tối ưu cho tới khi đạt ngân sách, ghi báo cáo số đo.
 9. Kiểm tra tiếp cận và chế độ tắt animation; viết `docs/design-system.md`.
 
+## Ba hướng bảng màu chờ chủ sản phẩm chọn
+
+<!-- Updated: 14/11/2026 - bước 1 đã dựng xong, chờ quyết định -->
+Ba hướng được dựng trên màn hình kết quả thật, với dữ liệu của hóa đơn mẫu, ở cả sáng và tối:
+[ảnh sáng](./assets/palette-directions/three-directions-light.png), [ảnh tối](./assets/palette-directions/three-directions-dark.png).
+
+| Hướng | Màu nhấn (sáng / tối) | Màu phụ thứ ba | Cảm giác |
+|---|---|---|---|
+| A. Emerald | `#006C4C` / `#53DEA8` | Vàng hổ phách `#7A5901` | Gần với bản hiện tại, gợi tiền bạc và sự tin cậy |
+| B. Violet | `#554ACC` / `#CEBDFF` | Hồng mận `#A53167` | Trẻ, năng động, hợp với chữ "Vibe" trong tên |
+| C. Coral | `#A83900` / `#FFB595` | Xanh mòng két `#00696C` | Ấm, gợi ăn uống và bạn bè |
+
+Cách dựng: mỗi hướng là một bộ thang sắc độ (màu nhấn, màu phụ, màu thứ ba, trung tính), mỗi vai trò màu lấy một sắc độ cố định theo bảng của Material 3 (ví dụ `primary` là sắc độ 40 ở sáng và 80 ở tối). Vì vậy chữ và nền luôn lệch nhau ít nhất 50 sắc độ; độ tương phản thấp nhất đo được trong cả sáu bảng là 6,15:1, trên ngưỡng 4,5:1. Đây là màu để chọn hướng. Giá trị cuối cùng của từng token được tinh chỉnh ở bước 2 sau khi có lựa chọn.
+
+Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; chúng sẽ được làm lại theo bảng màu được chọn.
+
 ## Todo
 
 - [ ] Chủ sản phẩm chọn bảng màu từ ảnh dựng thật
