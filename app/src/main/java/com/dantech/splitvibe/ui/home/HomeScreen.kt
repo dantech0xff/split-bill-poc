@@ -73,7 +73,7 @@ private fun SplitBillCard(onSplitBill: () -> Unit, modifier: Modifier = Modifier
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(28.dp)) {
             Text("Split a bill with AI", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             Text(
