@@ -16,11 +16,11 @@ val localProperties = Properties().apply {
 val debugAnthropicApiKey: String = localProperties.getProperty("ANTHROPIC_API_KEY", "").trim()
 
 android {
-    namespace = "com.example.splitbill"
+    namespace = "com.dantech.splitvibe"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.splitbill"
+        applicationId = "com.dantech.splitvibe"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

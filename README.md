@@ -1,4 +1,4 @@
-# Split Bill POC
+# Split Vibe POC
 
 A proof-of-concept Android app (Kotlin, Jetpack Compose) for an AI "split bill" feature inside a
 payment app.
@@ -141,7 +141,7 @@ contact list is never sent: the model only repeats names that appear in the inst
 ## Project layout
 
 ```text
-app/src/main/java/com/example/splitbill/
+app/src/main/java/com/dantech/splitvibe/
   domain/     Bill, BillCurrency, BillReconciler, SplitCalculator, SplitPlan, NameMatcher
   ocr/        BillTextRecognizer (ML Kit), BillImageLoader, OcrLayoutEncoder, OcrResult
   llm/        BillAnalyzer, ClaudeBillAnalyzer, BillPrompt, BillSchema, BillAnalysisParser
