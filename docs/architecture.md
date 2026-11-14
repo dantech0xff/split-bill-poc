@@ -138,17 +138,22 @@ are git-ignored, and the workflow keeps them as an artifact.
 the build when a downloaded file does not match, which catches a tampered or swapped artifact.
 
 A version bump therefore needs new checksums. After changing `gradle/libs.versions.toml`, or when
-Gradle reports that an artifact failed verification on your machine, refresh the file, read the
-diff and commit it:
+Gradle reports that an artifact failed verification, refresh the file, read the diff and commit it:
 
 ```bash
-./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :app:testProdDebugUnitTest :app:lintProdDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
+GRADLE_USER_HOME="$(mktemp -d)" ./gradlew --write-verification-metadata sha256 ktlintCheck :core:domain:test :app:testProdDebugUnitTest :app:lintProdDebug :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease :app:assembleProdDebugAndroidTest :baseline-profile:assembleProdNonMinifiedRelease
 ```
 
-Two limits to keep in mind. The file lists the Linux, macOS and Windows variants of the resource
-packaging tool for the current Android Gradle Plugin; after a plugin upgrade each system's variant
-has to be recorded again on that system. And the Android images that Robolectric downloads for the
-local UI tests are fetched by Robolectric itself, outside Gradle's verification.
+The empty Gradle home matters. With a filled cache Gradle skips parent and version-alignment files
+it has already read, leaves them out of the list, and the next clean machine, such as the CI
+runner, rejects them. The price is that everything is downloaded again, which takes a while.
+
+Three things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
+top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the
+Linux, macOS and Windows variants of the resource packaging tool for the current Android Gradle
+Plugin; after a plugin upgrade each system's variant has to be recorded again on that system. And
+the Android images that Robolectric downloads for the local UI tests are fetched by Robolectric
+itself, outside Gradle's verification.
 
 ### Performance
 
