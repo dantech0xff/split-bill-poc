@@ -54,8 +54,12 @@ Google id. A request id is kept with a salted hash of what it asked, so that it 
 another bill. Nothing of a bill, an instruction or a name is stored.
 
 The Worker prints one log line per request: the outcome, whether the caller is an install or an
-account, the model, the tokens, the cost and the time taken. Cloudflare's own invocation logs and
-traces are off in `wrangler.jsonc`, because they record request metadata.
+account, the model, the tokens, the cost and the time taken. Cloudflare's invocation logs are off in
+`wrangler.jsonc`, because they record every request's headers, among them the session and the IP
+address. Traces are on: they show how long each request, each call to Claude and each Durable
+Object took, its outcome and its CPU time, with the country and city, the network and the user
+agent, but no header values, no IP address and no body. Those CPU times tell whether the free plan's
+limit is enough.
 
 ## Run it on a computer
 

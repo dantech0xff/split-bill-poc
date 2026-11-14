@@ -199,7 +199,7 @@ Xóa:
 - Phiên do proxy ký, có hạn 30 ngày, gắn với `sub` của tài khoản Google; trên máy, phiên được mã hóa bằng Keystore.
 - Repo công khai, nên prompt, schema và mã proxy đều đọc được: an toàn của hệ thống không dựa vào việc giấu chúng.
 - Văn bản hóa đơn là dữ liệu không tin cậy: prompt coi nó là dữ liệu chứ không phải lệnh, đầu ra bị ràng bằng schema, và mọi phép tính tiền vẫn chạy trên máy.
-- Không log nội dung hóa đơn, câu lệnh, tên người, mã cài đặt hay IP: mỗi yêu cầu chỉ để lại một dòng log với kết quả, loại người gọi, model, số token, chi phí và độ trễ. Log tự động của mỗi lần gọi (invocation logs) và tracing của Cloudflare đều tắt trong `wrangler.jsonc`, vì chúng ghi siêu dữ liệu của yêu cầu. Không có gì trong CI triển khai proxy.
+- Không log nội dung hóa đơn, câu lệnh, tên người, mã cài đặt hay IP: mỗi yêu cầu chỉ để lại một dòng log với kết quả, loại người gọi, model, số token, chi phí và độ trễ. Log tự động của mỗi lần gọi (invocation logs) tắt trong `wrangler.jsonc`, vì nó ghi mọi header của yêu cầu, trong đó có phiên và IP. Tracing của Cloudflare bật: nó ghi thời gian, kết quả, CPU time, vị trí gần đúng và user agent, nhưng không ghi giá trị header, IP hay nội dung. Không có gì trong CI triển khai proxy.
 
 ## Next
 

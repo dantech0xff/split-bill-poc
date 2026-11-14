@@ -5,13 +5,14 @@
   "compatibility_date": "2026-11-01",
   "upload_source_maps": true,
   // Logs hold only what the Worker prints, which is never a bill, a name, an install id or an IP.
-  // Invocation logs are off because they record the request's metadata, and traces are off so that
-  // no trace keeps a request body.
+  // Invocation logs are off because they record every request's headers, the session and the IP
+  // among them. Traces record timings, the outcome, CPU time, rough location and the user agent,
+  // but no header values, no IP and no body, so they stay on.
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
     "logs": { "invocation_logs": false },
-    "traces": { "enabled": false }
+    "traces": { "enabled": true }
   },
   // Switches and public settings. GOOGLE_CLIENT_ID is the app's web client ID at Google; sign-in
   // stays off until it is set. Secrets (ANTHROPIC_API_KEY, HASH_SALT, SESSION_SIGNING_KEY) are set
