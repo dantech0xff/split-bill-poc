@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.catalog
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,19 +20,24 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
@@ -150,10 +156,27 @@ fun CatalogScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvLoadingIndicator(modifier = Modifier.size(40.dp))
                         Spacer(Modifier.width(SvSpacing.lg))
-                        SvSuccessMark(Icons.Default.CheckCircle)
+                        SvSuccessMark(Icons.Default.Check)
                     }
                     Spacer(Modifier.height(SvSpacing.md))
                     SvPrimaryButton("SvPrimaryButton, disabled", onClick = {}, enabled = false)
+                }
+            }
+
+            item {
+                SvSectionHeader("Bill photo", hint = "SvBillPhoto while its text is read.")
+                val resources = LocalContext.current.resources
+                val sample = remember {
+                    BitmapFactory.decodeResource(
+                        resources,
+                        R.drawable.sample_bill,
+                        BitmapFactory.Options().apply {
+                            inSampleSize = 4
+                        },
+                    ).asImageBitmap()
+                }
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    SvBillPhoto(photo = sample, contentDescription = "Sample bill", scanning = true, modifier = Modifier.height(160.dp))
                 }
             }
 

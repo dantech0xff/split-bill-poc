@@ -70,6 +70,10 @@ A wiring mistake fails the checks instead of crashing a screen.
   shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
   `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
   work before it lets the user leave.
+- Inside the split screen the three steps (photo, result, sent requests) follow from the view
+  model's state and fade into each other through `SvSteps`. Each step carries the state it shows,
+  so a step that is being left is drawn unchanged while it fades out, and back always belongs to
+  the step on screen. The button that sends the requests turns into the mark that confirms them.
 - Two decorators wrap every screen: one keeps `rememberSaveable` state per screen, the other gives
   each screen its own view model store. `SplitBillViewModel` is requested above `NavDisplay` on
   purpose, so a split in progress survives a visit to Settings.
@@ -144,7 +148,7 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
-| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime. Nightly, and when those tests change. |
+| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, and splitting the sample bill from the photo to the sent requests. Every tap also runs Android's accessibility checks on the screen it lands on. Nightly, and when those tests change. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
 
 ### Secret scan

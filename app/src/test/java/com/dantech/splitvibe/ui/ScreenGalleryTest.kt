@@ -198,7 +198,13 @@ class ScreenGalleryTest {
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, PAGE_PX) }
         shot("09-sent-to-claude")
 
+        // The request button turns into the mark that confirms the requests. The picture catches
+        // that change halfway, with the clock stopped as for the working state.
+        compose.mainClock.autoAdvance = false
         compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        compose.mainClock.advanceTimeBy(HALFWAY_TO_SENT_MS)
+        shot("15-sending")
+        compose.mainClock.autoAdvance = true
         shot("10-requests-sent")
     }
 
@@ -287,3 +293,4 @@ private const val PAGE_PX = 1150f
 private const val HALF_PAGE_PX = 540f
 private const val TIMEOUT_MS = 60_000L
 private const val WORKING_ANIMATION_MS = 500L
+private const val HALFWAY_TO_SENT_MS = 200L

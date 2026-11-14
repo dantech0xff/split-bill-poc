@@ -20,7 +20,8 @@ import org.robolectric.annotation.GraphicsMode
 @OptIn(ExperimentalRoborazziApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [34], qualifiers = "w412dp-h1840dp-xhdpi")
+// Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the floating button.
+@Config(sdk = [34], qualifiers = "w412dp-h2240dp-xhdpi")
 class ComponentCatalogTest {
 
     @get:Rule

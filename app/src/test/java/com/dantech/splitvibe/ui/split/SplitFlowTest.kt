@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -77,20 +78,7 @@ class SplitFlowTest {
 
     @Test
     fun `sample bill is read, split between people and requested`() {
-        server.enqueue(recordedClaudeAnswer())
-        val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
-        val viewModel = SplitBillViewModel(
-            contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")),
-            imageLoader = BillImageLoader(context),
-            recognizer = recordedMlKitOutput,
-            analyzerFor = { analyzer },
-        )
-        compose.setContent {
-            SplitVibeTheme {
-                SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
-            }
-        }
+        val viewModel = showSplitScreen()
 
         // Step 1: photo and instruction.
         compose.onNodeWithText("Use the sample bill").performClick()
@@ -133,6 +121,41 @@ class SplitFlowTest {
         compose.onNodeWithText("Request ${vnd.format(requested)} from 2 people").performClick()
         compose.onNodeWithText("Requests sent").assertIsDisplayed()
         assertEquals(listOf("c01", "c02"), viewModel.state.value.sentRequests?.map { it.contact.id })
+    }
+
+    @Test
+    fun `back from the result shows the photo step again, with the photo kept`() {
+        val viewModel = showSplitScreen()
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+
+        compose.onNodeWithContentDescription("Back").performClick()
+
+        compose.onNodeWithText("Read and split the bill").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Bill photo").assertIsDisplayed()
+        compose.onNodeWithText("Bill total").assertDoesNotExist()
+    }
+
+    /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it. */
+    private fun showSplitScreen(): SplitBillViewModel {
+        server.enqueue(recordedClaudeAnswer())
+        val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
+        val viewModel = SplitBillViewModel(
+            contactRepository = SeededContactRepository(),
+            settings = MutableStateFlow(AppSettings(apiKey = "test-key", model = ClaudeBillAnalyzer.DEFAULT_MODEL, localCurrency = "VND")),
+            imageLoader = BillImageLoader(context),
+            recognizer = recordedMlKitOutput,
+            analyzerFor = { analyzer },
+        )
+        compose.setContent {
+            SplitVibeTheme {
+                SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
+            }
+        }
+        return viewModel
     }
 
     /**

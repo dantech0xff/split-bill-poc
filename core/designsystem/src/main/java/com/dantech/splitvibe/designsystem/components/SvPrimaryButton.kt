@@ -14,12 +14,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.motion.keepSizeDuringTransition
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.elevation
 import com.dantech.splitvibe.designsystem.tokens.surface
 
-/** The main action of a screen as a large button across the full width. */
+/**
+ * The main action of a screen as a large button across the full width. It is fully round, so it
+ * can turn into a round surface such as [SvSuccessMark]; its label then keeps its size and is cut
+ * off by the shrinking edge instead of wrapping onto more lines.
+ */
 @Composable
 fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(
@@ -29,7 +34,7 @@ fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
             .fillMaxWidth()
             .heightIn(min = 56.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.titleMedium)
+        Text(text, modifier = Modifier.keepSizeDuringTransition(), style = MaterialTheme.typography.titleMedium)
     }
 }
 

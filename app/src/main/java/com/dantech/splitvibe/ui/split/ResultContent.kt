@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
@@ -42,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -62,7 +62,11 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.motion.SvAmount
+import com.dantech.splitvibe.designsystem.motion.bounceOnChange
+import com.dantech.splitvibe.designsystem.motion.popIn
 import com.dantech.splitvibe.designsystem.motion.rememberSvEntryState
+import com.dantech.splitvibe.designsystem.motion.rowMotion
+import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.motion.staggeredEntry
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
@@ -120,54 +124,77 @@ fun ResultContent(
             RequestBar(result = result, onSendRequests = onSendRequests, onPickPeople = { showPeoplePicker = true })
         },
     ) { padding ->
+        // Every row has a key of its own and moves with rowMotion, so when people change, a row
+        // that comes or goes fades and the rows below it slide to their new places.
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            item {
+            item(key = "total") {
                 TotalCard(
                     bill = bill,
                     summary = result.summary,
-                    modifier = Modifier
+                    modifier = rowMotion()
                         .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)
                         .staggeredEntry(entry, index = 0),
                 )
             }
 
-            items(plan.openNotices() + bill.warnings) { note ->
-                SvMessageCard(text = note, isError = false, modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
+            itemsIndexed(plan.openNotices() + bill.warnings, key = { index, note -> "notice $index $note" }) { _, note ->
+                SvMessageCard(
+                    text = note,
+                    isError = false,
+                    modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
+                )
             }
 
-            item {
-                SvSectionHeader("Who is sharing?")
-                FlowRow(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
-                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
-                ) {
-                    FilterChip(selected = plan.includeMe, onClick = onToggleMe, label = { Text(ME_LABEL) })
-                    plan.selectedContactIds.forEach { id ->
-                        InputChip(
-                            selected = true,
-                            onClick = { onToggleContact(id) },
-                            label = { Text(nameOf(id)) },
-                            trailingIcon = {
-                                Icon(Icons.Default.Close, contentDescription = "Remove ${nameOf(id)}", modifier = Modifier.size(18.dp))
-                            },
+            item(key = "people") {
+                Column(modifier = rowMotion()) {
+                    SvSectionHeader("Who is sharing?")
+                    FlowRow(
+                        modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                        horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                    ) {
+                        FilterChip(
+                            selected = plan.includeMe,
+                            onClick = onToggleMe,
+                            label = { Text(ME_LABEL) },
+                            modifier = Modifier.bounceOnChange(plan.includeMe),
+                        )
+                        plan.selectedContactIds.forEach { id ->
+                            // Keyed by person, so a chip stays itself when others are added or removed.
+                            key(id) {
+                                InputChip(
+                                    selected = true,
+                                    onClick = { onToggleContact(id) },
+                                    label = { Text(nameOf(id)) },
+                                    modifier = Modifier.popIn(entry),
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove ${nameOf(id)}",
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        AssistChip(
+                            onClick = { showPeoplePicker = true },
+                            label = { Text("Add people") },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
                     }
-                    AssistChip(
-                        onClick = { showPeoplePicker = true },
-                        label = { Text("Add people") },
-                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    )
                 }
             }
 
             if (bill.items.isNotEmpty()) {
-                item { SvSectionHeader("Items", hint = "Tap an item to choose who shares it.") }
-                itemsIndexed(bill.items) { index, item ->
+                item(key = "items header") {
+                    SvSectionHeader("Items", modifier = rowMotion(), hint = "Tap an item to choose who shares it.")
+                }
+                itemsIndexed(bill.items, key = { index, _ -> "item $index" }) { index, item ->
                     ItemRow(
                         bill = bill,
                         item = item,
                         position = SvRowPosition.of(index, bill.items.size),
-                        modifier = Modifier.staggeredEntry(entry, index = index + 1),
+                        modifier = rowMotion().staggeredEntry(entry, index = index + 1),
                         sharers =
                             sharersByItem[index]?.let { ids ->
                                 participants.filter { it in ids }.joinToString { nameOf(it) }
@@ -178,49 +205,58 @@ fun ResultContent(
             }
 
             if (bill.charges.isNotEmpty()) {
-                item { SvSectionHeader("Taxes, fees and discounts", hint = "Shared in proportion to each person's items.") }
-                itemsIndexed(bill.charges) { index, charge ->
-                    ChargeRow(bill, charge, SvRowPosition.of(index, bill.charges.size))
+                item(key = "charges header") {
+                    SvSectionHeader(
+                        "Taxes, fees and discounts",
+                        modifier = rowMotion(),
+                        hint = "Shared in proportion to each person's items.",
+                    )
+                }
+                itemsIndexed(bill.charges, key = { index, _ -> "charge $index" }) { index, charge ->
+                    ChargeRow(bill, charge, SvRowPosition.of(index, bill.charges.size), modifier = rowMotion())
                 }
             }
 
-            item { SvSectionHeader("Each person pays") }
+            item(key = "shares header") { SvSectionHeader("Each person pays", modifier = rowMotion()) }
             if (result.split.shares.isEmpty()) {
-                item {
+                item(key = "nobody") {
                     Text(
                         "Nobody is sharing this bill yet. Add yourself or pick people.",
-                        modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                        modifier = rowMotion().padding(horizontal = SvSpacing.lg),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
-            itemsIndexed(result.split.shares, key = { _, share -> share.personId }) { index, share ->
+            itemsIndexed(result.split.shares, key = { _, share -> "share ${share.personId}" }) { index, share ->
                 ShareRow(
                     bill = bill,
                     share = share,
                     name = nameOf(share.personId),
                     position = SvRowPosition.of(index, result.split.shares.size),
+                    modifier = rowMotion(),
                 )
             }
             if (result.split.shares.isNotEmpty()) {
-                item { SharesTotalRow(bill = bill, total = result.split.totalMinor) }
+                item(key = "shares total") { SharesTotalRow(bill = bill, total = result.split.totalMinor, modifier = rowMotion()) }
             }
 
-            item {
-                TextButton(onClick = { showOcrText = !showOcrText }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(if (showOcrText) "Hide what was sent to Claude" else "Show what was sent to Claude")
+            item(key = "sent text") {
+                Column(modifier = rowMotion()) {
+                    TextButton(onClick = { showOcrText = !showOcrText }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(if (showOcrText) "Hide what was sent to Claude" else "Show what was sent to Claude")
+                    }
+                    if (showOcrText) {
+                        Text(
+                            text = result.ocrDocument,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                if (showOcrText) {
-                    Text(
-                        text = result.ocrDocument,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -307,8 +343,8 @@ private fun ItemRow(
 }
 
 @Composable
-private fun ChargeRow(bill: Bill, charge: BillCharge, position: SvRowPosition) {
-    SvListRow(position = position) {
+private fun ChargeRow(bill: Bill, charge: BillCharge, position: SvRowPosition, modifier: Modifier = Modifier) {
+    SvListRow(position = position, modifier = modifier) {
         Text(charge.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.width(SvSpacing.md))
         Text(bill.format(charge.amountMinor), style = MaterialTheme.typography.amountSmall)
@@ -316,8 +352,8 @@ private fun ChargeRow(bill: Bill, charge: BillCharge, position: SvRowPosition) {
 }
 
 @Composable
-private fun ShareRow(bill: Bill, share: PersonShare, name: String, position: SvRowPosition) {
-    SvListRow(position = position) {
+private fun ShareRow(bill: Bill, share: PersonShare, name: String, position: SvRowPosition, modifier: Modifier = Modifier) {
+    SvListRow(position = position, modifier = modifier) {
         SvAvatar(name)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
@@ -335,9 +371,9 @@ private fun ShareRow(bill: Bill, share: PersonShare, name: String, position: SvR
 
 /** The proof under the shares: together they are exactly the bill total. */
 @Composable
-private fun SharesTotalRow(bill: Bill, total: Long) {
+private fun SharesTotalRow(bill: Bill, total: Long, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.padding(horizontal = SvSpacing.xxl, vertical = SvSpacing.md),
+        modifier = modifier.padding(horizontal = SvSpacing.xxl, vertical = SvSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -364,7 +400,12 @@ private fun RequestBar(result: SplitResultState, onSendRequests: () -> Unit, onP
 
             else -> {
                 val people = if (others.size == 1) "1 person" else "${others.size} people"
-                SvPrimaryButton("Request ${result.bill.format(amount)} from $people", onClick = onSendRequests)
+                SvPrimaryButton(
+                    "Request ${result.bill.format(amount)} from $people",
+                    onClick = onSendRequests,
+                    // The button turns into the mark that confirms the requests on the next step.
+                    modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true),
+                )
             }
         }
     }

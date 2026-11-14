@@ -44,3 +44,14 @@ fun Modifier.sharedSurface(key: String, resize: Boolean = false): Modifier {
         )
     }
 }
+
+/**
+ * Keeps content at the size it has outside a transition while the surface around it grows or
+ * shrinks into another surface. A label is then cut off by the edge of a shrinking surface
+ * instead of wrapping onto more lines at every size on the way.
+ */
+@Composable
+fun Modifier.keepSizeDuringTransition(): Modifier {
+    val transition = LocalSvSharedTransition.current ?: return this
+    return with(transition.scope) { this@keepSizeDuringTransition.skipToLookaheadSize() }
+}

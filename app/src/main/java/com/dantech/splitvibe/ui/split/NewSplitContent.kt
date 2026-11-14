@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -43,14 +41,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -151,14 +148,12 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
         ) {
             val photo = state.photo
             if (photo != null) {
-                Image(
-                    bitmap = photo.asImageBitmap(),
+                val image = remember(photo) { photo.asImageBitmap() }
+                SvBillPhoto(
+                    photo = image,
                     contentDescription = "Bill photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 320.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    contentScale = ContentScale.Fit,
+                    // From reading the text until the bill is worked out, not while the photo is still opening.
+                    scanning = state.isBusy && state.progress != Progress.LOADING_PHOTO,
                 )
             } else {
                 Text("Add a photo of the bill", style = MaterialTheme.typography.titleMedium)

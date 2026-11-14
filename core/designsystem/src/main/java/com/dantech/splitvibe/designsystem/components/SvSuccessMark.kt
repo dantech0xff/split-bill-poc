@@ -1,7 +1,10 @@
 package com.dantech.splitvibe.designsystem.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -11,22 +14,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 
 /**
- * Marks that something has just succeeded. The first time it is shown it pops in and the phone
- * gives one short confirming vibration. It is decorative: say what succeeded in text beside it.
+ * Marks that something has just succeeded: a round badge in the accent colour with [icon] on it.
+ * The first time it is shown the icon pops in and the phone gives one short confirming vibration.
+ * Because the badge is round, a fully round button can turn into it through `Modifier.sharedSurface`.
+ * It is decorative: say what succeeded in text beside it.
  */
 @Composable
 fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
     // Saved, so turning the phone does not celebrate a second time.
     var celebrated by rememberSaveable { mutableStateOf(false) }
-    val scale = remember { Animatable(if (celebrated) 1f else START_SCALE) }
+    val reduced = LocalReducedMotion.current
+    val scale = remember { Animatable(if (celebrated || reduced) 1f else START_SCALE) }
     val pop = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     val haptics = LocalHapticFeedback.current
 
@@ -38,17 +46,26 @@ fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
         }
     }
 
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
+    Box(
         modifier = modifier
-            .size(64.dp)
-            .graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-            },
-        tint = MaterialTheme.colorScheme.primary,
-    )
+            .size(SIZE)
+            .background(MaterialTheme.colorScheme.primary, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier
+                .size(ICON_SIZE)
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                },
+            tint = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
 }
 
+private val SIZE = 64.dp
+private val ICON_SIZE = 36.dp
 private const val START_SCALE = 0.4f

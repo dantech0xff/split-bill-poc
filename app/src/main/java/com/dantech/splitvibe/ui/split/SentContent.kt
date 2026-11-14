@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -32,6 +32,7 @@ import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
+import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Bill
@@ -56,7 +57,8 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                         .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.xxl),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    SvSuccessMark(Icons.Default.CheckCircle)
+                    // The request button of the step before turns into this mark.
+                    SvSuccessMark(Icons.Default.Check, modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true))
                     Spacer(Modifier.height(SvSpacing.lg))
                     Text("Requests sent", style = MaterialTheme.typography.headlineSmallEmphasized)
                     Spacer(Modifier.height(SvSpacing.sm))
