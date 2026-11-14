@@ -69,8 +69,8 @@ describe("a request id", () => {
     const stub = book();
     const now = Date.now();
     const id = crypto.randomUUID();
-    await stub.hold(now, id, TRIAL);
-    await stub.hold(now, id, TRIAL);
+    expect(await stub.hold(now, id, TRIAL)).toMatchObject({ ok: true, newHold: true });
+    expect(await stub.hold(now, id, TRIAL)).toMatchObject({ ok: true, newHold: false });
 
     expect(await stub.usage(now, TRIAL)).toMatchObject({ used: 0, remaining: 2 });
   });

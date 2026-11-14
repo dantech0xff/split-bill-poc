@@ -49,7 +49,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 |---|-------|--------|
 | 1 | [Nền móng kỹ thuật](./phase-01-start.md) | In Progress |
 | 2 | [Hệ thiết kế Expressive, chuyển động và đổ bóng](./phase-02-design-system-expressive.md) | In Progress |
-| 3 | [Proxy AI trên Cloudflare](./phase-03-cloudflare-ai-proxy.md) | Pending |
+| 3 | [Proxy AI trên Cloudflare](./phase-03-cloudflare-ai-proxy.md) | In Progress |
 | 4 | [Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử](./phase-04-bill-capture-editing-split-modes.md) | Pending |
 | 5 | [Nhóm, số dư và thu tiền không giữ tiền](./phase-05-people-groups-settle-up.md) | Pending |
 | 6 | [Trang web cho người nhận và tự nhận món trực tiếp](./phase-06-web-companion-realtime-claim.md) | Pending |

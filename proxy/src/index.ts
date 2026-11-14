@@ -1,5 +1,7 @@
+import { billAnalysis } from "./bill-analysis";
 import { AbuseLedger } from "./ledger";
 import { QuotaBook } from "./quota-book";
+import { errorResponse } from "./respond";
 
 export { AbuseLedger, QuotaBook };
 
@@ -15,10 +17,16 @@ export interface Env {
 }
 
 export default {
-  async fetch(): Promise<Response> {
-    return new Response(JSON.stringify({ error: "path" }), {
-      status: 404,
-      headers: { "content-type": "application/json", "cache-control": "no-store" },
-    });
+  async fetch(request, env, ctx): Promise<Response> {
+    try {
+      const { pathname } = new URL(request.url);
+      if (pathname === "/v1/bill-analysis") {
+        return request.method === "POST" ? await billAnalysis(request, env, ctx) : errorResponse(405, "method");
+      }
+      return errorResponse(404, "path");
+    } catch (error) {
+      console.error(JSON.stringify({ event: "request_failed", error: error instanceof Error ? error.name : "unknown" }));
+      return errorResponse(500, "internal");
+    }
   },
 } satisfies ExportedHandler<Env>;

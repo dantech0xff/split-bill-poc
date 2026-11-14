@@ -1,6 +1,6 @@
 ---
 title: "Phase 3: Proxy AI trên Cloudflare"
-status: todo
+status: in_progress
 phase: 3
 priority: P1
 effort: "10d"
@@ -51,13 +51,13 @@ Hạn mức lượt AI (giá trị mặc định, đổi được trong cấu h�
 <!-- Red Team: hạn mức lách được và trừ, hoàn lượt không an toàn — 2026-11-14 -->
 Quy tắc tính lượt:
 - Mỗi lần phân tích mang một `requestId` do client sinh. Proxy **giữ chỗ** một lượt theo `requestId` trước khi gọi model và **chốt** khi model đã trả về kết quả.
-- Một lượt bị tính khi model đã sinh đầu ra, kể cả khi câu trả lời là "không phải hóa đơn" hoặc client đã ngắt kết nối. Lượt chỉ được nhả khi lỗi xảy ra trước lúc model tính tiền (lỗi mạng, lỗi 5xx hoặc 429 của model).
-- Gọi lại với cùng `requestId` không bị tính thêm lượt; mỗi `requestId` được chạy lại tối đa 2 lần.
+- Một lượt bị tính khi model đã trả về trọn câu trả lời, bất kể câu trả lời nói gì (kể cả "không phải hóa đơn", model từ chối, hay câu trả lời bị cắt ở giới hạn token) và kể cả khi client đã ngắt kết nối. Lượt được nhả khi model không trả về trọn câu trả lời: lỗi mạng, lỗi 5xx hoặc 429 của model, hết giờ chờ, hay luồng trả lời đứt giữa chừng. Không có câu trả lời trọn vẹn thì client cũng không nhận được gì, nên việc nhả lượt không mở đường lách hạn mức.
+- Gọi lại với cùng `requestId` không bị tính thêm lượt; mỗi `requestId` được chạy lại tối đa 2 lần. Chỉ lần chạy đã lấy chỗ giữ mới được nhả nó, để một lần chạy lại thất bại không nhả chỗ của lần chạy đầu còn đang chờ model.
 - Chỗ giữ quá 5 phút chưa chốt thì tự hết hạn và coi như đã nhả.
 
 Chặn lạm dụng (theo skim-browser, số khởi đầu nằm trong `proxy/src/policy.ts`):
 - Giới hạn số yêu cầu mỗi phút và mỗi ngày theo IP. IP lấy từ `CF-Connecting-IP`, băm kèm muối trước khi dùng làm tên object, và không được lưu.
-- Trần chi phí trong mỗi khung 24 giờ: theo người gọi, theo IP và cho toàn proxy. Trước khi gọi model, proxy giữ chỗ chi phí tối đa có thể; sau khi xong thì thay bằng chi phí thật theo số token; lỗi trước lúc tính tiền thì hoàn lại.
+- Trần chi phí trong mỗi khung 24 giờ: theo người gọi, theo IP và cho toàn proxy. Trước khi gọi model, proxy giữ chỗ chi phí tối đa có thể (độ dài prompt tính bằng byte UTF-8 cộng `max_tokens`, theo giá đắt nhất trong bảng giá); sau khi xong thì thay bằng chi phí thật theo số token của từng lần thử, kể cả lần chạy lại trên model dự phòng khi model chính từ chối. Lỗi trước khi model bắt đầu thì hoàn lại cả; model đã bắt đầu rồi mới lỗi thì giữ nguyên cả phần đã giữ chỗ, vì không biết đã bị tính bao nhiêu.
 - Bị chặn thì trả 429 với mã lỗi và `Retry-After`.
 
 Phi chức năng:
@@ -85,10 +85,12 @@ Durable Objects:
 - `QuotaBook`: một object cho mỗi người gọi (`install:<uuid>` hoặc `google:<sub băm>`), giữ số lượt đã chốt và các chỗ giữ theo `requestId`.
 - `AbuseLedger`: giới hạn theo IP và trần chi phí theo người gọi, IP, toàn cục. Object hết khung thời gian thì tự xóa.
 
-Giao kèo `bill-analysis` phiên bản 1:
-- Yêu cầu: `schemaVersion`, `requestId`, `ocrDocument` (tối đa 20.000 ký tự), `instruction` (tối đa 1.000 ký tự), `localCurrency`, `locale`.
-- Trả lời 200, dạng NDJSON: các dòng `{"type":"wait"}` trong lúc chờ, rồi một dòng `{"type":"result","answer":…,"usage":…}`, trong đó `answer` đúng JSON mà `BillAnalysisParser` đang đọc và `usage` là số lượt còn lại cùng chu kỳ; hoặc một dòng `{"type":"error","code":…}`.
-- Lỗi trước khi bắt đầu trả lời: JSON `{"error":code}` với 400 (đầu vào), 401 (mã cài đặt hoặc phiên), 426 (app quá cũ), 429 (hết lượt, giới hạn IP, trần chi phí; kèm `Retry-After`), 503 (AI đang tắt).
+<!-- Updated: Phase 3 step 2 - bỏ `locale` khỏi giao kèo vì prompt không dùng; ghi rõ mã lỗi và dòng lỗi có `usage` -->
+Giao kèo `bill-analysis` phiên bản 1 (mẫu: `app/src/sharedTest/resources/fixtures/sample_bill_request.json`, đúng thân yêu cầu app gửi cho hóa đơn mẫu):
+- Header: `X-SplitVibe-Install: <uuid>`; sau khi đăng nhập thêm `Authorization: Bearer <phiên>`.
+- Thân yêu cầu: `schemaVersion` (là 1), `requestId` (UUID), `ocrDocument` (đúng chuỗi `OcrLayoutEncoder.encode` viết, trong thẻ `<bill_ocr>`, tối đa 20.000 ký tự), `instruction` (tối đa 1.000 ký tự, rỗng khi người dùng không gõ gì), `localCurrency` (mã ISO 4217 viết hoa, hoặc rỗng). Trường lạ bị bỏ qua; thân yêu cầu tối đa 256 KiB.
+- Trả lời 200, dạng NDJSON: một dòng `{"type":"wait"}` ngay khi bắt đầu và cứ 10 giây một dòng trong lúc chờ, rồi một dòng `{"type":"result","answer":…,"usage":…}`, trong đó `answer` đúng JSON mà `BillAnalysisParser` đang đọc và `usage` là `{limit, used, remaining, period, resetsAt}` sau lượt này; hoặc một dòng `{"type":"error","code":…}`. Mã của dòng lỗi: `refused` (model từ chối), `too_long` (câu trả lời bị cắt ở giới hạn token), `bad_response` (câu trả lời không đọc được); ba mã này đã bị tính lượt nên dòng lỗi kèm `usage`. Còn `upstream` (model lỗi), `busy` (model quá tải hoặc bị giới hạn), `timeout` (quá 120 giây) và `internal` thì không bị tính lượt.
+- Lỗi trước khi bắt đầu trả lời: JSON `{"error":code}` với 400 `input` (đầu vào), 401 `install` (mã cài đặt) hoặc `session` (phiên), 426 (app quá cũ), 429 (kèm `Retry-After` khi có thời điểm thử lại) với `quota_exhausted` (hết lượt, kèm `usage`), `retry_limit` (một `requestId` đã chạy đủ 3 lần), `rate_limited` (giới hạn theo IP), `spend_limited` (trần chi phí của người gọi hoặc của IP), `busy` (trần chi phí toàn proxy), và 503 (AI đang tắt).
 - App ánh xạ mã lỗi vào `BillAnalyzerException.Kind`, thêm các loại hết lượt, chưa xác thực, AI đang tắt và cần cập nhật app.
 
 Prompt (`llm/BillPrompt.kt`) và schema (`llm/BillSchema.kt`) chuyển sang `proxy/src/prompt.ts` và `proxy/src/schema.ts` để sửa được mà không cần phát hành app. `BillAnalysisParser` nằm trong `:core:domain` và không đổi, nên các test của nó tiếp tục bảo vệ giao kèo.
@@ -103,7 +105,8 @@ Vết mở rộng (ranh giới `BillAnalyzer`): biến thể kế tiếp có th�
 ## Files
 
 Tạo mới:
-- `proxy/` (`package.json`, `package-lock.json`, `tsconfig.json`, `wrangler.jsonc`, `vitest.config.ts`, `src/index.ts`, `src/policy.ts`, `src/input.ts`, `src/identity.ts`, `src/quota-book.ts`, `src/ledger.ts`, `src/usage.ts`, `src/prompt.ts`, `src/schema.ts`, `src/bill-analysis.ts`, `test/`)
+- `proxy/` (`package.json`, `package-lock.json`, `tsconfig.json`, `wrangler.jsonc`, `vitest.config.ts`, `src/index.ts`, `src/policy.ts`, `src/input.ts`, `src/identity.ts`, `src/quota-book.ts`, `src/ledger.ts`, `src/spend.ts`, `src/respond.ts`, `src/usage.ts`, `src/prompt.ts`, `src/schema.ts`, `src/bill-analysis.ts`, `test/`)
+- `app/src/sharedTest/resources/fixtures/sample_bill_request.json` (thân yêu cầu mẫu dùng chung cho test của app và của proxy)
 - `proxy/eval/` (bộ chạy đánh giá và thư mục hóa đơn mẫu)
 - `docs/proxy.md` (chạy ở máy, triển khai, secret)
 - `app/src/main/java/com/dantech/splitvibe/llm/GatewayBillAnalyzer.kt`
@@ -138,9 +141,9 @@ Xóa:
 
 ## Todo
 
-- [ ] `quota-book.ts` và `ledger.ts` có test: giữ chỗ, chốt, nhả, hết hạn, gọi lại cùng `requestId`, giới hạn IP, trần chi phí
-- [ ] `bill-analysis` có kiểm đầu vào, structured output, `max_tokens`, dòng chờ, quyết toán chi phí
-- [ ] Prompt và schema chạy trên proxy, fixture dùng chung
+- [x] `quota-book.ts` và `ledger.ts` có test: giữ chỗ, chốt, nhả, hết hạn, gọi lại cùng `requestId`, giới hạn IP, trần chi phí
+- [x] `bill-analysis` có kiểm đầu vào, structured output, `max_tokens`, dòng chờ, quyết toán chi phí
+- [x] Prompt và schema chạy trên proxy, fixture dùng chung
 - [ ] `session`, `usage`, `account`, công tắc AI và phiên bản tối thiểu, có test
 - [ ] `GatewayBillAnalyzer`; trạng thái "AI khả dụng" thay `hasApiKey` ở bốn nơi
 - [ ] Xóa `ClaudeBillAnalyzer`, test của nó và thư viện Anthropic Java
@@ -176,12 +179,12 @@ Xóa:
 
 ## Security
 
-- Key Anthropic chỉ nằm trong secret `ANTHROPIC_API_KEY` của Worker; ở máy thì trong `proxy/.dev.vars`, tệp git bỏ qua. Hai secret khác là `IP_HASH_SALT` và `SESSION_SIGNING_KEY`; web client ID của Google là biến công khai `GOOGLE_CLIENT_ID`.
+- Key Anthropic chỉ nằm trong secret `ANTHROPIC_API_KEY` của Worker; ở máy thì trong `proxy/.dev.vars`, tệp git bỏ qua. Hai secret khác là `HASH_SALT` (muối để băm IP và `sub` của tài khoản Google) và `SESSION_SIGNING_KEY`; web client ID của Google là biến công khai `GOOGLE_CLIENT_ID`.
 - IP được băm kèm muối và không được lưu; object theo IP tự xóa khi hết khung thời gian. Mã cài đặt là UUID ngẫu nhiên, không gắn với mã phần cứng của máy.
 - Phiên do proxy ký, có hạn 30 ngày, gắn với `sub` của tài khoản Google; trên máy, phiên được mã hóa bằng Keystore.
 - Repo công khai, nên prompt, schema và mã proxy đều đọc được: an toàn của hệ thống không dựa vào việc giấu chúng.
 - Văn bản hóa đơn là dữ liệu không tin cậy: prompt coi nó là dữ liệu chứ không phải lệnh, đầu ra bị ràng bằng schema, và mọi phép tính tiền vẫn chạy trên máy.
-- Không log nội dung hóa đơn, câu lệnh, tên người, mã cài đặt hay IP. Không có gì trong CI triển khai proxy.
+- Không log nội dung hóa đơn, câu lệnh, tên người, mã cài đặt hay IP: mỗi yêu cầu chỉ để lại một dòng log với kết quả, loại người gọi, model, số token, chi phí và độ trễ. Log tự động của mỗi lần gọi (invocation logs) và tracing của Cloudflare đều tắt trong `wrangler.jsonc`, vì chúng ghi siêu dữ liệu của yêu cầu. Không có gì trong CI triển khai proxy.
 
 ## Next
 

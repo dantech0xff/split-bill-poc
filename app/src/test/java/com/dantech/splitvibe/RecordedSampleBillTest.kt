@@ -7,6 +7,9 @@ import com.dantech.splitvibe.domain.SplitPlanner
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalysisParser
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,6 +36,15 @@ class RecordedSampleBillTest {
         assertTrue(rows.toString(), listOf("Cơm chiên hải sản", "2", "75.000", "150.000") in rows)
         assertTrue(rows.toString(), listOf("VAT (8%)", "66.864") in rows)
         assertTrue(rows.toString(), listOf("TỔNG CỘNG", "902.664") in rows)
+    }
+
+    @Test
+    fun `the AI proxy's request fixture holds the document the app writes for this bill`() {
+        val request = Json.parseToJsonElement(Fixtures.text("sample_bill_request.json")).jsonObject
+
+        // The proxy's tests send this request, so it must stay what the encoder writes.
+        val document = request.getValue("ocrDocument").jsonPrimitive.content
+        assertEquals(OcrLayoutEncoder.encode(Fixtures.ocr("sample_bill_ocr.json")), document)
     }
 
     @Test

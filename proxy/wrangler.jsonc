@@ -5,9 +5,13 @@
   "compatibility_date": "2026-11-01",
   "upload_source_maps": true,
   // Logs hold only what the Worker prints, which is never a bill, a name, an install id or an IP.
+  // Invocation logs are off because they record the request's metadata, and traces are off so that
+  // no trace keeps a request body.
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "head_sampling_rate": 1,
+    "logs": { "invocation_logs": false },
+    "traces": { "enabled": false }
   },
   "durable_objects": {
     "bindings": [

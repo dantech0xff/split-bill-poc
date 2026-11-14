@@ -10,8 +10,12 @@ export type Allowance = { kind: "trial" | "monthly"; limit: number };
 /** How much of its allowance a caller has used. A trial never starts over, so it has no reset time. */
 export type Usage = { limit: number; used: number; remaining: number; period: string; resetsAt: number | null };
 
+/**
+ * [newHold] is true when this run took the hold, and false when it shares the hold or charge of an
+ * earlier run of the same request. Only the run that took a hold may release it.
+ */
 export type HoldResult =
-  | { ok: true; usage: Usage }
+  | { ok: true; usage: Usage; newHold: boolean }
   | { ok: false; code: "quota_exhausted" | "retry_limit"; usage: Usage; retryAfter: number | null };
 
 /** One request id: when it was first held, how often it ran, and when it was charged, if it was. */
@@ -43,7 +47,7 @@ export class QuotaBook extends DurableObject {
       }
       known.runs += 1;
       await this.ctx.storage.put(REQUEST + requestId, known);
-      return { ok: true, usage: usageOf(book, requests, allowance, now) };
+      return { ok: true, usage: usageOf(book, requests, allowance, now), newHold: false };
     }
     const usage = usageOf(book, requests, allowance, now);
     if (usage.remaining <= 0) {
@@ -54,7 +58,7 @@ export class QuotaBook extends DurableObject {
     requests.set(requestId, entry);
     await this.ctx.storage.put(REQUEST + requestId, entry);
     await this.arm(now);
-    return { ok: true, usage: usageOf(book, requests, allowance, now) };
+    return { ok: true, usage: usageOf(book, requests, allowance, now), newHold: true };
   }
 
   /** Charges the call of [requestId] once the model has answered. Charging the same request twice does nothing. */

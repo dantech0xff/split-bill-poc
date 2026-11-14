@@ -26,6 +26,25 @@ export const POLICY = {
   callerCapMicro: 1_000_000,
   ipCapMicro: 3_000_000,
   globalCapMicro: 20_000_000,
+
+  /** The model that reads bills, and how hard it thinks. The model must have a price in `spend.ts`. */
+  model: "claude-opus-5-5",
+  effort: "medium",
+  /** Room for the model's reasoning plus the JSON answer of a long bill. */
+  maxTokens: 16_000,
+  /**
+   * How long the proxy waits for the model, its one retry included. It stays under the 150 seconds
+   * the app waits, so the app hears the outcome rather than timing out first.
+   */
+  modelDeadlineMs: 120_000,
+  modelRetries: 1,
+  /** How often a wait line goes out while the model works, so that no network drops a quiet connection. */
+  waitLineMs: 10_000,
+
+  /** The largest request body read, in bytes; the text limits below fit well inside it. */
+  maxBodyBytes: 256 * 1024,
+  maxDocumentChars: 20_000,
+  maxInstructionChars: 1_000,
 } as const;
 
 export type RateLimit = { perMinute: number; perDay: number };
