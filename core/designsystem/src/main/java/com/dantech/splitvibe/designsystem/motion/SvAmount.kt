@@ -30,20 +30,23 @@ fun SvAmount(amountMinor: Long, format: (Long) -> String, style: TextStyle, modi
     // The run is described as a share of the way from where it started to where it is going, so
     // large amounts keep their exact value at both ends.
     var from by remember { mutableLongStateOf(if (countUp) 0L else amountMinor) }
+    var to by remember { mutableLongStateOf(amountMinor) }
     val progress = remember { Animatable(if (countUp) 0f else 1f) }
     val spec = MaterialTheme.motionScheme.slowEffectsSpec<Float>()
 
     LaunchedEffect(amountMinor) {
-        if (progress.value < 1f || from != amountMinor) {
-            from = shownAmount(from, amountMinor, progress.value)
+        if (progress.value < 1f || to != amountMinor) {
+            // A new value may arrive in the middle of a run. The next run starts from the number
+            // that is on screen at that moment, so nothing jumps.
+            from = shownAmount(from, to, progress.value)
+            to = amountMinor
             progress.snapTo(0f)
             progress.animateTo(1f, spec)
-            from = amountMinor
         }
     }
 
     Text(
-        text = format(shownAmount(from, amountMinor, progress.value)),
+        text = format(shownAmount(from, to, progress.value)),
         style = style,
         modifier = modifier.clearAndSetSemantics { text = AnnotatedString(format(amountMinor)) },
     )
