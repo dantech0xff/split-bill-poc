@@ -56,6 +56,14 @@ android {
     testOptions {
         // Lets the UI flow run as a plain unit test (Robolectric) with the app's real resources.
         unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            // Screenshot tests compare the screens with the images in src/test/screenshots.
+            // After an intended visual change, record new ones with -Pscreenshots=record.
+            val screenshots = providers.gradleProperty("screenshots").getOrElse("verify")
+            test.systemProperty("roborazzi.test.$screenshots", "true")
+            // Draws shadows and other hardware-rendered effects the way a device does.
+            test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+        }
     }
 
     sourceSets {
@@ -107,6 +115,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
