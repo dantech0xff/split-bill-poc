@@ -9,6 +9,8 @@ import com.dantech.splitvibe.domain.ItemAssignmentHint
 import com.dantech.splitvibe.domain.ShareRule
 import com.dantech.splitvibe.domain.SplitHint
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
+import java.math.BigDecimal
+import java.util.Locale
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,8 +23,6 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.jsonPrimitive
-import java.math.BigDecimal
-import java.util.Locale
 
 /**
  * Converts the model's JSON answer (shape defined by [BillSchema]) into the app's [BillAnalysis].
@@ -53,13 +53,23 @@ object BillAnalysisParser {
 
     private fun toAnalysis(answer: BillAnswer, localCurrency: String): BillAnalysis {
         if (!answer.status.trim().equals("ok", ignoreCase = true)) {
-            return BillAnalysis.Rejected(answer.message.trim().ifEmpty { "This photo could not be read as a bill. Try a sharper, well-lit photo." })
+            return BillAnalysis.Rejected(
+                answer.message.trim().ifEmpty {
+                    "This photo could not be read as a bill. Try a sharper, well-lit photo."
+                },
+            )
         }
 
         val amounts = answer.items.map { it.amount } + answer.charges.map { it.amount } + answer.total
         amounts.forEach(::requirePlausible)
         val reportedCode = answer.currency.trim()
-        val code = if (reportedCode.isEmpty() || reportedCode.equals(BillCurrency.NO_CURRENCY, ignoreCase = true)) localCurrency else reportedCode
+        val code = if (reportedCode.isEmpty() ||
+            reportedCode.equals(BillCurrency.NO_CURRENCY, ignoreCase = true)
+        ) {
+            localCurrency
+        } else {
+            reportedCode
+        }
         val currency = BillCurrency.resolve(code, answer.amountDecimals, amounts)
 
         val items = answer.items.map { item ->
@@ -112,8 +122,7 @@ object BillAnalysisParser {
             .filter { it.people.isNotEmpty() || it.includesUser },
     )
 
-    private fun cleanNames(names: List<String>): List<String> =
-        names.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    private fun cleanNames(names: List<String>): List<String> = names.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     private fun shareRule(value: String): ShareRule =
         if (value.trim().equals("all_except", ignoreCase = true)) ShareRule.ALL_EXCEPT else ShareRule.ONLY

@@ -7,12 +7,12 @@ import com.dantech.splitvibe.domain.ItemAssignmentHint
 import com.dantech.splitvibe.domain.ShareRule
 import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitHint
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
 
 class BillAnalysisParserTest {
 

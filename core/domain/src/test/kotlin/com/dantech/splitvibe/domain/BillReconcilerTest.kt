@@ -1,9 +1,9 @@
 package com.dantech.splitvibe.domain
 
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
 
 class BillReconcilerTest {
 

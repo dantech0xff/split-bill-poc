@@ -29,11 +29,7 @@ import com.dantech.splitvibe.ui.components.PersonAvatar
 
 /** Last step: confirms which requests would go out. No real payment request is created. */
 @Composable
-fun SentContent(
-    bill: Bill,
-    requests: List<PaymentRequest>,
-    onDone: () -> Unit,
-) {
+fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) {
     Scaffold(
         bottomBar = {
             Surface(tonalElevation = 3.dp) {

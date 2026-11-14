@@ -18,6 +18,7 @@ object NameMatcher {
 
     sealed interface Match {
         data class Found(val contact: Contact) : Match
+
         /** Not sure enough to choose: the user has to pick one of [candidates]. */
         data class Ambiguous(val candidates: List<Contact>) : Match
         data object None : Match
@@ -47,8 +48,7 @@ object NameMatcher {
         }
     }
 
-    private fun tokens(text: String): List<String> =
-        normalize(text).split(' ').filter { it.isNotEmpty() }
+    private fun tokens(text: String): List<String> = normalize(text).split(' ').filter { it.isNotEmpty() }
 
     /** Lower-cases, removes diacritics (so "Hà" matches "ha") and turns punctuation into spaces. */
     internal fun normalize(text: String): String {

@@ -20,6 +20,7 @@ import com.dantech.splitvibe.llm.BillPrompt
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 enum class Progress { IDLE, LOADING_PHOTO, READING_TEXT, ASKING_CLAUDE }
 
@@ -117,6 +117,7 @@ class SplitBillViewModel(
             val analyzer = withContext(Dispatchers.IO) { analyzerFor(appSettings) }
             when (val analysis = analyzer.analyze(ocr, current.instruction, appSettings.localCurrency)) {
                 is BillAnalysis.Rejected -> showError(analysis.reason)
+
                 is BillAnalysis.Ready -> {
                     val foreignCurrencyNote = analysis.bill.currencyMismatchNote(appSettings.localCurrency)
                     val bill = analysis.bill.copy(warnings = analysis.bill.warnings + listOfNotNull(foreignCurrencyNote))

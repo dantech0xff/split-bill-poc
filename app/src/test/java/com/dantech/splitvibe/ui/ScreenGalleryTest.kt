@@ -35,6 +35,8 @@ import com.dantech.splitvibe.ui.split.SplitScreen
 import com.dantech.splitvibe.ui.theme.SplitVibeTheme
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
+import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -51,8 +53,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
-import java.util.concurrent.TimeUnit
 
 /**
  * Draws every screen of the flow and compares it with the reference image in `src/test/screenshots`.
@@ -176,9 +176,16 @@ class ScreenGalleryTest {
             SplitVibeTheme {
                 when (screen) {
                     Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
-                    Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
+
+                    Screen.SPLIT -> SplitScreen(viewModel = viewModel, hasApiKey = true, newCameraTarget = {
+                        Uri.EMPTY
+                    }, onExit = {}, onOpenSettings = {})
+
                     // What a fresh install shows until a key is saved in Settings.
-                    Screen.SPLIT_WITHOUT_KEY -> SplitScreen(viewModel = viewModel, hasApiKey = false, newCameraTarget = { Uri.EMPTY }, onExit = {}, onOpenSettings = {})
+                    Screen.SPLIT_WITHOUT_KEY -> SplitScreen(viewModel = viewModel, hasApiKey = false, newCameraTarget = {
+                        Uri.EMPTY
+                    }, onExit = {}, onOpenSettings = {})
+
                     // First use: no key saved yet, so the field shows its placeholder.
                     Screen.SETTINGS -> SettingsScreen(settings = settings.copy(apiKey = ""), onSave = { _, _, _ -> }, onBack = {})
                 }

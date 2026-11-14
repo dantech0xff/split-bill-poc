@@ -11,3 +11,32 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
 }
+
+// Code style. ktlint runs as a plain Java program, so no extra Gradle plugin is involved.
+// The rules it follows are in .editorconfig.
+val ktlint: Configuration by configurations.creating
+
+dependencies {
+    ktlint(libs.ktlint.cli) {
+        attributes { attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.EXTERNAL)) }
+    }
+}
+
+val kotlinFiles = listOf("**/src/**/*.kt", "**/*.gradle.kts")
+
+tasks.register<JavaExec>("ktlintCheck") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Checks the Kotlin code style."
+    classpath = ktlint
+    mainClass = "com.pinterest.ktlint.Main"
+    args(kotlinFiles)
+}
+
+tasks.register<JavaExec>("ktlintFormat") {
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    description = "Fixes the Kotlin code style where it can and reports the rest."
+    classpath = ktlint
+    mainClass = "com.pinterest.ktlint.Main"
+    jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED")
+    args(listOf("--format") + kotlinFiles)
+}

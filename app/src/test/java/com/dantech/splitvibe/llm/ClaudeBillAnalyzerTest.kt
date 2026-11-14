@@ -3,6 +3,8 @@ package com.dantech.splitvibe.llm
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrResult
+import java.time.Duration
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -23,8 +25,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.Duration
-import java.util.concurrent.TimeUnit
 
 /**
  * Exercises the real Anthropic SDK client against a local HTTP server, so these tests pin down the
@@ -91,7 +91,12 @@ class ClaudeBillAnalyzerTest {
 
         val content = body.getValue("messages").jsonArray.single().jsonObject.getValue("content").jsonPrimitive.content
         assertTrue(content, content.contains("""1 | [0,0,283,177] "Pho bo" | [848,9,1000,186] "65.000""""))
-        assertTrue(content, content.endsWith("<app_settings>\nlocal_currency: VND\n</app_settings>\n\n<user_instruction>\nSplit with Minh\n</user_instruction>"))
+        assertTrue(
+            content,
+            content.endsWith(
+                "<app_settings>\nlocal_currency: VND\n</app_settings>\n\n<user_instruction>\nSplit with Minh\n</user_instruction>",
+            ),
+        )
 
         val outputConfig = body.getValue("output_config").jsonObject
         assertEquals("medium", outputConfig.string("effort"))
@@ -100,14 +105,23 @@ class ClaudeBillAnalyzerTest {
         val schema = format.getValue("schema").jsonObject
         assertEquals("false", schema.getValue("additionalProperties").jsonPrimitive.content)
         assertEquals(
-            listOf("status", "merchant", "date", "currency", "amount_decimals", "items", "charges", "total", "split", "warnings", "message"),
+            listOf(
+                "status", "merchant", "date", "currency", "amount_decimals", "items",
+                "charges", "total", "split", "warnings", "message",
+            ),
             schema.getValue("required").jsonArray.map { it.jsonPrimitive.content },
         )
     }
 
     @Test
     fun `retries without the refusal fallback when the API does not accept it`() = runTest {
-        server.enqueue(errorResponse(400, "invalid_request_error", "Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header."))
+        server.enqueue(
+            errorResponse(
+                400,
+                "invalid_request_error",
+                "Unexpected value(s) `server-side-fallback-2026-07-01` for the `anthropic-beta` header.",
+            ),
+        )
         server.enqueue(messageResponse(billAnswer))
 
         val analysis = analyzer.analyze(ocr, "", "VND")
@@ -168,7 +182,8 @@ class ClaudeBillAnalyzerTest {
     @Test
     fun `answer that takes too long is reported as a timeout after one retry`() = runTest {
         repeat(2) { server.enqueue(messageResponse(billAnswer).setHeadersDelay(5, TimeUnit.SECONDS)) }
-        val impatient = ClaudeBillAnalyzer(apiKey = "test-key", baseUrl = server.url("/").toString(), requestTimeout = Duration.ofMillis(300))
+        val impatient =
+            ClaudeBillAnalyzer(apiKey = "test-key", baseUrl = server.url("/").toString(), requestTimeout = Duration.ofMillis(300))
 
         val error = try {
             failure { impatient.analyze(ocr, "", "VND") }
@@ -182,7 +197,9 @@ class ClaudeBillAnalyzerTest {
 
     @Test
     fun `request that stays invalid reports what the API said`() = runTest {
-        repeat(2) { server.enqueue(errorResponse(400, "invalid_request_error", "Your credit balance is too low to access the Anthropic API.")) }
+        repeat(2) {
+            server.enqueue(errorResponse(400, "invalid_request_error", "Your credit balance is too low to access the Anthropic API."))
+        }
 
         val error = failure { analyzer.analyze(ocr, "", "VND") }
 
@@ -229,18 +246,19 @@ class ClaudeBillAnalyzerTest {
 
     @Test
     fun `photo that is not a bill comes back as rejected`() = runTest {
-        server.enqueue(messageResponse("""{"status": "not_a_bill", "items": [], "charges": [], "total": 0, "message": "This is a street sign."}"""))
+        server.enqueue(
+            messageResponse("""{"status": "not_a_bill", "items": [], "charges": [], "total": 0, "message": "This is a street sign."}"""),
+        )
 
         assertEquals(BillAnalysis.Rejected("This is a street sign."), analyzer.analyze(ocr, "", "VND"))
     }
 
-    private suspend fun failure(block: suspend () -> Unit): BillAnalyzerException =
-        try {
-            block()
-            throw AssertionError("Expected a BillAnalyzerException")
-        } catch (e: BillAnalyzerException) {
-            e
-        }
+    private suspend fun failure(block: suspend () -> Unit): BillAnalyzerException = try {
+        block()
+        throw AssertionError("Expected a BillAnalyzerException")
+    } catch (e: BillAnalyzerException) {
+        e
+    }
 
     private fun messageResponse(
         text: String?,

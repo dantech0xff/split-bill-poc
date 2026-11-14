@@ -6,22 +6,13 @@ import java.util.Locale
 enum class ChargeKind { TAX, SERVICE_CHARGE, TIP, DISCOUNT, ROUNDING, OTHER }
 
 /** One purchased line. [amountMinor] is the full line total (quantity already applied). */
-data class BillItem(
-    val name: String,
-    val quantity: BigDecimal,
-    val unitPriceMinor: Long?,
-    val amountMinor: Long,
-)
+data class BillItem(val name: String, val quantity: BigDecimal, val unitPriceMinor: Long?, val amountMinor: Long)
 
 /**
  * An amount added to (tax, service charge, tip) or subtracted from (discount, negative amount) the
  * item total. Charges are shared between people in proportion to what each person ordered.
  */
-data class BillCharge(
-    val label: String,
-    val kind: ChargeKind,
-    val amountMinor: Long,
-)
+data class BillCharge(val label: String, val kind: ChargeKind, val amountMinor: Long)
 
 /**
  * A bill that is ready to be split.

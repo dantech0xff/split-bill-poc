@@ -9,11 +9,11 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import com.dantech.splitvibe.R
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Loads bill photos as upright bitmaps sized for text recognition. */
 class BillImageLoader(private val context: Context) {
@@ -60,8 +60,7 @@ class BillImageLoader(private val context: Context) {
         return rotated
     }
 
-    private fun ContentResolver.open(uri: Uri): InputStream =
-        openInputStream(uri) ?: throw IOException("Could not open image: $uri")
+    private fun ContentResolver.open(uri: Uri): InputStream = openInputStream(uri) ?: throw IOException("Could not open image: $uri")
 
     companion object {
         internal const val MAX_SIDE = 2400

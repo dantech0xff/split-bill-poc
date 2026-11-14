@@ -17,6 +17,7 @@ import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
+import java.io.File
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertFalse
@@ -30,7 +31,6 @@ import org.koin.dsl.module
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
 
 /** What the back button and the back swipe do in the real activity. */
 @OptIn(ExperimentalRoborazziApi::class)

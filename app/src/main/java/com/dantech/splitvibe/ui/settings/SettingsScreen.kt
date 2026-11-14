@@ -39,11 +39,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 /** Where the tester enters the Anthropic API key, the app's local currency and, optionally, another model name. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    settings: AppSettings,
-    onSave: (apiKey: String, model: String, localCurrency: String) -> Unit,
-    onBack: () -> Unit,
-) {
+fun SettingsScreen(settings: AppSettings, onSave: (apiKey: String, model: String, localCurrency: String) -> Unit, onBack: () -> Unit) {
     // Deliberately not saveable: the key must not be copied into the saved instance state.
     var apiKey by remember { mutableStateOf(settings.apiKey) }
     var model by rememberSaveable { mutableStateOf(settings.model) }

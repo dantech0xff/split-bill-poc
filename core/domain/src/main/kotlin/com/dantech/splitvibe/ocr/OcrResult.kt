@@ -24,10 +24,6 @@ data class OcrLine(val text: String, val corners: List<OcrPoint>) {
 }
 
 /** Everything the on-device recognizer found in one bill photo. */
-data class OcrResult(
-    val imageWidth: Int,
-    val imageHeight: Int,
-    val lines: List<OcrLine>,
-) {
+data class OcrResult(val imageWidth: Int, val imageHeight: Int, val lines: List<OcrLine>) {
     val isEmpty: Boolean get() = lines.none { it.text.isNotBlank() }
 }

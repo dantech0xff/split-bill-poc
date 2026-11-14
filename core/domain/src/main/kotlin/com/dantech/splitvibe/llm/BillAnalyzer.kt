@@ -28,30 +28,34 @@ sealed interface BillAnalysis {
     data class Rejected(val reason: String) : BillAnalysis
 }
 
-class BillAnalyzerException(
-    val kind: Kind,
-    message: String,
-    cause: Throwable? = null,
-) : Exception(message, cause) {
+class BillAnalyzerException(val kind: Kind, message: String, cause: Throwable? = null) : Exception(message, cause) {
 
     enum class Kind {
         /** The API rejected the key. */
         INVALID_API_KEY,
+
         /** The key is valid but may not use this model or feature. */
         NOT_ALLOWED,
+
         /** The configured model id does not exist or is not available to this account. */
         MODEL_NOT_FOUND,
         RATE_LIMITED,
+
         /** The request was rejected as invalid (this is also how the API reports "no credit left"). */
         BAD_REQUEST,
+
         /** The API answered with a server-side error or is overloaded. */
         SERVICE_ERROR,
+
         /** No usable connection to the API. */
         NETWORK,
+
         /** The API was reached but did not answer in time. */
         TIMEOUT,
+
         /** The model declined to answer. */
         REFUSED,
+
         /** The answer was cut off or was not the structured bill we asked for. */
         BAD_RESPONSE,
     }

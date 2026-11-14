@@ -28,12 +28,7 @@ enum class ShareRule {
  * What the instruction said about one item. The people the [rule] names are [people] plus the user
  * when [includesUser] is true.
  */
-data class ItemAssignmentHint(
-    val itemIndex: Int,
-    val rule: ShareRule,
-    val people: List<String>,
-    val includesUser: Boolean,
-)
+data class ItemAssignmentHint(val itemIndex: Int, val rule: ShareRule, val people: List<String>, val includesUser: Boolean)
 
 /**
  * Something the app could not work out from the instruction and the user should finish by hand.
@@ -129,6 +124,7 @@ object SplitPlanner {
             if (key in resolved) return resolved[key]
             val contact = when (val match = NameMatcher.match(name, contacts)) {
                 is NameMatcher.Match.Found -> match.contact
+
                 is NameMatcher.Match.Ambiguous -> {
                     val options = match.candidates.joinToString(" or ") { it.name }
                     notices += PlanNotice(
@@ -137,6 +133,7 @@ object SplitPlanner {
                     )
                     null
                 }
+
                 NameMatcher.Match.None -> {
                     notices += PlanNotice("\"$name\" is not in your contacts. Pick them below.")
                     null

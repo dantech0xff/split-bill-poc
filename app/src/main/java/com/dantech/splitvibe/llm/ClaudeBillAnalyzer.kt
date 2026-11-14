@@ -20,10 +20,10 @@ import com.anthropic.models.beta.messages.MessageCreateParams
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.ocr.OcrResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
 import java.io.InterruptedIOException
 import java.time.Duration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 
 /**
  * Reads a bill with Claude through the official Anthropic SDK.
@@ -40,7 +40,8 @@ class ClaudeBillAnalyzer(
     private val model: String = DEFAULT_MODEL,
     private val baseUrl: String? = null,
     private val requestTimeout: Duration = DEFAULT_REQUEST_TIMEOUT,
-) : BillAnalyzer, AutoCloseable {
+) : BillAnalyzer,
+    AutoCloseable {
 
     // Built on first use, on the background thread of the first request: setting up the SDK's JSON
     // machinery takes long enough on a phone that it must stay off the main thread.
@@ -80,29 +81,36 @@ class ClaudeBillAnalyzer(
         if (lazyClient.isInitialized()) client.close()
     }
 
-    private fun send(userMessage: String): BetaMessage =
-        try {
-            if (refusalFallbackAccepted) sendWithRefusalFallback(userMessage) else create(userMessage, refusalFallback = false)
-        } catch (e: UnauthorizedException) {
-            throw BillAnalyzerException(Kind.INVALID_API_KEY, "The Anthropic API key was rejected. Check it in Settings.", e)
-        } catch (e: PermissionDeniedException) {
-            throw BillAnalyzerException(Kind.NOT_ALLOWED, "This API key is not allowed to do this: ${e.detail()}", e)
-        } catch (e: NotFoundException) {
-            throw BillAnalyzerException(Kind.MODEL_NOT_FOUND, "The model \"$model\" is not available to this API key. Check the model name in Settings.", e)
-        } catch (e: RateLimitException) {
-            throw BillAnalyzerException(Kind.RATE_LIMITED, "The Anthropic API is rate limiting this key. Wait a moment and try again.", e)
-        } catch (e: BadRequestException) {
-            throw BillAnalyzerException(Kind.BAD_REQUEST, "The Anthropic API rejected the request: ${e.detail()}", e)
-        } catch (e: AnthropicServiceException) {
-            throw BillAnalyzerException(Kind.SERVICE_ERROR, "The Anthropic API had a problem (HTTP ${e.statusCode()}). Try again in a moment.", e)
-        } catch (e: AnthropicIoException) {
-            if (e.isTimeout()) {
-                throw BillAnalyzerException(Kind.TIMEOUT, "Claude took too long to answer. Please try again.", e)
-            }
-            throw BillAnalyzerException(Kind.NETWORK, "Could not reach the Anthropic API. Check the internet connection and try again.", e)
-        } catch (e: AnthropicException) {
-            throw BillAnalyzerException(Kind.BAD_RESPONSE, "The Anthropic API sent an answer that could not be read. Please try again.", e)
+    private fun send(userMessage: String): BetaMessage = try {
+        if (refusalFallbackAccepted) sendWithRefusalFallback(userMessage) else create(userMessage, refusalFallback = false)
+    } catch (e: UnauthorizedException) {
+        throw BillAnalyzerException(Kind.INVALID_API_KEY, "The Anthropic API key was rejected. Check it in Settings.", e)
+    } catch (e: PermissionDeniedException) {
+        throw BillAnalyzerException(Kind.NOT_ALLOWED, "This API key is not allowed to do this: ${e.detail()}", e)
+    } catch (e: NotFoundException) {
+        throw BillAnalyzerException(
+            Kind.MODEL_NOT_FOUND,
+            "The model \"$model\" is not available to this API key. Check the model name in Settings.",
+            e,
+        )
+    } catch (e: RateLimitException) {
+        throw BillAnalyzerException(Kind.RATE_LIMITED, "The Anthropic API is rate limiting this key. Wait a moment and try again.", e)
+    } catch (e: BadRequestException) {
+        throw BillAnalyzerException(Kind.BAD_REQUEST, "The Anthropic API rejected the request: ${e.detail()}", e)
+    } catch (e: AnthropicServiceException) {
+        throw BillAnalyzerException(
+            Kind.SERVICE_ERROR,
+            "The Anthropic API had a problem (HTTP ${e.statusCode()}). Try again in a moment.",
+            e,
+        )
+    } catch (e: AnthropicIoException) {
+        if (e.isTimeout()) {
+            throw BillAnalyzerException(Kind.TIMEOUT, "Claude took too long to answer. Please try again.", e)
         }
+        throw BillAnalyzerException(Kind.NETWORK, "Could not reach the Anthropic API. Check the internet connection and try again.", e)
+    } catch (e: AnthropicException) {
+        throw BillAnalyzerException(Kind.BAD_RESPONSE, "The Anthropic API sent an answer that could not be read. Please try again.", e)
+    }
 
     /**
      * The refusal fallback is a beta feature and the only optional part of the request. If the
@@ -110,14 +118,13 @@ class ClaudeBillAnalyzer(
      * request is sent again without it. When that works, the fallback was the problem and is left
      * out from then on; when it fails too, the error is about the request itself and is reported.
      */
-    private fun sendWithRefusalFallback(userMessage: String): BetaMessage =
-        try {
-            create(userMessage, refusalFallback = true)
-        } catch (rejected: BadRequestException) {
-            val message = create(userMessage, refusalFallback = false)
-            refusalFallbackAccepted = false
-            message
-        }
+    private fun sendWithRefusalFallback(userMessage: String): BetaMessage = try {
+        create(userMessage, refusalFallback = true)
+    } catch (rejected: BadRequestException) {
+        val message = create(userMessage, refusalFallback = false)
+        refusalFallbackAccepted = false
+        message
+    }
 
     private fun create(userMessage: String, refusalFallback: Boolean): BetaMessage {
         val builder = MessageCreateParams.builder()
@@ -141,7 +148,10 @@ class ClaudeBillAnalyzer(
             throw BillAnalyzerException(Kind.REFUSED, "Claude declined to read this bill. $explanation".trim())
         }
         if (stopReason == BetaStopReason.MAX_TOKENS) {
-            throw BillAnalyzerException(Kind.BAD_RESPONSE, "Claude's answer was cut off because the bill is very long. Try photographing it in two parts.")
+            throw BillAnalyzerException(
+                Kind.BAD_RESPONSE,
+                "Claude's answer was cut off because the bill is very long. Try photographing it in two parts.",
+            )
         }
         // Text blocks only: a response served by a fallback model also carries a marker block.
         val answer = message.content().mapNotNull { block -> block.text().orElse(null)?.text() }.joinToString("")
@@ -151,12 +161,10 @@ class ClaudeBillAnalyzer(
         return BillAnalysisParser.parse(answer, localCurrency)
     }
 
-    private fun AnthropicServiceException.detail(): String =
-        apiMessage().orElse(null) ?: message ?: "HTTP ${statusCode()}"
+    private fun AnthropicServiceException.detail(): String = apiMessage().orElse(null) ?: message ?: "HTTP ${statusCode()}"
 
     /** A timeout surfaces as an interrupted I/O exception somewhere in the cause chain. */
-    private fun Throwable.isTimeout(): Boolean =
-        generateSequence(this) { it.cause }.any { it is InterruptedIOException }
+    private fun Throwable.isTimeout(): Boolean = generateSequence(this) { it.cause }.any { it is InterruptedIOException }
 
     companion object {
         const val DEFAULT_MODEL = "claude-opus-5-5"

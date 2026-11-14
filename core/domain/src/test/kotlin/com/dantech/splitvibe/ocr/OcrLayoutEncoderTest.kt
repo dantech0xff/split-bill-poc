@@ -1,10 +1,10 @@
 package com.dantech.splitvibe.ocr
 
+import kotlin.math.cos
+import kotlin.math.sin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.cos
-import kotlin.math.sin
 
 class OcrLayoutEncoderTest {
 

@@ -39,6 +39,9 @@ class LiveClaudeBillAnalyzerTest {
         val beers = bill.items.indexOfFirst { it.name.contains("Bia", ignoreCase = true) }
         assertTrue("the beers were not found among ${bill.items.map { it.name }}", beers >= 0)
         assertEquals(listOf("Minh", "Lan"), analysis.splitHint.people)
-        assertEquals(listOf(ItemAssignmentHint(beers, ShareRule.ONLY, listOf("Minh"), includesUser = false)), analysis.splitHint.itemAssignments)
+        assertEquals(
+            listOf(ItemAssignmentHint(beers, ShareRule.ONLY, listOf("Minh"), includesUser = false)),
+            analysis.splitHint.itemAssignments,
+        )
     }
 }

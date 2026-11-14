@@ -1,10 +1,10 @@
 package com.dantech.splitvibe.domain
 
 import com.dantech.splitvibe.data.contacts.Contact
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
 
 class SplitPlannerTest {
 
@@ -32,7 +32,8 @@ class SplitPlannerTest {
     )
 
     private fun only(item: Int, vararg people: String, me: Boolean = false) = ItemAssignmentHint(item, ShareRule.ONLY, people.toList(), me)
-    private fun allExcept(item: Int, vararg people: String, me: Boolean = false) = ItemAssignmentHint(item, ShareRule.ALL_EXCEPT, people.toList(), me)
+    private fun allExcept(item: Int, vararg people: String, me: Boolean = false) =
+        ItemAssignmentHint(item, ShareRule.ALL_EXCEPT, people.toList(), me)
 
     @Test
     fun `plain split request starts with only the user`() {
@@ -137,7 +138,12 @@ class SplitPlannerTest {
 
     @Test
     fun `choosing everyone or nobody for an item puts it back to shared by all`() {
-        val plan = SplitPlan(selectedContactIds = listOf("c1", "c2"), assignments = mapOf(beer to setOf("c1")), exclusions = mapOf(greens to setOf(ME_ID)))
+        val plan =
+            SplitPlan(
+                selectedContactIds = listOf("c1", "c2"),
+                assignments = mapOf(beer to setOf("c1")),
+                exclusions = mapOf(greens to setOf(ME_ID)),
+            )
 
         assertEquals(emptyMap<Int, Set<String>>(), plan.withItemSharers(beer, setOf(ME_ID, "c1", "c2")).assignments)
         assertEquals(emptyMap<Int, Set<String>>(), plan.withItemSharers(beer, emptySet()).assignments)
@@ -148,7 +154,8 @@ class SplitPlannerTest {
 
     @Test
     fun `removing a person takes them off every item`() {
-        val plan = SplitPlan(selectedContactIds = listOf("c1", "c2"), assignments = mapOf(beer to setOf("c1"), hotpot to setOf(ME_ID, "c2")))
+        val plan =
+            SplitPlan(selectedContactIds = listOf("c1", "c2"), assignments = mapOf(beer to setOf("c1"), hotpot to setOf(ME_ID, "c2")))
 
         val withoutMinh = plan.withContactToggled("c1")
         assertEquals(mapOf(hotpot to setOf(ME_ID, "c2")), withoutMinh.assignments)

@@ -5,11 +5,11 @@ import androidx.core.content.edit
 import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.llm.ClaudeBillAnalyzer
+import java.util.Currency
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Currency
-import java.util.Locale
 
 data class AppSettings(
     val apiKey: String,

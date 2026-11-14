@@ -8,9 +8,4 @@ package com.dantech.splitvibe.data.contacts
  *   name and the first word of an English one, so it is stored rather than guessed.
  * @param handle in-app username without the leading "@".
  */
-data class Contact(
-    val id: String,
-    val name: String,
-    val givenName: String,
-    val handle: String,
-)
+data class Contact(val id: String, val name: String, val givenName: String, val handle: String)

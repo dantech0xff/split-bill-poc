@@ -70,7 +70,9 @@ class ClaudeBillAnalyzerOnDeviceTest {
 
     @Test
     fun apiErrorsAreUnderstoodOnAndroid() = runBlocking {
-        server.enqueue(json("""{"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}""").setResponseCode(401))
+        server.enqueue(
+            json("""{"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}""").setResponseCode(401),
+        )
 
         try {
             ClaudeBillAnalyzer("wrong-key", baseUrl = server.url("/").toString()).use { it.analyze(ocr, "", localCurrency = "VND") }
@@ -80,6 +82,5 @@ class ClaudeBillAnalyzerOnDeviceTest {
         }
     }
 
-    private fun json(body: String): MockResponse =
-        MockResponse().setHeader("content-type", "application/json").setBody(body)
+    private fun json(body: String): MockResponse = MockResponse().setHeader("content-type", "application/json").setBody(body)
 }

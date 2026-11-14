@@ -33,12 +33,7 @@ import com.dantech.splitvibe.ui.components.PersonAvatar
 /** Bottom sheet for choosing which contacts share the bill. Changes apply immediately. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PeoplePickerSheet(
-    contacts: List<Contact>,
-    selectedIds: Set<String>,
-    onToggle: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
+fun PeoplePickerSheet(contacts: List<Contact>, selectedIds: Set<String>, onToggle: (String) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Text(

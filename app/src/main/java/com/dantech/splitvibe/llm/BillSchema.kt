@@ -14,7 +14,8 @@ internal object BillSchema {
         "merchant" to string("Business name, or an empty string when it is not visible."),
         "date" to string("Bill date as YYYY-MM-DD, or an empty string when it is not visible."),
         "currency" to string("ISO 4217 code such as VND or USD."),
-        "amount_decimals" to integer("Decimal places the bill prints its prices with: 0 for \"70.000 đ\" or \"Rp 33.000\", 2 for \"$12.50\"."),
+        "amount_decimals" to
+            integer("Decimal places the bill prints its prices with: 0 for \"70.000 đ\" or \"Rp 33.000\", 2 for \"$12.50\"."),
         "items" to array(
             obj(
                 "name" to string("Item name as printed."),

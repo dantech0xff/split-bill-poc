@@ -3,11 +3,7 @@ package com.dantech.splitvibe.domain
 import java.math.BigInteger
 
 /** What one person owes: their part of the items plus their part of the shared charges. */
-data class PersonShare(
-    val personId: String,
-    val itemsMinor: Long,
-    val chargesMinor: Long,
-) {
+data class PersonShare(val personId: String, val itemsMinor: Long, val chargesMinor: Long) {
     val totalMinor: Long get() = itemsMinor + chargesMinor
 }
 
@@ -36,11 +32,7 @@ object SplitCalculator {
      * @param assignments item index to the ids sharing that item. Missing or empty means everyone.
      *   Ids that are not in [participants] are ignored.
      */
-    fun split(
-        bill: Bill,
-        participants: List<String>,
-        assignments: Map<Int, Set<String>> = emptyMap(),
-    ): SplitResult {
+    fun split(bill: Bill, participants: List<String>, assignments: Map<Int, Set<String>> = emptyMap()): SplitResult {
         val people = participants.distinct()
         if (people.isEmpty()) return SplitResult(emptyList())
 

@@ -142,7 +142,10 @@ fun ResultContent(
                     ItemRow(
                         bill = bill,
                         item = item,
-                        sharers = sharersByItem[index]?.let { ids -> participants.filter { it in ids }.joinToString { nameOf(it) } } ?: "Everyone",
+                        sharers =
+                            sharersByItem[index]?.let { ids ->
+                                participants.filter { it in ids }.joinToString { nameOf(it) }
+                            } ?: "Everyone",
                         onClick = { if (participants.size >= 2) editingItem = index else showPeoplePicker = true },
                     )
                 }

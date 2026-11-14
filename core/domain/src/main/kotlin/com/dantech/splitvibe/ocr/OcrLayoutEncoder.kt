@@ -132,8 +132,7 @@ object OcrLayoutEncoder {
         return rows
     }
 
-    private fun scale(offset: Float, extent: Float): Int =
-        (offset / extent * SCALE).roundToInt().coerceIn(0, SCALE)
+    private fun scale(offset: Float, extent: Float): Int = (offset / extent * SCALE).roundToInt().coerceIn(0, SCALE)
 
     /**
      * Quotes one fragment. Angle brackets printed on the bill are swapped for look-alikes so that

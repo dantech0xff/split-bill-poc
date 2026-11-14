@@ -121,12 +121,7 @@ fun NewSplitContent(
 }
 
 @Composable
-private fun PhotoSection(
-    state: SplitUiState,
-    newCameraTarget: () -> Uri,
-    onPhotoPicked: (Uri) -> Unit,
-    onSamplePicked: () -> Unit,
-) {
+private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhotoPicked: (Uri) -> Unit, onSamplePicked: () -> Unit) {
     var cameraTarget by rememberSaveable { mutableStateOf<Uri?>(null) }
     var cameraMissing by rememberSaveable { mutableStateOf(false) }
 
@@ -236,13 +231,7 @@ private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () 
 }
 
 @Composable
-internal fun MessageCard(
-    text: String,
-    isError: Boolean,
-    modifier: Modifier = Modifier,
-    action: String? = null,
-    onAction: () -> Unit = {},
-) {
+internal fun MessageCard(text: String, isError: Boolean, modifier: Modifier = Modifier, action: String? = null, onAction: () -> Unit = {}) {
     val colors = MaterialTheme.colorScheme
     Card(
         modifier = modifier.fillMaxWidth(),

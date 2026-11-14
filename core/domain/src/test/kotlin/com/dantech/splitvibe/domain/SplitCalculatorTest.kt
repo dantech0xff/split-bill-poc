@@ -1,10 +1,10 @@
 package com.dantech.splitvibe.domain
 
+import java.math.BigDecimal
+import kotlin.random.Random
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.math.BigDecimal
-import kotlin.random.Random
 
 class SplitCalculatorTest {
 
@@ -126,7 +126,15 @@ class SplitCalculatorTest {
         val random = Random(20261113)
         repeat(2_000) {
             // Mostly purchases, now and then a negative line such as a voucher or a void.
-            val items = List(random.nextInt(0, 12)) { if (random.nextInt(8) == 0) -random.nextLong(0, 50_000) else random.nextLong(0, 5_000_000) }
+            val items = List(random.nextInt(0, 12)) {
+                if (random.nextInt(8) ==
+                    0
+                ) {
+                    -random.nextLong(0, 50_000)
+                } else {
+                    random.nextLong(0, 5_000_000)
+                }
+            }
             val charges = List(random.nextInt(0, 4)) { random.nextLong(-200_000, 600_000) }
             val bill = bill(items, charges)
             val people = List(random.nextInt(1, 8)) { "p$it" }

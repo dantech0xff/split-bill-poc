@@ -32,11 +32,7 @@ import com.dantech.splitvibe.ui.components.PersonAvatar
 /** The payment app's home: the entry to bill splitting and the user's in-app contacts. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    contacts: List<Contact>,
-    onSplitBill: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
+fun HomeScreen(contacts: List<Contact>, onSplitBill: () -> Unit, onOpenSettings: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
