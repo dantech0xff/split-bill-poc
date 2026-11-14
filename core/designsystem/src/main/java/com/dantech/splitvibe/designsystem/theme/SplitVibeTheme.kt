@@ -6,6 +6,8 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
+import com.dantech.splitvibe.designsystem.motion.rememberReducedMotion
 import com.dantech.splitvibe.designsystem.tokens.DarkColors
 import com.dantech.splitvibe.designsystem.tokens.LightColors
 import com.dantech.splitvibe.designsystem.tokens.SvTypography
@@ -19,7 +21,7 @@ internal val LocalDarkTheme = staticCompositionLocalOf { false }
  */
 @Composable
 fun SplitVibeTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+    CompositionLocalProvider(LocalDarkTheme provides darkTheme, LocalReducedMotion provides rememberReducedMotion()) {
         MaterialExpressiveTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             motionScheme = MotionScheme.expressive(),

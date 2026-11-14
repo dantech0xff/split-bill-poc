@@ -93,6 +93,24 @@ Only the strength of a shadow may be animated, through the `strength` parameter.
 opacity and offset, which are cheap to redraw every frame. The blur radius is fixed per level
 because redrawing it every frame is expensive.
 
+## Motion
+
+Movement has to explain something: where a thing came from, or that a tap was received. Screens
+never write an animation themselves; they use these pieces, which take their timing from the
+theme's motion scheme.
+
+| Piece | What it does |
+|---|---|
+| `SvAmount` | An amount that runs through the numbers in between when its value changes, and can count up from zero when it first appears. A screen reader always gets the real amount. |
+| `Modifier.staggeredEntry` | Lets the rows of a screen slide up and fade in one after another when the screen appears. Rows that scroll into view later simply appear. |
+| `SvWorkingRow` | Fades from one status line to the next while work is running. |
+| `SvSuccessMark` | Pops in once, with one short confirming vibration. |
+
+Some people switch animations off in the system settings. Compose then ends ordinary animations at
+once by itself. Effects that never end and delays written by hand cannot be known to it, so they
+ask `LocalReducedMotion` and stand still or are skipped. `ReducedMotionTest` checks that nothing
+moves on its own in that case and that a bill can still be split from start to finish.
+
 ## Components
 
 | Component | Use |
@@ -103,7 +121,9 @@ because redrawing it every frame is expensive.
 | `SvListRow` | One row of a group. Give it its position in the group and it rounds the right corners. Works as separate items of a lazy list. |
 | `SvAvatar` | A person's initials on that person's colour. Decorative: always show the name beside it. |
 | `SvMessageCard` | A notice or an error inside the page, with an optional action. |
-| `SvLoadingIndicator` | Work of unknown length is running. |
+| `SvLoadingIndicator` | Work of unknown length is running. Stands still when animations are off. |
+| `SvWorkingRow` | Takes the place of the main action while work is running: the status and a way to stop. |
+| `SvSuccessMark` | Marks that something has just succeeded. Decorative: say what succeeded in text. |
 | `SvPrimaryButton` | The main action as a large button across the full width. |
 | `SvBottomBar` | The floating bar at the bottom that holds the main action. |
 | `SvPrimaryFab` | The main action as a floating button, for a screen that is mostly a list. |

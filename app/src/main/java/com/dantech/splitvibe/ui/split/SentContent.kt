@@ -31,6 +31,7 @@ import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Bill
@@ -55,12 +56,7 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                         .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.xxl),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
+                    SvSuccessMark(Icons.Default.CheckCircle)
                     Spacer(Modifier.height(SvSpacing.lg))
                     Text("Requests sent", style = MaterialTheme.typography.headlineSmallEmphasized)
                     Spacer(Modifier.height(SvSpacing.sm))

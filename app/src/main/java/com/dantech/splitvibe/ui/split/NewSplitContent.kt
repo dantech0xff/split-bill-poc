@@ -56,6 +56,7 @@ import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 
 /** First step of a split: choose the bill photo and say how it should be split. */
@@ -207,21 +208,16 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
 private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () -> Unit) {
     SvBottomBar {
         if (state.isBusy) {
-            Row(modifier = Modifier.heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                SvLoadingIndicator(modifier = Modifier.size(40.dp))
-                Spacer(Modifier.width(SvSpacing.md))
-                Text(
-                    text = when (state.progress) {
-                        Progress.LOADING_PHOTO -> "Opening the photo…"
-                        Progress.READING_TEXT -> "Reading the bill on this phone…"
-                        Progress.ASKING_CLAUDE -> "Claude is working out the bill…"
-                        Progress.IDLE -> ""
-                    },
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                TextButton(onClick = onCancel) { Text("Cancel") }
-            }
+            SvWorkingRow(
+                status = when (state.progress) {
+                    Progress.LOADING_PHOTO -> "Opening the photo…"
+                    Progress.READING_TEXT -> "Reading the bill on this phone…"
+                    Progress.ASKING_CLAUDE -> "Claude is working out the bill…"
+                    Progress.IDLE -> ""
+                },
+                cancelLabel = "Cancel",
+                onCancel = onCancel,
+            )
         } else {
             SvPrimaryButton("Read and split the bill", onClick = onAnalyze, enabled = state.photo != null)
         }

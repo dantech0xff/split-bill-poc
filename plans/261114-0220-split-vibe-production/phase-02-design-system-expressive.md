@@ -123,11 +123,11 @@ Màu ảnh đại diện của từng người trong ảnh vẫn là màu cũ; c
 - [ ] Token và `SplitVibeTheme` (sáng, tối). Đã có màu, kiểu chữ số tiền, khoảng cách và theme; token hình khối chưa tách riêng, các thành phần đang dùng thang hình khối mặc định của Material
 - [x] Token bóng 4 mức bằng `dropShadow`
 - [ ] Bộ thành phần và màn hình danh mục. Đã có thẻ, ảnh đại diện, thanh tiêu đề lớn, nút nổi chính, nút chính lớn, thanh dưới, tiêu đề nhóm, hàng danh sách theo nhóm, thẻ thông báo và biểu tượng tải; chưa có nhóm nút, nút tách đôi, nút nổi có menu, thanh công cụ nổi, số tiền lăn và màn hình danh mục
-- [ ] Lớp chuyển động theo bảng hành trình
+- [ ] Lớp chuyển động theo bảng hành trình. Đã có: tổng tiền đếm lên và số tiền chạy tới giá trị mới, các hàng vào lần lượt, dòng trạng thái chuyển mượt, biểu tượng tải đổi hình, dấu tích bật ra kèm rung xác nhận, thanh trên co lại theo cuộn, xem trước khi vuốt ngược. Chưa có: nút quét nở thành màn hình, ảnh bay vào khung, vệt quét trên ảnh, thẻ người bật nảy và hàng đổi chỗ, nút biến hình thành dấu tích
 - [x] Dựng lại 7 màn hình và 2 bảng trượt hiện có ([ảnh trước và sau của hai màn hình chính](./assets/first-look-home-and-result.png)). Chủ sản phẩm chưa duyệt
 - [x] Kiểm tra ranh giới trong CI (`DesignSystemBoundaryTest`, chạy cùng unit test)
 - [ ] Đạt ngân sách hiệu năng trên máy tham chiếu
-- [ ] Tiếp cận và chế độ tắt animation
+- [ ] Tiếp cận và chế độ tắt animation. Đã có: test độ tương phản, ảnh cỡ chữ 200%, `ReducedMotionTest`. Chưa có: kiểm tra tiếp cận tự động của Compose
 - [ ] `docs/design-system.md`. Đã viết cho phần đang có; còn bổ sung khi có lớp chuyển động và màn hình danh mục
 
 ## Success Criteria

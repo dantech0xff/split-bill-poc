@@ -215,7 +215,7 @@ class ScreenGalleryTest {
     }
 
     private fun start(answerDelaySeconds: Long): SplitBillViewModel {
-        server.enqueue(recordedClaudeAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
+        server.enqueue(Fixtures.claudeAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
         val analyzer = ClaudeBillAnalyzer("test-key", baseUrl = server.url("/").toString())
         val viewModel = SplitBillViewModel(
             contactRepository = SeededContactRepository(),
@@ -268,33 +268,6 @@ class ScreenGalleryTest {
     private fun awaitState(condition: () -> Boolean) = compose.waitUntil(TIMEOUT_MS) {
         shadowOf(Looper.getMainLooper()).idle()
         condition()
-    }
-
-    /** The Messages API response that carries the recorded answer as its text block. */
-    private fun recordedClaudeAnswer(): MockResponse {
-        val body = buildJsonObject {
-            put("id", "msg_recorded")
-            put("type", "message")
-            put("role", "assistant")
-            put("model", ClaudeBillAnalyzer.DEFAULT_MODEL)
-            put(
-                "content",
-                buildJsonArray {
-                    add(
-                        buildJsonObject {
-                            put("type", "text")
-                            put("text", Fixtures.text("sample_bill_answer.json"))
-                        },
-                    )
-                },
-            )
-            put("stop_reason", "end_turn")
-            putJsonObject("usage") {
-                put("input_tokens", 2300)
-                put("output_tokens", 800)
-            }
-        }
-        return MockResponse().setHeader("content-type", "application/json").setBody(body.toString())
     }
 }
 

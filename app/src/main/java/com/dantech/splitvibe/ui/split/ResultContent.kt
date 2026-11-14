@@ -61,6 +61,9 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.motion.SvAmount
+import com.dantech.splitvibe.designsystem.motion.rememberSvEntryState
+import com.dantech.splitvibe.designsystem.motion.staggeredEntry
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountLarge
@@ -100,6 +103,7 @@ fun ResultContent(
     val nameOf: (String) -> String = { id -> if (id == ME_ID) ME_LABEL else contactsById[id]?.name ?: id }
     val participants = plan.participantIds
     val sharersByItem = remember(plan) { plan.sharersByItem() }
+    val entry = rememberSvEntryState()
 
     Scaffold(
         topBar = {
@@ -121,7 +125,9 @@ fun ResultContent(
                 TotalCard(
                     bill = bill,
                     summary = result.summary,
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                    modifier = Modifier
+                        .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)
+                        .staggeredEntry(entry, index = 0),
                 )
             }
 
@@ -161,6 +167,7 @@ fun ResultContent(
                         bill = bill,
                         item = item,
                         position = SvRowPosition.of(index, bill.items.size),
+                        modifier = Modifier.staggeredEntry(entry, index = index + 1),
                         sharers =
                             sharersByItem[index]?.let { ids ->
                                 participants.filter { it in ids }.joinToString { nameOf(it) }
@@ -254,7 +261,7 @@ private fun TotalCard(bill: Bill, summary: String, modifier: Modifier = Modifier
     ) {
         Column(modifier = Modifier.padding(SvSpacing.xl)) {
             Text("Bill total", style = MaterialTheme.typography.labelLarge)
-            Text(bill.format(bill.totalMinor), style = MaterialTheme.typography.amountLarge)
+            SvAmount(bill.totalMinor, format = bill::format, style = MaterialTheme.typography.amountLarge, countUp = true)
             bill.date?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (summary.isNotBlank()) {
                 Spacer(Modifier.height(SvSpacing.sm))
@@ -265,8 +272,15 @@ private fun TotalCard(bill: Bill, summary: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun ItemRow(bill: Bill, item: BillItem, position: SvRowPosition, sharers: String, onClick: () -> Unit) {
-    SvListRow(position = position, onClick = onClick, onClickLabel = "Choose who shares ${item.name}") {
+private fun ItemRow(
+    bill: Bill,
+    item: BillItem,
+    position: SvRowPosition,
+    sharers: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SvListRow(position = position, modifier = modifier, onClick = onClick, onClickLabel = "Choose who shares ${item.name}") {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.bodyLarge)
             val unitPrice = item.unitPriceMinor
@@ -307,7 +321,7 @@ private fun ShareRow(bill: Bill, share: PersonShare, name: String, position: SvR
             )
         }
         Spacer(Modifier.width(SvSpacing.md))
-        Text(bill.format(share.totalMinor), style = MaterialTheme.typography.amountMedium)
+        SvAmount(share.totalMinor, format = bill::format, style = MaterialTheme.typography.amountMedium)
     }
 }
 
@@ -326,7 +340,7 @@ private fun SharesTotalRow(bill: Bill, total: Long) {
         )
         Spacer(Modifier.width(SvSpacing.sm))
         Text("Adds up to the bill total", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Text(bill.format(total), style = MaterialTheme.typography.amountMedium)
+        SvAmount(total, format = bill::format, style = MaterialTheme.typography.amountMedium)
     }
 }
 
