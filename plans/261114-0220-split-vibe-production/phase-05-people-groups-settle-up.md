@@ -151,7 +151,7 @@ Xóa tài khoản đối với dữ liệu chung:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-05-groups-balances-settle-up, chưa vào main -->
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-05-groups-balances-settle-up, đã fast-forward vào main -->
 Chín trên mười một tiêu chí đạt và có bằng chứng. Tiêu chí về thông báo đẩy mới đạt một phần, vì đo thời gian tới máy cần dự án Firebase, secret `FCM_SERVICE_ACCOUNT` và máy thật. Ma trận kiểm tay với app thanh toán thật chưa làm.
 
 | Tiêu chí | Kết quả | Bằng chứng |
