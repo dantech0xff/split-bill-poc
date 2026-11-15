@@ -8,24 +8,24 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the AI proxy client"]
-    domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push"]
+    domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>group balances, payment codes,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
     profile -. drives and measures .-> app
-    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates"]
+    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push"]
     app -. HTTPS .-> proxy
 ```
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage |
-| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`) |
+| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
-| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session; described in [proxy.md](proxy.md) |
+| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links; described in [proxy.md](proxy.md) |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
@@ -62,7 +62,8 @@ A wiring mistake fails the checks instead of crashing a screen.
 ### Navigation
 
 `ui/AppNavHost.kt` uses Navigation 3. The back stack is a list of keys (`HomeKey`, `SplitKey`,
-`HistoryKey`, `SettingsKey`) that the screen code owns directly:
+`HistoryKey`, `SettingsKey`, `PaymentMethodsKey`, `GroupsKey`, `GroupKey(id)`, `JoinGroupKey(token)`,
+`RequestsKey`, `RequestLinkKey(token)`) that the screen code owns directly:
 
 - The keys are `@Serializable`, so the list is saved with the activity and the open screens come
   back after the system recreates it.
@@ -73,7 +74,7 @@ A wiring mistake fails the checks instead of crashing a screen.
   shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
   `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
   work before it lets the user leave.
-- Inside the split screen the four steps (photo, editor, result, sent requests) follow from the view
+- Inside the split screen the four steps (photo, editor, result, the request step) follow from the view
   model's state and fade into each other through `SvSteps`. Each step carries the state it shows,
   so a step that is being left is drawn unchanged while it fades out, and back always belongs to
   the step on screen. The button that sends the requests turns into the mark that confirms them.
@@ -83,6 +84,11 @@ A wiring mistake fails the checks instead of crashing a screen.
 - A bill opened from Home or the list of bills opens the split screen on its result, and back
   returns to where it was opened from. Photos shared from another app open a new split with them
   (`MainActivity` takes them from the share intent).
+- An invite link (`/g/{token}`) or a request link (`/r/{token}`) on the proxy's own address, and a
+  tapped push notice, open their screen on top of Home (`AppLink` reads them from the intent; a link
+  to any other address opens nothing). The links reach the app through Android App Links: the
+  manifest's intent filter names the proxy's host, which the build takes from the proxy's address,
+  and Android checks the proxy's `/.well-known/assetlinks.json` before it hands the app a link.
 
 To add a screen: declare a `@Serializable data object` (or data class) that implements `NavKey`, add
 an `entry<ThatKey> { ... }` to the `entryProvider` block, and open it with `backStack.open(ThatKey)`.
@@ -111,6 +117,45 @@ screen comes back from `SavedStateHandle` and the database after the system ends
 proxy streams its answer as lines of JSON, and the app's error kinds follow the proxy's codes: free
 reads used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
 The [README](../README.md) describes each step in detail.
+
+### Groups, requests and push
+
+```mermaid
+flowchart LR
+    split[A finished split] -->|add to a group| put[PUT a group bill]
+    split -->|ask for the money| req[POST a request]
+    put --> d1[(Proxy: D1)]
+    req --> d1
+    d1 --> state[Group state and requests]
+    state --> cache[ProxyCache in Room]
+    cache --> screens[Groups and Requests screens]
+    screens --> balances[Balances and DebtSimplifier]
+    d1 -->|FCM HTTP v1| push[Push notice]
+```
+
+- `GroupRepository` and `RequestRepository` call the proxy's signed-in routes through
+  `ProxyApi.signedIn` and keep its answers in `ProxyCache`, a table of the Room database, so groups
+  and requests can be read without a connection. The cache is emptied on every sign-in, sign-out and
+  account deletion, so another account never sees them. A session the proxy refuses turns into a
+  sign-in to renew, as for reading bills.
+- A group bill is the member's `SavedBill` without its photos, read text, instruction and own rate,
+  with the member each participant is (`GroupBillDocument`), and its amounts in the group's
+  currency. `GroupConversion` converts the total once and divides the result by the largest
+  remainder in proportion to the parts and, separately, the payments. The local bill remembers its
+  group and the revision the proxy accepted (`GroupLink`), so a later change goes as the next
+  revision and the proxy refuses it when someone else changed the group's copy first.
+- `GroupState.balances` adds up the bills whose amounts check out and the payments back; a bill that
+  does not, which only a broken or tampered copy can be, is left out whole, so the balances still
+  add up to zero. `DebtSimplifier` pairs the largest debt with the largest credit until all are zero.
+- Payment methods are kept in their own table and never leave the phone, except as the one copy a
+  request carries. `PaymentRequestBuilder` turns a method, an amount and a note into a link, a QR
+  payload or both, always with the details as text; `QrCodes` draws the code with ZXing, and
+  `ShareCardRenderer` records a card drawn by the design system's components (`Modifier.shareCard`)
+  and saves it for the share sheet through the `FileProvider`.
+- Push goes through Firebase Cloud Messaging, started by hand from four `BuildConfig` values when
+  they are all set (no Google services plugin and no `google-services.json`). `DeviceRegistrar` sends
+  the install's token to the proxy once someone signs in, and takes it back on signing out;
+  `PushService` shows a notice with words of the app's own for the kind of notice the proxy sent.
 
 ## Build variants
 

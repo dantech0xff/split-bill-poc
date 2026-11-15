@@ -10,6 +10,11 @@ structured data. The app then does the arithmetic itself: you correct anything t
 choose who is on the bill, how it is split and who paid, and every bill is kept on the phone. The
 app holds no API key.
 
+Then it asks each person for their share with a message of their own, carrying a payment link or QR
+code for the way you get paid (VietQR, PromptPay, UPI, SEPA, PayPal.Me or a link you paste), and
+tracks who has paid. Groups keep balances across many bills and currencies and suggest the fewest
+payments that settle them. The app never holds or moves money.
+
 ```mermaid
 flowchart LR
     A[Bill photo + instruction] --> B[ML Kit OCR on the device]
@@ -42,8 +47,22 @@ flowchart LR
    - Every share is shown, and the shares always add up to the bill total.
 4. **Edit bill** corrects every item, quantity, price, tax, fee, discount and the total. When the
    lines and the printed total disagree, it shows by how much and offers two ways to settle it.
-5. **Request** confirms the amounts that would be requested from each person. This step is a mock.
-   A finished split stays in the list and can be changed later.
+5. **Ask for the money** gives each person who owes something a message of their own to send in any
+   chat app: what it is for, the amount, and how to pay it, as a QR code, a link or details to type
+   in, built from one of your **ways to get paid**. A card with the whole split can go to the group
+   chat as a picture. Signed in, each request is also kept on Split Vibe's server, so the payer can
+   say they paid from the app and you confirm it. A finished split stays in the list and can be
+   changed later.
+6. **Groups** (from the home screen) keep the bills of a trip or a shared flat in one currency: each
+   member's balance, the fewest payments that settle the group, the people and places kept for
+   those without the app, the bills and what changed. A split is added to a group from its result
+   screen, matching people to members and converting the total once at the day's rate. Invite links
+   let people join, or ask for a place kept under their name, which the group's owner decides.
+7. **Requests** lists what you have to pay, with its code and details, and what you asked for, to
+   confirm once the money arrived, remind by hand or on a schedule, or delete.
+8. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
+   bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
+   (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
 
 Every change is saved as a draft as it is made, so a split survives the app being closed.
 
@@ -80,6 +99,22 @@ address or client ID, such as one with a `<placeholder>` still in it, stops the 
 splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev
 splitvibe.googleWebClientId=<web client ID>.apps.googleusercontent.com
 ```
+
+Push notices about requests and groups come through Firebase Cloud Messaging, which the app uses for
+nothing else. They need the four public values of the Android app in the Firebase console (Project
+settings, Your apps), and come on only when all four are set; without them every flow works the
+same, only without notices:
+
+```properties
+splitvibe.firebaseAppId=1:<number>:android:<hex>
+splitvibe.firebaseApiKey=<API key of the Android app>
+splitvibe.firebaseProjectId=<project id>
+splitvibe.firebaseSenderId=<project number>
+```
+
+Invite links (`/g/…`) and request links (`/r/…`) are on the proxy's own address and open in the app
+through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
+app is signed with (see [docs/proxy.md](docs/proxy.md)).
 
 Without signing in, each install gets 3 free reads. **Settings** (gear icon) shows the reads left
 and offers "Sign in with Google" for 10 reads a month, signing out and deleting the account. When a
@@ -183,13 +218,32 @@ same bill cannot overwrite each other. A finished bill that a change leaves unba
 draft again. The photos of a bill's pages are kept in the app's own storage and deleted with it. The
 screen on show, the bill and the photos come back after the system ends the app.
 
+### 5. Groups and requests live on the proxy, payment methods on the phone
+
+Groups and payment requests are shared with other people, so they are kept in the proxy's D1
+database, and the proxy checks every permission: only members read a group, only a bill's author
+or the group's owner changes a bill, payments back are only ever added, only the payer says a
+request was paid and only the requester confirms it. Balances are worked out on the phone from the
+group's bills and payments back (`Balances`, `DebtSimplifier` and `GroupConversion` in
+`core/domain`): they always add up to zero, also across currencies, and the suggested payments
+never number more than the members minus one. The phone keeps the proxy's last answers to read
+without a connection, and empties that copy on every sign-in, sign-out and account deletion.
+
+The ways to get paid never leave the phone, except as the one copy a request carries. The payer's
+app builds the link, the QR code and the details from that copy (`PaymentRequestBuilder` and
+`EmvQr`). PromptPay and VietQR codes match the open-source implementations bank apps read,
+character for character with their CRC, and the SEPA code follows the European Payments Council's
+guidelines.
+
 ### Privacy
 
-Only the OCR text and the typed instruction leave the phone. The photos are never uploaded, and the
-app holds no permission to read contacts: the system's contact picker hands it the one name picked.
-Bills, people and photos stay on the phone. The request for exchange rates says nothing about who
-asks. The proxy keeps no bill text, name or address: it holds counters under salted hashes, and logs
-one line of numbers per request.
+Only the OCR text and the typed instruction leave the phone to be read. The photos are never
+uploaded, and the app holds no permission to read contacts: the system's contact picker hands it the
+one name picked. Bills, people, photos and payment methods stay on the phone. A bill added to a group
+carries what was bought and how it was split, but no photo, read text or instruction. The request
+for exchange rates says nothing about who asks. The proxy keeps no email, Google name or photo: the
+names in groups and on requests are the ones people type, and push notices carry fixed words of the
+app's own, never a name, an amount or a link.
 
 ## Project layout
 
@@ -197,7 +251,9 @@ one line of numbers per request.
 core/designsystem/            the look of the app: theme, tokens, components, motion
 core/domain/                  plain Kotlin, no Android: the money logic and the data contracts
   domain/     Bill, BillCurrency, BillEditor, BillReconciler, ExchangeRate, Participant, Payment,
-              SplitCalculator, SplitMode, SplitPlan, NameMatcher
+              SplitCalculator, SplitMode, SplitPlan, NameMatcher, and for groups Balances,
+              DebtSimplifier, GroupConversion
+    payments/ PaymentMethod, PaymentRequestBuilder, EmvQr, VietQrBanks
   ocr/        OcrResult, OcrLayoutEncoder (one page or several)
   llm/        BillAnalyzer, BillAnalysisParser
 app/src/main/java/com/dantech/splitvibe/
@@ -208,9 +264,12 @@ app/src/main/java/com/dantech/splitvibe/
   data/       bills (Room database, revisions, page photos), people (people split with before,
               names from the contact picker), fx (exchange rates kept for offline use), account
               (install id, encrypted session, Google sign-in), proxy (the proxy's routes over
-              OkHttp), settings (local currency)
-  ui/         navigation, home, history, split (new split, result, sheets, confirmation), editor,
-              settings
+              OkHttp, the copy of its answers), groups, requests, payments (ways to get paid),
+              settings (local currency, your name)
+  share/      QR codes (ZXing) and the split card shared as a picture
+  notifications/ push notices through Firebase, and the device the proxy sends them to
+  ui/         navigation and app links, home, history, split (new split, result, sheets, the request
+              step), editor, groups, requests, payments, settings
 app/schemas/                  the Room database schema, one file per version
 app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
 app/src/androidTest/          on-device tests
@@ -231,12 +290,16 @@ describes the AI proxy: its routes, its limits, what it keeps, and how to run an
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-222 tests cover the split rules (for each of the five ways to split, 2,000 random bills whose shares
-must add up to the total, and payments that must too), editing a bill, currency handling and
-exchange rates, name matching, split planning, row layout of one page or several, answer parsing,
-the bills kept on the phone and their revisions, the proxy client, the account and sign-in, the UI
-flow, app startup, navigation, the dependency wiring, the text contrast of the colour palette, the
-motion, and the design system components.
+290 tests cover the split rules (for each of the five ways to split, 2,000 random bills whose shares
+must add up to the total, and payments that must too), group balances (2,000 random groups in up to
+six currencies, whose balances must add up to zero and settle in fewer payments than members, and a
+trip worked out by hand), the payment codes (PromptPay, VietQR and SEPA against published examples,
+character for character), the payment methods and the links they accept, editing a bill, currency
+handling and exchange rates, name matching, split planning, row layout of one page or several,
+answer parsing, the bills kept on the phone and their revisions, the proxy client, groups, requests
+and their copy kept on the phone, the request step, invite and request links, push registration,
+the account and sign-in, the UI flow, app startup, navigation, the dependency wiring, the text
+contrast of the colour palette, the motion, and the design system components.
 
 - The proxy client tests run the real client against a local server that answers as the proxy does.
   They pin down the request, which must match the shared fixture the proxy's tests send, and every
@@ -323,12 +386,19 @@ What has not been verified:
 
 - **Free reads are per install.** Clearing the app's data makes a new install with 3 new reads. The
   proxy's limits per network address and its daily spend caps bound what that can cost.
-- **"Request" creates nothing.** The app never moves money.
+- **The app never moves money.** A request carries a link, a QR code or details for the payer's own
+  banking or payment app; "paid" counts once the requester confirms it.
+- **Payment codes still need a check with real apps.** VietQR and PromptPay have no public
+  specification, so their codes follow open-source implementations; each kind of code and link has
+  to be scanned or opened with real banking apps before release.
+- **Venmo, Cash App, Revolut, Wise and Zelle cannot be filled in.** A link made in those apps is
+  pasted as it is, or the details are given, and the payer types the amount.
+- **Groups and tracked requests need a Google sign-in.** Without one, a request is a message only.
 - **Latin script only.** Chinese, Japanese, Korean and Devanagari need the matching ML Kit artifacts.
 - **Converted amounts are only shown.** A bill in another currency is split and kept in its own
   currency; the day's rate comes from Frankfurter through the proxy and may be a day or two old.
 - **Bills stay on one phone.** There is no sync between devices yet, and clearing the app's data
-  deletes the bills.
+  deletes the bills, except the copies added to a group.
 - **Bills printed without decimals are split in whole units**, including the rare dollar or euro bill
   that shows no cents.
 - **App size.** ML Kit ships native code for four CPU types, so the release APK is large; an app
