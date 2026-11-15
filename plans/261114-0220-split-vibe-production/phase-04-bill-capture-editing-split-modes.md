@@ -135,7 +135,7 @@ Xóa:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-04-capture-editing-split-modes, chưa merge vào main -->
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-04-capture-editing-split-modes, đã fast-forward vào main -->
 Tám trên mười một tiêu chí đạt và có bằng chứng. Hai tiêu chí về hai máy được hoãn cùng phần đồng bộ, theo quyết định lưu trên máy ở Validation Session 5. Tiêu chí còn lại cần máy thật có Google Play services.
 
 | Tiêu chí | Kết quả | Bằng chứng |
@@ -168,7 +168,6 @@ Các mặc định đã chọn khi sửa review, chủ sản phẩm có thể đ
 Còn lại trước khi đóng phase:
 - Quét hóa đơn hai trang trên máy thật có Google Play services và ghi fixture hai trang.
 - Chia sẻ ảnh từ thư viện và chọn liên hệ trên thiết bị.
-- Merge nhánh vào `main` khi chủ sản phẩm đồng ý.
 
 ## Success Criteria
 
