@@ -33,6 +33,18 @@ describe("the parsers of the proxy's answers", () => {
     expect(parseShare({ ...shareLocked.share, paidBy: 5 })).toBeNull();
   });
 
+  it("keep participant ids such as __proto__ and constructor as plain keys of the amounts", () => {
+    const bill = { ...shareLocked.share.bill, participants: [{ id: "__proto__", name: "Proto" }, { id: "constructor", name: "Con" }], totalMinor: 3000 };
+    const amounts = JSON.parse('{"__proto__": {"amountMinor": 1000, "payment": null}, "constructor": {"amountMinor": 2000, "payment": null}}') as unknown;
+    const share = parseShare({ ...shareLocked.share, bill, amounts });
+
+    expect(share).not.toBeNull();
+    expect(Object.keys(share?.amounts ?? {})).toEqual(["__proto__", "constructor"]);
+    expect(share?.amounts?.["__proto__"]).toEqual({ amountMinor: 1000, payment: null });
+    expect(share?.amounts?.["constructor"]).toEqual({ amountMinor: 2000, payment: null });
+    expect(share?.amounts?.["toString"]).toBeUndefined();
+  });
+
   it("refuse a share of the wrong shape", () => {
     const badStatus = clone(shareOpen.share) as Record<string, unknown>;
     badStatus.status = "closed";

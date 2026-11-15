@@ -167,6 +167,17 @@ describe("the bill link's page", () => {
     expect(textOf(people[2] ?? null)).toBe("An No way to pay was added. The person who made this link paid the bill: settle up with them directly. ₫67,500");
   });
 
+  it("lists people whose ids are __proto__ and constructor like anyone else", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
+    answer.share.bill = { ...shareLocked.share.bill, participants: [{ id: "__proto__", name: "Proto" }, { id: "constructor", name: "Con" }], totalMinor: 3000 };
+    answer.share.amounts = JSON.parse('{"__proto__": {"amountMinor": 1000, "payment": null}, "constructor": {"amountMinor": 2000, "payment": null}}') as unknown;
+    const page = mount(<ShareView state={stateOf(answer)} actions={actions()} />);
+    expect(all(page, ".person").map((person) => textOf(person))).toEqual([
+      "Proto No way to pay was added: settle up directly with whoever paid the bill. ₫1,000",
+      "Con No way to pay was added: settle up directly with whoever paid the bill. ₫2,000",
+    ]);
+  });
+
   it("says a link that does not exist does not, and one that was revoked no longer works", () => {
     const missing = mount(<ShareView state={loadingState({ phase: "failed", problem: { kind: "not_found" } })} actions={actions()} />);
     expect(textOf(missing.querySelector("h1"))).toBe("This link does not exist");

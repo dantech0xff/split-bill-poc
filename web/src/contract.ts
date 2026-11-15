@@ -206,7 +206,9 @@ function parseClaim(value: unknown): PublicClaim | null {
 function parseAmounts(value: unknown): Record<string, ShareAmount> | null | undefined {
   if (value === null || value === undefined) return null;
   if (!isObject(value)) return undefined;
-  const amounts: Record<string, ShareAmount> = {};
+  // Without a prototype: a participant id such as `__proto__` or `constructor` is a key like any
+  // other, and an id with no amount finds nothing.
+  const amounts: Record<string, ShareAmount> = Object.create(null);
   for (const [participantId, entry] of Object.entries(value)) {
     if (!isObject(entry) || !isAmount(entry.amountMinor)) return undefined;
     const payment = parseOptionalPayment(entry.payment);
