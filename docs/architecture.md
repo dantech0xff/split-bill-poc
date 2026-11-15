@@ -84,9 +84,11 @@ A wiring mistake fails the checks instead of crashing a screen.
 - A bill opened from Home or the list of bills opens the split screen on its result, and back
   returns to where it was opened from. Photos shared from another app open a new split with them
   (`MainActivity` takes them from the share intent).
-- An invite link (`/g/{token}`) or a request link (`/r/{token}`) on the proxy's own address, and a
+- An invite link (`/g/#{token}`) or a request link (`/r/#{token}`) on the proxy's own address, and a
   tapped push notice, open their screen on top of Home (`AppLink` reads them from the intent; a link
-  to any other address opens nothing). The links reach the app through Android App Links: the
+  to any other address opens nothing). The token rides in the fragment, which a browser never sends,
+  and the app sends it to the proxy in a request body, so no token appears in an address the proxy
+  or Cloudflare could log. The links reach the app through Android App Links: the
   manifest's intent filter names the proxy's host, which the build takes from the proxy's address,
   and Android checks the proxy's `/.well-known/assetlinks.json` before it hands the app a link.
 
@@ -136,8 +138,17 @@ flowchart LR
 - `GroupRepository` and `RequestRepository` call the proxy's signed-in routes through
   `ProxyApi.signedIn` and keep its answers in `ProxyCache`, a table of the Room database, so groups
   and requests can be read without a connection. The cache is emptied on every sign-in, sign-out and
-  account deletion, so another account never sees them. A session the proxy refuses turns into a
-  sign-in to renew, as for reading bills.
+  account deletion, and its generation moves on each time, so an answer to a call made before that
+  is dropped however late it arrives: another account never sees them. A group is kept with each
+  bill's name and amounts but not its whole document, so the copy stays small at any size, and it is
+  read off the main thread. A session the proxy refuses turns into a sign-in to renew, as for reading
+  bills.
+- A request's id follows what it asks for: the bill and person (or the group and the two members),
+  the amount and a hash of the payment method. Asking again for the same thing is the same request;
+  a changed amount or a corrected account is a new one, and the open request it replaces is
+  withdrawn. A payment back is recorded under one id per choice, so a retry records it once, and
+  getting money that was asked for confirms that request rather than recording it again. A bill in a
+  group is settled through the group and is not asked for person by person.
 - A group bill is the member's `SavedBill` without its photos, read text, instruction and own rate,
   with the member each participant is (`GroupBillDocument`), and its amounts in the group's
   currency. `GroupConversion` converts the total once and divides the result by the largest

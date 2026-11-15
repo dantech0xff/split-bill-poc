@@ -56,8 +56,10 @@ flowchart LR
 6. **Groups** (from the home screen) keep the bills of a trip or a shared flat in one currency: each
    member's balance, the fewest payments that settle the group, the people and places kept for
    those without the app, the bills and what changed. A split is added to a group from its result
-   screen, matching people to members and converting the total once at the day's rate. Invite links
-   let people join, or ask for a place kept under their name, which the group's owner decides.
+   screen, matching people to members and converting the total once at the day's rate; from then on
+   it is settled in the group, not asked for person by person. Invite links let people join, or ask
+   for a place kept under their name, which the group's owner decides; the owner can also take
+   someone out of the group, keeping what they paid and owe.
 7. **Requests** lists what you have to pay, with its code and details, and what you asked for, to
    confirm once the money arrived, remind by hand or on a schedule, or delete.
 8. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
@@ -112,7 +114,7 @@ splitvibe.firebaseProjectId=<project id>
 splitvibe.firebaseSenderId=<project number>
 ```
 
-Invite links (`/g/…`) and request links (`/r/…`) are on the proxy's own address and open in the app
+Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own address and open in the app
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
 app is signed with (see [docs/proxy.md](docs/proxy.md)).
 
