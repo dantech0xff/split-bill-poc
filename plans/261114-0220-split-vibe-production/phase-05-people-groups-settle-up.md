@@ -137,16 +137,74 @@ Xóa tài khoản đối với dữ liệu chung:
 
 ## Todo
 
-- [ ] `Balances`, `GroupConversion`, `DebtSimplifier` với test thuộc tính nhiều tiền tệ
-- [ ] `EmvQr` và hàm sinh cho PayPal.Me, UPI, PromptPay, VietQR, SEPA
-- [ ] Hồ sơ cách nhận tiền; kiểm tra `PastedLink`
-- [ ] Yêu cầu trả tiền từng người qua bảng chia sẻ, kèm bản chụp một cách nhận tiền
-- [ ] Thẻ chia sẻ dạng ảnh
-- [ ] Nhóm trên D1: vào nhóm bằng link, nhận chỗ giữ tên có duyệt, chấp nhận yêu cầu, kiểm quyền trong Worker
-- [ ] Báo đã trả, xác nhận, khoản thanh toán chỉ thêm
-- [ ] Thông báo đẩy theo mẫu, giới hạn tần suất, lời nhắc
-- [ ] Xóa tài khoản với dữ liệu nhóm
-- [ ] Ma trận kiểm tay với app thanh toán thật
+<!-- Updated: 15/11/2026 - thực hiện trên nhánh feat/phase-05-groups-balances-settle-up -->
+- [x] `Balances`, `GroupConversion`, `DebtSimplifier` với test thuộc tính nhiều tiền tệ
+- [x] `EmvQr` và hàm sinh cho PayPal.Me, UPI, PromptPay, VietQR, SEPA
+- [x] Hồ sơ cách nhận tiền; kiểm tra `PastedLink`
+- [x] Yêu cầu trả tiền từng người qua bảng chia sẻ, kèm bản chụp một cách nhận tiền
+- [x] Thẻ chia sẻ dạng ảnh
+- [x] Nhóm trên D1: vào nhóm bằng link, nhận chỗ giữ tên có duyệt, chấp nhận yêu cầu, kiểm quyền trong Worker
+- [x] Báo đã trả, xác nhận, khoản thanh toán chỉ thêm
+- [x] Thông báo đẩy theo mẫu, giới hạn tần suất, lời nhắc (gửi thật cần dự án Firebase và secret `FCM_SERVICE_ACCOUNT`)
+- [x] Xóa tài khoản với dữ liệu nhóm
+- [ ] Ma trận kiểm tay với app thanh toán thật (cần máy thật và app ngân hàng)
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-05-groups-balances-settle-up, chưa vào main -->
+Chín trên mười một tiêu chí đạt và có bằng chứng. Tiêu chí về thông báo đẩy mới đạt một phần, vì đo thời gian tới máy cần dự án Firebase, secret `FCM_SERVICE_ACCOUNT` và máy thật. Ma trận kiểm tay với app thanh toán thật chưa làm.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| 2.000 nhóm ngẫu nhiên, có nhiều tiền tệ và nhiều người tạo: tổng số dư bằng 0, áp các lần chuyển gợi ý thì mọi số dư về 0, số lần chuyển không quá số thành viên trừ 1 | Đạt | `GroupPropertyTest`: 2.000 nhóm từ 1 đến 8 người; tiền của nhóm và của từng hóa đơn chọn ngẫu nhiên, người trả và người chia cũng vậy, kèm các khoản đã trả lại. Số dư không đổi khi xáo thứ tự thành viên, hóa đơn và khoản trả |
+| Nhóm 4 người dùng THB, 5 hóa đơn bằng 3 tiền tệ do 2 thành viên tạo, khớp bảng tính tay; sửa hóa đơn sau khi đã trả làm lộ đúng phần chênh | Đạt | `GroupBalancesTest`: bảng tính tay nằm ngay trong test. Đổi hóa đơn thứ năm hay tỷ giá sau khi mọi người đã trả chỉ để lại phần chênh |
+| Nội dung QR của VietQR, PromptPay và SEPA khớp từng ký tự với véc-tơ kiểm thử, kể cả CRC | Đạt | `PaymentRequestBuilderTest`: PromptPay khớp promptpay-qr với mọi loại mã, VietQR khớp vietnam-qr-pay có và không có số tiền, SEPA là ví dụ trong bộ hướng dẫn EPC069-12. `EmvQrTest` kiểm CRC-16/CCITT-FALSE |
+| Test quyền của proxy | Đạt | Thiết kế D1 thay các tên của bản Firestore. Người trả không xác nhận được, người đòi không báo đã trả được, người ngoài không thấy yêu cầu (`payment-requests.test.ts`). Khoản thanh toán không sửa, không xóa được, kể cả ở tầng cơ sở dữ liệu nhờ trigger (`bills.test.ts`). Thay cho `memberUids`: không đường nào cho client đặt `account` của một thành viên. Nó chỉ được gán khi vào nhóm bằng link mời hay khi người tạo nhóm duyệt việc nhận chỗ giữ tên (`invites.test.ts`); chấp nhận link yêu cầu chỉ gắn người trả vào đúng yêu cầu đó (`payment-requests.test.ts`). Xin nhận chỗ giữ tên phải chờ người tạo nhóm duyệt (`invites.test.ts`). Thay cho `paymentMethods`: cách nhận tiền nằm trên máy, và bản chụp trong một yêu cầu chỉ người đòi và người trả đã gắn đọc được |
+| `PastedLink` dạng `javascript:`, `intent:`, `http:` hay tên miền ngoài danh sách bị từ chối | Đạt | `PaymentMethodTest` |
+| Người không ở chung nhóm và chưa chấp nhận yêu cầu thì không nhận thông báo; vượt giới hạn tần suất thì bị từ chối | Đạt | `push.test.ts`: thông báo chỉ tới người trả hay người đòi của một yêu cầu, hay tới người tạo nhóm khi có người xin nhận chỗ, với chữ cố định và chỉ mang mã. Giới hạn mỗi giờ cho một tài khoản: 30 yêu cầu, 20 link mời và 200 thay đổi nhóm |
+| Kiểm tay PayPal.Me, VietQR với hai app ngân hàng Việt Nam, SEPA và UPI | Chưa kiểm | Cần máy thật và app ngân hàng. Mã QR và link đã khớp véc-tơ kiểm thử nhưng chưa được quét bằng app thật |
+| Venmo, Cash App, Revolut, Wise, Zelle luôn hiện đủ thông tin để người trả tự nhập | Đạt | Các dịch vụ này đi qua link dán hoặc thông tin dạng chữ, và mọi yêu cầu luôn có phần chữ kèm số tiền (`PaymentRequestBuilderTest`) |
+| Sau khi một thành viên xóa tài khoản, số dư của người khác không đổi | Đạt | `account.test.ts`: thành viên thành chỗ giữ tên; mọi phần, khoản đã trả và khoản thanh toán giữ nguyên |
+| Thông báo tới trong 1 phút; từ chối quyền thông báo không làm hỏng luồng nào | Một phần | App hỏi quyền một lần sau khi đăng nhập, và mọi luồng chạy như nhau dù người dùng trả lời thế nào. Thiếu service account thì proxy không gửi gì mà mọi luồng vẫn chạy (`push.test.ts`); máy không đăng ký được cũng không hỏng gì khác (`NoticesAndDevicesTest`). Thời gian tới máy chưa đo được khi chưa có dự án Firebase |
+| Ảnh chuẩn cho thẻ chia sẻ và các màn hình mới; `SplitFlowTest` tới bước tạo yêu cầu | Đạt | Ảnh 10 có thẻ chia sẻ. Ảnh 22 đến 27 cho danh sách nhóm, một nhóm, vào nhóm, yêu cầu, link yêu cầu và cách nhận tiền; ảnh 23 và 25 có cả bản tối. `SplitFlowTest` đọc hóa đơn mẫu, chia, rồi mở bảng chia sẻ với tin yêu cầu |
+
+Kiểm tra chung: 302 unit test Kotlin (app 172, domain 130) và 185 test proxy qua; ktlint, lint và `tsc` sạch. Tám test trên máy ảo chỉ chạy trên GitHub Actions khi mở PR hoặc vào main, nên chưa chạy cho nhánh này.
+
+Những gì đã làm:
+- **Domain:** `Balances`, `GroupConversion` (quy đổi tổng một lần rồi chia theo số dư lớn nhất), `DebtSimplifier` với số học có kiểm tràn; `EmvQr`; `PaymentMethod` với bảy kiểu; `PaymentRequestBuilder` cho PayPal.Me, UPI dạng người trả chủ động, PromptPay, VietQR và SEPA.
+- **App:** cách nhận tiền lưu trên máy; yêu cầu từng người qua bảng chia sẻ, có mã QR và thẻ chia sẻ dạng ảnh; nhóm (tạo, mời, vào nhóm, xin nhận chỗ giữ tên, duyệt, gỡ thành viên, số dư, gợi ý trả, ghi đã nhận tiền); hộp yêu cầu; link mời và link yêu cầu mở app qua App Links, token nằm sau dấu `#`; thông báo đẩy qua FCM, chỉ bật khi đã đăng nhập. Room lên phiên bản 2 với bản lưu câu trả lời của proxy, được xóa ở mỗi lần đăng nhập, đăng xuất và xóa tài khoản.
+- **Proxy:** D1 với 10 bảng, các đường nhóm, link mời, yêu cầu và thiết bị, FCM HTTP v1, cron nhắc nợ, trang `/g/` và `/r/`, `assetlinks.json`, xóa tài khoản đối với dữ liệu chung; hợp đồng ở [docs/proxy.md](../../docs/proxy.md).
+- **Review độc lập của app:** 1 lỗi nghiêm trọng, 5 nặng, 5 trung bình và 12 nhẹ ([báo cáo](../reports/code-reviewer-261115-0800-phase-5-app-review.md)), đã sửa hết.
+- **Review độc lập của proxy:** 2 lỗi nặng, 4 trung bình và 5 nhẹ ([báo cáo](../reports/code-reviewer-261115-0800-phase-5-proxy-review.md)). Đã sửa các lỗi nặng và trung bình ([bảng sửa](../reports/fullstack-developer-261115-0600-proxy-groups-requests-push.md)). Với lỗi nhẹ, một trigger nay chặn xóa khoản thanh toán, và hợp đồng của proxy nói rõ một phiên cấp trước khi xóa tài khoản vẫn dùng được tới khi hết hạn. Ba lỗi nhẹ giữ nguyên có chủ ý: thành viên cũ vẫn xác nhận được yêu cầu, link yêu cầu không đổi được, và rủi ro một tài khoản biết mã thiết bị của người khác thì chuyển được thông báo của máy đó về mình được chấp nhận, vì thông báo chỉ mang chữ cố định và mã.
+
+Triển khai lên Cloudflare ngày 15/11/2026:
+- **D1 `split-vibe`:** trước khi chạy đã ghi một điểm khôi phục Time Travel, lúc cơ sở dữ liệu còn trống. `0001_groups.sql` chạy trong một lô cùng dòng ghi vào `d1_migrations`, như `wrangler d1 migrations apply` làm, nên lần chạy wrangler sau sẽ bỏ qua nó. Kết quả có 10 bảng, 18 chỉ mục và 3 trigger.
+- **Worker `split-vibe-proxy`:** dựng từ commit `81366ba`, thêm binding `DB` và biến `ANDROID_CERT_SHA256` để trống. Các biến và secret đang có, cùng lịch cron 16:30 UTC, giữ nguyên.
+- **Thử bản đang chạy:** `assetlinks.json` trả `[]`; `/g/` và `/r/` trả trang mở app; các đường nhóm, yêu cầu và thiết bị trả 401 khi chưa có phiên; `POST /v1/session` trả 503 `sign_in_off` vì `GOOGLE_CLIENT_ID` còn trống; tỷ giá vẫn trả bình thường.
+- D1 chạy thật lần đầu trong cron 16:30 UTC, khi dọn link mời và yêu cầu hết hạn. Các đường nhóm cần đăng nhập Google, nên chỉ thử trọn được sau khi đặt `GOOGLE_CLIENT_ID`.
+
+Các mặc định đã chọn khi sửa review, chủ sản phẩm có thể đổi:
+- Hóa đơn đã nằm trong nhóm thì được cập nhật trong nhóm, không đòi từng người riêng nữa. Bảng thêm vào nhóm báo khi người trong hóa đơn đã được đòi riêng.
+- Mã của một yêu cầu đi theo nội dung cách nhận tiền: sửa cách nhận tiền rồi gửi lại tạo yêu cầu mới, và yêu cầu đang chờ mang cách cũ bị rút lại.
+- Proxy chỉ kiểm hình dạng và kích thước của cách nhận tiền trong yêu cầu. Nội dung được kiểm trên máy của cả hai bên, và một cách không dùng được hiện là không dùng được thay vì làm app lỗi.
+- Link yêu cầu sinh từ người đòi cùng mã yêu cầu: gửi lại cùng yêu cầu ra cùng link, còn tài khoản khác dùng lại mã đó thì ra link khác.
+- Người tạo nhóm gỡ được thành viên, và người bị gỡ ở lại thành chỗ giữ tên với đủ số tiền. Yêu cầu trong nhóm mang `creditorMemberId` để app hiện ai trong nhóm đang đòi.
+- Mỗi lượt cron gửi tối đa 40 thông báo để nằm trong 50 subrequest của gói Workers miễn phí; phần còn lại đi hôm sau.
+- Mỗi nhóm tối đa 100 thành viên, 500 hóa đơn, 1 MB tài liệu và 2.000 khoản thanh toán; mỗi tài khoản tối đa 100 nhóm và 200 thay đổi nhóm mỗi giờ. Các mức này chưa được đo với 10 ms CPU mỗi lần gọi của gói miễn phí.
+- Máy chỉ giữ tên và số tiền của hóa đơn nhóm, không giữ cả tài liệu, để nhóm lớn vẫn mở được.
+
+Chưa làm, chờ chủ sản phẩm quyết:
+- Người trả từ chối một yêu cầu.
+- Gán chỗ giữ tên trong nhóm cho người đã chấp nhận link yêu cầu. Hiện chấp nhận link chỉ gắn họ vào yêu cầu đó; chỗ giữ tên vẫn chờ họ vào nhóm và được duyệt, khác với đường thứ ba mà phần Architecture dự định.
+- Thu hẹp danh sách tên miền của link dán về đúng dạng link của từng dịch vụ.
+- Chỗ "Former member" do xóa tài khoản để lại hiện vẫn nhận được như mọi chỗ giữ tên khác, nếu người tạo nhóm duyệt; người nhận sẽ mang số dư của người cũ.
+- Người đòi đã rời nhóm hiện vẫn xác nhận được yêu cầu cũ của nhóm, và việc xác nhận ghi một khoản thanh toán.
+- Người đầu tiên chấp nhận một link yêu cầu thành người trả. Link lọt vào nhầm người thì người đòi phải xóa và gửi lại, vì chưa có cách đổi link hay xem ai đã chấp nhận.
+
+Còn lại trước khi đóng phase:
+- Ma trận kiểm tay với app thanh toán thật.
+- Tạo dự án Firebase, đặt secret `FCM_SERVICE_ACCOUNT` cho Worker và bốn giá trị Firebase trong `local.properties`, rồi đo thời gian thông báo tới máy.
+- Đặt vân tay chứng chỉ ký app vào `ANDROID_CERT_SHA256` để App Links được xác minh, và đặt `GOOGLE_CLIENT_ID` để đăng nhập, vào nhóm và đòi tiền chạy được trên bản thật.
 
 ## Success Criteria
 
