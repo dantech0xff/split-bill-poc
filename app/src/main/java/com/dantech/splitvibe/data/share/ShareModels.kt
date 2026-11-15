@@ -3,6 +3,7 @@ package com.dantech.splitvibe.data.share
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.groups.CurrencyDto
 import com.dantech.splitvibe.data.payments.PaymentPayload
+import com.dantech.splitvibe.data.proxy.showsNothing
 import com.dantech.splitvibe.data.proxy.takeCodePoints
 import com.dantech.splitvibe.data.proxy.withoutFormatting
 import java.time.LocalDate
@@ -71,6 +72,7 @@ data class BillProjection(
         /**
          * [text] on one line, without the control characters the proxy refuses or the formatting
          * characters it takes out, and at most [max] characters long as the proxy counts them.
+         * Text that would show nothing, which the proxy refuses, is empty.
          */
         private fun clean(text: String, max: Int): String = text.withoutFormatting()
             .map { if (it.isISOControl()) ' ' else it }
@@ -79,6 +81,8 @@ data class BillProjection(
             .trim()
             .takeCodePoints(max)
             .trim()
+            .takeUnless { it.showsNothing() }
+            .orEmpty()
 
         private fun isDay(text: String): Boolean = try {
             LocalDate.parse(text)

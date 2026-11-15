@@ -39,19 +39,22 @@ class BillProjectionTest {
     }
 
     @Test
-    fun `invisible formatting characters are taken out as the proxy does, and a long name is cut between characters`() {
+    fun `invisible formatting characters but the joiners are taken out as the proxy does, and a long name is cut between characters`() {
         val saved = ShareFixtures.saved
+        // A woman and a girl, joined into one emoji by a zero-width joiner.
+        val family = "\uD83D\uDC69\u200D\uD83D\uDC67"
         val items = saved.bill.items.map {
             when (it.id) {
                 "i1" -> it.copy(name = "\u200B\u2060")
                 "i2" -> it.copy(name = "Bun\u200B cha\uDB40\uDC01")
+                "i3" -> it.copy(name = "Tea for $family")
                 else -> it
             }
         }
         val smile = "\uD83D\uDE00"
         val people = saved.plan.participants.map {
             when (it.id) {
-                "p1" -> it.copy(name = "\uFEFF")
+                "p1" -> it.copy(name = "\uFEFF\u200D")
                 "p2" -> it.copy(name = smile.repeat(61))
                 else -> it
             }
@@ -61,7 +64,7 @@ class BillProjectionTest {
 
         val projection = BillProjection.of(read, myName = "Dana")
 
-        assertEquals(listOf("Item", "Bun cha", "Tea"), projection.items.map { it.name })
+        assertEquals(listOf("Item", "Bun cha", "Tea for $family"), projection.items.map { it.name })
         assertEquals(listOf("Dana", "Someone", smile.repeat(60)), projection.participants.map { it.name })
     }
 
