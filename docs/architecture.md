@@ -8,24 +8,28 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push, bill links"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>group balances, payment codes,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
     profile -. drives and measures .-> app
-    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push"]
-    app -. HTTPS .-> proxy
+    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push,<br/>bill links and their live claims"]
+    web["web/<br/>the pages a link opens:<br/>Vite, Preact, TypeScript"]
+    app -. HTTPS and a WebSocket .-> proxy
+    web -. built into .-> proxy
+    design -. tokens.css .-> web
 ```
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`) |
-| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`) |
+| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
-| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links; described in [proxy.md](proxy.md) |
+| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links, bill links with what people claim on them and their live updates (`ShareRoom`), the web pages; described in [proxy.md](proxy.md) |
+| `web/` | Web pages, TypeScript | the pages a bill link, a payment request link and a group invite open (`/s/`, `/r/`, `/g/`), with Vite and Preact; built into the Worker, so the proxy serves them from its own address |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
@@ -168,6 +172,55 @@ flowchart LR
   the install's token to the proxy once someone signs in, and takes it back on signing out;
   `PushService` shows a notice with words of the app's own for the kind of notice the proxy sent.
 
+### Bill links and live claims
+
+```mermaid
+flowchart LR
+    split[SplitBillViewModel:<br/>the one writer of the bill] -->|a save that changes the page| repo[ShareRepository]
+    claim[ClaimViewModel] -->|BillOnScreen| split
+    claim --> repo
+    repo -->|HTTPS| proxy[(Proxy: D1)]
+    proxy -->|ShareRoom, over a WebSocket| repo
+    page[The page at /s/] <-->|claims, live| proxy
+```
+
+- A bill on a link keeps a `ShareLink`: the link's id, its address with the token after the `#`,
+  when it was made and when it runs out, a fingerprint of what its page shows, whether the amounts
+  on the page are settled, and who each claim is on the bill (`matches`, `added`). The token goes
+  nowhere else: a group's copy of the bill leaves the link out.
+- The page shows a `BillProjection` of the bill: its items, its charges (more than 20 are shown as
+  19 and one line for the rest), its total and its participants, the user under their own name, all
+  without control characters. `ShareRepository.fingerprint` hashes it together with the shares that
+  settling would put on the page, so a save that changes neither, such as finishing the split, sends
+  nothing.
+- `SplitBillViewModel` stays the only writer of the bill. The link's screen reads and changes the
+  bill through `BillOnScreen`: the bill on screen, its stored copy once the pending save is written,
+  its link and its plan. After each save of a bill on a link, `ShareRepository.project` sends the
+  page a copy when the fingerprint changed. Its writes go one at a time, and it never sends a
+  revision older than one it sent before. A link the proxy no longer has, or one that ran out, is
+  forgotten, and the user is told when a change took the settled amounts off the page.
+- `ClaimViewModel` makes the link when the bill has none, and a new one when the old one ran out or
+  is gone; a link made while another account was signed in can be replaced with a new one. It
+  follows the link only while its screen shows: `ShareRepository.live` opens a WebSocket with the
+  token as a `Sec-WebSocket-Protocol` value, reads the link as it is on each new connection, opens
+  the connection again after 1, 2, 5, 10 and then 30 seconds, and drops one that stays silent
+  through two pings.
+- Each claim is suggested as the participant of the same name (`NameMatcher`) or as someone new.
+  Closing the picking turns the claims into a split by item (`ClaimSplit`): an item several people
+  picked is shared between them, one nobody picked stays shared by everyone, and someone new joins
+  the bill as a participant who is never suggested for later bills. No more than 30 people end up
+  on the bill, as many as its page shows.
+- Sending the amounts finishes the split and puts the shares the phone saved on the page, with who
+  paid (`paidBy`). The page asks people for money only when the user paid the whole bill and it is
+  in no group, by the payment method chosen on the screen; when that method changes later, the
+  screen offers to send the new details. `PaymentPayload` keeps a method's link, QR payload and
+  details within what the proxy accepts, so a request and a link carry the same payment.
+- The pages in `web/` are built into the Worker's bundle: `npm run build:web` in `proxy/` builds
+  them, and `scripts/embed-web.mjs` writes `src/web-assets.generated.ts`, which is not committed.
+  Their colours and type come from the design system: `WebTokensTest` writes `web/src/tokens.css`
+  when run with `-PwebTokens=write`, and otherwise fails when the file no longer matches the tokens.
+  [proxy.md](proxy.md#bill-links-and-the-web-pages) describes the routes, the limits and the pages.
+
 ## Build variants
 
 | Dimension | Values | Effect |
@@ -218,7 +271,7 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
 | Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |
-| AI proxy | `npm ci`, `npm run typecheck` and `npm test` in `proxy/` | The Worker's routes, its calls, limits, holds and spend caps, the sign-in and the session, in the workers runtime against a fake model |
+| AI proxy | `npm ci`, `npm run build:web` (after `npm ci` in `web/`), `npm test` in `web/`, then `npm run typecheck` and `npm test` in `proxy/` | The Worker's routes, its calls, limits, holds and spend caps, the sign-in and the session, bill links with their claims and live updates, in the workers runtime against a fake model; the web pages' states, money, claims and live connection |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
 | Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, and splitting the sample bill from the photo to the sent requests. Every tap also runs Android's accessibility checks on the screen it lands on. Nightly, and when those tests change. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
