@@ -17,7 +17,6 @@ import com.dantech.splitvibe.data.bills.ShareLink
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.data.people.ContactNames
 import com.dantech.splitvibe.data.people.PeopleRepository
-import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.share.ShareRepository
 import com.dantech.splitvibe.domain.Bill
@@ -494,6 +493,11 @@ class SplitBillViewModel(
         change { it.copy(share = link) }
     }
 
+    override fun updateLink(shareId: String, transform: (ShareLink) -> ShareLink) {
+        if (mutableState.value.result?.saved?.share?.shareId != shareId) return
+        change { saved -> saved.copy(share = saved.share?.let { if (it.shareId == shareId) transform(it) else it }) }
+    }
+
     override fun applyPlan(plan: SplitPlan) = change { it.copy(plan = plan) }
 
     override suspend fun storedBill(): SavedBill? {
@@ -638,26 +642,41 @@ class SplitBillViewModel(
     }
 
     /**
-     * Shows [saved] on its link, so people pick from the bill as it is now. A link that no longer works
-     * is forgotten; one that cannot be reached now shows this change with the next one.
+     * Shows [saved] on its link, so people pick from the bill as it is now, when what the page shows
+     * changed. A link that no longer works is forgotten; one that cannot be reached now shows this
+     * change with the next one. When the change took the settled amounts off the page, the user is told.
      */
     private fun showOnLink(saved: SavedBill) {
         val shares = shares ?: return
+        val link = saved.share ?: return
         viewModelScope.launch {
             try {
-                shares.project(saved, settings.value.myName)
+                when (val projected = shares.project(saved, settings.value.myName)) {
+                    null -> Unit
+
+                    ShareRepository.Projection.Forget -> forgetLink(saved.id, link.shareId)
+
+                    is ShareRepository.Projection.Shown -> {
+                        // Only what was sent is recorded, so what the link's screen kept meanwhile stays.
+                        if (mutableState.value.result?.saved?.id == saved.id) {
+                            val shown = projected.link
+                            updateLink(link.shareId) { it.copy(shown = shown.shown, settled = shown.settled, expiresAt = shown.expiresAt) }
+                        }
+                        if (projected.unsettled) mutableState.update { it.copy(notice = UNSETTLED) }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: ProxyException) {
-                if (e.status == HTTP_NOT_FOUND || e.status == HTTP_GONE) forgetLink(saved.id)
             } catch (e: Exception) {
                 // Shown with the next change that goes through.
             }
         }
     }
 
-    private fun forgetLink(billId: String) {
-        if (mutableState.value.result?.saved?.id == billId) change { it.copy(share = null) }
+    /** Forgets the link [shareId] of the bill [billId], if the bill on screen still has that one. */
+    private fun forgetLink(billId: String, shareId: String) {
+        val saved = mutableState.value.result?.saved ?: return
+        if (saved.id == billId && saved.share?.shareId == shareId) change { it.copy(share = null) }
     }
 
     /** Another writer saved [bill] first. What is stored now is shown, and changes made to the refused copy are dropped. */
@@ -744,8 +763,7 @@ class SplitBillViewModel(
         const val KEY_EDITING = "editing"
         const val KEY_OPENED = "opened"
         const val KEY_ON_INPUT = "onInput"
-        const val HTTP_NOT_FOUND = 404
-        const val HTTP_GONE = 410
+        const val UNSETTLED = "The bill changed, so its link no longer shows what everyone owes. Open the link to send the amounts again."
     }
 }
 

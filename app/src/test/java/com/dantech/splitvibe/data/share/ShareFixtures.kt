@@ -6,7 +6,9 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.BillReconciler
 import com.dantech.splitvibe.domain.ChargeKind
+import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Participant
+import com.dantech.splitvibe.domain.Payments
 import com.dantech.splitvibe.domain.SplitPlan
 import java.math.BigDecimal
 
@@ -16,7 +18,7 @@ object ShareFixtures {
     const val TOKEN = "AAAAAAAAAAAAAAAAAAAAAA"
     const val URL = "https://proxy.example/s/#$TOKEN"
 
-    /** Pho 60,000, bun cha 50,000 and tea 30,000, with a service charge of 14,000, for the user, Minh and Lan. */
+    /** Pho 60,000, bun cha 50,000 and tea 30,000, with a service charge of 14,000, for the user, Minh and Lan; the user paid. */
     val saved = SavedBill(
         id = "bill-1",
         revision = 3,
@@ -35,7 +37,11 @@ object ShareFixtures {
             printedTotalMinor = 154_000,
             warnings = emptyList(),
         ),
-        plan = SplitPlan(participants = listOf(Participant.ME, Participant("p1", "Minh"), Participant("p2", "Lan"))),
+        // The user paid the whole bill, as a bill read from a photo starts.
+        plan = SplitPlan(
+            participants = listOf(Participant.ME, Participant("p1", "Minh"), Participant("p2", "Lan")),
+            payments = Payments.single(ME_ID, 154_000),
+        ),
     )
 
     /** [saved] as the page shows it, for a user named Dana. */

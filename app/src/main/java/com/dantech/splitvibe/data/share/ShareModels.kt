@@ -109,6 +109,8 @@ data class ShareView(
     val bill: BillProjection,
     val claims: List<ShareClaim> = emptyList(),
     val amounts: Map<String, ShareAmount>? = null,
+    /** The participant who paid the whole bill, once the split is settled and one person did. */
+    val paidBy: String? = null,
 ) {
     val isOpen: Boolean get() = status == OPEN
     val isLocked: Boolean get() = status == LOCKED
@@ -125,6 +127,12 @@ data class OwnedShare(val share: ShareView, val url: String)
 
 /** What the live connection of a link says. */
 sealed interface LiveShare {
+    /** The connection is open: changes come as they happen. */
+    data object Connected : LiveShare
+
+    /** The connection dropped and is being opened again; changes wait until it is. */
+    data object Lost : LiveShare
+
     /** The link as it is now. */
     data class Changed(val share: ShareView) : LiveShare
 

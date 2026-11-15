@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -40,6 +41,7 @@ import com.dantech.splitvibe.notifications.Push
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.claim.ClaimActions
+import com.dantech.splitvibe.ui.claim.ClaimPayment
 import com.dantech.splitvibe.ui.claim.ClaimScreen
 import com.dantech.splitvibe.ui.claim.ClaimViewModel
 import com.dantech.splitvibe.ui.common.ShareEffect
@@ -208,10 +210,19 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         val claimViewModel: ClaimViewModel = koinViewModel { parametersOf(splitViewModel) }
                         val claimState by claimViewModel.state.collectAsStateWithLifecycle()
                         val saved by claimViewModel.bill.collectAsStateWithLifecycle()
+                        val methods by claimViewModel.methods.collectAsStateWithLifecycle()
+                        val method by claimViewModel.method.collectAsStateWithLifecycle()
+                        val methodChanged by claimViewModel.methodChanged.collectAsStateWithLifecycle()
                         LaunchedEffect(claimState.closed) { if (claimState.closed) backStack.remove(ClaimKey) }
+                        // The link is followed live only while the screen shows.
+                        LifecycleStartEffect(claimViewModel) {
+                            claimViewModel.resume()
+                            onStopOrDispose { claimViewModel.pause() }
+                        }
                         ClaimScreen(
                             state = claimState,
                             saved = saved,
+                            payment = ClaimPayment(methods, method, methodChanged),
                             actions = ClaimActions(
                                 onMatch = claimViewModel::match,
                                 onRemove = claimViewModel::remove,
@@ -220,6 +231,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                 onReopen = claimViewModel::reopen,
                                 onRevoke = claimViewModel::revoke,
                                 onRetry = claimViewModel::start,
+                                onMakeNewLink = claimViewModel::makeNewLink,
+                                onChooseMethod = claimViewModel::chooseMethod,
+                                onAddMethod = { backStack.open(PaymentMethodsKey) },
                                 onOpenSettings = { backStack.open(SettingsKey) },
                                 onDismissMessage = claimViewModel::dismissMessage,
                                 onBack = { backStack.remove(ClaimKey) },

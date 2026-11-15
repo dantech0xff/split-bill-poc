@@ -8,11 +8,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.bills.ShareLink
+import com.dantech.splitvibe.data.bills.ShareLink.Companion.NEW_PERSON
+import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.share.ShareFixtures
 import com.dantech.splitvibe.data.share.ShareView
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.domain.payments.PaymentMethod
 import com.dantech.splitvibe.ui.claim.ClaimActions
+import com.dantech.splitvibe.ui.claim.ClaimPayment
 import com.dantech.splitvibe.ui.claim.ClaimScreen
 import com.dantech.splitvibe.ui.claim.ClaimState
 import com.github.takahirom.roborazzi.captureScreenRoboImage
@@ -47,21 +51,30 @@ class ClaimGalleryTest {
         ),
         shareId = ShareFixtures.SHARE_ID,
         url = ShareFixtures.URL,
-        matches = mapOf("claim-minh" to "p1", "claim-x" to ClaimState.NEW_PERSON),
+        matches = mapOf("claim-minh" to "p1", "claim-x" to NEW_PERSON),
+        connected = true,
+    )
+
+    private val payment = ClaimPayment(
+        methods = listOf(main),
+        chosen = main,
+        changed = false,
     )
 
     @Test
     fun `a bill's link with what people picked so far`() = shot("28-bill-link") {
-        ClaimScreen(state(ShareView.OPEN), saved, NO_ACTIONS, Locale.US)
+        ClaimScreen(state(ShareView.OPEN), saved, payment, NO_ACTIONS, Locale.US)
     }
 
     @Test
     @Config(sdk = [34], qualifiers = "w412dp-h1600dp-night-xhdpi")
-    fun `a bill's link in the dark theme`() = shot("28-bill-link-dark") { ClaimScreen(state(ShareView.OPEN), saved, NO_ACTIONS, Locale.US) }
+    fun `a bill's link in the dark theme`() = shot("28-bill-link-dark") {
+        ClaimScreen(state(ShareView.OPEN), saved, payment, NO_ACTIONS, Locale.US)
+    }
 
     @Test
     fun `a bill's link once picking is closed`() = shot("29-bill-link-settling") {
-        ClaimScreen(state(ShareView.LOCKING), saved, NO_ACTIONS, Locale.US)
+        ClaimScreen(state(ShareView.LOCKING), saved, payment, NO_ACTIONS, Locale.US)
     }
 
     private fun shot(name: String, content: @Composable () -> Unit) {
@@ -77,6 +90,8 @@ class ClaimGalleryTest {
     }
 
     private companion object {
+        val main = SavedPaymentMethod("m1", PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"), isMain = true)
+
         val NO_ACTIONS = ClaimActions(
             onMatch = { _, _ -> },
             onRemove = {},
@@ -85,6 +100,9 @@ class ClaimGalleryTest {
             onReopen = {},
             onRevoke = {},
             onRetry = {},
+            onMakeNewLink = {},
+            onChooseMethod = {},
+            onAddMethod = {},
             onOpenSettings = {},
             onDismissMessage = {},
             onBack = {},

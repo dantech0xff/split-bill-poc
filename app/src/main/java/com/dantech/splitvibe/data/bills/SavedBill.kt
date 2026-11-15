@@ -91,9 +91,33 @@ data class GroupLink(
     val billId: String? = null,
 )
 
-/** A bill link the proxy keeps for this bill: its id there, and the address that people open. */
+/**
+ * A bill link the proxy keeps for this bill: its id there and the address that people open, and
+ * what the phone needs to keep the page right as the bill changes.
+ */
 @Serializable
-data class ShareLink(val shareId: String, val url: String)
+data class ShareLink(
+    val shareId: String,
+    val url: String,
+    /** When the link stops working; nothing is sent to it after that. */
+    val expiresAt: Long = 0,
+    /** When the proxy made it. An answer naming another time is a link made again, which is taken down. */
+    val createdAt: Long = 0,
+    /** What the page shows of the bill, as a fingerprint of the copy last sent; a save that changes none of it sends nothing. */
+    val shown: String? = null,
+    /** Whether the page shows what everyone owes, which a change to the bill takes off it again. */
+    val settled: Boolean = false,
+    /** The fingerprint of the payment method the page asks people to pay with; null when it asks for none. */
+    val method: String? = null,
+    /** Who each claim is on the bill, as the user said or the app suggested: a participant's id, or [NEW_PERSON]. */
+    val matches: Map<String, String> = emptyMap(),
+    /** The participants added to the bill for claims of people new to it, by claim id. */
+    val added: Map<String, String> = emptyMap(),
+) {
+    companion object {
+        const val NEW_PERSON = "new"
+    }
+}
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")
