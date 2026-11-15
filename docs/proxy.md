@@ -285,7 +285,9 @@ optionally, `"title"`, `"groupId"`, `"toMemberId"`, `"billId"` and `"remindEvery
 - With `groupId`, the caller must be a member, `toMemberId` another member of that group, and the
   currency the group's (else 400). A member with an account becomes the debtor at once and is
   notified. `toMemberId` without `groupId` is 400; `billId` is any UUID, kept for the app.
-- `remindEveryDays` is 0, 1, 3 or 7; 0, the default, never reminds.
+- `remindEveryDays` is 0, 1, 3 or 7: how often the debtor, or the creditor when the debtor cannot
+  get a reminder, hears that it is still open. 0, the default, never. A payment reported and
+  waiting for its creditor's confirmation tells the creditor whatever this is.
 - A creditor may make 30 requests an hour. The same request sent again answers 201 with the same
   link, and is not counted; an id another creditor used is 409.
 
@@ -392,7 +394,8 @@ changing anyone's balance: amounts and settlements stay as they are.
 - On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and
   `creditorName` becomes "Former member" on all of them. The account is then taken off every
   request, as creditor and as debtor: the other side keeps the request, nobody can act as the
-  deleted account on it, and no reminder goes out for it. Signing in again with the same Google
+  deleted account on it, and no notice goes to it or for it. A creditor whose debtor was deleted
+  gets `unpaid` notices instead of the debtor's reminders. Signing in again with the same Google
   account finds none of it.
 
 Sessions are not revoked: the proxy keeps no list of them, and a session it signed stays valid
