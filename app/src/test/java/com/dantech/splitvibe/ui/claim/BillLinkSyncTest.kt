@@ -42,7 +42,6 @@ import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -191,8 +190,10 @@ class BillLinkSyncTest {
         assertFalse("No copy of the bill follows the amounts", requests.drop(sent + 1).any { it.method == "PUT" })
         val stored = checkNotNull(runBlocking { storage.bills.get(ShareFixtures.saved.id) })
         assertEquals(BillStatus.FINAL, stored.status)
-        val onPage = Json.parseToJsonElement(requests[sent].body.readUtf8()).jsonObject["amounts"]!!.jsonObject
-            .mapValues { (_, amount) -> amount.jsonObject["amountMinor"]!!.jsonPrimitive.content.toLong() }
+        val settled = Json.parseToJsonElement(requests[sent].body.readUtf8()).jsonObject
+        val onPage = settled["amounts"]!!.jsonObject.mapValues { (_, amount) ->
+            amount.jsonObject["amountMinor"]!!.jsonPrimitive.content.toLong()
+        }
         val onPhone = stored.shares.associate { it.personId to it.totalMinor }
         val calculated = SplitCalculator.split(stored.bill, stored.plan.participantIds, stored.plan.setup).shares.associate {
             it.personId to
@@ -200,7 +201,10 @@ class BillLinkSyncTest {
         }
         assertEquals(calculated, onPage)
         assertEquals(onPhone, onPage)
-        assertNotNull("The stranger is on the bill", stored.plan.participants.firstOrNull { it.name == "Stranger" })
+        val stranger = checkNotNull(stored.plan.participants.firstOrNull { it.name == "Stranger" }) { "The stranger is on the bill" }
+        // The page says who each claim is on the bill: Minh as matched, the stranger as added.
+        val matches = settled["matches"]!!.jsonObject.mapValues { (_, participant) -> participant.jsonPrimitive.content }
+        assertEquals(mapOf("claim-minh" to "p1", "claim-x" to stranger.id), matches)
     }
 
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)

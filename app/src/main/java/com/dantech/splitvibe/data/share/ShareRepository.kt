@@ -104,19 +104,26 @@ class ShareRepository(
 
     /**
      * Puts [amounts], what each participant of [saved] owes and how to pay it, on the page of its
-     * link, with [paidBy], the one participant who paid the whole bill, if one did.
+     * link, with [paidBy], the one participant who paid the whole bill, if one did, and [matches],
+     * the participant each claim is on the bill, so that people find what they owe.
      */
-    suspend fun finalize(saved: SavedBill, myName: String, amounts: Map<String, ShareAmount>, paidBy: String?): ShareView =
-        writes.withLock {
-            val link = checkNotNull(saved.share) { "The bill has no link" }
-            val request = buildJsonObject {
-                put("billRevision", saved.revision)
-                put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName)))
-                put("amounts", writer.encodeToJsonElement(AMOUNTS, amounts))
-                put("paidBy", paidBy?.let(::JsonPrimitive) ?: JsonNull)
-            }
-            view(api.signedIn("POST", "v1/shares/${link.shareId}/finalize", request)).also { remember(link.shareId, saved.revision) }
+    suspend fun finalize(
+        saved: SavedBill,
+        myName: String,
+        amounts: Map<String, ShareAmount>,
+        paidBy: String?,
+        matches: Map<String, String>,
+    ): ShareView = writes.withLock {
+        val link = checkNotNull(saved.share) { "The bill has no link" }
+        val request = buildJsonObject {
+            put("billRevision", saved.revision)
+            put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName)))
+            put("amounts", writer.encodeToJsonElement(AMOUNTS, amounts))
+            put("paidBy", paidBy?.let(::JsonPrimitive) ?: JsonNull)
+            put("matches", if (matches.isEmpty()) JsonNull else JsonObject(matches.mapValues { JsonPrimitive(it.value) }))
         }
+        view(api.signedIn("POST", "v1/shares/${link.shareId}/finalize", request)).also { remember(link.shareId, saved.revision) }
+    }
 
     suspend fun removeClaim(shareId: String, claimId: String): ShareView =
         writes.withLock { view(api.signedIn("DELETE", "v1/shares/$shareId/claims/$claimId")) }

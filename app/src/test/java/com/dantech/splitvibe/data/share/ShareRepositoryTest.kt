@@ -147,7 +147,7 @@ class ShareRepositoryTest {
     }
 
     @Test
-    fun `settled amounts go with how to pay and who paid, and the copy they came from is not sent again after them`() = runBlocking {
+    fun `settled amounts go with how to pay, who paid and who each claim is, and their copy is not sent again`() = runBlocking {
         server.enqueue(json(ShareFixtures.share(ShareFixtures.view(status = ShareView.LOCKED, revision = 5))))
         val payment = PaymentPayload(
             link = "https://paypal.me/dana/71500VND",
@@ -157,7 +157,7 @@ class ShareRepositoryTest {
         )
         val amounts = mapOf("me" to ShareAmount(44_000, null), "p1" to ShareAmount(99_000, payment), "p2" to ShareAmount(11_000, null))
 
-        val view = shares.finalize(linked, "Dana", amounts, paidBy = "me")
+        val view = shares.finalize(linked, "Dana", amounts, paidBy = "me", matches = mapOf("claim-minh" to "p1", "claim-x" to "p2"))
 
         val request = server.takeRequest()
         assertEquals("/v1/shares/${ShareFixtures.SHARE_ID}/finalize", request.path)
@@ -170,6 +170,7 @@ class ShareRepositoryTest {
             body["amounts"].toString(),
         )
         assertEquals("\"me\"", body["paidBy"].toString())
+        assertEquals("""{"claim-minh":"p1","claim-x":"p2"}""", body["matches"].toString())
         assertEquals(ShareView.LOCKED, view.status)
         assertNull(shares.project(linked, "Dana"))
         assertEquals(1, server.requestCount)

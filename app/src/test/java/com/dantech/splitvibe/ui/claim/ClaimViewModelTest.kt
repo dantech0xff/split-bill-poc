@@ -249,6 +249,7 @@ class ClaimViewModelTest {
         assertEquals("null", amounts["me"]!!.jsonObject["payment"].toString())
         assertTrue(amounts["p1"]!!.jsonObject["payment"]!!.jsonObject["qrPayload"]!!.jsonPrimitive.content.startsWith("000201"))
         assertEquals("\"me\"", sent["paidBy"].toString())
+        assertEquals("No claim was matched before picking closed", "null", sent["matches"].toString())
         awaitOnMain { host.bill.value?.share?.settled == true }
         assertEquals(fingerprintOf(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")), host.bill.value?.share?.method)
     }

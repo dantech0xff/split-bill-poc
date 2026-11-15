@@ -235,7 +235,7 @@ class ClaimViewModel(
         }
         val paidBy = stored.plan.payments.singleOrNull()?.participantId?.takeIf { stored.group == null }
         val myName = settings.value.myName
-        keep(shares.finalize(stored, myName, amounts, paidBy))
+        keep(shares.finalize(stored, myName, amounts, paidBy, matchesOf(stored)))
         host.updateLink(shareId()) {
             it.copy(shown = ShareRepository.fingerprint(stored, myName), settled = true, method = chosen?.let(::fingerprintOf))
         }
@@ -262,6 +262,16 @@ class ClaimViewModel(
     }
 
     private suspend fun storedBill(): SavedBill? = host.storedBill()?.takeIf { it.id == billId }
+
+    /** Who each claim on the link is on [saved], as matched or added when picking closed, for those still on it. */
+    private fun matchesOf(saved: SavedBill): Map<String, String> {
+        val link = saved.share ?: return emptyMap()
+        val onBill = saved.plan.participants.map { it.id }.toSet()
+        return mutableState.value.share?.claims.orEmpty().mapNotNull { claim ->
+            val participant = link.matches[claim.id]?.takeIf { it != NEW_PERSON } ?: link.added[claim.id]
+            participant?.takeIf { it in onBill }?.let { claim.id to it }
+        }.toMap()
+    }
 
     /** Shows [owned], whose id [create] or [existing] set, and follows it while the screen shows. */
     private fun show(owned: OwnedShare) {
