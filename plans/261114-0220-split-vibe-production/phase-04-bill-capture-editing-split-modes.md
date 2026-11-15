@@ -1,6 +1,6 @@
 ---
 title: "Phase 4: Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử"
-status: todo
+status: in-progress
 phase: 4
 priority: P1
 effort: "13d"
@@ -120,17 +120,55 @@ Xóa:
 
 ## Todo
 
-- [ ] Test thuộc tính cho 5 cách chia và nhiều người trả
-- [ ] `Person`, `Participant`, `itemId`; sửa đủ nơi dùng; `TestPeople`
-- [ ] `BillEditor` và màn hình sửa, nhập tay không cần ảnh
-- [ ] Bộ quét tài liệu nhiều trang, đường lùi, nhận ảnh chia sẻ
-- [ ] `analyze` và `encode` nhận nhiều trang ở mọi nơi dùng; prompt và fixture
-- [ ] `PeopleRepository` và bộ chọn liên hệ hệ thống, xóa danh bạ giả
-- [ ] Hàm tỷ giá theo lịch, `FxRepository`, hiển thị quy đổi, sửa tỷ giá
-- [ ] Lưu có `revision`, rules, xử lý xung đột hai máy
-- [ ] Lịch sử, tìm kiếm, bản nháp tự lưu, đồng bộ
-- [ ] Xóa tài khoản xóa được `people` và bản nháp
-- [ ] Ảnh chuẩn cho màn hình mới và test luồng mở rộng
+<!-- Updated: 15/11/2026 - lưu trên máy (Room) theo Validation Session 5; đồng bộ, rules và hai máy hoãn sang Phase 5 và 6 -->
+- [x] Test thuộc tính cho 5 cách chia và nhiều người trả
+- [x] `Person`, `Participant`, `itemId`; sửa đủ nơi dùng; `TestPeople`
+- [x] `BillEditor` và màn hình sửa, nhập tay không cần ảnh
+- [x] Bộ quét tài liệu nhiều trang, đường lùi, nhận ảnh chia sẻ (thử trên máy thật còn chờ)
+- [x] `analyze` và `encode` nhận nhiều trang ở mọi nơi dùng; prompt (fixture hai trang ghi từ máy thật còn chờ)
+- [x] `PeopleRepository` và bộ chọn liên hệ hệ thống, xóa danh bạ giả
+- [x] Hàm tỷ giá theo lịch, `FxRepository`, hiển thị quy đổi, sửa tỷ giá
+- [x] Lưu có `revision` và từ chối ghi đè bản mới hơn; rules và xung đột hai máy hoãn cùng đồng bộ
+- [x] Lịch sử, tìm kiếm, bản nháp tự lưu; đồng bộ hoãn sang Phase 5 và 6
+- [x] Xóa tài khoản: không có bản nào trên server, hóa đơn, bản nháp và `people` nằm trên máy, xóa dữ liệu app là đủ; hộp thoại xóa tài khoản đã nói rõ hóa đơn trên máy vẫn còn
+- [x] Ảnh chuẩn cho màn hình mới và test luồng mở rộng
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-04-capture-editing-split-modes, chưa merge vào main -->
+Tám trên mười một tiêu chí đạt và có bằng chứng. Hai tiêu chí về hai máy được hoãn cùng phần đồng bộ, theo quyết định lưu trên máy ở Validation Session 5. Tiêu chí còn lại cần máy thật có Google Play services.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| 2.000 hóa đơn ngẫu nhiên mỗi cách chia: tổng các phần và tổng đã trả bằng tổng hóa đơn | Đạt | `SplitPropertyTest`: 5 cách chia, mỗi cách 2.000 hóa đơn, và phép chia số tiền giữa nhiều người trả |
+| Sửa một món làm tổng và phần mỗi người cập nhật đúng; nhập tay hóa đơn 3 món chạy trọn luồng | Đạt | `BillLifecycleTest`: sửa giá bia trong hóa đơn mẫu rồi lấy tổng các dòng; gõ tay 3 món, thêm Minh, gửi yêu cầu, hóa đơn lưu ở trạng thái `final` |
+| Quét hóa đơn 2 trang ra một hóa đơn duy nhất, kiểm trên máy thật, có fixture | Chưa đạt | Định dạng nhiều trang có test ở bộ mã hóa, ở `GatewayBillAnalyzerTest` và ở prompt của proxy. Cần máy thật có Google Play services để quét và ghi fixture |
+| Chia sẻ một ảnh từ thư viện mở màn hình chia với ảnh đó | Một phần | Bộ lọc intent `SEND` và `SEND_MULTIPLE`; `SharedImagesTest` kiểm ảnh nhận và ảnh bị từ chối. Chưa thử trên thiết bị |
+| Manifest không có `READ_CONTACTS` và `READ_MEDIA_IMAGES` | Đạt | Người lấy từ bộ chọn liên hệ hệ thống, ảnh từ bộ quét, bộ chọn ảnh, máy ảnh hệ thống hay ảnh được chia sẻ |
+| Hóa đơn USD với người xem dùng VND có số quy đổi kèm ngày và nguồn; phần mỗi người đã lưu vẫn bằng USD | Đạt | `BillLifecycleTest` và `BillSafetyTest`; màn hình ghi "1 USD = … VND, Frankfurter rate of …" |
+| Tỷ giá của ngày hôm nay có VND, USD, EUR, INR, THB | Đạt | Thay tài liệu `fxRates` bằng Durable Object `FxBook` của proxy, cron 16:30 UTC. Ngày 15/11/2026, `GET /v1/fx-rates` trên proxy đã deploy trả 161 tiền tệ, có đủ năm tiền tệ này |
+| Hai máy sửa offline cùng hóa đơn | Hoãn | Không có đồng bộ ở phase này. Trên một máy, lần ghi từ bản cũ bị từ chối và màn hình hiện bản mới nhất (`BillRepositoryTest`, `BillSafetyTest`) |
+| Tạo và sửa hóa đơn ở chế độ máy bay rồi thấy trên máy thứ hai | Hoãn | Hóa đơn nằm trên máy và dùng được khi mất mạng; máy thứ hai cần đồng bộ |
+| Hủy tiến trình khi đang sửa rồi mở lại, bản nháp còn nguyên | Đạt | `BillLifecycleTest` khôi phục cách chia đang sửa; `BillSafetyTest` khôi phục bước chọn ảnh cùng ảnh mới |
+| Mọi test sau Phase 3 vẫn qua, `RecordedSampleBillTest` và `SplitFlowTest` dùng `TestPeople` | Đạt | 222 unit test, 96 test proxy; 8 test trên máy ảo Android 14 qua trên GitHub Actions; ktlint, lint và bản release R8 qua |
+
+Những gì đã làm:
+- **Domain:** `Participant` với mã trong hóa đơn, `itemId` không bao giờ dùng lại sau khi xóa dòng, năm cách chia cho cả hóa đơn hay từng món, nhiều người trả, `BillEditor`, `ExchangeRate`.
+- **Lưu trữ:** Room giữ hóa đơn nguyên bản ghi kèm `revision` và phần mỗi người đã tính. Lần ghi từ bản cũ bị từ chối. Hóa đơn `final` mà một thay đổi làm lệch thì về lại nháp. Ảnh các trang nằm trong bộ nhớ riêng của app.
+- **Màn hình:** sửa hóa đơn và xử lý chênh lệch; chọn cách chia; ai đã trả; tỷ giá; thêm người bằng tên, người gần đây hay bộ chọn liên hệ; lịch sử có tìm kiếm và xóa; trang chủ có hóa đơn gần đây.
+- **Proxy:** `GET /v1/fx-rates` từ Frankfurter v2, cron hằng ngày, nghỉ 5 phút sau lần lấy lỗi; prompt đọc nhiều trang và dòng trùng giữa hai trang. Đã deploy migration `v2` cùng lịch cron.
+- **Review độc lập:** 2 lỗi nặng, 8 trung bình và 13 nhẹ ([báo cáo](../reports/code-reviewer-261115-0420-phase-04-app.md)). Đã sửa tất cả, trừ hai việc: hóa đơn IDR hay HUF gõ tay vẫn có hai số lẻ theo ISO, và người thứ hai ghi cùng hóa đơn chỉ thấy thông báo chứ chưa áp lại được phần sửa bị từ chối.
+
+Các mặc định đã chọn khi sửa review, chủ sản phẩm có thể đổi:
+- Sau khi quay lại từ kết quả, gõ tay hay đọc ảnh khác tạo hóa đơn mới. Chỉ đọc lại đúng những ảnh đó mới thay hóa đơn cũ.
+- Hóa đơn `final` mà một thay đổi làm lệch thì về lại nháp.
+- Tỷ giá ngày chỉ để hiển thị, không lưu vào hóa đơn. Tỷ giá người dùng gõ thì được lưu.
+- Tên người chỉ được nhớ khi chia xong, và một gợi ý có thể xóa.
+
+Còn lại trước khi đóng phase:
+- Quét hóa đơn hai trang trên máy thật có Google Play services và ghi fixture hai trang.
+- Chia sẻ ảnh từ thư viện và chọn liên hệ trên thiết bị.
+- Merge nhánh vào `main` khi chủ sản phẩm đồng ý.
 
 ## Success Criteria
 
