@@ -207,6 +207,8 @@ class AddToGroupViewModel(private val groups: GroupRepository, private val reque
             pages = emptyList(),
             exchangeRate = null,
             group = null,
+            // The link's address holds its token, which the proxy keeps only as a hash.
+            share = null,
             bill = saved.bill.copy(warnings = emptyList()),
             plan = saved.plan.copy(participants = saved.plan.participants.map { it.copy(personId = null) }, expectedHeadCount = null),
         )

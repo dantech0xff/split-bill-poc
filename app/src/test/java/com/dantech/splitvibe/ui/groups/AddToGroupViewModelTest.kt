@@ -14,6 +14,7 @@ import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.bills.ShareLink
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyCache
@@ -57,7 +58,7 @@ class AddToGroupViewModelTest {
 
     private val usd = BillCurrency("USD", 2)
 
-    /** A dinner in dollars that the user paid, shared with Minh and a Lan typed in by hand. */
+    /** A dinner in dollars that the user paid, shared with Minh and a Lan typed in by hand, and on a link. */
     private val dinner = SavedBill(
         id = "bill-9",
         createdAt = 1,
@@ -70,6 +71,7 @@ class AddToGroupViewModelTest {
         ocrDocument = "TEXT READ FROM THE PHOTO",
         instruction = "Split with Minh and Lan",
         pages = listOf("page-1.jpg"),
+        share = ShareLink("share-1", "https://proxy.example/s/#TOKEN-OF-THE-LINK"),
     )
 
     @Before
@@ -138,6 +140,7 @@ class AddToGroupViewModelTest {
         assertFalse(document, document.contains("page-1.jpg"))
         assertFalse(document, document.contains("Split with Minh and Lan"))
         assertFalse(document, document.contains("local-person-1"))
+        assertFalse(document, document.contains("TOKEN-OF-THE-LINK"))
         assertEquals(GroupLink(GROUP_ID, "Chiang Mai trip", 1, mapOf("me" to ME, "p1" to MINH, "p2" to LAN)), viewModel.state.value.done)
     }
 

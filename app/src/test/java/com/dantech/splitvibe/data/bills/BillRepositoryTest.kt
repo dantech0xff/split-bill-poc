@@ -92,6 +92,18 @@ class BillRepositoryTest {
     }
 
     @Test
+    fun `people who joined from a bill's link are not remembered for next time`() = runBlocking {
+        val bill = draft("pho-2", "Phở Hà Nội", 120_000)
+        val plan = bill.plan.withParticipantAdded("Lan").withParticipantAdded("Stranger")
+        val stranger = plan.participants.last().id
+        val link = ShareLink("share-1", "https://proxy.example/s/#TOKEN", added = mapOf("claim-x" to stranger))
+
+        bills.save(bill.copy(status = BillStatus.FINAL, plan = plan, share = link))
+
+        assertEquals(listOf("Lan"), storage.people.people.first().map { it.name })
+    }
+
+    @Test
     fun `a finished split changed into one that no longer adds up is saved as a draft`() = runBlocking {
         val bill = draft("pho-1", "Phở Hà Nội", 120_000)
         val finished = bills.save(bill.copy(status = BillStatus.FINAL))

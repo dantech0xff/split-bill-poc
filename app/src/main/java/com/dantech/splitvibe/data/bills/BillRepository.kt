@@ -33,7 +33,14 @@ class BillRepository(
         val previous = if (bill.revision > 0) get(bill.id) else null
         val worked = bill.copy(revision = bill.revision + 1, updatedAt = clock()).withSharesWorkedOut()
         val next = if (worked.status == BillStatus.FINAL) {
-            worked.copy(plan = worked.plan.copy(participants = people.remember(worked.plan.participants)))
+            // People added from a link typed their own names, which are no suggestions for later bills.
+            val strangers = worked.share?.added?.values.orEmpty().toSet()
+            val remembered = people.remember(worked.plan.participants.filter { it.id !in strangers })
+            val participants = worked.plan.participants.map { participant ->
+                remembered.firstOrNull { it.id == participant.id }
+                    ?: participant
+            }
+            worked.copy(plan = worked.plan.copy(participants = participants))
         } else {
             worked
         }
