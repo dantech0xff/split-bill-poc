@@ -105,37 +105,3 @@ export async function assetLinksRoute(_request: Request, env: Env): Promise<Resp
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 }
-
-/** What a browser shows for a link: the same words for every link, so the page tells nothing of the group or the request. */
-const LINK_PAGE = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Split Vibe</title>
-<style>body{font-family:system-ui,sans-serif;line-height:1.5;max-width:32rem;margin:4rem auto;padding:0 1.5rem;color:#1d1b20}</style>
-</head>
-<body>
-<h1>Open this link in Split Vibe</h1>
-<p>This link works in the Split Vibe app. Open it on an Android phone that has Split Vibe installed.</p>
-</body>
-</html>
-`;
-
-/**
- * `GET /g/` and `GET /r/`: the page a link opens where the app does not. The link's token is in
- * its fragment, which never reaches the proxy, so the page cannot tell one link from another and
- * says nothing about any; it neither caches nor passes the address on.
- */
-export async function linkPageRoute(): Promise<Response> {
-  return new Response(LINK_PAGE, {
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
-      "referrer-policy": "no-referrer",
-      "x-robots-tag": "noindex",
-    },
-  });
-}

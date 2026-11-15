@@ -16,7 +16,7 @@ import {
 } from "./groups";
 import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, previewInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
-import { assetLinksRoute, linkPageRoute } from "./links";
+import { assetLinksRoute } from "./links";
 import { QuotaBook } from "./quota-book";
 import { forgetExpired, sendReminders } from "./reminders";
 import {
@@ -34,6 +34,7 @@ import { errorResponse } from "./respond";
 import { claimRoute, liveShareRoute, openShareRoute } from "./share-claims";
 import { ShareRoom } from "./share-room";
 import { finalizeShareRoute, lockShareRoute, putShareRoute, readShareRoute, removeClaimRoute, reopenShareRoute, revokeShareRoute } from "./shares";
+import { webAssetRoute, webPageRoute } from "./web";
 
 export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
 
@@ -63,6 +64,10 @@ export interface Env {
    * same.
    */
   TURNSTILE_SECRET?: string;
+  /** The site key of that Turnstile widget, which the web page carries in a meta tag. Public; may be empty. */
+  TURNSTILE_SITE_KEY: string;
+  /** The address of the web page's "Report abuse" link, which the page leaves out while it is empty. Public. */
+  ABUSE_EMAIL: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
   GOOGLE_CLIENT_ID: string;
   /** "true" while bills may be read with AI; anything else turns AI off without a release. */
@@ -128,8 +133,10 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/shares/:share/finalize", { POST: finalizeShareRoute }],
   ["/v1/shares/:share/claims/:claim", { DELETE: removeClaimRoute }],
   ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
-  ["/g/", { GET: linkPageRoute }],
-  ["/r/", { GET: linkPageRoute }],
+  ["/s/", { GET: webPageRoute }],
+  ["/r/", { GET: webPageRoute }],
+  ["/g/", { GET: webPageRoute }],
+  ["/assets/:name", { GET: webAssetRoute }],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */

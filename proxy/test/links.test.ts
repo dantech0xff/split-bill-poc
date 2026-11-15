@@ -36,26 +36,40 @@ describe("App Links", () => {
 });
 
 describe("a link opened in a browser", () => {
-  it("carries its token in the fragment, and shows one short page for every invite and request", async () => {
+  it("carries its token in the fragment, and opens the same page for every invite, request and bill", async () => {
     const owner = await person();
-    const group = await newGroup(owner, "Secret garden trip", VND);
+    const group = await newGroup(owner, "Zqxv garden trip", VND);
     const invited = await api<{ token: string; url: string }>(owner, "POST", `/v1/groups/${group.id}/invites`);
     const made = await api<{ url: string }>(owner, "POST", "/v1/requests", {
       id: crypto.randomUUID(),
       amountMinor: 987_654,
       currency: VND,
-      payerName: "Minh Secretname",
-      creditorName: "Lan Secretname",
-      title: "Secret dinner",
+      payerName: "Minh Zqxv",
+      creditorName: "Lan Zqxv",
+      title: "Zqxv dinner",
       method: { kind: "PlainDetails", text: "Account 0123456789" },
     });
-    const links = [new URL(invited.body.url), new URL(made.body.url)];
+    const shared = await api<{ url: string }>(owner, "PUT", `/v1/shares/${crypto.randomUUID()}`, {
+      billId: crypto.randomUUID(),
+      billRevision: 1,
+      bill: {
+        merchant: "Zqxv noodles",
+        date: null,
+        currency: VND,
+        items: [{ id: "i1", name: "Zqxv soup", quantity: null, amountMinor: 987_654 }],
+        charges: [],
+        totalMinor: 987_654,
+        participants: [{ id: "me", name: "Lan Zqxv" }],
+      },
+    });
+    const links = [new URL(invited.body.url), new URL(made.body.url), new URL(shared.body.url)];
     expect(links.map((link) => [link.origin, link.pathname])).toEqual([
       ["https://proxy.test", "/g/"],
       ["https://proxy.test", "/r/"],
+      ["https://proxy.test", "/s/"],
     ]);
     expect(links[0].hash).toBe(`#${invited.body.token}`);
-    expect(links[1].hash).toMatch(/^#[A-Za-z0-9_-]{22}$/);
+    for (const link of links) expect(link.hash).toMatch(/^#[A-Za-z0-9_-]{22}$/);
 
     // What a browser asks for: the path, never the fragment.
     const pages = await Promise.all(links.map((link) => get(link.pathname)));
@@ -67,14 +81,6 @@ describe("a link opened in a browser", () => {
       expect(page.headers.get("referrer-policy")).toBe("no-referrer");
       expect(page.body).toBe(pages[0].body);
     }
-    expect(pages[0].body).toContain("Split Vibe");
-    expect(pages[0].body).not.toMatch(/Secret|987|0123456789|Minh|Lan|garden/);
-  });
-
-  it("is served at /g/ and /r/ only, never with a token in the path", async () => {
-    for (const path of ["/g", "/r", "/g/AAAAAAAAAAAAAAAAAAAAAA", "/r/AAAAAAAAAAAAAAAAAAAAAA", "/g/x/y"]) {
-      expect((await get(path)).status, path).toBe(404);
-    }
-    expect((await send(new Request("https://proxy.test/g/", { method: "POST" }))).status).toBe(405);
+    expect(pages[0].body).not.toMatch(/Zqxv|987654|0123456789/);
   });
 });

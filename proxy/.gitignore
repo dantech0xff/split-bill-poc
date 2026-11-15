@@ -2,3 +2,5 @@ node_modules/
 .wrangler/
 .dev.vars
 worker-configuration.d.ts
+# Made by scripts/embed-web.mjs from web/dist, or as a placeholder without it.
+src/web-assets.generated.ts
