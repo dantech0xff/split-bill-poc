@@ -232,7 +232,8 @@ account is in, or waits to join, at most 100 groups. Past these, 413 `too_large`
   nothing. What it held is emptied at once.
 - A settlement goes from another member of the group to the caller's member, for more than 0.
   Settlements are only ever added: no route changes or deletes one, the database refuses to
-  change one, and the same id again from the same member changes nothing (from another, 409).
+  change or delete one (deleting the whole group aside), and the same id again from the same
+  member changes nothing (from another, 409).
 
 Changes to one group are decided on the group as it is: each goes in one batch behind an update
 of the revision to the one read plus one, which a trigger refuses when another change came first.
@@ -360,6 +361,13 @@ changing anyone's balance: amounts and settlements stay as they are.
   request, as creditor and as debtor: the other side keeps the request, nobody can act as the
   deleted account on it, and no reminder goes out for it. Signing in again with the same Google
   account finds none of it.
+
+Sessions are not revoked: the proxy keeps no list of them, and a session it signed stays valid
+until it expires, at most 30 days after it was issued. A session issued before the deletion can
+therefore still do whatever a session can, as the same account: read bills on a new month's
+calls, and make groups, requests and devices again, which a later sign-in would then find. The
+app forgets its session when the account is deleted, so only a copy kept elsewhere, such as on a
+second phone signed in to the same account, could still be used.
 
 ## Run it on a computer
 

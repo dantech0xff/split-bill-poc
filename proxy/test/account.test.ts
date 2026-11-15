@@ -302,6 +302,7 @@ describe("deleting an account, in the shared data", () => {
     const ownersBill = await addBill(shared, owner, { [lanId]: 100 }, { [shared.ownerMemberId]: 100 });
     const alone = await newGroup(owner, "Just me", VND);
     const somebody = await addPlaceholder(alone, "Somebody");
+    await api(owner, "POST", `/v1/groups/${alone.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: somebody, amountMinor: 100 });
     const request = (await newRequest(owner, { groupId: alone.id, toMemberId: somebody })).body.request;
 
     expect((await deleteAccount(owner)).status).toBe(204);
@@ -312,6 +313,7 @@ describe("deleting an account, in the shared data", () => {
     expect(state.bills.find((bill) => bill.id === ownersBill)?.ownerMemberId).toBe(lanId);
     expect(await rows("SELECT id FROM groups WHERE id = ?1", alone.id)).toEqual([]);
     expect(await rows("SELECT id FROM members WHERE group_id = ?1", alone.id)).toEqual([]);
+    expect(await rows("SELECT id FROM settlements WHERE group_id = ?1", alone.id)).toEqual([]);
     expect(await rows("SELECT group_id, to_member_id, creditor, method FROM requests WHERE id = ?1", request.id)).toEqual([
       { group_id: null, to_member_id: null, creditor: null, method: "{}" },
     ]);

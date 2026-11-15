@@ -83,7 +83,8 @@ CREATE TABLE group_bills (
 );
 
 -- Money one member paid another, recorded by the member who received it. Rows are only ever
--- added: no route changes or deletes one, and the trigger below refuses any change.
+-- added: no route changes or deletes one, and the triggers below refuse any change, and any
+-- deletion but the one that comes with deleting the whole group.
 CREATE TABLE settlements (
   group_id TEXT NOT NULL REFERENCES groups (id) ON DELETE CASCADE,
   id TEXT NOT NULL,
@@ -102,6 +103,15 @@ CREATE UNIQUE INDEX settlements_one_per_request ON settlements (request_id) WHER
 
 CREATE TRIGGER settlements_append_only
 BEFORE UPDATE ON settlements
+BEGIN
+  SELECT RAISE(ABORT, 'append_only');
+END;
+
+-- A group's deletion removes its row before the cascade reaches its settlements, so only that
+-- deletion gets past this.
+CREATE TRIGGER settlements_kept
+BEFORE DELETE ON settlements
+WHEN EXISTS (SELECT 1 FROM groups WHERE id = OLD.group_id)
 BEGIN
   SELECT RAISE(ABORT, 'append_only');
 END;

@@ -201,6 +201,7 @@ describe("a settlement", () => {
       expect((await api(lan, method, path, { id, amountMinor: 1 })).body).toEqual({ error: "method" });
     }
     await expect(env.DB.prepare("UPDATE settlements SET amount_minor = 1 WHERE id = ?1").bind(id).run()).rejects.toThrow(/append_only/);
+    await expect(env.DB.prepare("DELETE FROM settlements WHERE id = ?1").bind(id).run()).rejects.toThrow(/append_only/);
     expect(await stateOf(group, lan)).toEqual(before);
   });
 });
