@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.account
 
 import android.content.Context
 import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import kotlinx.coroutines.CancellationException
 
@@ -10,7 +11,13 @@ import kotlinx.coroutines.CancellationException
  * proxy checks Google's ID token itself and hands out its own session; the phone keeps only that
  * session and the account's address.
  */
-class AccountRepository(private val api: ProxyApi, private val store: AccountStore, private val google: GoogleAccounts?) {
+class AccountRepository(
+    private val api: ProxyApi,
+    private val store: AccountStore,
+    private val google: GoogleAccounts?,
+    /** Groups and requests of the account signed in now; another account must never see them. */
+    private val cache: ProxyCache? = null,
+) {
 
     /** False in a build that has no address for the proxy or no web client ID for Google. */
     val canSignIn: Boolean get() = google != null && api.isSetUp
@@ -20,6 +27,8 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
         val accounts = checkNotNull(google) { "This build cannot sign in" }
         val account = accounts.pick(activity)
         val (session, callsLeft) = api.startSession(account.idToken)
+        // Someone else may be signing in after a sign-in ran out.
+        cache?.clear()
         store.saveSession(session, signedInAs = account.email)
         callsLeft?.let(store::onCallsLeft)
     }
@@ -27,6 +36,7 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
     /** Also ends a sign-in that has run out: this phone's free reads are used again. */
     suspend fun signOut(context: Context) {
         store.clearSession()
+        cache?.clear()
         forgetGoogle(context)
     }
 
@@ -40,6 +50,7 @@ class AccountRepository(private val api: ProxyApi, private val store: AccountSto
             throw e
         }
         store.clearSession()
+        cache?.clear()
         forgetGoogle(context)
     }
 

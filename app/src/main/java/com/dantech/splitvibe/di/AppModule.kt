@@ -8,9 +8,13 @@ import com.dantech.splitvibe.data.bills.BillPages
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SplitVibeDatabase
 import com.dantech.splitvibe.data.fx.FxRepository
+import com.dantech.splitvibe.data.groups.GroupRepository
+import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.people.ContactNames
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.GatewayBillAnalyzer
@@ -39,6 +43,7 @@ val appModule = module {
             store = get(),
             // A build without the app's web client ID cannot sign in.
             google = BuildConfig.GOOGLE_WEB_CLIENT_ID.takeIf { it.isNotBlank() }?.let(::CredentialManagerGoogleAccounts),
+            cache = get(),
         )
     }
     single { BillImageLoader(androidContext()) }
@@ -52,6 +57,13 @@ val appModule = module {
     single { BillRepository(database = get(), people = get(), pages = get()) }
     single { ContactNames(androidContext().contentResolver) }
     single { FxRepository(api = get(), file = File(androidContext().filesDir, "fx-rates.json")) }
+
+    // The ways the user takes money stay on the phone; groups and requests live on the proxy, with
+    // their last answers kept here to read without a connection.
+    single { PaymentMethodRepository(database = get()) }
+    single { ProxyCache(get<SplitVibeDatabase>().proxyCache()) }
+    single { GroupRepository(api = get(), cache = get(), account = get()) }
+    single { RequestRepository(api = get(), cache = get(), account = get()) }
 
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }

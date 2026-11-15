@@ -103,6 +103,22 @@ class ProxyApi(
         if (!response.isSuccessful) throw failureOf(response)
     }
 
+    /**
+     * A call to a route only signed-in people may use: groups, invites, payment requests and
+     * devices. Returns the answer's JSON, or null for an answer without a body. Throws
+     * [ProxyException] when the proxy refuses, also when nobody is signed in, which the proxy
+     * would refuse anyway.
+     */
+    suspend fun signedIn(method: String, path: String, body: JsonElement? = null): JsonObject? {
+        if (account.currentSession() == null) throw ProxyException(401, SESSION_REFUSED, null, null)
+        // OkHttp wants a body for these methods even when there is nothing to send.
+        val payload = (body?.toString() ?: if (method in BODY_METHODS) "{}" else null)?.toRequestBody(JSON)
+        return send(request(path).method(method, payload).build()) { response ->
+            if (!response.isSuccessful) throw failureOf(response)
+            if (response.code == 204) null else jsonOf(response)
+        }
+    }
+
     private fun post(path: String, body: JsonObject, withSession: Boolean = true): Request =
         request(path, withSession).post(body.toString().toRequestBody(JSON)).build()
 
@@ -176,6 +192,7 @@ class ProxyApi(
         const val SESSION_REFUSED = "session"
 
         private val JSON = "application/json".toMediaType()
+        private val BODY_METHODS = setOf("POST", "PUT", "PATCH")
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
