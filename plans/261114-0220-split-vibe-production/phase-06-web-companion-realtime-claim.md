@@ -179,16 +179,73 @@ Sửa:
 
 ## Todo
 
-- [ ] Hợp đồng API, migration và test quyền của proxy
-- [ ] Link chia sẻ: tạo, chiếu lại, khóa, mở lại, chốt, xóa người nhận, thu hồi
-- [ ] Nhận món công khai với Turnstile và giới hạn
-- [ ] Cập nhật trực tiếp qua Durable Object
-- [ ] Trang web `/s/`, `/r/`, `/g/` với token thiết kế và tiêu đề bảo mật
-- [ ] App: tạo link, theo dõi trực tiếp, ghép người, chốt hai bước, ghi cách chia vào hóa đơn
-- [ ] Chiếu lại khi hóa đơn bị sửa
-- [ ] Dọn dẹp theo lịch; trang link hết hiệu lực
-- [ ] Xóa tài khoản xóa link và lượt nhận
-- [ ] Test đầu-cuối; số đo Lighthouse và kích thước gói
+- [x] Hợp đồng API, migration và test quyền của proxy
+- [x] Link chia sẻ: tạo, chiếu lại, khóa, mở lại, chốt, xóa người nhận, thu hồi
+- [x] Nhận món công khai với Turnstile và giới hạn
+- [x] Cập nhật trực tiếp qua Durable Object
+- [x] Trang web `/s/`, `/r/`, `/g/` với token thiết kế và tiêu đề bảo mật
+- [x] App: tạo link, theo dõi trực tiếp, ghép người, chốt hai bước, ghi cách chia vào hóa đơn
+- [x] Chiếu lại khi hóa đơn bị sửa
+- [x] Dọn dẹp theo lịch; trang link hết hiệu lực
+- [x] Xóa tài khoản xóa link và lượt nhận
+- [x] Test đầu-cuối; số đo Lighthouse và kích thước gói
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-06-web-companion-realtime-claim, chưa merge vào main -->
+Chín trên mười tiêu chí đạt và có bằng chứng. Tiêu chí ba thiết bị cùng mở một link mới đạt một phần: hai trình duyệt đã được đo, còn app Android chỉ mới chạy với proxy giả, vì bản thật chưa đăng nhập được khi `GOOGLE_CLIENT_ID` còn trống.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Không đường nào liệt kê link; đúng token thì đọc được khi link còn hạn; link hết hạn hay đã thu hồi không đọc được, kể cả khi dòng chưa bị xóa; không đường công khai nào tạo, sửa hay xóa bản chiếu | Đạt | `shares.test.ts`: chỉ chủ link đọc, sửa và thu hồi được, và không đường nào liệt kê link; link sống 30 ngày, hết hạn thì không đọc hay sửa được dù lượt dọn hằng ngày chưa xóa; link thu hồi trả 410 cho mọi người. `share-claims.test.ts`: không đường nào thiếu phiên tạo, sửa hay xóa được hóa đơn |
+| `claim` từ chối tên quá dài, `itemId` lạ, người nhận thứ 31 và mọi lượt sau khi khóa; người nhận mới thiếu token Turnstile hợp lệ bị từ chối | Đạt | `share-claims.test.ts`: tên quá 40 ký tự, món không có trên hóa đơn, người thứ 31 và link đã khóa đều bị từ chối. Token Turnstile phải được Cloudflare cho qua với action `claim` trên đúng host, và chỉ dùng được một lần |
+| Lượt nhận ngay trước `lock` có trong kết quả của `lock`, lượt ngay sau bị từ chối (hai việc song song) | Đạt | `share-claims.test.ts`: ba test về thứ tự, trong đó một test gửi lượt nhận và lệnh khóa cùng lúc: lượt nhận hoặc có trong câu trả lời của lệnh khóa, hoặc bị từ chối và không được lưu ở đâu |
+| Hai trình duyệt và một máy Android cùng mở một link; một bên nhận món thì hai bên kia thấy trong vòng 2 giây | Một phần | Hai trình duyệt (Playwright với proxy chạy cục bộ): lượt nhận tới trình duyệt kia sau 18 đến 69 ms. App theo dõi link qua WebSocket và nhận thay đổi trong `ShareRepositoryTest` và `ClaimViewModelTest`, nhưng chỉ với proxy giả. Chưa thử máy Android thật với proxy đã triển khai |
+| Sau khi chốt, phần mỗi người trên trang, trong hóa đơn trên máy và trong `SplitCalculator` bằng nhau | Đạt | `BillLinkSyncTest` dùng màn chia thật: số tiền gửi lên trang bằng phần đã lưu trên máy và bằng kết quả của `SplitCalculator`, và sau khi chốt app không gửi bản chiếu nào làm mất số tiền đó. Trang hiện đúng số tiền nhận được (test của `web/` và test đầu-cuối) |
+| Chủ xóa một món khi link đang mở: lượt nhận mất món đó, lượt nhận món khác vẫn đúng | Đạt | `shares.test.ts`: món không còn trên hóa đơn bị bỏ khỏi mọi lượt nhận, các lượt nhận món khác giữ nguyên. `BillLinkSyncTest`: món bị xóa trên máy biến khỏi trang |
+| Bản chiếu không có tài khoản, mã băm hay IP; khóa người nhận và token Turnstile không gọi được `/v1/bill-analysis` hay đường nào cần phiên | Đạt | `share-claims.test.ts`: bản chiếu không nêu tài khoản, không có mã băm, IP hay mã riêng của link; khóa người nhận và token Turnstile không mở được gì khác, kể cả việc đọc hóa đơn |
+| Trang trả tiêu đề cấm lập chỉ mục, `Referrer-Policy: no-referrer` và CSP; link thanh toán mở thẻ mới không kèm nguồn giới thiệu, chỉ `https:` hay `upi:` | Đạt | `web.test.ts` cho cả ba trang, và bản đang chạy trả đúng các tiêu đề này. Test đầu-cuối thấy link PayPal có `noopener noreferrer`. Proxy, trang và app (`PaymentPayload`) đều chỉ nhận `https:` và `upi:` |
+| Sau khi cron chạy, link hết hạn không còn lượt nhận nào | Đạt | `shares.test.ts`: lượt chạy hằng ngày xóa link hết hạn hay đã thu hồi cùng lượt nhận của chúng, và giữ các link khác |
+| Báo cáo có số đo Lighthouse và kích thước gói so với mục tiêu | Đạt | Lighthouse trên di động với mạng chậm giả lập: `/s/` đang mở đạt 100 hiệu năng và 100 trợ năng, `/s/` đã chốt đạt 99 và 100, so với mục tiêu 90. Tải ban đầu 26,6 KB gzip, so với ngân sách 150 KB |
+
+Kiểm tra chung: 364 unit test Kotlin (app 227, domain 134, hệ thiết kế 3), 260 test proxy, 182 test trang web và 5 test đầu-cuối đều qua; ktlint, lint và `tsc` sạch.
+
+Những gì đã làm:
+- **Proxy:** link chia sẻ trong D1 (`shares`, `share_claims`); các đường của chủ link: tạo, chiếu lại, khóa, mở lại, chốt kèm `paidBy`, gỡ lượt nhận, thu hồi; các đường công khai `open`, `claim` (Turnstile) và `live`; Durable Object `ShareRoom` chỉ giữ WebSocket; dọn link theo lịch; xóa tài khoản xóa cả link. Trang web được nhúng vào Worker. Hợp đồng ở [docs/proxy.md](../../docs/proxy.md).
+- **Trang web:** `/s/`, `/r/` và `/g/` bằng Preact, có nhận món trực tiếp, Turnstile và mã QR; hướng dẫn ở [docs/web.md](../../docs/web.md).
+- **App:** màn link của hóa đơn (tạo link, theo dõi trực tiếp, ghép người, khóa rồi chốt, chọn cách nhận tiền). Màn chia là nơi duy nhất ghi hóa đơn, và mỗi lần lưu làm trang thay đổi thì gửi bản chiếu mới. `ClaimSplit` nằm trong domain, `tokens.css` sinh từ hệ thiết kế. Kiến trúc ở [docs/architecture.md](../../docs/architecture.md).
+- **Review độc lập của app:** 1 lỗi nghiêm trọng, 5 nặng, 10 trung bình và 9 nhẹ ([báo cáo](../reports/code-reviewer-261115-1200-phase-6-app-review.md)), đã sửa hết.
+- **Review độc lập của proxy và trang web:** 1 lỗi nặng, 4 trung bình và 8 nhẹ ([báo cáo](../reports/code-reviewer-261115-1200-phase-6-proxy-web-review.md)), đã sửa hết ([bảng sửa](../reports/fullstack-developer-261115-1330-proxy-web-review-fixes.md)).
+
+Triển khai lên Cloudflare ngày 15/11/2026:
+- **Turnstile:** widget "Split Vibe bill links", chế độ managed, chỉ dùng được trên host của Worker. Secret `TURNSTILE_SECRET` đi thẳng từ câu trả lời tạo widget vào Worker, không in ra ở đâu; site key công khai nằm trong `wrangler.jsonc`.
+- **D1 `split-vibe`:** trước khi chạy đã ghi điểm khôi phục Time Travel `00000003-00000000-00005124-4afb9bbd669e9355729c7c7c7f029dc5`. `0002_shares.sql` chạy trong một lô cùng dòng ghi vào `d1_migrations`, thêm 2 bảng, 5 chỉ mục, 1 trigger và cột `requests.payment`.
+- **Worker `split-vibe-proxy`:** gói dựng bằng `npm run bundle` từ commit `ac0fe7d`. Thêm Durable Object `ShareRoom` (migration v3), `TURNSTILE_SITE_KEY` và `ABUSE_EMAIL` để trống. Các biến, secret và lịch cron 16:30 UTC đang có giữ nguyên.
+- **Thử bản đang chạy:**
+  - `/s/`, `/r/` và `/g/` trả trang với CSP, `no-referrer`, `noindex` và `no-store`, có site key; tệp trong `/assets/` được lưu lâu dài.
+  - `open`, `claim`, `request-links/view` và WebSocket trả 404 với token lạ, và không ghi dòng nào vào D1. Đường của chủ link trả 401 khi chưa có phiên.
+  - Tỷ giá, `assetlinks.json` và `sign_in_off` vẫn như trước.
+  - Widget Turnstile thật hiện được trên trang thật, dưới CSP của trang: trình duyệt tự động thấy ô "Verify you are human".
+- Một Worker và một KV namespace tạm dùng để chuyển gói lên đã bị xóa sau khi xong.
+
+Các mặc định đã chọn, chủ sản phẩm có thể đổi:
+- Mỗi IP được 30 người nhận mới mỗi giờ, thay vì 10, để cả bàn dùng chung Wi-Fi vẫn nhận được. Mỗi IP còn được 300 lần sửa lượt nhận và 600 lần đọc mỗi giờ.
+- Trang chỉ đòi tiền khi người tạo link trả cả hóa đơn và hóa đơn không thuộc nhóm. Ngoài trường hợp đó, trang hiện phần mỗi người, và `paidBy` cho biết ai đã trả để mọi người tự thanh toán với người đó.
+- Lượt nhận không có món nào không thêm người vào hóa đơn.
+- Khi một lần sửa làm mất số tiền đã chốt trên trang, app báo cho người dùng chứ không tự gửi lại.
+- Tên người nhận mới không được nhớ để gợi ý cho hóa đơn sau.
+- Ký tự định dạng vô hình (nhóm Cf của Unicode) bị bỏ khỏi mọi tên và nhãn, ở proxy và trong bản chiếu của app.
+
+Chưa làm, chờ chủ sản phẩm quyết:
+- Giữ ZWJ và ZWNJ, vốn cần cho emoji ghép và cho tên tiếng Ba Tư hay một số chữ Ấn Độ, hay bỏ như mọi ký tự Cf khác. Giữ thì tên giả dạng dễ làm hơn.
+- Trang có tự bỏ ký tự Cf khỏi tên người gõ không, để không gửi lại một tên chưa đổi mỗi lần rời ô.
+- CI có chạy `npm run bundle` không, để chứng minh gói triển khai dựng được.
+- Trang có cho biết lượt nhận nào đã được ghép với người nào trên hóa đơn không.
+
+Còn lại trước khi đóng phase:
+- Đặt `GOOGLE_CLIENT_ID` để đăng nhập được, rồi thử hai trình duyệt và một máy Android với proxy thật.
+- Đặt `ABUSE_EMAIL` để chân trang có link báo lạm dụng.
+- Kiểm tay các link thanh toán trên trang với app ngân hàng thật, cùng ma trận của Phase 5.
 
 ## Success Criteria
 
