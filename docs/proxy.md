@@ -535,7 +535,9 @@ ShareView, as its owner sees it:
 - `amounts` is null until the split is settled, then `{"<participant id>": {"amountMinor", "payment"}}`,
   in the order of the bill's participants.
 - `paidBy` is null until the split is settled, then the participant who paid the whole bill when
-  the owner named one, or null.
+  the owner named one, or null. Where an amount has no `payment`, the web page says that this
+  person paid the bill and to settle up with them; when it is null, only to settle up with whoever
+  paid.
 
 `payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
 person and that amount.

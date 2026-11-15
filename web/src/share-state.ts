@@ -1,4 +1,4 @@
-import { type BillProjection, OWNER_PARTICIPANT_ID, type PublicClaim, type PublicShare, type ShareStatus } from "./contract";
+import { type BillProjection, OWNER_PARTICIPANT_ID, type Participant, type PublicClaim, type PublicShare, type ShareStatus } from "./contract";
 
 /**
  * Whether [next] should replace [current]. Views come from `open`, from claims and from the live
@@ -18,9 +18,35 @@ export function claimersOf(share: PublicShare, itemId: string): PublicClaim[] {
 }
 
 /** The name the bill's owner gave themself, or null when they left it empty. */
-export function ownerNameOf(bill: BillProjection): string | null {
+function ownerNameOf(bill: BillProjection): string | null {
   const name = bill.participants.find((participant) => participant.id === OWNER_PARTICIPANT_ID)?.name.trim() ?? "";
   return name === "" ? null : name;
+}
+
+/** What a sentence calls the bill's owner when they left their name empty: the one person the page knows of them. */
+export const UNNAMED_OWNER = "the person who made this link";
+
+/** The bill's owner as a sentence names them: their name, or [UNNAMED_OWNER]. */
+export function ownerInSentence(bill: BillProjection): string {
+  return ownerNameOf(bill) ?? UNNAMED_OWNER;
+}
+
+/** [participant] as a sentence names them: their name, or [UNNAMED_OWNER] for the owner who left it empty. */
+export function personInSentence(participant: Participant): string {
+  const name = participant.name.trim();
+  if (name !== "") return name;
+  return participant.id === OWNER_PARTICIPANT_ID ? UNNAMED_OWNER : "someone";
+}
+
+/** [text] with its first letter in capitals, to begin a sentence. */
+export function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The participant who paid the whole bill, as the owner named them in settling the split; null when they named nobody. */
+export function payerOf(share: PublicShare): Participant | null {
+  if (share.paidBy === null) return null;
+  return share.bill.participants.find((participant) => participant.id === share.paidBy) ?? null;
 }
 
 /** A participant's name as the page shows it; the owner's empty name reads as the bill's owner. */
@@ -35,7 +61,7 @@ export function statusSentence(status: ShareStatus, bill: BillProjection): strin
     case "open":
       return "Picks are open again.";
     case "locking":
-      return `Picks are closed: ${ownerNameOf(bill) ?? "the payer"} is settling the split.`;
+      return `Picks are closed: ${ownerInSentence(bill)} is settling the split.`;
     case "locked":
       return "The split is settled. Each person's amount is below.";
   }

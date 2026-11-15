@@ -72,9 +72,9 @@ export class Account {
     expect((answer.share as { status: string }).status).toBe("locking");
   }
 
-  async finalizeShare(id: string, bill: unknown, amounts: unknown): Promise<void> {
-    const answer = await json(await this.request.post(`/v1/shares/${id}/finalize`, { headers: this.headers, data: { billRevision: 1, bill, amounts } }), 200);
-    expect((answer.share as { status: string }).status).toBe("locked");
+  async finalizeShare(id: string, bill: unknown, amounts: unknown, paidBy: string | null = null): Promise<void> {
+    const answer = await json(await this.request.post(`/v1/shares/${id}/finalize`, { headers: this.headers, data: { billRevision: 1, bill, amounts, paidBy } }), 200);
+    expect(answer.share as { status: string; paidBy: string | null }).toMatchObject({ status: "locked", paidBy });
   }
 
   async revokeShare(id: string): Promise<void> {

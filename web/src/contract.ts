@@ -64,6 +64,8 @@ export interface PublicShare {
   bill: BillProjection;
   claims: PublicClaim[];
   amounts: Record<string, ShareAmount> | null;
+  /** The participant who paid the whole bill, when the owner named one in settling the split; null otherwise. */
+  paidBy: string | null;
 }
 
 export type RequestStatus = "open" | "reported" | "confirmed";
@@ -230,8 +232,9 @@ export function parseShare(value: unknown): PublicShare | null {
   const bill = parseBill(value.bill);
   const claims = arrayOf(value.claims, parseClaim);
   const amounts = parseAmounts(value.amounts);
-  if (bill === null || claims === null || amounts === undefined) return null;
-  return { status, revision, expiresAt, bill, claims, amounts };
+  const paidBy = value.paidBy ?? null;
+  if (bill === null || claims === null || amounts === undefined || !isNullableString(paidBy)) return null;
+  return { status, revision, expiresAt, bill, claims, amounts, paidBy };
 }
 
 export interface OpenAnswer {

@@ -60,11 +60,11 @@ describe("participantLabel and statusSentence", () => {
     expect(participantLabel({ id: "me", name: "Lan" })).toBe("Lan");
   });
 
-  it("name the payer when the owner gave a name", () => {
+  it("name the owner, or the person who made this link when the owner left their name empty", () => {
     const bill = share().bill;
     expect(statusSentence("locking", bill)).toBe("Picks are closed: Lan is settling the split.");
     expect(statusSentence("locking", { ...bill, participants: [{ id: "me", name: "" }] })).toBe(
-      "Picks are closed: the payer is settling the split.",
+      "Picks are closed: the person who made this link is settling the split.",
     );
   });
 });

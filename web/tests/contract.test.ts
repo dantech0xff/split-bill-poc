@@ -25,6 +25,14 @@ describe("the parsers of the proxy's answers", () => {
     expect(share?.amounts?.me).toEqual({ amountMinor: 77000, payment: null });
   });
 
+  it("keep who paid the whole bill, null when nobody was named or the proxy says nothing of it", () => {
+    expect(parseShare({ ...shareLocked.share, paidBy: "p1" })?.paidBy).toBe("p1");
+    expect(parseShare(shareLocked.share)?.paidBy).toBeNull();
+    const { paidBy: _left, ...without } = shareLocked.share;
+    expect(parseShare(without)?.paidBy).toBeNull();
+    expect(parseShare({ ...shareLocked.share, paidBy: 5 })).toBeNull();
+  });
+
   it("refuse a share of the wrong shape", () => {
     const badStatus = clone(shareOpen.share) as Record<string, unknown>;
     badStatus.status = "closed";

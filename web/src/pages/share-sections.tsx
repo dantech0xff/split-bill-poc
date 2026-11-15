@@ -1,10 +1,10 @@
 import type { RefObject } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { type BillItem, type BillProjection, type Currency, OWNER_PARTICIPANT_ID, type PublicShare } from "../contract";
+import { type BillItem, type BillProjection, type Currency, OWNER_PARTICIPANT_ID, type Participant, type PublicShare } from "../contract";
 import { formatBillDate } from "../dates";
 import { formatMoney } from "../money";
 import { type ClaimProblem, MAX_NAME_LENGTH, type ShareState, isNameProblem } from "../share-controller";
-import { claimersOf, listOf, ownerNameOf, participantLabel, statusSentence } from "../share-state";
+import { capitalized, claimersOf, listOf, ownerInSentence, participantLabel, payerOf, personInSentence, statusSentence, UNNAMED_OWNER } from "../share-state";
 import { CheckIcon, ExpandIcon } from "../ui/icons";
 import { PaymentBlock } from "../ui/payment-block";
 import { waitText } from "../ui/problem-view";
@@ -37,8 +37,8 @@ export function StatusBanner({ share }: { share: PublicShare }) {
   return <p class="banner type-body-large">{statusSentence(share.status, share.bill)}</p>;
 }
 
-export function claimProblemText(problem: ClaimProblem, owner: string | null): string {
-  const payer = owner ?? "the payer";
+/** Why a pick was not saved, in words; [owner] is the bill's owner as a sentence names them. */
+export function claimProblemText(problem: ClaimProblem, owner: string): string {
   switch (problem.kind) {
     case "name_missing":
       return "Type your name first, then tap what you had.";
@@ -51,9 +51,9 @@ export function claimProblemText(problem: ClaimProblem, owner: string | null): s
     case "turnstile":
       return "The check that you are a person did not go through. Tap your item again to retry.";
     case "full":
-      return `This bill already has 30 people picking items. Ask ${payer} to add you.`;
+      return `This bill already has 30 people picking items. Ask ${owner} to add you.`;
     case "locked":
-      return `Picks are closed: ${payer} is settling the split.`;
+      return `Picks are closed: ${owner} is settling the split.`;
     case "rate_limited":
       return `Too many picks from this network. ${waitText(problem.retryAfterSeconds)}`;
     case "not_configured":
@@ -74,7 +74,7 @@ interface ClaimFormProps {
 }
 
 export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
-  const owner = state.share === null ? null : ownerNameOf(state.share.bill);
+  const owner = state.share === null ? UNNAMED_OWNER : ownerInSentence(state.share.bill);
   const problem = state.claimProblem;
   const nameField = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -117,7 +117,7 @@ export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
         <p class="notice type-body-medium">Your picks are kept only while this page stays open. Keep it open until the bill is settled.</p>
       )}
       {state.removedByOwner && (
-        <p class="notice type-body-medium">{`${owner ?? "The payer"} took your picks off the bill. Tap what you had to pick again.`}</p>
+        <p class="notice type-body-medium">{`${capitalized(owner)} took your picks off the bill. Tap what you had to pick again.`}</p>
       )}
       <div class="human-check" ref={humanCheckSlot} />
       <p class="type-body-medium supporting claim-progress">
@@ -234,10 +234,23 @@ export function TotalsSection({ bill }: { bill: BillProjection }) {
   );
 }
 
+/**
+ * What the row of [participant], who owes [amountMinor] and has no way to pay, says. When the owner
+ * named who paid the whole bill, the others settle up with that person; otherwise with whoever
+ * paid, as the page knows no more.
+ */
+export function noteWithoutPayment(participant: Participant, amountMinor: number, payer: Participant | null): string {
+  if (payer !== null && participant.id === payer.id) return "Paid the bill";
+  if (participant.id === OWNER_PARTICIPANT_ID) return "Shared this bill";
+  if (amountMinor === 0) return "Nothing to pay";
+  if (payer === null) return "No way to pay was added: settle up directly with whoever paid the bill.";
+  return `No way to pay was added. ${capitalized(personInSentence(payer))} paid the bill: settle up with them directly.`;
+}
+
 export function AmountsSection({ share }: { share: PublicShare }) {
   const { bill, amounts } = share;
   if (amounts === null) return null;
-  const owner = ownerNameOf(bill);
+  const payer = payerOf(share);
   const rows = bill.participants.flatMap((participant) => {
     const amount = amounts[participant.id];
     return amount === undefined ? [] : [{ participant, amount }];
@@ -253,7 +266,6 @@ export function AmountsSection({ share }: { share: PublicShare }) {
         {rows.map(({ participant, amount }) => {
           const name = participantLabel(participant);
           const money = formatMoney(amount.amountMinor, bill.currency);
-          const isOwner = participant.id === OWNER_PARTICIPANT_ID;
           if (amount.payment !== null) {
             return (
               <li key={participant.id} class="group__item person">
@@ -270,11 +282,7 @@ export function AmountsSection({ share }: { share: PublicShare }) {
               </li>
             );
           }
-          const note = isOwner
-            ? "Shared this bill"
-            : amount.amountMinor === 0
-              ? "Nothing to pay"
-              : `No way to pay was added: settle it with ${owner ?? "the payer"} directly.`;
+          const note = noteWithoutPayment(participant, amount.amountMinor, payer);
           return (
             <li key={participant.id} class="group__item person">
               <div class="person__row">

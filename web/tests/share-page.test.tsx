@@ -136,12 +136,35 @@ describe("the bill link's page", () => {
     expect(all(page, "details").map((details) => (details as HTMLDetailsElement).open)).toEqual([false, false]);
   });
 
-  it("opens the only way to pay at once", () => {
+  it("opens the only way to pay at once, and says to settle up with whoever paid when nobody was named", () => {
     const answer = structuredClone(shareLocked);
     answer.share.amounts.p2.payment = null as never;
     const page = mount(<ShareView state={stateOf(answer)} actions={actions()} />);
     expect(all(page, "details").map((details) => (details as HTMLDetailsElement).open)).toEqual([true]);
-    expect(textOf(all(page, ".person")[2] ?? null)).toContain("No way to pay was added: settle it with the payer directly.");
+    expect(textOf(all(page, ".person")[2] ?? null)).toBe("An No way to pay was added: settle up directly with whoever paid the bill. ₫67,500");
+    expect(textOf(page)).not.toContain("paid the bill:");
+  });
+
+  it("says who paid the bill, and to settle up with them, where an amount has no way to pay", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> & { amounts: Record<string, { payment: unknown }> } };
+    answer.share.paidBy = "p1";
+    for (const id of ["p1", "p2"]) answer.share.amounts[id]!.payment = null;
+    const page = mount(<ShareView state={stateOf(answer)} actions={actions()} />);
+    expect(all(page, ".person").map((person) => textOf(person))).toEqual([
+      "The bill's owner Shared this bill ₫77,000",
+      "Minh Paid the bill ₫86,500",
+      "An No way to pay was added. Minh paid the bill: settle up with them directly. ₫67,500",
+    ]);
+  });
+
+  it("calls an owner who paid and left their name empty the person who made this link", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> & { amounts: Record<string, { payment: unknown }> } };
+    answer.share.paidBy = "me";
+    answer.share.amounts.p2!.payment = null;
+    const page = mount(<ShareView state={stateOf(answer)} actions={actions()} />);
+    const people = all(page, ".person");
+    expect(textOf(people[0]?.querySelector(".person__row") ?? null)).toBe("The bill's owner Paid the bill ₫77,000");
+    expect(textOf(people[2] ?? null)).toBe("An No way to pay was added. The person who made this link paid the bill: settle up with them directly. ₫67,500");
   });
 
   it("says a link that does not exist does not, and one that was revoked no longer works", () => {

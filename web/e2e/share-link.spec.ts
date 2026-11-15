@@ -149,11 +149,11 @@ test("everyone at the table picks live, then sees what to pay and how, until the
     await expect(page.getByLabel("Your name")).toHaveCount(0);
   }
 
-  // The owner settles the split: both pages show each amount, the QR codes and the link.
-  await lan.finalizeShare(link.id, BILL, AMOUNTS);
+  // The owner, who paid the bill, settles the split: both pages show each amount, the QR codes and the link.
+  await lan.finalizeShare(link.id, BILL, AMOUNTS, "me");
   for (const { page } of [minh, an]) {
     await expect(page.getByRole("heading", { name: "What each person pays" })).toBeVisible();
-    await expect(page.locator(".person__row")).toHaveText([/Lan\s*Shared this bill\s*₫77,000/, /Minh\s*₫86,500/, /An\s*₫67,500/]);
+    await expect(page.locator(".person__row")).toHaveText([/Lan\s*Paid the bill\s*₫77,000/, /Minh\s*₫86,500/, /An\s*₫67,500/]);
     await page.locator("summary", { hasText: "Minh" }).click();
     await page.locator("summary", { hasText: "An" }).click();
     const pay = page.getByRole("link", { name: "Pay on paypal.me" });
