@@ -3,10 +3,11 @@
 A proof-of-concept Android app (Kotlin, Jetpack Compose) for an AI "split bill" feature inside a
 payment app.
 
-You photograph a bill and type how it should be split. The phone reads the text of the bill with
-on-device OCR and sends that text and its position on the page to the app's AI proxy, a Cloudflare
-Worker that asks Claude and sends the bill back as structured data. The app then does the
-arithmetic itself and lets you pick the contacts who share the bill and who shares each item. The
+You scan or photograph a bill, in several pages if it is long, and type how it should be split.
+The phone reads the text of the bill with on-device OCR and sends that text and its position on the
+page to the app's AI proxy, a Cloudflare Worker that asks Claude and sends the bill back as
+structured data. The app then does the arithmetic itself: you correct anything that was misread,
+choose who is on the bill, how it is split and who paid, and every bill is kept on the phone. The
 app holds no API key.
 
 ```mermaid
@@ -17,20 +18,34 @@ flowchart LR
     P --> D[Claude Opus]
     D --> E[Items, charges, total, people named in the instruction]
     E --> F[Split calculator on the device]
-    F --> G[Pick people, assign items, request money]
+    F --> G[Correct the bill, choose people, split mode and payers]
+    G --> H[Bills kept on the phone]
 ```
 
 <img src="docs/screenshots/new-split.png" alt="New split screen with the sample bill and an instruction" width="300">
 
 ## What the app does
 
-1. **Home** shows the in-app contacts (other users of the payment app) and a "Split a bill" entry.
-2. **New split** takes a bill photo (camera, gallery, or the bundled sample bill) and an instruction
-   such as `Split with Minh and Lan. Minh had the beers.` or `We are 3, I didn't drink.`
-3. **Result** shows the items, the taxes and fees, and the total. People named in the instruction are
-   matched to contacts and pre-selected. You can add or remove people, tap an item to choose who
-   shares it, and see what each person pays. The shares always add up to the bill total.
-4. **Request** confirms the amounts that would be requested from each person. This step is a mock.
+1. **Home** shows the latest bills and a "Split a bill" entry. **See all** opens every bill kept on
+   the phone, to search by place, item or person, open again or delete.
+2. **New split** takes the bill and an instruction such as `Split with Minh and Lan. Minh had the
+   beers.` or `We are 3, I didn't drink.` The bill comes from Google's document scanner, which finds
+   its edges, straightens it and takes up to five pages; from the camera or the photo picker; from a
+   photo shared by another app; from the bundled sample bill; or it is typed in by hand.
+3. **Result** shows the items, the taxes and fees, and the total, and, for a bill in another
+   currency, what it comes to in your own at the day's rate or a rate you type in.
+   - **Who is on the bill:** everyone named in the instruction, anyone you add by name or from the
+     people you split with before, and anyone you pick in the phone's contact picker.
+   - **How it is split:** equally, by item, by shares, by percent or by exact amounts. Each item can
+     be divided its own way too.
+   - **Who paid:** one person, or several with an amount each.
+   - Every share is shown, and the shares always add up to the bill total.
+4. **Edit bill** corrects every item, quantity, price, tax, fee, discount and the total. When the
+   lines and the printed total disagree, it shows by how much and offers two ways to settle it.
+5. **Request** confirms the amounts that would be requested from each person. This step is a mock.
+   A finished split stays in the list and can be changed later.
+
+Every change is saved as a draft as it is made, so a split survives the app being closed.
 
 ## Run it
 
@@ -137,45 +152,66 @@ didn't drink"), which leaves it to everyone else. The model does not compute any
 - The currency and its precision come from the bill. A bill is never split finer than its prices
   are printed, and never finer than the currency allows. So a rupiah, forint or dong bill is split
   in whole units, and a dollar bill printed with cents is split to the cent.
-- A bill that shows no currency is taken to be in the app's local currency (Settings). A bill in a
-  different currency is split in its own currency and marked with a note; nothing is converted.
-- `BillReconciler` checks that items plus charges equal the total. If they do not, the printed total
-  wins and the gap is shown as an explicit "Unallocated difference" line with a warning. A line with
-  a negative amount, such as a voucher, is treated as a deduction on the whole bill.
-- `SplitCalculator` applies these rules:
-  - an item is shared equally by the people assigned to it, or by everyone when it is unassigned;
+- A bill that shows no currency is taken to be in the app's local currency (Settings). A bill in
+  another currency is split in its own currency. `ExchangeRate` also shows it in the local one, at
+  the day's rate the proxy hands out or at a rate the user types in; the shares stay in the bill's
+  currency.
+- `BillReconciler` turns a line with a negative amount, such as a voucher, into a deduction on the
+  whole bill. When the lines do not add up to the printed total, the printed total wins, the gap is
+  shared in proportion and shown, and `BillEditor` offers to use the lines as the total or to keep
+  the total and add the difference as a line.
+- `SplitCalculator` divides the whole bill equally, by shares, by percent (in hundredths) or by exact
+  amounts, or item by item:
+  - an item is shared equally by the people who had it, or divided its own way;
   - items shared by exactly the same group are added up and divided once;
   - taxes, fees, tips and discounts follow each person's items proportionally;
-  - with no assignments at all, the whole bill is divided equally;
-  - the unit that cannot be divided goes to the first person in the list, and the payer is listed first.
-- `SplitPlanner` and `NameMatcher` match the names from the instruction against the contact list on the
-  device. A contact is pre-selected only when the typed name is that person's full name, handle or
-  given name and nobody else fits as well. A surname or middle name alone, a name shared by two
-  contacts, or an unknown name is never guessed: the app shows a notice and the user picks the person.
+  - a part that cannot be divided goes by the largest remainder, or to the first person in the list,
+    and the user is listed first.
+- `SplitPlanner` turns every name in the instruction into someone on the bill. A name that is exactly
+  that of someone split with before is that person again; any other name is someone new, named as
+  typed, whom the user can rename. `NameMatcher` also suggests people split with before as a name
+  is typed.
+- `Payments` checks that what the payers paid adds up to the bill total. A split with a problem, such
+  as percentages that do not add up to 100, has no shares until it is fixed, and cannot be finished.
+
+### 4. Bills stay on the phone
+
+`BillRepository` keeps every bill in a Room database on the phone: the bill, who is on it, how it is
+split, who paid and the shares worked out from that. Each save writes the whole bill as the next
+revision, and a save from a copy that is no longer the latest is refused, so two screens editing the
+same bill cannot overwrite each other. A finished bill that a change leaves unbalanced becomes a
+draft again. The photos of a bill's pages are kept in the app's own storage and deleted with it. The
+screen on show, the bill and the photos come back after the system ends the app.
 
 ### Privacy
 
-Only the OCR text and the typed instruction leave the phone. The photo is never uploaded, and the
-contact list is never sent: the model only repeats names that appear in the instruction. The proxy
-keeps no bill text, name or address: it holds counters under salted hashes, and logs one line of
-numbers per request.
+Only the OCR text and the typed instruction leave the phone. The photos are never uploaded, and the
+app holds no permission to read contacts: the system's contact picker hands it the one name picked.
+Bills, people and photos stay on the phone. The request for exchange rates says nothing about who
+asks. The proxy keeps no bill text, name or address: it holds counters under salted hashes, and logs
+one line of numbers per request.
 
 ## Project layout
 
 ```text
 core/designsystem/            the look of the app: theme, tokens, components, motion
 core/domain/                  plain Kotlin, no Android: the money logic and the data contracts
-  domain/     Bill, BillCurrency, BillReconciler, SplitCalculator, SplitPlan, NameMatcher
-  ocr/        OcrResult, OcrLayoutEncoder
+  domain/     Bill, BillCurrency, BillEditor, BillReconciler, ExchangeRate, Participant, Payment,
+              SplitCalculator, SplitMode, SplitPlan, NameMatcher
+  ocr/        OcrResult, OcrLayoutEncoder (one page or several)
   llm/        BillAnalyzer, BillAnalysisParser
-  data/       Contact
 app/src/main/java/com/dantech/splitvibe/
   di/         the Koin module that wires the app together
   ocr/        BillTextRecognizer (ML Kit), BillImageLoader
+  scan/       DocumentScanner (Google's document scanner)
   llm/        GatewayBillAnalyzer, which reads a bill through the AI proxy
-  data/       account (install id, encrypted session, Google sign-in), proxy (the proxy's
-              routes over OkHttp), contacts (seeded), settings (local currency)
-  ui/         navigation, home, split (new split, result, sheets, confirmation), settings, theme
+  data/       bills (Room database, revisions, page photos), people (people split with before,
+              names from the contact picker), fx (exchange rates kept for offline use), account
+              (install id, encrypted session, Google sign-in), proxy (the proxy's routes over
+              OkHttp), settings (local currency)
+  ui/         navigation, home, history, split (new split, result, sheets, confirmation), editor,
+              settings
+app/schemas/                  the Room database schema, one file per version
 app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
 app/src/androidTest/          on-device tests
 app/src/sharedTest/resources/ recorded ML Kit output, a recorded Claude answer, and the request
@@ -195,20 +231,25 @@ describes the AI proxy: its routes, its limits, what it keeps, and how to run an
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-129 tests cover the split rules (including 2,000 random bills whose shares must add up to the
-total without anyone owing a negative amount), currency handling, name matching, split planning, row
-layout, answer parsing, the proxy client, the account and sign-in, the UI flow, app startup,
-navigation, the dependency wiring, the text contrast of the colour palette, the motion, and the
-design system components.
+222 tests cover the split rules (for each of the five ways to split, 2,000 random bills whose shares
+must add up to the total, and payments that must too), editing a bill, currency handling and
+exchange rates, name matching, split planning, row layout of one page or several, answer parsing,
+the bills kept on the phone and their revisions, the proxy client, the account and sign-in, the UI
+flow, app startup, navigation, the dependency wiring, the text contrast of the colour palette, the
+motion, and the design system components.
 
 - The proxy client tests run the real client against a local server that answers as the proxy does.
   They pin down the request, which must match the shared fixture the proxy's tests send, and every
   kind of answer: the bill, free reads used up, sign-in run out, AI switched off, app too old,
   rate limits, busy, refused, too long, timeout, and an answer that stops half way.
 - `SplitFlowTest` walks through the real screens without a device (Robolectric): sample photo,
-  instruction, analysis, people pre-selected, exact shares, changing who shares an item, request
-  confirmation. It replays two recordings of the real pipeline: the text ML Kit read on a device
-  and the answer Claude Opus gave for it, streamed the way the proxy sends it.
+  instruction, analysis, the people named, exact shares, changing who shares an item, request
+  confirmation and the saved bill. It replays two recordings of the real pipeline: the text ML Kit
+  read on a device and the answer Claude Opus gave for it, streamed the way the proxy sends it.
+- `BillLifecycleTest` and `BillSafetyTest` follow a bill through its life on the phone: a bill of
+  three items typed in by hand, an item corrected, a draft brought back after the system ends the
+  app, a bill in dollars shown in dong, a copy saved elsewhere, a finished split broken by a change,
+  and the cases where a bill must not be overwritten or lose a photo.
 - `ScreenGalleryTest` draws every screen in the light and the dark theme, and the four main screens
   with text at twice its size, and compares each with the reference image in
   `app/src/test/screenshots`. After an intended visual change, record new images with
@@ -242,8 +283,8 @@ The other checks, all of which also run in GitHub Actions for every pull request
 ./gradlew :app:lintProdDebug :core:designsystem:lintDebug
 ```
 
-The AI proxy has its own 81 tests, which run in the workers runtime against a fake model. From
-`proxy/`:
+The AI proxy has its own 96 tests, which run in the workers runtime against a fake model and a fake
+source of exchange rates. From `proxy/`:
 
 ```bash
 npm test
@@ -254,24 +295,25 @@ npm test
 | What | How | Result |
 |---|---|---|
 | Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 129 pass |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 222 pass |
 | UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and proxy client | passes |
-| AI proxy | `npm run typecheck` and `npm test` in `proxy/` | 81 pass; each rule about calls, holds and spend was also broken on purpose to see its test fail |
-| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 tests; the proxy client test on a device has not run yet |
+| AI proxy | `npm run typecheck` and `npm test` in `proxy/` | 96 pass; each rule about calls, holds and spend was also broken on purpose to see its test fail |
+| Exchange rates, live | `GET /v1/fx-rates` on the deployed proxy | 161 currencies with their day, VND, USD, EUR, INR and THB among them |
+| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 pass, the sample bill split from the photo to the sent requests among them |
 | OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
 | Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
 
 What has not been verified:
 
-- **A live call through the proxy.** The proxy is tested against a fake model and the app against a
-  stand-in for the proxy; the request is the same in both. The proxy has not been deployed, so no
-  bill has gone from the app through the proxy to the live API yet. That needs the owner's
-  Cloudflare account, Anthropic key and Google OAuth clients ([docs/proxy.md](docs/proxy.md)).
+- **A live bill read through the proxy.** The proxy is deployed and hands out exchange rates, but
+  its Anthropic key is not set yet, so no bill has gone from the app through the proxy to the live
+  API. The proxy is tested against a fake model and the app against a stand-in for the proxy; the
+  request is the same in both ([docs/proxy.md](docs/proxy.md)).
+- **Scanning, sharing and picking contacts on a phone.** The document scanner needs Google Play
+  services, and a bill of two pages, a photo shared from the gallery and the system contact picker
+  have not been tried on a device yet.
 - **Google sign-in on a phone.** Credential Manager needs the OAuth clients, so sign-in has only been
   tested with a stand-in for Google's account picker.
-- **The screens after analysis on a device.** The home and new-split screens were seen running on
-  the emulator. The result, item and confirmation screens were exercised only in `SplitFlowTest`,
-  because the emulator session ended before the on-device walk-through finished.
 - **A physical phone.** Everything on-device ran on an emulator.
 - **The release build at runtime.** It builds with R8, but only debug builds were run.
 - **Performance numbers.** The benchmarks in `baseline-profile` exist but have not been run on a
@@ -281,24 +323,26 @@ What has not been verified:
 
 - **Free reads are per install.** Clearing the app's data makes a new install with 3 new reads. The
   proxy's limits per network address and its daily spend caps bound what that can cost.
-- **Mock data.** Contacts are seeded in `SeededContactRepository`, and "Request" creates nothing.
+- **"Request" creates nothing.** The app never moves money.
 - **Latin script only.** Chinese, Japanese, Korean and Devanagari need the matching ML Kit artifacts.
-- **No currency conversion.** A bill in another currency than the app's local currency stays in
-  its own currency. Converting would need an exchange rate source.
+- **Converted amounts are only shown.** A bill in another currency is split and kept in its own
+  currency; the day's rate comes from Frankfurter through the proxy and may be a day or two old.
+- **Bills stay on one phone.** There is no sync between devices yet, and clearing the app's data
+  deletes the bills.
 - **Bills printed without decimals are split in whole units**, including the rare dollar or euro bill
   that shows no cents.
 - **App size.** ML Kit ships native code for four CPU types, so the release APK is large; an app
   bundle splits it per device.
-- **State is in memory.** A split in progress survives rotation but not the app being killed.
 - **English UI strings** are written inline rather than in string resources.
-- **Very long bills** could exceed the answer token limit; the app then asks for two photos.
+- **Very long bills** could exceed the answer token limit; the app then asks to photograph only the
+  lines that matter, or to type the bill in by hand.
 
 ## Toolchain
 
 Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
 (Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
-Koin 4.2.2, Navigation 3 1.2.1, ML Kit text-recognition 16.0.1, OkHttp 4.12.0, Credential Manager
-1.6.0 with Google ID 1.2.1. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
+Koin 4.2.2, Navigation 3 1.2.1, Room 2.8.5 with KSP 2.3.12, ML Kit text-recognition 16.0.1 and
+document scanner 16.0.0, OkHttp 4.12.0, Credential Manager 1.6.0 with Google ID 1.2.1. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
 wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0.
 
 ## License

@@ -8,29 +8,29 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition, the AI proxy client"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the AI proxy client"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
     profile -. drives and measures .-> app
-    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude"]
+    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates"]
     app -. HTTPS .-> proxy
 ```
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage |
-| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillReconciler`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Contact`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage |
+| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
 | `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session; described in [proxy.md](proxy.md) |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
 that decides how much a person pays lives there and is tested without a device. The package names
-are the same in both modules (`com.dantech.splitvibe.domain`, `.ocr`, `.llm`, `.data.contacts`), so
-moving a file between them does not change any import.
+are the same in both modules (`com.dantech.splitvibe.domain`, `.ocr`, `.llm`), so moving a file
+between them does not change any import.
 
 `:core:designsystem` owns how the app looks. A screen wraps itself in nothing: `MainActivity` applies
 `SplitVibeTheme` once, and screens read colours, type and elevation from it.
@@ -51,7 +51,7 @@ are worth knowing before changing it:
 
 ### Dependency wiring
 
-`di/AppModule.kt` is one Koin module that lists every long-lived object and the view model.
+`di/AppModule.kt` is one Koin module that lists every long-lived object and the view models.
 `SplitVibeApp` starts Koin when the process starts. Screens get objects with `koinViewModel()` and
 `koinInject()`.
 
@@ -62,7 +62,7 @@ A wiring mistake fails the checks instead of crashing a screen.
 ### Navigation
 
 `ui/AppNavHost.kt` uses Navigation 3. The back stack is a list of keys (`HomeKey`, `SplitKey`,
-`SettingsKey`) that the screen code owns directly:
+`HistoryKey`, `SettingsKey`) that the screen code owns directly:
 
 - The keys are `@Serializable`, so the list is saved with the activity and the open screens come
   back after the system recreates it.
@@ -73,13 +73,16 @@ A wiring mistake fails the checks instead of crashing a screen.
   shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
   `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
   work before it lets the user leave.
-- Inside the split screen the three steps (photo, result, sent requests) follow from the view
+- Inside the split screen the four steps (photo, editor, result, sent requests) follow from the view
   model's state and fade into each other through `SvSteps`. Each step carries the state it shows,
   so a step that is being left is drawn unchanged while it fades out, and back always belongs to
   the step on screen. The button that sends the requests turns into the mark that confirms them.
 - Two decorators wrap every screen: one keeps `rememberSaveable` state per screen, the other gives
   each screen its own view model store. `SplitBillViewModel` is requested above `NavDisplay` on
   purpose, so a split in progress survives a visit to Settings.
+- A bill opened from Home or the list of bills opens the split screen on its result, and back
+  returns to where it was opened from. Photos shared from another app open a new split with them
+  (`MainActivity` takes them from the share intent).
 
 To add a screen: declare a `@Serializable data object` (or data class) that implements `NavKey`, add
 an `entry<ThatKey> { ... }` to the `entryProvider` block, and open it with `backStack.open(ThatKey)`.
@@ -88,17 +91,23 @@ an `entry<ThatKey> { ... }` to the `entryProvider` block, and open it with `back
 
 ```mermaid
 flowchart LR
-    photo[Bill photo] --> ocr[ML Kit on the device]
-    ocr --> rows[OcrLayoutEncoder:<br/>rows of text with positions]
+    photo[Pages of the bill] --> ocr[ML Kit on the device]
+    ocr --> rows[OcrLayoutEncoder:<br/>rows of text with positions, per page]
     rows --> client[GatewayBillAnalyzer]
     client --> proxy[AI proxy: prompt, schema, Claude]
     proxy --> parser[BillAnalysisParser]
     parser --> calc[BillReconciler and SplitCalculator]
-    calc --> ui[Result screen]
+    calc --> ui[Result screen and editor]
+    ui --> store[BillRepository: one revision per save]
 ```
 
 The model reads the bill and reports what the instruction says about people. It never computes a
-share: the arithmetic is done in `:core:domain`, in whole minor units of the bill's currency. The
+share: the arithmetic is done in `:core:domain`, in whole minor units of the bill's currency.
+`SplitBillViewModel` saves the bill a moment after each change. Each save writes the whole bill as
+the next revision of the copy the screen descends from, and Room refuses it when that copy is no
+longer the latest, so two writers never overwrite each other. Reading other photos or typing a bill
+in by hand starts a new bill; only reading the same photos again replaces their bill. What was on
+screen comes back from `SavedStateHandle` and the database after the system ends the app. The
 proxy streams its answer as lines of JSON, and the app's error kinds follow the proxy's codes: free
 reads used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
 The [README](../README.md) describes each step in detail.
@@ -149,7 +158,7 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Check | Command | What it guards |
 |---|---|---|
 | Code style | `./gradlew ktlintCheck` | The rules in `.editorconfig`. `./gradlew ktlintFormat` fixes most findings. |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules, parsing, the proxy client and the account against a stand-in for the proxy, the UI flow, app startup, navigation and back handling, text contrast of the palette |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules for every way to split, editing, exchange rates, parsing, the bills on the phone and their revisions, the proxy client and the account against a stand-in for the proxy, the UI flow, app startup, navigation and back handling, text contrast of the palette |
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
 | Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |
