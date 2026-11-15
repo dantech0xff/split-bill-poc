@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/index";
 import { WEB_ASSETS } from "../src/web-assets.generated";
 import { send } from "./requests";
@@ -63,13 +63,40 @@ describe("the web page", () => {
 
   it("leaves a meta tag empty when its variable is not of its shape, so that nothing gets into the page", async () => {
     const page = await get("/g/", { TURNSTILE_SITE_KEY: '"><script>alert(1)</script>', ABUSE_EMAIL: "<img src=x onerror=alert(1)>@x" });
-    const quoted = await get("/g/", { ABUSE_EMAIL: `o'brien&"co"@example.com` });
 
     expect(page.status).toBe(200);
     expect(page.body).toContain('<meta name="sv-turnstile-site-key" content="">');
     expect(page.body).toContain('<meta name="sv-abuse-email" content="">');
     expect(page.body).not.toContain("alert(1)");
-    expect(quoted.body).toContain('<meta name="sv-abuse-email" content="o&#39;brien&amp;&quot;co&quot;@example.com">');
+  });
+
+  it("takes an abuse address by the rule the page applies, and logs one it leaves out", async () => {
+    const taken = ["abuse@example.com", "a.b_c%d+e-f@mail.example.co.uk", `${"a".repeat(242)}@example.com`];
+    const refused = [
+      `o'brien&"co"@example.com`,
+      "abuse@localhost",
+      "abuse@example.com?cc=someone@example.com",
+      "abuse@example.com&body=x",
+      "abuse @example.com",
+      "abuse@@example.com",
+      "abuse@example..com",
+      `${"a".repeat(243)}@example.com`,
+    ];
+    const logs: unknown[] = [];
+    const spied = vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      logs.push(line);
+    });
+
+    for (const address of taken) {
+      expect((await get("/r/", { ABUSE_EMAIL: address })).body, address).toContain(`<meta name="sv-abuse-email" content="${address}">`);
+    }
+    expect(logs).toEqual([]);
+    for (const address of refused) {
+      expect((await get("/r/", { ABUSE_EMAIL: address })).body, address).toContain('<meta name="sv-abuse-email" content="">');
+    }
+    spied.mockRestore();
+
+    expect(logs).toEqual(refused.map(() => JSON.stringify({ event: "bad_setting", name: "ABUSE_EMAIL" })));
   });
 
   it("is served at /s/, /r/ and /g/ only, never with a token in the path", async () => {

@@ -664,7 +664,10 @@ The live connection:
   - `<meta name="sv-abuse-email">` from `ABUSE_EMAIL`, the address of the "Report abuse" link,
     which the page leaves out while it is empty.
   - A value that is not shaped as a site key (letters, digits, `_` and `-`) or as an address
-    (something `@` something, without whitespace) leaves its tag empty, and is logged.
+    leaves its tag empty, and is logged. An address is at most 254 characters: letters, digits and
+    `._%+-`, an `@`, then two or more labels of letters, digits and `-` joined by dots. The page
+    takes the same addresses and no others, so that nothing in one changes what its `mailto:` link
+    does.
 - The page's headers, with `<host>` the host the page was asked at:
   - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
   - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`

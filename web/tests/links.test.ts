@@ -82,4 +82,20 @@ describe("abuseMailto", () => {
     expect(abuseMailto("abuse@example.com?cc=someone@example.com", "share")).toBeNull();
     expect(abuseMailto("abuse@example.com&body=x", "share")).toBeNull();
   });
+
+  // The same addresses as the proxy's test of ABUSE_EMAIL: both apply one rule.
+  it.each(["abuse@example.com", "a.b_c%d+e-f@mail.example.co.uk", `${"a".repeat(242)}@example.com`])("takes %s", (address) => {
+    expect(abuseMailto(address, "share")).toMatch(/^mailto:/);
+  });
+
+  it.each([
+    `o'brien&"co"@example.com`,
+    "abuse@localhost",
+    "abuse @example.com",
+    "abuse@@example.com",
+    "abuse@example..com",
+    `${"a".repeat(243)}@example.com`,
+  ])("leaves out %s", (address) => {
+    expect(abuseMailto(address, "share")).toBeNull();
+  });
 });

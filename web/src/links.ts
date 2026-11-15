@@ -44,8 +44,14 @@ export function openInAppHref(link: { host: string; path: string; token: string 
   return `intent://${link.host}${link.path}#${link.token}#Intent;scheme=https;package=${APP_PACKAGE};S.browser_fallback_url=${fallback};end`;
 }
 
-/** A plain address, without anything that would change what a `mailto:` link does. */
+/**
+ * A plain address, without anything that would change what a `mailto:` link does: at most 254
+ * characters; letters, digits and `._%+-`, an `@`, then two or more labels of letters, digits and
+ * `-` joined by dots. The Worker takes `ABUSE_EMAIL` by the same rule (proxy/src/web.ts, and
+ * docs/proxy.md), so that an address it puts in the page is never one the page leaves out.
+ */
 const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+const MAX_EMAIL_LENGTH = 254;
 
 export type PageKind = "share" | "request" | "invite";
 
@@ -61,6 +67,6 @@ const PAGE_NAMES: Record<PageKind, string> = {
  */
 export function abuseMailto(address: string | null | undefined, kind: PageKind): string | null {
   const trimmed = address?.trim() ?? "";
-  if (trimmed.length > 254 || !EMAIL.test(trimmed)) return null;
+  if (trimmed.length > MAX_EMAIL_LENGTH || !EMAIL.test(trimmed)) return null;
   return `mailto:${trimmed}?subject=${encodeURIComponent(`Report abuse: Split Vibe ${PAGE_NAMES[kind]}`)}`;
 }

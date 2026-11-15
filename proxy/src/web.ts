@@ -4,16 +4,30 @@ import { WEB_ASSETS, WEB_PAGE } from "./web-assets.generated";
 
 /** A Turnstile site key: letters, digits, `_` and `-`. */
 const SITE_KEY = /^[A-Za-z0-9_-]{1,128}$/;
-/** An address for the "Report abuse" link: something at a domain, without whitespace. */
-const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}$/;
+/**
+ * An address for the "Report abuse" link, by the rule the page applies too (`abuseMailto` in
+ * web/src/links.ts, and docs/proxy.md): at most 254 characters; letters, digits and `._%+-`, an
+ * `@`, then two or more labels of letters, digits and `-` joined by dots. Nothing in such an
+ * address can change what a `mailto:` link does.
+ */
+const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
+const MAX_EMAIL_CHARS = 254;
+
+function isSiteKey(value: string): boolean {
+  return SITE_KEY.test(value);
+}
+
+function isAbuseEmail(value: string): boolean {
+  return value.length <= MAX_EMAIL_CHARS && EMAIL.test(value);
+}
 
 /**
  * The value of the variable [name] to put in a meta tag of the page: trimmed, and empty when it
- * is not of the shape [shape] says, which is logged.
+ * is not what [valid] takes, which is logged.
  */
-function setting(env: Env, name: "TURNSTILE_SITE_KEY" | "ABUSE_EMAIL", shape: RegExp): string {
+function setting(env: Env, name: "TURNSTILE_SITE_KEY" | "ABUSE_EMAIL", valid: (value: string) => boolean): string {
   const value = (env[name] ?? "").trim();
-  if (value === "" || shape.test(value)) return value;
+  if (value === "" || valid(value)) return value;
   console.error(JSON.stringify({ event: "bad_setting", name }));
   return "";
 }
@@ -56,8 +70,8 @@ function contentSecurityPolicy(host: string): string {
  * lead.
  */
 export async function webPageRoute(request: Request, env: Env): Promise<Response> {
-  let page = filled(WEB_PAGE, "sv-turnstile-site-key", setting(env, "TURNSTILE_SITE_KEY", SITE_KEY));
-  page = filled(page, "sv-abuse-email", setting(env, "ABUSE_EMAIL", EMAIL));
+  let page = filled(WEB_PAGE, "sv-turnstile-site-key", setting(env, "TURNSTILE_SITE_KEY", isSiteKey));
+  page = filled(page, "sv-abuse-email", setting(env, "ABUSE_EMAIL", isAbuseEmail));
   return new Response(page, {
     headers: {
       "content-type": "text/html; charset=utf-8",
