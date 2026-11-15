@@ -139,7 +139,7 @@ export const joinGroupRoute = signedIn(async ({ request, env, ctx, params, accou
         logStatement(db, groupId, now, "claim_requested", memberId, memberId),
       ],
       waiting,
-      () => ctx.waitUntil(notify(env, owner?.account ?? null, { type: "claim", groupId })),
+      { after: () => ctx.waitUntil(notify(env, owner?.account ?? null, { type: "claim", groupId })) },
     );
   });
 });

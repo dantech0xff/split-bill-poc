@@ -279,7 +279,9 @@ RequestView:
 - Reported paid and confirmed paid are each set once; after a confirmation, reporting changes
   nothing. Confirming a request in a group records, in the same batch, one settlement from
   `toMemberId` to the creditor's member, recorded by the creditor's member, with `requestId` set.
-  Confirming twice, even at once, records one.
+  Confirming twice, even at once, records one. A confirmation and a withdrawal that come together
+  are decided by whichever lands first: a withdrawn request is never confirmed (its confirmation
+  answers 404 and records nothing), and a confirmed one is never withdrawn (409).
 - A link's token is the first 128 bits of an HMAC-SHA-256 of `request-link:<creditor's
   account>:<request id>` under `HASH_SALT`, so the proxy can hand its creditor the same link
   again; only the token's SHA-256 is kept. Because the creditor is part of it, an id that is

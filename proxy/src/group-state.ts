@@ -229,9 +229,23 @@ export type Plan =
   | { kind: "keep"; answer: (state: GroupState) => Response }
   /**
    * Write [statements], and answer from the state they leave, which is null when they deleted
-   * the group. [after] runs once they have landed, to send notifications.
+   * the group or [readState] is false. [after] runs once they have landed, to send notifications.
    */
-  | { kind: "write"; statements: D1PreparedStatement[]; answer: (state: GroupState | null) => Response; after?: () => void };
+  | {
+      kind: "write";
+      statements: D1PreparedStatement[];
+      answer: (state: GroupState | null) => Response | Promise<Response>;
+      after?: () => void;
+      readState: boolean;
+    };
+
+/** How a write goes on once its statements have landed. */
+export type WriteOptions = {
+  /** Runs once the statements have landed, to send notifications. */
+  after?: () => void;
+  /** False for a change whose answer does not need the group's state, so the batch does not read it. */
+  readState?: boolean;
+};
 
 export function reply(response: Response): Plan {
   return { kind: "reply", response };
@@ -241,8 +255,12 @@ export function keep(answer: (state: GroupState) => Response): Plan {
   return { kind: "keep", answer };
 }
 
-export function write(statements: D1PreparedStatement[], answer: (state: GroupState | null) => Response, after?: () => void): Plan {
-  return { kind: "write", statements, answer, after };
+export function write(
+  statements: D1PreparedStatement[],
+  answer: (state: GroupState | null) => Response | Promise<Response>,
+  options: WriteOptions = {},
+): Plan {
+  return { kind: "write", statements, answer, after: options.after, readState: options.readState ?? true };
 }
 
 /** Answers with the group's state, or 404 when the change deleted the group. */
@@ -256,7 +274,7 @@ export function stateAnswer(status = 200): (state: GroupState | null) => Respons
  * refuses that update when another change came first, which rolls the whole batch back; the
  * group is then read again and [plan] decides anew. So every change is decided on the state it
  * changes, permissions included, and moves the revision on by exactly one. The state the batch
- * leaves is read in the same batch.
+ * leaves is read in the same batch, unless the change does not need it.
  *
  * 404 `not_found` when the group does not exist; 409 `conflict` when other changes keep coming
  * first [WRITE_ATTEMPTS] times, which only a group changed many times a second would see.
@@ -273,7 +291,7 @@ export async function changeGroup(env: Env, groupId: string, account: string, pl
       const current = await readState(db, groupId, account);
       return current === null ? errorResponse(404, "not_found") : decided.answer(current.state);
     }
-    const reads = stateStatements(db, groupId);
+    const reads = decided.readState ? stateStatements(db, groupId) : [];
     let results: D1Result[];
     try {
       results = await db.batch([
@@ -288,7 +306,8 @@ export async function changeGroup(env: Env, groupId: string, account: string, pl
     // No row to update: the group was deleted after it was read, and the next read says so.
     if (results[0].meta.changes !== 1) continue;
     decided.after?.();
-    return decided.answer(stateFrom(results.slice(-reads.length), account)?.state ?? null);
+    const state = reads.length === 0 ? null : (stateFrom(results.slice(-reads.length), account)?.state ?? null);
+    return await decided.answer(state);
   }
   console.error(JSON.stringify({ event: "group_change_contended" }));
   return errorResponse(409, "conflict");

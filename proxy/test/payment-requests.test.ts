@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { POLICY } from "../src/policy";
 import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
+import { fakeFcm } from "./fake-fcm";
 import { addPlaceholder, api, join, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
 
 type Created = { request: RequestView; url: string };
@@ -345,6 +346,59 @@ describe("paying", () => {
       subjectId: after.settlements[0].id,
     });
     expect(after.group.revision).toBe(before.group.revision + 1);
+  });
+
+  it("confirmed while its creditor withdraws it records nothing, whichever lands first", async () => {
+    const { owner, group, minhId } = await vndGroup();
+    const fcm = await fakeFcm();
+    const settings = { FCM_SERVICE_ACCOUNT: fcm.serviceAccount };
+    const made = await ask(owner, { groupId: group.id, toMemberId: minhId });
+    const id = made.body.request.id;
+    const before = await stateOf(group);
+    // The withdrawal lands just before the confirmation's own batch, after the confirmation read the request.
+    let withdrawn: number | null = null;
+    const racing = new Proxy(env.DB, {
+      get(target, property) {
+        if (property !== "batch") {
+          const value: unknown = Reflect.get(target, property);
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return async (statements: D1PreparedStatement[]) => {
+          // A prepared statement keeps its SQL as `statement`; the test reads it to find the confirmation's batch.
+          const sql = statements.map((statement) => (statement as unknown as { statement: string }).statement);
+          if (withdrawn === null && sql.some((text) => text.startsWith("UPDATE requests SET confirmed_paid_at"))) {
+            withdrawn = (await api(owner, "DELETE", `/v1/requests/${id}`)).status;
+          }
+          return target.batch(statements);
+        };
+      },
+    });
+
+    const confirmed = await api(owner, "POST", `/v1/requests/${id}/confirmed-paid`, undefined, { ...settings, DB: racing });
+
+    expect(withdrawn).toBe(204);
+    expect(confirmed.status).toBe(404);
+    expect(await rows("SELECT * FROM settlements")).toEqual([]);
+    expect(await rows("SELECT confirmed_paid_at, deleted_at IS NOT NULL AS withdrawn FROM requests")).toEqual([{ confirmed_paid_at: null, withdrawn: 1 }]);
+    const after = await stateOf(group);
+    expect(after.settlements).toEqual([]);
+    expect(after.log.filter((entry) => entry.kind === "settlement_recorded")).toEqual([]);
+    expect(after.members).toEqual(before.members);
+    expect(fcm.messages).toEqual([]);
+  });
+
+  it("withdrawn after it was confirmed stays confirmed, with its one settlement", async () => {
+    const { owner, group, minhId } = await vndGroup();
+    const id = (await ask(owner, { groupId: group.id, toMemberId: minhId })).body.request.id;
+
+    const [confirmed, withdrawn] = await Promise.all([
+      api<RequestView>(owner, "POST", `/v1/requests/${id}/confirmed-paid`),
+      new Promise((resolve) => setTimeout(resolve, 50)).then(() => api(owner, "DELETE", `/v1/requests/${id}`)),
+    ]);
+
+    expect(confirmed.status).toBe(200);
+    expect(withdrawn.status).toBe(409);
+    expect((await stateOf(group)).settlements.map((settlement) => settlement.requestId)).toEqual([id]);
   });
 
   it("confirmed outside a group records no settlement", async () => {

@@ -1,4 +1,4 @@
-import { changeGroup, type Group, isMember, logStatement, outsider, type Plan, readGroup, reply, write } from "./group-state";
+import { changeGroup, type Group, isMember, outsider, type Plan, readGroup, reply, write } from "./group-state";
 import { type Call, signedIn } from "./identity";
 import type { Env } from "./index";
 import { byteLength, type Currency, currencyOf, idOf, inputOf, isRecord, moneyOf, optionalUuidOf, textOf, TOO_LARGE, uuidOf } from "./input";
@@ -331,6 +331,12 @@ export const confirmPaidRoute = signedIn(async ({ env, ctx, params, account }) =
  * The confirmation of a group request, decided on the group as it is: the request is read again
  * within the change, so that a confirmation sent twice at once records one settlement. Anything
  * that moved the request out of the group answers 404, after which the request is read anew.
+ *
+ * Withdrawing a request does not go through the group, so it can land between that read and the
+ * batch. Each statement of the batch therefore acts on the request as the batch finds it: the
+ * confirmation lands only on a request still open, in the group and not withdrawn, and the
+ * settlement and its log entry only when the confirmation did. The answer reads the request
+ * again to tell which happened; the debtor is notified only of a confirmation that landed.
  */
 async function confirmInGroup(env: Env, group: Group, id: string, account: string, tell: (row: RequestRow) => void): Promise<Plan> {
   const db = env.DB;
@@ -342,20 +348,33 @@ async function confirmInGroup(env: Env, group: Group, id: string, account: strin
   if (fresh.to_member_id === null || fresh.creditor_member_id === null) throw new Error("A group request without its members");
   const now = Date.now();
   const settlementId = crypto.randomUUID();
-  const confirmed: RequestRow = { ...fresh, confirmed_paid_at: now };
+  // The request as this confirmation leaves it, and as nothing else does: open until now, then confirmed at [now].
+  const confirmedHere = "FROM requests WHERE id = ?1 AND confirmed_paid_at = ?2 AND deleted_at IS NULL AND group_id = ?3";
   return write(
     [
-      db.prepare("UPDATE requests SET confirmed_paid_at = ?2 WHERE id = ?1 AND confirmed_paid_at IS NULL").bind(id, now),
+      db
+        .prepare("UPDATE requests SET confirmed_paid_at = ?2 WHERE id = ?1 AND confirmed_paid_at IS NULL AND deleted_at IS NULL AND group_id = ?3")
+        .bind(id, now, group.row.id),
       db
         .prepare(
           `INSERT INTO settlements (group_id, id, from_member_id, to_member_id, amount_minor, recorded_by_member_id, request_id, created_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?4, ?6, ?7)`,
+           SELECT group_id, ?4, to_member_id, creditor_member_id, amount_minor, creditor_member_id, id, confirmed_paid_at ${confirmedHere}`,
         )
-        .bind(group.row.id, settlementId, fresh.to_member_id, fresh.creditor_member_id, fresh.amount_minor, id, now),
-      logStatement(db, group.row.id, now, "settlement_recorded", fresh.creditor_member_id, settlementId),
+        .bind(id, now, group.row.id, settlementId),
+      db
+        .prepare(
+          `INSERT INTO group_log (group_id, at, kind, member_id, subject_id)
+           SELECT group_id, confirmed_paid_at, 'settlement_recorded', creditor_member_id, ?4 ${confirmedHere}`,
+        )
+        .bind(id, now, group.row.id, settlementId),
     ],
-    () => viewResponse(confirmed, "creditor"),
-    () => tell(confirmed),
+    async () => {
+      const landed = await requestRow(db, id);
+      if (landed === null || landed.deleted_at !== null || landed.confirmed_paid_at === null) return errorResponse(404, "not_found");
+      if (landed.confirmed_paid_at === now) tell(landed);
+      return viewResponse(landed, "creditor");
+    },
+    { readState: false },
   );
 }
 
