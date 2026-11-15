@@ -4,10 +4,11 @@ import { POLICY } from "./policy";
 import { errorResponse } from "./respond";
 
 /**
- * What an hourly limit counts. An account counts the invites, payment requests and group changes
- * it makes; a hashed IP counts what the web pages read without a session.
+ * What an hourly limit counts. An account counts the invites, payment requests, group changes,
+ * bill links and changes to them it makes; a hashed IP counts what the web pages do without a
+ * session: new claims, claim writes and reads.
  */
-export type HourlyKind = "invite" | "request" | "group_write" | "web_read";
+export type HourlyKind = "invite" | "request" | "group_write" | "share" | "share_write" | "claim_new" | "claim_write" | "web_read";
 
 /**
  * Counts one more [kind] made by [name] in a fixed window of an hour, and says whether it is

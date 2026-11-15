@@ -15,6 +15,8 @@ export default defineConfig(async () => {
             HASH_SALT: "test-hash-salt-for-the-proxy-tests",
             SESSION_SIGNING_KEY: "test-session-signing-key-that-is-long-enough",
             GOOGLE_CLIENT_ID: "test-web-client.apps.googleusercontent.com",
+            // The secret test/fake-turnstile.ts expects; Cloudflare's own test secrets are tried there too.
+            TURNSTILE_SECRET: "test-turnstile-secret",
             TEST_MIGRATIONS: migrations,
           },
         },

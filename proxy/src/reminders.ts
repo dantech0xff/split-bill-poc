@@ -89,7 +89,9 @@ export async function sendReminders(env: Env, now: number): Promise<void> {
 /**
  * Forgets what no longer works and no longer needs to answer: invites and deleted requests
  * [POLICY.forgetAfterMs] after they stopped working (their links then answer 404 rather than
- * 410), and the hourly windows that have ended.
+ * 410), bill links once they expired or were revoked, with their claims (their links then answer
+ * 404 too), and the hourly windows that have ended. One batch, and no Durable Object: the pages
+ * that still have a deleted link open hear nothing more, and learn it at their next request.
  */
 export async function forgetExpired(env: Env, now: number): Promise<void> {
   const db = env.DB;
@@ -97,6 +99,9 @@ export async function forgetExpired(env: Env, now: number): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM invites WHERE expires_at < ?1").bind(before),
     db.prepare("DELETE FROM requests WHERE deleted_at IS NOT NULL AND deleted_at < ?1").bind(before),
+    // Their claims go with them, through the schema's cascade.
+    db.prepare("DELETE FROM shares WHERE expires_at <= ?1").bind(now),
+    db.prepare("DELETE FROM shares WHERE revoked_at IS NOT NULL"),
     db.prepare("DELETE FROM rate_windows WHERE started_at < ?1").bind(now - POLICY.hourMs),
   ]);
 }

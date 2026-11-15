@@ -15,7 +15,9 @@ export const FORMER_MEMBER = "Former member";
  *   not yet confirmed becomes `{}`, and its payment for the web page is emptied with it, and the
  *   creditor's name on every one becomes [FORMER_MEMBER]; the account is taken off every request,
  *   as creditor and as debtor, so none can be read or changed through it again, and no reminder
- *   goes out for a creditor who is gone.
+ *   goes out for a creditor who is gone;
+ * - the bill links it made are deleted, with their claims. Their pages hear nothing of it, and
+ *   learn it at their next request.
  *
  * Every group it was in, or waited to join, moves on a revision, so that a change decided on the
  * group as it was is refused and decided again.
@@ -58,5 +60,7 @@ export async function forgetSharedData(db: D1Database, account: string, now: num
     db.prepare("UPDATE requests SET method = '{}', payment = NULL WHERE creditor = ?1 AND confirmed_paid_at IS NULL").bind(account),
     db.prepare("UPDATE requests SET creditor = NULL, creditor_name = ?2 WHERE creditor = ?1").bind(account, FORMER_MEMBER),
     db.prepare("UPDATE requests SET debtor = NULL WHERE debtor = ?1").bind(account),
+    // Their claims go with them, through the schema's cascade.
+    db.prepare("DELETE FROM shares WHERE owner = ?1").bind(account),
   ]);
 }

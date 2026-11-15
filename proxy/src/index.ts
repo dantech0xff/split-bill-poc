@@ -31,8 +31,11 @@ import {
   viewRequestLinkRoute,
 } from "./requests";
 import { errorResponse } from "./respond";
+import { claimRoute, liveShareRoute, openShareRoute } from "./share-claims";
+import { ShareRoom } from "./share-room";
+import { finalizeShareRoute, lockShareRoute, putShareRoute, readShareRoute, removeClaimRoute, reopenShareRoute, revokeShareRoute } from "./shares";
 
-export { AbuseLedger, FxBook, QuotaBook };
+export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
 
 // Secrets are set apart from a deploy, so a Worker can run before they exist: those that may be
 // missing are optional, and the code that reads them says what happens without them.
@@ -54,6 +57,12 @@ export interface Env {
    * A secret; without it no notification is sent, and everything else works the same.
    */
   FCM_SERVICE_ACCOUNT?: string;
+  /**
+   * The secret key of the Turnstile widget that the web page shows before a new claim on a bill
+   * link. A secret; without it a new claim is 503 `not_configured`, and everything else works the
+   * same.
+   */
+  TURNSTILE_SECRET?: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
   GOOGLE_CLIENT_ID: string;
   /** "true" while bills may be read with AI; anything else turns AI off without a release. */
@@ -62,11 +71,13 @@ export interface Env {
   MIN_APP_VERSION: string;
   /** The SHA-256 fingerprints of the keys that sign the app, comma-separated, for App Links. Public; may be empty. */
   ANDROID_CERT_SHA256: string;
-  /** Groups, their bills and settlements, payment requests and devices; the schema is in `migrations/`. */
+  /** Groups, their bills and settlements, payment requests, devices and bill links; the schema is in `migrations/`. */
   DB: D1Database;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
   ABUSE_LEDGER: DurableObjectNamespace<AbuseLedger>;
   FX_BOOK: DurableObjectNamespace<FxBook>;
+  /** The live connections of each bill link's page, one object per link. */
+  SHARE_ROOM: DurableObjectNamespace<ShareRoom>;
 }
 
 /**
@@ -104,9 +115,18 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/request-links/open", { POST: openRequestLinkRoute }],
   ["/v1/request-links/accept", { POST: acceptRequestLinkRoute }],
   ["/v1/devices/:device", { PUT: putDeviceRoute, DELETE: deleteDeviceRoute }],
-  // The routes of the web pages, which need no session.
+  // The routes of the web pages, which need no session. No route lists bill links.
+  ["/v1/shares/open", { POST: openShareRoute }],
+  ["/v1/shares/claim", { POST: claimRoute }],
+  ["/v1/shares/live", { GET: liveShareRoute }],
   ["/v1/request-links/view", { POST: viewRequestLinkRoute }],
   ["/v1/invites/preview", { POST: previewInviteRoute }],
+  // A bill link's owner; after the routes above, whose last segment would read as an id.
+  ["/v1/shares/:share", { PUT: putShareRoute, GET: readShareRoute, DELETE: revokeShareRoute }],
+  ["/v1/shares/:share/lock", { POST: lockShareRoute }],
+  ["/v1/shares/:share/reopen", { POST: reopenShareRoute }],
+  ["/v1/shares/:share/finalize", { POST: finalizeShareRoute }],
+  ["/v1/shares/:share/claims/:claim", { DELETE: removeClaimRoute }],
   ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
   ["/g/", { GET: linkPageRoute }],
   ["/r/", { GET: linkPageRoute }],
@@ -149,8 +169,8 @@ export default {
 
   /**
    * The daily cron of `wrangler.jsonc`: fetches the exchange rates, sends the reminders that are
-   * due and forgets expired invites. Each runs whatever the others do; the run fails when one did,
-   * so that it shows as failed among the Worker's cron events.
+   * due, and forgets expired invites and bill links. Each runs whatever the others do; the run
+   * fails when one did, so that it shows as failed among the Worker's cron events.
    */
   async scheduled(_controller, env): Promise<void> {
     const now = Date.now();

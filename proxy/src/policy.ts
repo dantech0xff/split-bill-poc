@@ -71,7 +71,7 @@ export const POLICY = {
   requestsPerHour: 30,
   /** The largest amount of money the proxy takes, in minor units: the app's `BillCurrency.MAX_AMOUNT_MINOR`. */
   maxAmountMinor: 1_000_000_000_000_000,
-  /** A bill's document and a request's payment method, serialized as JSON, in bytes. */
+  /** A bill's document, the bill a bill link shows, and a request's payment method, serialized as JSON, in bytes. */
   maxBillDocumentBytes: 64 * 1024,
   maxMethodBytes: 4 * 1024,
   /** What a web page shows of how to pay: a link, a code to scan and the details to pay by hand, in characters. */
@@ -104,8 +104,31 @@ export const POLICY = {
   /** Invites and deleted requests are forgotten this long after they stopped working; their links then answer 404. */
   forgetAfterMs: 30 * 24 * 60 * 60 * 1000,
 
-  // The web pages.
-  /** What one hashed IP may read in an hour without a session: payment request links and invites, for the web pages. */
+  // Bill links and the web pages.
+  /** How long a bill link works after it was made; nothing extends it. */
+  shareMs: 30 * 24 * 60 * 60 * 1000,
+  /** Links one account may make in an hour, and changes it may make to its links in an hour, over all of them. */
+  sharesPerHour: 30,
+  shareWritesPerHour: 300,
+  /**
+   * The largest body of a link owner's route: a bill of [maxBillDocumentBytes], and what each of up
+   * to 30 participants owes with the longest payment the contract takes.
+   */
+  maxShareBodyBytes: 512 * 1024,
+  /** The largest body of a claim: up to 200 item ids, a name and a Turnstile token of up to 2,048 characters. */
+  maxClaimBodyBytes: 32 * 1024,
+  /** The claims one link holds, and how long a claim's name may be, in characters. */
+  maxClaims: 30,
+  maxClaimNameChars: 40,
+  /** The live connections one link's page may have open at once. */
+  maxLiveConnections: 50,
+  /**
+   * What one hashed IP may do in an hour without a session: new claims, which also need Turnstile;
+   * claim writes, new or not; and reads of bill links, of payment request links and of invites
+   * for the web pages, live connections included.
+   */
+  newClaimsPerHour: 10,
+  claimWritesPerHour: 120,
   webReadsPerHour: 600,
 } as const;
 
