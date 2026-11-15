@@ -62,7 +62,7 @@ class BackNavigationTest {
                         recognizer = neverFinishes,
                         analyzer = NeverAsked,
                         bills = get(),
-                        people = get(),
+                        peopleRepository = get(),
                         pageStore = get(),
                         fx = get(),
                         contactNames = get(),

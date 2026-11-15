@@ -8,6 +8,8 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
+import com.dantech.splitvibe.domain.ME_ID
+import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.SplitPlan
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -77,13 +79,28 @@ class BillRepositoryTest {
     }
 
     @Test
-    fun `the people on a saved bill are remembered for next time`() = runBlocking {
+    fun `the people on a finished split are remembered for next time, not those on a draft`() = runBlocking {
         val bill = draft("pho-1", "Phở Hà Nội", 120_000)
-        val saved = bills.save(bill.copy(plan = bill.plan.withParticipantAdded("Lan")))
+        val draft = bills.save(bill.copy(plan = bill.plan.withParticipantAdded("Lna")))
+        assertTrue("a name on a draft may still be a typo", storage.people.people.first().isEmpty())
+
+        val saved = bills.save(draft.copy(status = BillStatus.FINAL, plan = draft.plan.withParticipantRenamed("p1", "Lan")))
 
         val lan = storage.people.people.first().single()
         assertEquals("Lan", lan.name)
         assertEquals(lan.id, saved.plan.participants.last().personId)
+    }
+
+    @Test
+    fun `a finished split changed into one that no longer adds up is saved as a draft`() = runBlocking {
+        val bill = draft("pho-1", "Phở Hà Nội", 120_000)
+        val finished = bills.save(bill.copy(status = BillStatus.FINAL))
+        assertEquals(BillStatus.FINAL, finished.status)
+
+        val broken = bills.save(finished.copy(plan = finished.plan.withPayments(listOf(Payment(ME_ID, 100_000)))))
+
+        assertEquals(BillStatus.DRAFT, broken.status)
+        assertEquals(BillStatus.DRAFT, bills.listings().first().single().status.let(BillStatus::valueOf))
     }
 
     @Test

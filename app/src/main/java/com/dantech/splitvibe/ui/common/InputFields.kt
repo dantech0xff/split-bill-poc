@@ -70,16 +70,20 @@ internal fun <T : Any> NumberField(
     /** Whether an empty field is a value of its own, such as no printed total. */
     allowEmpty: Boolean = false,
     onEmpty: () -> Unit = {},
+    /** The value an empty field stands for when it is not one of its own, such as an amount of 0 shown as an empty field. */
+    emptyValue: T? = null,
 ) {
+    // Read through here, an empty field and the value it stands for are the same, so a typed "0" stays.
+    val read: (String) -> T? = { typed -> if (typed.isBlank() && emptyValue != null) emptyValue else parse(typed) }
     InputField(
         text = text,
         onTextChange = { entered ->
-            if (allowEmpty && entered.isBlank()) onEmpty() else parse(entered)?.let(onValue)
+            if (allowEmpty && entered.isBlank()) onEmpty() else read(entered)?.let(onValue)
         },
         label = label,
         modifier = modifier,
-        sameValue = { typed, stored -> sameNumber(typed, stored, parse) },
-        isError = { typed -> !(allowEmpty && typed.isBlank()) && parse(typed) == null },
+        sameValue = { typed, stored -> if (emptyValue != null) read(typed) == read(stored) else sameNumber(typed, stored, parse) },
+        isError = { typed -> !(allowEmpty && typed.isBlank()) && read(typed) == null },
         suffix = suffix,
         placeholder = placeholder,
         maxLength = MAX_NUMBER_CHARS,

@@ -44,6 +44,28 @@ class BillImageLoader(private val context: Context) {
             ?: throw IOException("Sample bill is missing from the app resources")
     }
 
+    /**
+     * Deletes the app's own copies behind [uris] once their photos are kept as the pages of a bill:
+     * a photo the camera app wrote for it, or a page the document scanner left in the app's cache.
+     * A photo of another app, such as one from the gallery, is never touched.
+     */
+    suspend fun discard(uris: List<Uri>) = withContext(Dispatchers.IO) {
+        val cache = context.cacheDir.canonicalFile
+        val provider = "${context.packageName}.fileprovider"
+        for (uri in uris) {
+            val file = when {
+                uri.scheme == ContentResolver.SCHEME_FILE -> uri.path?.let(::File)
+
+                uri.scheme == ContentResolver.SCHEME_CONTENT && uri.userInfo == null && uri.host == provider ->
+                    uri.lastPathSegment?.let { File(File(cache, CAMERA_DIRECTORY), it) }
+
+                else -> null
+            } ?: continue
+            val canonical = file.canonicalFile
+            if (canonical.path.startsWith(cache.path + File.separator)) canonical.delete()
+        }
+    }
+
     /** A fresh content URI the system camera app can write a photo to. */
     fun newCameraTarget(): Uri {
         val directory = File(context.cacheDir, CAMERA_DIRECTORY).apply { mkdirs() }

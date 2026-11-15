@@ -30,6 +30,20 @@ internal val PERCENT = BillCurrency("", 2)
 /** A percentage in hundredths as it is shown and typed, without zeros that say nothing: 2500 is "25", 1250 is "12.5". */
 internal fun percentText(basisPoints: Long): String = PERCENT.toMajor(basisPoints).stripTrailingZeros().toPlainString()
 
+/**
+ * A percentage as someone types it, in hundredths: "25" is 2500 and "33,33" is 3333. The last
+ * separator is always the decimal mark, and more than two decimals are not a percentage the split
+ * can use, so "33.333" is none rather than 33,333%.
+ */
+internal fun parsePercent(text: String): Long? {
+    val match = PERCENT_TEXT.matchEntire(text.trim()) ?: return null
+    val whole = match.groupValues[1].toLong()
+    val hundredths = match.groupValues[2].padEnd(2, '0').toLong()
+    return whole * 100 + hundredths
+}
+
+private val PERCENT_TEXT = Regex("""(\d{1,5})(?:[.,](\d{0,2}))?""")
+
 /** The value one person has in a division, in the units it counts in: shares, hundredths of a percent or minor units. */
 internal fun Division.valueOf(participantId: String): Long = when (this) {
     is Division.ByShares -> shares[participantId] ?: 0L
@@ -59,7 +73,7 @@ internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, curr
             label = "Percent for $name",
             text = percentText(value),
             suffix = "%",
-            parse = PERCENT::parse,
+            parse = ::parsePercent,
             onValue = onValue,
             modifier = Modifier.width(NUMBER_FIELD_WIDTH),
         )

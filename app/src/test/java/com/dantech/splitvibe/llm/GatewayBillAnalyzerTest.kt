@@ -121,7 +121,7 @@ class GatewayBillAnalyzerTest {
             Case(refusal(500, """{"error":{"code":"internal"}}"""), Kind.SERVICE_ERROR, "server had a problem"),
             Case(MockResponse().setResponseCode(502).setBody("<html>Bad gateway</html>"), Kind.SERVICE_ERROR, "server had a problem"),
             Case(ndjson("""{"type":"wait"}""", """{"type":"error","code":"refused","usage":$ONE_USED}"""), Kind.REFUSED, "declined"),
-            Case(ndjson("""{"type":"error","code":"too_long","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "too long"),
+            Case(ndjson("""{"type":"error","code":"too_long","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "too much text"),
             Case(ndjson("""{"type":"error","code":"bad_response","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "could not be read"),
             Case(ndjson("""{"type":"error","code":"timeout"}"""), Kind.TIMEOUT, "took too long"),
             Case(ndjson("""{"type":"error","code":"busy"}"""), Kind.BUSY, "busy"),
@@ -275,7 +275,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { proxy.analyzer.analyze(listOf(long), INSTRUCTION, "VND") }
 
         assertEquals(Kind.BAD_REQUEST, failure.kind)
-        assertTrue(failure.message.orEmpty().contains("too long"))
+        assertTrue(failure.message.orEmpty().contains("too much text"))
         assertEquals(0, server.requestCount)
     }
 

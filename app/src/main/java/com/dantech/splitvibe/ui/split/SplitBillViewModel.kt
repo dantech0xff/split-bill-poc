@@ -34,26 +34,33 @@ import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
+import com.dantech.splitvibe.scan.DocumentScanner
 import java.io.IOException
 import java.math.BigDecimal
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** What the instruction field holds until the user types something else. */
 const val DEFAULT_INSTRUCTION = "Split this bill"
@@ -71,6 +78,8 @@ data class SplitResultState(
     val saved: SavedBill,
     /** The currency the user counts in, such as VND, which the bill is also shown in when it differs. */
     val localCurrency: String = "",
+    /** The day's rate from the bill's currency into [localCurrency], when it has been found; shown, never saved. */
+    val dayRate: ExchangeRate? = null,
 ) {
     val bill: Bill get() = saved.bill
     val plan: SplitPlan get() = saved.plan
@@ -79,8 +88,10 @@ data class SplitResultState(
     /** The bill is in another currency than the user's, so it is also shown converted. */
     val needsRate: Boolean = bill.currency.code.isNotEmpty() && localCurrency.isNotEmpty() && bill.currency.code != localCurrency
 
-    /** The rate that converts this bill into [localCurrency], when there is one. */
-    val exchangeRate: ExchangeRate? = saved.exchangeRate?.takeIf { needsRate && it.converts(bill, localCurrency) }
+    /** The rate the bill is shown converted at: the one the user typed in for it, else the day's rate. */
+    val exchangeRate: ExchangeRate? = listOfNotNull(saved.exchangeRate, dayRate).firstOrNull {
+        needsRate && it.converts(bill, localCurrency)
+    }
 
     private val local: BillCurrency? = if (needsRate) BillCurrency.resolve(localCurrency, null, emptyList()) else null
 
@@ -131,6 +142,9 @@ data class SplitUiState(
  * Drives the split-bill flow: the photos, on-device text recognition, bill analysis by the model,
  * the user's edits and choice of who shares what. The bill is saved as a draft after every change,
  * so it survives the app being closed, and it stays in the history.
+ *
+ * Every bill is a bill of its own: reading other photos or typing a bill in by hand starts a new
+ * one, and only reading the same photos again replaces the bill they were read as.
  */
 @OptIn(FlowPreview::class)
 class SplitBillViewModel(
@@ -142,7 +156,7 @@ class SplitBillViewModel(
     private val recognizer: BillTextRecognizer,
     private val analyzer: BillAnalyzer,
     private val bills: BillRepository,
-    people: PeopleRepository,
+    private val peopleRepository: PeopleRepository,
     private val pageStore: BillPages,
     private val fx: FxRepository,
     private val contactNames: ContactNames,
@@ -152,7 +166,7 @@ class SplitBillViewModel(
 ) : ViewModel() {
 
     /** The people the user split with before, most recent first, to suggest their names. */
-    val people: StateFlow<List<Person>> = people.people.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val people: StateFlow<List<Person>> = peopleRepository.people.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val mutableState = MutableStateFlow(SplitUiState())
     val state: StateFlow<SplitUiState> = mutableState.asStateFlow()
@@ -165,29 +179,61 @@ class SplitBillViewModel(
     /** One save at a time, so that each starts from the revision the one before it wrote. */
     private val saveLock = Mutex()
 
-    /** The revision each bill's stored copy is at, so a save never writes over a newer one. */
-    private val storedRevisions = mutableMapOf<String, Int>()
+    /**
+     * The revision of each bill's stored copy that the bill on screen descends from: the one it
+     * was read at, or the last one this flow wrote. A save expects it, so it never writes over a
+     * copy someone else saved in between.
+     */
+    private val storedRevisions = ConcurrentHashMap<String, Int>()
 
     /** The bill this flow works on, kept when the user goes back to change the photo or the instruction. */
     private var billId: String? = null
 
+    /** The photos of the pages of [billId], and whether it was read from them: reading them again then replaces it. */
+    private var billPageNames: List<String> = emptyList()
+    private var billWasRead = false
+
     /** The stored photos of the pages on screen; [unsavedPages] belong to no saved bill yet. */
     private var pageNames: List<String> = emptyList()
+
+    @Volatile
     private var unsavedPages: List<String> = emptyList()
+
+    /** The day's rate for the bill on screen, and the lookup that is finding it. */
+    private var dayRate: ExchangeRate? = null
+    private var rateLookup: Job? = null
+
+    /** Saving failed, which the person has been told; they are told again only after a save works. */
+    @Volatile
+    private var saveFailing = false
 
     init {
         viewModelScope.launch {
             pendingSave.debounce(saveDelayMs).filterNotNull().collect { bill ->
                 // Taken off the queue first, so it is saved once even if it is also saved at once below.
-                if (pendingSave.compareAndSet(bill, null)) persist(bill)
+                if (pendingSave.compareAndSet(bill, null)) {
+                    claimPages(bill)
+                    persist(bill)
+                }
+            }
+        }
+        viewModelScope.launch {
+            // A visit to Settings can change the currency the user counts in while a bill is open.
+            settings.map { it.localCurrency.trim().uppercase(Locale.ROOT) }.distinctUntilChanged().drop(1).collect {
+                mutableState.update { state -> state.copy(result = state.result?.let { resultOf(it.saved) }) }
+                lookUpDayRate()
             }
         }
         restore()
     }
 
     override fun onCleared() {
-        // A change made a moment before the screen went away is still saved.
-        saveNow(CoroutineScope(Dispatchers.IO))
+        // A change made a moment before the screen went away is still saved, and photos that
+        // belong to no bill are deleted. The view model's own scope is cancelled by now.
+        val scope = CoroutineScope(Dispatchers.IO)
+        saveNow(scope)
+        val leftover = unsavedPages
+        if (leftover.isNotEmpty()) scope.launch { pageStore.delete(leftover) }
     }
 
     fun startNewSplit() {
@@ -195,8 +241,11 @@ class SplitBillViewModel(
         work?.cancel()
         forgetUnsavedPages()
         billId = null
+        billPageNames = emptyList()
+        billWasRead = false
         pageNames = emptyList()
-        listOf(KEY_BILL, KEY_PAGES, KEY_INSTRUCTION, KEY_EDITING, KEY_OPENED).forEach { savedState.remove<Any>(it) }
+        dayRate = null
+        listOf(KEY_BILL, KEY_PAGES, KEY_INSTRUCTION, KEY_EDITING, KEY_OPENED, KEY_ON_INPUT).forEach { savedState.remove<Any>(it) }
         mutableState.value = SplitUiState()
     }
 
@@ -211,6 +260,7 @@ class SplitBillViewModel(
                 return@launch
             }
             forgetUnsavedPages()
+            storedRevisions[saved.id] = saved.revision
             val pages = saved.pages.mapNotNull { pageStore.load(it) }
             savedState[KEY_OPENED] = true
             mutableState.update { it.copy(openedFromHistory = true, sentRequests = null) }
@@ -226,31 +276,38 @@ class SplitBillViewModel(
         mutableState.update { it.copy(instruction = instruction) }
     }
 
-    fun onPhotoPicked(uri: Uri) = onPagesPicked(listOf(uri))
-
-    /** The pages of one bill, in order, from the document scanner or another app. */
+    /** The pages of one bill, in order, from the document scanner, the photo picker, the camera or another app. */
     fun onPagesPicked(uris: List<Uri>) {
-        if (uris.isEmpty()) return
-        launchWork(Progress.LOADING_PHOTO) { showPages(uris.map { imageLoader.load(it) }) }
+        val picked = uris.take(DocumentScanner.MAX_PAGES)
+        if (picked.isEmpty()) return
+        launchWork(Progress.LOADING_PHOTO) {
+            showPages(picked.map { imageLoader.load(it) })
+            // The pages are kept as the bill's own copies now.
+            imageLoader.discard(picked)
+        }
     }
 
     fun onSamplePicked() = launchWork(Progress.LOADING_PHOTO) { showPages(listOf(imageLoader.loadSample())) }
 
-    /** Starts a bill typed in by hand, with no photo, in the currency the app works in. */
+    /**
+     * Starts a new bill typed in by hand, in the currency the app works in. It keeps photos picked
+     * for it that belong to no other bill, and is saved once something is typed into it.
+     */
     fun startManualEntry() {
         work?.cancel()
-        val bill = Bill.empty(BillCurrency.resolve(settings.value.localCurrency, null, emptyList()))
+        val bill = Bill.empty(BillCurrency.resolve(localCurrency(), null, emptyList()))
         val now = clock()
+        val ownPages = pageNames.takeIf { it.isNotEmpty() && unsavedPages.containsAll(it) }.orEmpty()
         val saved = SavedBill(
-            id = billId ?: UUID.randomUUID().toString(),
+            id = UUID.randomUUID().toString(),
             createdAt = now,
             updatedAt = now,
             bill = bill,
             plan = SplitPlan().withBill(bill),
-            pages = pageNames,
+            pages = ownPages,
         )
-        // Saved once something is typed into it: an empty bill is not worth keeping.
-        showSaved(saved, mutableState.value.pages, editing = true)
+        val shown = if (ownPages.isEmpty()) emptyList() else mutableState.value.pages
+        showSaved(saved, shown, editing = true)
     }
 
     fun analyze() {
@@ -262,6 +319,10 @@ class SplitBillViewModel(
             mutableState.update { it.copy(error = AiStatus.NOT_SET_UP.notice) }
             return
         }
+        // Reading the photos of a bill again replaces its earlier reading. Other photos are another
+        // bill, and so is a bill typed in by hand, which a reading never replaces.
+        val rereadId = billId?.takeIf { billWasRead && pageNames.isNotEmpty() && pageNames == billPageNames }
+        val pages = pageNames
 
         launchWork(Progress.READING_TEXT) {
             val read = current.pages.map { recognizer.recognize(it) }.filterNot { it.isEmpty }
@@ -278,8 +339,7 @@ class SplitBillViewModel(
                     val bill = analysis.bill
                     val now = clock()
                     val saved = SavedBill(
-                        // Reading the same bill again replaces its earlier reading rather than adding a second bill.
-                        id = billId ?: UUID.randomUUID().toString(),
+                        id = rereadId ?: UUID.randomUUID().toString(),
                         createdAt = now,
                         updatedAt = now,
                         bill = bill,
@@ -287,7 +347,7 @@ class SplitBillViewModel(
                         instruction = current.instruction,
                         summary = analysis.message,
                         ocrDocument = OcrLayoutEncoder.encode(read),
-                        pages = pageNames,
+                        pages = pages,
                     )
                     showSaved(saved, current.pages, editing = false)
                     pendingSave.value = saved
@@ -309,6 +369,7 @@ class SplitBillViewModel(
     /** Leaves the result and returns to the photo and instruction, keeping both. The bill stays saved. */
     fun backToInput() {
         savedState.remove<Any>(KEY_EDITING)
+        savedState[KEY_ON_INPUT] = true
         mutableState.update { it.copy(result = null, sentRequests = null, editing = false) }
     }
 
@@ -329,10 +390,12 @@ class SplitBillViewModel(
         val before = mutableState.value.result?.bill?.currency
         change { saved ->
             val bill = edit(saved.bill)
-            saved.copy(bill = bill, plan = saved.plan.withBill(bill))
+            // Exact amounts and payments move with the bill's own amounts when its currency changes.
+            val plan = if (bill.currency == saved.bill.currency) saved.plan else saved.plan.withCurrency(saved.bill.currency, bill.currency)
+            saved.copy(bill = bill, plan = plan.withBill(bill))
         }
         // A bill moved to another currency needs another rate.
-        mutableState.value.result?.takeIf { it.bill.currency != before }?.let { ensureExchangeRate(it.saved) }
+        if (mutableState.value.result?.bill?.currency != before) lookUpDayRate()
     }
 
     fun addPerson(name: String, personId: String? = null) {
@@ -350,6 +413,11 @@ class SplitBillViewModel(
                 addPerson(name)
             }
         }
+    }
+
+    /** No longer suggests [person], for example a name that was mistyped. */
+    fun forgetPerson(person: Person) {
+        viewModelScope.launch { peopleRepository.forget(person.id) }
     }
 
     fun renamePerson(id: String, name: String) {
@@ -371,7 +439,7 @@ class SplitBillViewModel(
 
     fun setPayments(payments: List<Payment>) = editPlan { plan, _ -> plan.withPayments(payments) }
 
-    /** Converts the bill at a rate the user typed in, such as the one their card was charged at. */
+    /** Converts the bill at a rate the user typed in, such as the one their card was charged at. It is kept with the bill. */
     fun setExchangeRate(rate: BigDecimal) {
         val result = mutableState.value.result ?: return
         if (!result.needsRate || rate.signum() <= 0) return
@@ -381,7 +449,8 @@ class SplitBillViewModel(
     /** Converts the bill at the day's rate again, in place of one the user typed in. */
     fun useDayRate() {
         val result = mutableState.value.result ?: return
-        ensureExchangeRate(result.saved, replace = true)
+        if (result.saved.exchangeRate != null) change { it.copy(exchangeRate = null) }
+        lookUpDayRate(tellWhenMissing = true)
     }
 
     /**
@@ -413,64 +482,64 @@ class SplitBillViewModel(
 
     private fun change(transform: (SavedBill) -> SavedBill) {
         val result = mutableState.value.result ?: return
-        val next = transform(result.saved)
+        // A finished bill that a change leaves with a problem is a draft again.
+        val next = transform(result.saved).let { it.copy(status = it.settledStatus()) }
         if (next == result.saved) return
         mutableState.update { it.copy(result = resultOf(next)) }
         pendingSave.value = next
     }
 
     private fun showSaved(saved: SavedBill, pages: List<Bitmap>, editing: Boolean) {
+        if (billId != saved.id) dayRate = null
         billId = saved.id
+        billPageNames = saved.pages
+        billWasRead = saved.ocrDocument.isNotEmpty()
         pageNames = saved.pages
-        storedRevisions.putIfAbsent(saved.id, saved.revision)
         savedState[KEY_BILL] = saved.id
+        savedState[KEY_PAGES] = ArrayList(saved.pages)
+        savedState.remove<Any>(KEY_ON_INPUT)
         if (editing) savedState[KEY_EDITING] = true else savedState.remove<Any>(KEY_EDITING)
         mutableState.update {
             it.copy(
                 pages = pages,
-                instruction = saved.instruction.ifEmpty {
-                    it.instruction
-                },
+                instruction = saved.instruction.ifEmpty { it.instruction },
                 result = resultOf(saved),
                 editing = editing,
                 error = null,
             )
         }
-        ensureExchangeRate(saved)
+        lookUpDayRate()
     }
 
-    private fun resultOf(saved: SavedBill) = SplitResultState(saved, localCurrency())
+    private fun resultOf(saved: SavedBill) = SplitResultState(saved, localCurrency(), dayRate)
 
     private fun localCurrency(): String = settings.value.localCurrency.trim().uppercase(Locale.ROOT)
 
     /**
-     * Finds the day's rate for a bill in another currency than the user's, unless it already has
-     * one for that pair; with [replace], a rate the user typed in gives way to it too. Without a
-     * rate to be found, a rate that no longer fits the bill is dropped.
+     * Finds the day's rate for a bill on screen in another currency than the user's. It is only
+     * shown: the bill is not changed, so opening a bill never rewrites it, and a rate the user typed
+     * in stays first. With [tellWhenMissing], the person hears when no rate can be found.
      */
-    private fun ensureExchangeRate(saved: SavedBill, replace: Boolean = false) {
-        val result = resultOf(saved)
-        val kept = saved.exchangeRate
-        if (!result.needsRate) {
-            if (kept != null) change { it.copy(exchangeRate = null) }
-            return
-        }
-        if (!replace && result.exchangeRate != null) return
-        val from = saved.bill.currency.code
+    private fun lookUpDayRate(tellWhenMissing: Boolean = false) {
+        rateLookup?.cancel()
+        val result = mutableState.value.result ?: return
+        if (!result.needsRate) return
+        val from = result.bill.currency.code
         val to = result.localCurrency
-        viewModelScope.launch {
+        if (dayRate?.let { it.from == from && it.to == to } == true) return
+        rateLookup = viewModelScope.launch {
             val found = fx.rate(from, to)
-            // Only for the bill on screen, and only while it is still in the same currency.
-            val current = mutableState.value.result?.saved?.takeIf { it.id == saved.id && it.bill.currency.code == from } ?: return@launch
-            when {
-                found != null -> change { it.copy(exchangeRate = found) }
-
-                current.exchangeRate?.converts(current.bill, to) == false -> change { it.copy(exchangeRate = null) }
-
-                replace -> mutableState.update {
-                    it.copy(notice = "The day's rate could not be fetched. Check the connection and try again.")
+            // Only for the bill on screen, while it is still in the same currencies.
+            val current = mutableState.value.result ?: return@launch
+            if (current.bill.currency.code != from || current.localCurrency != to) return@launch
+            if (found == null) {
+                if (tellWhenMissing) {
+                    mutableState.update { it.copy(notice = "The day's rate could not be fetched. Check the connection and try again.") }
                 }
+                return@launch
             }
+            dayRate = found
+            mutableState.update { state -> state.copy(result = state.result?.let { resultOf(it.saved) }) }
         }
     }
 
@@ -492,55 +561,84 @@ class SplitBillViewModel(
     /** Saves the change waiting to be saved without waiting, before the flow moves to another bill. */
     private fun saveNow(scope: CoroutineScope = viewModelScope) {
         val pending = pendingSave.value ?: return
-        if (pendingSave.compareAndSet(pending, null)) scope.launch { persist(pending) }
+        if (!pendingSave.compareAndSet(pending, null)) return
+        claimPages(pending)
+        scope.launch { persist(pending) }
     }
 
-    /** Writes [bill] as the next revision of its stored copy. */
-    private suspend fun persist(bill: SavedBill) = saveLock.withLock {
-        // A bill typed in by hand is kept once it has something on it.
-        if ((storedRevisions[bill.id] ?: 0) == 0 && bill.bill.isBlank()) return@withLock
-        try {
-            val written = bills.save(bill.copy(revision = storedRevisions[bill.id] ?: bill.revision))
-            storedRevisions[written.id] = written.revision
-            unsavedPages = unsavedPages - written.pages.toSet()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: BillConflictException) {
-            // Another writer won. Show what is stored now rather than silently writing over it.
-            val stored = bills.get(bill.id)
-            stored?.let { storedRevisions[it.id] = it.revision }
-            mutableState.update { state ->
-                if (state.result?.saved?.id != bill.id) return@update state
-                if (stored == null) {
-                    state.copy(result = null, editing = false, notice = "This bill was deleted, so the last change was not saved.")
-                } else {
-                    state.copy(result = resultOf(stored), notice = "This bill was changed elsewhere, so it now shows the latest version.")
+    /** The photos of [bill] are its own from the moment it goes to be saved, so leaving it does not delete them. */
+    private fun claimPages(bill: SavedBill) {
+        if (!isSkipped(bill)) unsavedPages = unsavedPages - bill.pages.toSet()
+    }
+
+    /** A bill typed in by hand is kept once it has something on it. */
+    private fun isSkipped(bill: SavedBill) = (storedRevisions[bill.id] ?: 0) == 0 && bill.bill.isBlank()
+
+    /**
+     * Writes [bill] as the next revision of the stored copy it descends from. A write that has
+     * started finishes even when the screen goes away meanwhile, so no change is half saved.
+     */
+    private suspend fun persist(bill: SavedBill) = withContext(NonCancellable) {
+        saveLock.withLock {
+            if (isSkipped(bill)) return@withLock
+            try {
+                val written = bills.save(bill.copy(revision = storedRevisions[bill.id] ?: 0))
+                storedRevisions[written.id] = written.revision
+                saveFailing = false
+            } catch (e: BillConflictException) {
+                onConflict(bill)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The change stays on screen and goes with the next save.
+                if (!saveFailing) {
+                    saveFailing = true
+                    mutableState.update { it.copy(notice = "The bill could not be saved on this phone. Your changes stay on screen.") }
                 }
             }
-        } catch (e: Exception) {
-            mutableState.update { it.copy(notice = "The bill could not be saved: ${e.message ?: e.javaClass.simpleName}") }
         }
     }
 
-    /** Brings back the bill or the photos the user was working on after the system ended the app. */
+    /** Another writer saved [bill] first. What is stored now is shown, and changes made to the refused copy are dropped. */
+    private suspend fun onConflict(bill: SavedBill) {
+        pendingSave.update { pending -> pending?.takeIf { it.id != bill.id } }
+        val stored = bills.get(bill.id)
+        if (stored == null) storedRevisions.remove(bill.id) else storedRevisions[stored.id] = stored.revision
+        mutableState.update { state ->
+            if (state.result?.saved?.id != bill.id) return@update state
+            if (stored == null) {
+                state.copy(result = null, editing = false, notice = "This bill was deleted, so the last change was not saved.")
+            } else {
+                state.copy(result = resultOf(stored), notice = "This bill was changed elsewhere, so it now shows the latest version.")
+            }
+        }
+    }
+
+    /** Brings back the step, the bill or the photos the user was working on after the system ended the app. */
     private fun restore() {
         val id = savedState.get<String>(KEY_BILL)
         val names = savedState.get<List<String>>(KEY_PAGES).orEmpty()
         val instruction = savedState.get<String>(KEY_INSTRUCTION)
         val editing = savedState.get<Boolean>(KEY_EDITING) == true
         val opened = savedState.get<Boolean>(KEY_OPENED) == true
+        val onInput = savedState.get<Boolean>(KEY_ON_INPUT) == true
         if (id == null && names.isEmpty() && instruction == null) return
         work = viewModelScope.launch {
             val saved = id?.let { bills.get(it) }
-            if (saved != null) {
-                mutableState.update { it.copy(openedFromHistory = opened) }
+            saved?.let { storedRevisions[it.id] = it.revision }
+            mutableState.update { it.copy(openedFromHistory = opened) }
+            if (saved != null && !onInput) {
                 showSaved(saved, saved.pages.mapNotNull { pageStore.load(it) }, editing)
-            } else {
-                pageNames = names
-                unsavedPages = names
-                val pages = names.mapNotNull { pageStore.load(it) }
-                mutableState.update { it.copy(pages = pages, instruction = instruction ?: it.instruction) }
+                return@launch
             }
+            // The photo step: its photos and instruction, and the bill they were read as, if any.
+            billId = saved?.id
+            billPageNames = saved?.pages.orEmpty()
+            billWasRead = saved?.ocrDocument?.isNotEmpty() == true
+            pageNames = names
+            unsavedPages = names - billPageNames.toSet()
+            val pages = names.mapNotNull { pageStore.load(it) }
+            mutableState.update { it.copy(pages = pages, instruction = instruction ?: it.instruction) }
         }
     }
 
@@ -584,6 +682,7 @@ class SplitBillViewModel(
         const val KEY_INSTRUCTION = "instruction"
         const val KEY_EDITING = "editing"
         const val KEY_OPENED = "opened"
+        const val KEY_ON_INPUT = "onInput"
     }
 }
 

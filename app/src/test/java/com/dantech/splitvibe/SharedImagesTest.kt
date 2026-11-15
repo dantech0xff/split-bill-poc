@@ -40,6 +40,10 @@ class SharedImagesTest {
         assertEquals(emptyList<Uri>(), sharedImagesOf(send("text/plain", photo), app))
         assertEquals(emptyList<Uri>(), sharedImagesOf(send("image/png", Uri.parse("file:///data/data/$app/files/secret.png")), app))
         assertEquals(emptyList<Uri>(), sharedImagesOf(send("image/jpeg", Uri.parse("content://$app.fileprovider/bill_photos/a.jpg")), app))
+        assertEquals(
+            emptyList<Uri>(),
+            sharedImagesOf(send("image/jpeg", Uri.parse("content://0@$app.fileprovider/bill_photos/a.jpg")), app),
+        )
         assertEquals(emptyList<Uri>(), sharedImagesOf(Intent(Intent.ACTION_MAIN), app))
         assertEquals(emptyList<Uri>(), sharedImagesOf(null, app))
     }

@@ -20,7 +20,7 @@ internal fun MacrobenchmarkScope.startASplit() {
     device.wait(Until.findObject(By.text("Use the sample bill")), TIMEOUT_MS).click()
     device.wait(Until.hasObject(By.desc("Bill photo")), TIMEOUT_MS)
     device.pressBack()
-    device.wait(Until.hasObject(By.text("Contacts")), TIMEOUT_MS)
+    device.wait(Until.hasObject(By.text("Recent bills")), TIMEOUT_MS)
 }
 
 private const val TIMEOUT_MS = 10_000L

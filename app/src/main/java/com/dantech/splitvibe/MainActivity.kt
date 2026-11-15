@@ -37,7 +37,8 @@ internal fun sharedImagesOf(intent: Intent?, packageName: String): List<Uri> {
         Intent.ACTION_SEND_MULTIPLE -> IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
         else -> emptyList()
     }
+    // The host, not the authority: "0@app.fileprovider" names the app's own provider too.
     return uris
-        .filter { it.scheme == ContentResolver.SCHEME_CONTENT && it.authority?.startsWith(packageName) != true }
+        .filter { it.scheme == ContentResolver.SCHEME_CONTENT && it.userInfo == null && it.host?.startsWith(packageName) == false }
         .take(DocumentScanner.MAX_PAGES)
 }

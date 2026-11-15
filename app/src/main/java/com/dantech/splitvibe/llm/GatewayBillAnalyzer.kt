@@ -141,7 +141,8 @@ class GatewayBillAnalyzer(
         const val MAX_DOCUMENT_CHARS = 20_000
         const val RETRY_LIMIT = "retry_limit"
         const val INPUT = "input"
-        const val TOO_LONG = "The bill is too long to read in one go. Try photographing it in two parts."
+        const val TOO_LONG =
+            "This bill holds too much text to read in one go. Photograph only the lines with the items and totals, or type it in by hand."
         const val TOO_MANY_PAGES = "These pages hold too much text to read in one go. Try fewer pages at a time."
     }
 }

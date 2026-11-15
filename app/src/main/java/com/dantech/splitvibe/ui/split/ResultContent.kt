@@ -43,6 +43,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -87,6 +89,7 @@ class ResultActions(
     val onEditBill: () -> Unit,
     val onAddPerson: (name: String, personId: String?) -> Unit,
     val onContactPicked: (Uri) -> Unit,
+    val onForgetPerson: (Person) -> Unit,
     val onRenamePerson: (id: String, name: String) -> Unit,
     val onRemovePerson: (id: String) -> Unit,
     val onToggleMe: () -> Unit,
@@ -180,7 +183,10 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
 
             item(key = "people") {
                 Column(modifier = rowMotion()) {
-                    SvSectionHeader("Who is on the bill?", hint = "Tap someone to rename them or take them off.")
+                    SvSectionHeader(
+                        "Who is on the bill?",
+                        hint = "Tap You to share the bill or not, and anyone else to rename or remove them.",
+                    )
                     FlowRow(
                         modifier = Modifier.padding(horizontal = SvSpacing.lg),
                         horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
@@ -190,7 +196,9 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
                             name = ME_LABEL,
                             selected = meSharing,
                             onClick = actions.onToggleMe,
-                            modifier = Modifier.bounceOnChange(meSharing),
+                            modifier = Modifier
+                                .bounceOnChange(meSharing)
+                                .semantics { stateDescription = if (meSharing) "You share the bill" else "You do not share the bill" },
                         )
                         plan.participants.filterNot { it.isMe }.forEach { participant ->
                             // Keyed by person, so a chip stays itself when others are added or removed.
@@ -285,7 +293,8 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
             if (result.problems.isEmpty()) {
                 item(key = "shares total") { SharesTotalRow(bill = bill, total = result.split.totalMinor, modifier = rowMotion()) }
             }
-            items(result.problems, key = { problem -> "problem $problem" }) { problem ->
+            // Keyed by place: two lines of the same name can have the same problem.
+            itemsIndexed(result.problems, key = { index, _ -> "problem $index" }) { _, problem ->
                 SvMessageCard(
                     text = problem,
                     isError = true,
@@ -341,6 +350,7 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
                 }
             },
             contactsMissing = contactsMissing,
+            onForget = actions.onForgetPerson,
             onDismiss = { addingPerson = false },
         )
     }
@@ -464,6 +474,7 @@ private fun ItemRow(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
+    val name = item.name.ifBlank { "Item" }
     val unitPrice = item.unitPriceMinor
     val quantity = if (unitPrice != null && item.quantity.compareTo(BigDecimal.ONE) != 0) {
         "${item.quantity.stripTrailingZeros().toPlainString()} × ${bill.format(unitPrice)}"
@@ -473,7 +484,7 @@ private fun ItemRow(
     val amount = bill.format(item.amountMinor)
     val content: @Composable RowScope.() -> Unit = {
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name.ifBlank { "Item" }, style = MaterialTheme.typography.bodyLarge)
+            Text(name, style = MaterialTheme.typography.bodyLarge)
             if (quantity != null) {
                 Text(quantity, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -487,8 +498,8 @@ private fun ItemRow(
     } else {
         SvListRow(
             position = position,
-            label = listOfNotNull(item.name, quantity, amount, sharers).joinToString(", "),
-            onClickLabel = "Choose who had ${item.name}",
+            label = listOfNotNull(name, quantity, amount, sharers).joinToString(", "),
+            onClickLabel = "Choose who had $name",
             onClick = onClick,
             modifier = modifier,
             content = content,

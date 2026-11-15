@@ -54,7 +54,7 @@ class SplitFlowOnDeviceTest {
                         recognizer = get(),
                         analyzer = RecordedAnswer,
                         bills = get(),
-                        people = get(),
+                        peopleRepository = get(),
                         pageStore = get(),
                         fx = get(),
                         contactNames = get(),

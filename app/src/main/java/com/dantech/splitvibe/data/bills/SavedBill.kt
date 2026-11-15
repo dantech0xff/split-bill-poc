@@ -52,8 +52,19 @@ data class SavedBill(
     val exchangeRate: ExchangeRate? = null,
     val schemaVersion: Int = SCHEMA_VERSION,
 ) {
-    /** This bill with its shares worked out again from its inputs, as they will be saved. */
-    fun withSharesWorkedOut(): SavedBill = copy(shares = plan.result(bill).shares, calcVersion = SplitCalculator.VERSION)
+    /**
+     * This bill with its shares worked out again from its inputs, as they will be saved. A finished
+     * bill that was changed into something that no longer adds up is a draft again, so the shares of
+     * every finished bill add up to its total and so do its payments.
+     */
+    fun withSharesWorkedOut(): SavedBill = copy(
+        shares = plan.result(bill).shares,
+        calcVersion = SplitCalculator.VERSION,
+        status = settledStatus(),
+    )
+
+    /** [status], unless the bill is finished but has a problem, which makes it a draft again. */
+    fun settledStatus(): BillStatus = if (status == BillStatus.FINAL && plan.problems(bill).isNotEmpty()) BillStatus.DRAFT else status
 
     companion object {
         /** Raised when the saved shape changes in a way older copies need converting for. */

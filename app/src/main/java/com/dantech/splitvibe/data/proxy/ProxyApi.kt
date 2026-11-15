@@ -92,8 +92,8 @@ class ProxyApi(
         Usage(callsLeft, aiEnabled = body.boolean("aiEnabled") ?: true)
     }
 
-    /** `GET /v1/fx-rates`: the day's exchange rates, which are the same for everyone. */
-    suspend fun fxRates(): FxSnapshot = send(request("v1/fx-rates", withSession = false).get().build()) { response ->
+    /** `GET /v1/fx-rates`: the day's exchange rates. They are the same for everyone, so the request says nothing about who asks. */
+    suspend fun fxRates(): FxSnapshot = send(anonymousRequest("v1/fx-rates").get().build()) { response ->
         if (!response.isSuccessful) throw failureOf(response)
         fxSnapshotOf(jsonOf(response)) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
     }
@@ -106,10 +106,13 @@ class ProxyApi(
     private fun post(path: String, body: JsonObject, withSession: Boolean = true): Request =
         request(path, withSession).post(body.toString().toRequestBody(JSON)).build()
 
-    private fun request(path: String, withSession: Boolean = true): Request.Builder {
+    private fun anonymousRequest(path: String): Request.Builder {
         val url = checkNotNull(base) { "This build has no address for the AI proxy" }.newBuilder().addPathSegments(path).build()
-        val builder = Request.Builder()
-            .url(url)
+        return Request.Builder().url(url)
+    }
+
+    private fun request(path: String, withSession: Boolean = true): Request.Builder {
+        val builder = anonymousRequest(path)
             .header(INSTALL_HEADER, account.account.value.installId)
             .header(VERSION_HEADER, appVersion.toString())
         if (!withSession) return builder

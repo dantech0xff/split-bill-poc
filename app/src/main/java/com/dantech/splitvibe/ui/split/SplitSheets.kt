@@ -1,11 +1,16 @@
 package com.dantech.splitvibe.ui.split
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
@@ -59,6 +65,8 @@ internal fun AddPersonSheet(
     onPickContact: () -> Unit,
     /** The phone has no app to pick a contact with, which the sheet then says. */
     contactsMissing: Boolean,
+    /** Stops suggesting someone, for example a name that was mistyped. */
+    onForget: (Person) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
@@ -91,7 +99,18 @@ internal fun AddPersonSheet(
                 ListItem(
                     headlineContent = { Text(person.name) },
                     leadingContent = { SvAvatar(person.name) },
-                    trailingContent = { TextButton(onClick = { onAdd(person.name, person.id) }) { Text("Add") } },
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { onAdd(person.name, person.id) }) { Text("Add") }
+                            IconButton(onClick = { onForget(person) }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Stop suggesting ${person.name}",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.padding(horizontal = SvSpacing.sm),
                 )
@@ -336,9 +355,15 @@ private fun ErrorText(text: String) {
     )
 }
 
-/** A rate typed with either decimal mark and no grouping, such as "25350" or "0,92". */
-private fun positiveRate(text: String): BigDecimal? = // Without trailing zeros, so "25350.0" and "25350" read as the same rate.
-    text.trim().replace(',', '.').toBigDecimalOrNull()?.takeIf { it.signum() > 0 }?.stripTrailingZeros()
+/** A rate typed with either decimal mark and no grouping, such as "25350" or "0,92": more than zero, without an exponent. */
+private fun positiveRate(text: String): BigDecimal? {
+    if (!RATE_TEXT.matches(text.trim())) return null
+    // Without trailing zeros, so "25350.0" and "25350" read as the same rate.
+    return text.trim().replace(',', '.').toBigDecimal().stripTrailingZeros().takeIf { it.signum() > 0 }
+}
+
+/** Up to ten digits before the decimal mark and twelve after it: enough for any rate between two currencies. */
+private val RATE_TEXT = Regex("""\d{1,10}([.,]\d{1,12})?""")
 
 private val ITEM_MODES = listOf(
     SplitMode.EQUAL to "Equally",

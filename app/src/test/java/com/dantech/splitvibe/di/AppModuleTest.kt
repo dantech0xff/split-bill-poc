@@ -60,7 +60,7 @@ class AppModuleTest {
         assertNotNull(koin.get<ContactNames>())
         assertNotNull(koin.get<FxRepository>())
         assertNotNull(koin.get<SettingsViewModel>())
-        assertNotNull(koin.get<HistoryViewModel>())
+        assertNotNull(koin.get<HistoryViewModel> { parametersOf(SavedStateHandle()) })
         // A screen hands the view model the state the system keeps for it.
         assertNotNull(koin.get<SplitBillViewModel> { parametersOf(SavedStateHandle()) })
 

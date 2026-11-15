@@ -53,7 +53,7 @@ class TestStorage(context: Context) : AutoCloseable {
 
 /**
  * The split flow as the tests drive it: real storage in [storage], and every change saved at once
- * rather than a moment later.
+ * rather than a moment later, unless a test gives [saveDelayMs].
  */
 fun testSplitViewModel(
     context: Context,
@@ -65,18 +65,20 @@ fun testSplitViewModel(
     canSignIn: Boolean = true,
     fx: FxRepository = storage.noRates,
     savedState: SavedStateHandle = SavedStateHandle(),
+    settings: MutableStateFlow<AppSettings> = MutableStateFlow(AppSettings(localCurrency = localCurrency)),
+    saveDelayMs: Long = 0,
 ): SplitBillViewModel = SplitBillViewModel(
-    settings = MutableStateFlow(AppSettings(localCurrency = localCurrency)),
+    settings = settings,
     account = account,
     canSignIn = canSignIn,
     imageLoader = BillImageLoader(context),
     recognizer = recognizer,
     analyzer = analyzer,
     bills = storage.bills,
-    people = storage.people,
+    peopleRepository = storage.people,
     pageStore = storage.pages,
     fx = fx,
     contactNames = storage.contactNames,
     savedState = savedState,
-    saveDelayMs = 0,
+    saveDelayMs = saveDelayMs,
 )

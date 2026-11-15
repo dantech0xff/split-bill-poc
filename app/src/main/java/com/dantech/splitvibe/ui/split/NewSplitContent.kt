@@ -142,7 +142,7 @@ private fun PhotoSection(
 ) {
     var cameraTarget by rememberSaveable { mutableStateOf<Uri?>(null) }
     var cameraMissing by rememberSaveable { mutableStateOf(false) }
-    var scannerMissing by rememberSaveable { mutableStateOf(false) }
+    var scannerFailed by rememberSaveable { mutableStateOf(false) }
     val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
 
@@ -185,19 +185,19 @@ private fun PhotoSection(
                 )
             }
 
-            if (!scannerMissing && activity != null) {
+            // The scanner stays offered after it failed once: it may only have been getting ready.
+            if (activity != null) {
                 FilledTonalButton(
                     enabled = !state.isBusy,
                     onClick = {
                         scope.launch {
                             val intent = scanIntent(activity)
-                            if (intent == null) {
-                                scannerMissing = true
-                            } else {
+                            scannerFailed = intent == null
+                            if (intent != null) {
                                 try {
                                     scan.launch(IntentSenderRequest.Builder(intent).build())
                                 } catch (e: ActivityNotFoundException) {
-                                    scannerMissing = true
+                                    scannerFailed = true
                                 }
                             }
                         }
@@ -232,9 +232,9 @@ private fun PhotoSection(
                 TextButton(enabled = !state.isBusy, onClick = onManualEntry) { Text("Type it in by hand") }
             }
 
-            if (scannerMissing) {
+            if (scannerFailed) {
                 Text(
-                    "Scanning needs Google Play services, which this phone does not have. Take a photo or choose one instead.",
+                    "The scanner could not start. It needs Google Play services, and the first time it may still be getting ready. Take a photo or choose one instead.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

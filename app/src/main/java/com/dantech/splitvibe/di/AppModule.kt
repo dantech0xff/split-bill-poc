@@ -54,7 +54,7 @@ val appModule = module {
     single { FxRepository(api = get(), file = File(androidContext().filesDir, "fx-rates.json")) }
 
     viewModel { SettingsViewModel(repository = get()) }
-    viewModel { HistoryViewModel(bills = get()) }
+    viewModel { HistoryViewModel(bills = get(), savedState = get()) }
     viewModel {
         SplitBillViewModel(
             settings = get<SettingsStore>().settings,
@@ -64,7 +64,7 @@ val appModule = module {
             recognizer = get(),
             analyzer = get(),
             bills = get(),
-            people = get(),
+            peopleRepository = get(),
             pageStore = get(),
             fx = get(),
             contactNames = get(),

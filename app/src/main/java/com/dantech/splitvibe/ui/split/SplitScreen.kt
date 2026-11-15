@@ -73,6 +73,7 @@ fun SplitScreen(
             onEditBill = viewModel::startEditing,
             onAddPerson = viewModel::addPerson,
             onContactPicked = viewModel::onContactPicked,
+            onForgetPerson = viewModel::forgetPerson,
             onRenamePerson = viewModel::renamePerson,
             onRemovePerson = viewModel::removePerson,
             onToggleMe = viewModel::toggleMeSharing,

@@ -218,15 +218,22 @@ class BillLifecycleTest {
         val result = checkNotNull(viewModel.state.value.result)
         assertEquals(vnd.format(253_500), result.converted(1_000))
         assertEquals("2026-11-13", result.exchangeRate?.date)
-        awaitOnMain { runBlocking { storage.bills.get(result.saved.id) }?.exchangeRate != null }
+        assertEquals("Frankfurter", result.exchangeRate?.source)
+        awaitOnMain { runBlocking { storage.bills.get(result.saved.id) }?.shares?.isNotEmpty() == true }
         val saved = checkNotNull(runBlocking { storage.bills.get(result.saved.id) })
         assertEquals(listOf(1_000L), saved.shares.map { it.totalMinor })
-        assertEquals("Frankfurter", saved.exchangeRate?.source)
+        assertNull("the day's rate is only shown, not kept with the bill", saved.exchangeRate)
 
-        // The rate the user's card was charged at replaces the day's rate.
+        // The rate the user's card was charged at replaces the day's rate, and is kept with the bill.
         viewModel.setExchangeRate(BigDecimal("26000"))
         assertEquals(vnd.format(260_000), viewModel.state.value.result?.converted(1_000))
         assertTrue(viewModel.state.value.result?.exchangeRate?.isByHand == true)
+        awaitOnMain { runBlocking { storage.bills.get(result.saved.id) }?.exchangeRate?.isByHand == true }
+
+        // The day's rate again: the typed rate goes, and the day's rate, already found, is shown.
+        viewModel.useDayRate()
+        assertEquals(vnd.format(253_500), viewModel.state.value.result?.converted(1_000))
+        awaitOnMain { runBlocking { storage.bills.get(result.saved.id) }?.exchangeRate == null }
     }
 
     @Test

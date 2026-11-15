@@ -211,8 +211,7 @@ private fun ItemEditor(
                     onValue = { amount -> onEdit { BillEditor.withItemAmount(it, item.id, amount) } },
                     modifier = Modifier.weight(1f),
                     placeholder = currency.inputText(0),
-                    allowEmpty = true,
-                    onEmpty = { onEdit { BillEditor.withItemAmount(it, item.id, 0L) } },
+                    emptyValue = 0L,
                 )
             }
         }
@@ -248,8 +247,7 @@ private fun ChargeEditor(
             },
             modifier = Modifier.width(CHARGE_FIELD_WIDTH),
             placeholder = currency.inputText(0),
-            allowEmpty = true,
-            onEmpty = { onEdit { BillEditor.withCharge(it, charge.id, charge.label, charge.kind, 0L) } },
+            emptyValue = 0L,
         )
         IconButton(onClick = { onEdit { BillEditor.withoutCharge(it, charge.id) } }) {
             Icon(Icons.Default.Delete, contentDescription = "Remove ${charge.label}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -307,9 +305,16 @@ private fun TotalEditor(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, modifier: 
 /** An amount as a field shows it, empty for nothing so a new line starts blank. */
 private fun amountText(minor: Long, currency: BillCurrency): String = if (minor == 0L) "" else currency.inputText(minor)
 
-/** A quantity typed with either decimal mark, such as "2" or "0,5"; never zero or less. */
-private fun positiveQuantity(text: String): BigDecimal? = // Without trailing zeros, so "2.0" and "2" read as the same quantity.
-    text.trim().replace(',', '.').toBigDecimalOrNull()?.takeIf { it.signum() > 0 }?.stripTrailingZeros()
+/** A quantity typed with either decimal mark, such as "2" or "0,5": more than zero, up to [MAX_QUANTITY], with at most three decimals. */
+private fun positiveQuantity(text: String): BigDecimal? {
+    if (!QUANTITY_TEXT.matches(text.trim())) return null
+    // Without trailing zeros, so "2.0" and "2" read as the same quantity.
+    val quantity = text.trim().replace(',', '.').toBigDecimal().stripTrailingZeros()
+    return quantity.takeIf { it.signum() > 0 && it <= MAX_QUANTITY }
+}
+
+private val QUANTITY_TEXT = Regex("""\d{1,5}([.,]\d{1,3})?""")
+private val MAX_QUANTITY = BigDecimal(10_000)
 
 /** The charges a person adds by hand; rounding and the difference come from the bill itself. */
 private val ADDABLE_CHARGES = listOf(ChargeKind.TAX, ChargeKind.SERVICE_CHARGE, ChargeKind.TIP, ChargeKind.DISCOUNT, ChargeKind.OTHER)

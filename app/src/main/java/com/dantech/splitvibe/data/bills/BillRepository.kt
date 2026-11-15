@@ -23,16 +23,20 @@ class BillRepository(
     suspend fun get(id: String): SavedBill? = bills.get(id)?.let { json.decodeFromString(SavedBill.serializer(), it.document) }
 
     /**
-     * Saves [bill] as the revision after the one it was read as, with its shares worked out again
-     * and its people remembered for next time, and returns what was saved.
+     * Saves [bill] as the revision after the one it was read as, with its shares worked out again,
+     * and returns what was saved. The people on a finished split are remembered for next time; a
+     * name on a draft may still be a typo.
      *
      * @throws BillConflictException when the stored bill is no longer the revision [bill] was read as.
      */
     suspend fun save(bill: SavedBill): SavedBill {
         val previous = if (bill.revision > 0) get(bill.id) else null
-        val participants = people.remember(bill.plan.participants)
-        val next = bill.copy(revision = bill.revision + 1, updatedAt = clock(), plan = bill.plan.copy(participants = participants))
-            .withSharesWorkedOut()
+        val worked = bill.copy(revision = bill.revision + 1, updatedAt = clock()).withSharesWorkedOut()
+        val next = if (worked.status == BillStatus.FINAL) {
+            worked.copy(plan = worked.plan.copy(participants = people.remember(worked.plan.participants)))
+        } else {
+            worked
+        }
         if (!bills.write(next.toEntity(), expectedRevision = bill.revision)) throw BillConflictException(bill.id)
         // A bill read again from new photos no longer needs the old ones.
         previous?.let { pages.delete(it.pages - next.pages.toSet()) }
