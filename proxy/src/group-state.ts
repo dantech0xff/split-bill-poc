@@ -9,6 +9,7 @@ export type LogKind =
   | "member_added"
   | "member_joined"
   | "member_left"
+  | "member_removed"
   | "member_renamed"
   | "claim_requested"
   | "claim_approved"

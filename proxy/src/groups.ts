@@ -214,6 +214,36 @@ export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
 });
 
 /**
+ * `POST /v1/groups/{gid}/members/{mid}/remove`: the owner takes a member's account off the group.
+ * The member stays as a placeholder, exactly as when they leave: its name and every amount stay,
+ * and its account and any claim of that account in the group go. Payment requests already made
+ * stay as they are. Only a member with an account, and not the owner's own member, can be
+ * removed; anything else is 409. Answers with the group's state.
+ */
+export const removeMemberRoute = signedIn(async ({ env, params, account }) => {
+  const groupId = uuidOf(params[0]);
+  const memberId = uuidOf(params[1]);
+  if (groupId === null || memberId === null) return errorResponse(404, "not_found");
+  const db = env.DB;
+  return changeGroup(env, groupId, account, (group) => {
+    if (!isMember(group)) return reply(outsider(group));
+    if (!group.isOwner) return reply(errorResponse(403, "forbidden"));
+    const member = group.members.find((each) => each.id === memberId);
+    if (member === undefined) return reply(errorResponse(404, "not_found"));
+    if (member.id === group.me.id || member.account === null) return reply(errorResponse(409, "conflict"));
+    const now = Date.now();
+    return write(
+      [
+        db.prepare("UPDATE members SET account = NULL WHERE group_id = ?1 AND id = ?2").bind(groupId, memberId),
+        db.prepare("DELETE FROM claims WHERE group_id = ?1 AND account = ?2").bind(groupId, member.account),
+        logStatement(db, groupId, now, "member_removed", group.me.id, memberId),
+      ],
+      stateAnswer(),
+    );
+  });
+});
+
+/**
  * Deletes a group and, through the schema's cascades, its members, claims, invites, bills,
  * settlements and log. Payment requests made in it stay between their two people, without the
  * group, its members or its bill.

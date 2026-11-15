@@ -4,7 +4,16 @@ import { deleteBillRoute, putBillRoute, recordSettlementRoute } from "./bills";
 import { deleteDeviceRoute, putDeviceRoute } from "./devices";
 import { FxBook } from "./fx-book";
 import { fxRatesRoute, refreshFxRates } from "./fx-rates";
-import { addMemberRoute, createGroupRoute, leaveGroupRoute, listGroupsRoute, readGroupRoute, renameGroupRoute, renameMemberRoute } from "./groups";
+import {
+  addMemberRoute,
+  createGroupRoute,
+  leaveGroupRoute,
+  listGroupsRoute,
+  readGroupRoute,
+  removeMemberRoute,
+  renameGroupRoute,
+  renameMemberRoute,
+} from "./groups";
 import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
 import { assetLinksRoute, linkPageRoute } from "./links";
@@ -78,6 +87,7 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/groups/:group", { GET: readGroupRoute, PATCH: renameGroupRoute }],
   ["/v1/groups/:group/members", { POST: addMemberRoute }],
   ["/v1/groups/:group/members/:member", { PATCH: renameMemberRoute }],
+  ["/v1/groups/:group/members/:member/remove", { POST: removeMemberRoute }],
   ["/v1/groups/:group/leave", { POST: leaveGroupRoute }],
   ["/v1/groups/:group/invites", { POST: createInviteRoute, DELETE: revokeInvitesRoute }],
   ["/v1/groups/:group/claims/:member/approve", { POST: approveClaimRoute }],

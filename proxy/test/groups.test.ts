@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { GroupState } from "../src/group-state";
 import { POLICY } from "../src/policy";
+import type { RequestView } from "../src/requests";
 import { send } from "./requests";
 import { addBill, addPlaceholder, api, invite, join, memberView, newGroup, person, rows, stateOf, THB, VND } from "./shared";
 
@@ -124,6 +125,7 @@ describe("a group", () => {
       ["PATCH", path, { name: "Taken" }],
       ["POST", `${path}/members`, { id: crypto.randomUUID(), name: "Extra" }],
       ["PATCH", `${path}/members/${placeholder}`, { name: "Renamed" }],
+      ["POST", `${path}/members/${group.ownerMemberId}/remove`],
       ["POST", `${path}/leave`],
       ["POST", `${path}/invites`],
       ["DELETE", `${path}/invites`],
@@ -157,6 +159,7 @@ describe("a group", () => {
       ["PATCH", `/v1/groups/${group.id}`],
       ["POST", `/v1/groups/${group.id}/members`],
       ["PATCH", `/v1/groups/${group.id}/members/${id}`],
+      ["POST", `/v1/groups/${group.id}/members/${id}/remove`],
       ["POST", `/v1/groups/${group.id}/leave`],
       ["POST", `/v1/groups/${group.id}/invites`],
       ["DELETE", `/v1/groups/${group.id}/invites`],
@@ -254,6 +257,53 @@ describe("a member", () => {
     expect((await api(member, "GET", `/v1/groups/${group.id}`)).status).toBe(403);
     expect((await api<{ groups: unknown[] }>(member, "GET", "/v1/groups")).body.groups).toEqual([]);
     expect((await api(member, "POST", `/v1/groups/${group.id}/leave`)).status).toBe(403);
+  });
+
+  it("removed by the owner stays as a placeholder with their name and amounts, and reads the group no more", async () => {
+    const owner = await person();
+    const group = await newGroup(owner);
+    const member = await person();
+    const memberId = await join(group, member, "Lan");
+    await addBill(group, member, { [memberId]: 600, [group.ownerMemberId]: 400 }, { [memberId]: 1000 });
+    const asked = await api<{ request: RequestView }>(member, "POST", "/v1/requests", {
+      id: crypto.randomUUID(),
+      amountMinor: 400,
+      currency: THB,
+      payerName: "Owner",
+      creditorName: "Lan",
+      method: { kind: "PlainDetails", text: "Pay me" },
+      groupId: group.id,
+      toMemberId: group.ownerMemberId,
+    });
+    const before = await stateOf(group);
+
+    const removed = await api<GroupState>(owner, "POST", `/v1/groups/${group.id}/members/${memberId}/remove`);
+
+    expect(removed.status).toBe(200);
+    expect(removed.body.members.find((each) => each.id === memberId)).toEqual(memberView(memberId, "Lan", false));
+    expect(removed.body.bills).toEqual(before.bills);
+    expect(removed.body.log[0]).toEqual({ at: expect.any(Number), kind: "member_removed", memberId: group.ownerMemberId, subjectId: memberId });
+    expect(removed.body.group.revision).toBe(before.group.revision + 1);
+    expect((await api(member, "GET", `/v1/groups/${group.id}`)).body).toEqual({ error: "forbidden" });
+    expect((await api<{ groups: unknown[] }>(member, "GET", "/v1/groups")).body.groups).toEqual([]);
+    expect((await api<{ requests: RequestView[] }>(member, "GET", "/v1/requests")).body.requests).toEqual([asked.body.request]);
+  });
+
+  it("is removed by the owner only, and only when it has an account and is not the owner's own", async () => {
+    const owner = await person();
+    const group = await newGroup(owner);
+    const lan = await person();
+    await join(group, lan, "Lan");
+    const minhId = await join(group, await person(), "Minh");
+    const placeholder = await addPlaceholder(group, "Hoa");
+    const remove = (who: typeof owner, memberId: string) => api(who, "POST", `/v1/groups/${group.id}/members/${memberId}/remove`);
+    const before = await stateOf(group);
+
+    expect((await remove(lan, minhId)).body).toEqual({ error: "forbidden" });
+    expect((await remove(owner, group.ownerMemberId)).body).toEqual({ error: "conflict" });
+    expect((await remove(owner, placeholder)).body).toEqual({ error: "conflict" });
+    expect((await remove(owner, crypto.randomUUID())).body).toEqual({ error: "not_found" });
+    expect(await stateOf(group)).toEqual(before);
   });
 
   it("who owns the group and leaves hands it to the member with an account who joined first", async () => {

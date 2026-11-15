@@ -165,6 +165,7 @@ Most group routes answer with the group as the caller sees it:
 | `group_created` | the creator | the group |
 | `member_added` | who added the placeholder | the placeholder |
 | `member_joined`, `member_left` | the member | the member |
+| `member_removed` | the owner | the removed member |
 | `member_renamed` | who renamed | the renamed member |
 | `claim_requested` | the placeholder claimed (the claimant has no member yet) | the placeholder |
 | `claim_approved`, `claim_rejected` | the owner | the placeholder |
@@ -183,13 +184,20 @@ Renaming the group moves its revision on but adds no entry to the log.
 | `PATCH /v1/groups/{gid}` `{"name"}` | the owner | the state |
 | `POST /v1/groups/{gid}/members` `{"id","name"}` | members | the state with a new placeholder, a member without an account; an id the group has already changes nothing |
 | `PATCH /v1/groups/{gid}/members/{mid}` `{"name"}` | that member, or the owner | the state |
+| `POST /v1/groups/{gid}/members/{mid}/remove` | the owner | the state |
 | `POST /v1/groups/{gid}/leave` | members | 204 |
 
 Leaving keeps the member as a placeholder, with its name and every amount, and takes the
 caller's account off it. An owner who leaves hands the group to the member with an account who
 joined first. When nobody with an account is left, the group is deleted with its members, claims,
 invites, bills, settlements and log; payment requests made in it stay between their two people,
-with `groupId`, `toMemberId` and `billId` set to null.
+with `groupId`, `toMemberId`, `creditorMemberId` and `billId` set to null.
+
+The owner can remove a member who has an account, other than their own member: the member becomes
+a placeholder exactly as if they had left, keeping its name and every amount, and their account,
+and any claim of theirs in the group, goes. Payment requests already made stay as they are.
+Removing the owner's own member, or a placeholder, is 409. A removed account can join again only
+through an invite, which the owner can revoke.
 
 A group has at most 100 members, placeholders included, and 1,000 bills that are not deleted; an
 account is in, or waits to join, at most 100 groups. Past these, 413 `too_large`.
@@ -275,9 +283,11 @@ optionally, `"title"`, `"groupId"`, `"toMemberId"`, `"billId"` and `"remindEvery
 RequestView:
 
 ```json
-{"id": "…", "role": "creditor", "amountMinor": 150000, "currency": {"code": "VND", "fractionDigits": 0}, "payerName": "Minh", "creditorName": "Lan", "title": "Hot pot", "method": {}, "groupId": null, "toMemberId": null, "billId": null, "createdAt": 1763180000000, "reportedPaidAt": null, "confirmedPaidAt": null, "remindEveryDays": 0, "debtorBound": false}
+{"id": "…", "role": "creditor", "amountMinor": 150000, "currency": {"code": "VND", "fractionDigits": 0}, "payerName": "Minh", "creditorName": "Lan", "title": "Hot pot", "method": {}, "groupId": null, "toMemberId": null, "creditorMemberId": null, "billId": null, "createdAt": 1763180000000, "reportedPaidAt": null, "confirmedPaidAt": null, "remindEveryDays": 0, "debtorBound": false}
 ```
 
+- `creditorMemberId` is the creditor's member in the group, null outside a group: the app can show
+  who in the group asks, whatever name they typed as `creditorName`.
 - Someone who is neither the creditor nor the debtor finds no request by its id (404), and the
   other side of one gets 403: a creditor cannot report it paid, a debtor cannot confirm it.
 - A link is 404 when it was never made and 410 `gone` once its request was deleted. The first

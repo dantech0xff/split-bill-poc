@@ -49,6 +49,8 @@ export type RequestView = {
   method: unknown;
   groupId: string | null;
   toMemberId: string | null;
+  /** The creditor's member in the group, so the app can show who in the group asks, whatever name they typed. */
+  creditorMemberId: string | null;
   billId: string | null;
   createdAt: number;
   reportedPaidAt: number | null;
@@ -69,6 +71,7 @@ function viewOf(row: RequestRow, role: RequestView["role"]): RequestView {
     method: JSON.parse(row.method) as unknown,
     groupId: row.group_id,
     toMemberId: row.to_member_id,
+    creditorMemberId: row.creditor_member_id,
     billId: row.bill_id,
     createdAt: row.created_at,
     reportedPaidAt: row.reported_paid_at,

@@ -64,6 +64,7 @@ describe("a payment request", () => {
       method: METHOD,
       groupId: null,
       toMemberId: null,
+      creditorMemberId: null,
       billId: null,
       createdAt: expect.any(Number),
       reportedPaidAt: null,
@@ -152,7 +153,14 @@ describe("a payment request", () => {
     const toHoa = await ask(owner, { groupId: group.id, toMemberId: hoaId });
 
     expect(toMinh.status).toBe(201);
-    expect(toMinh.body.request).toMatchObject({ groupId: group.id, toMemberId: minhId, billId, debtorBound: true, role: "creditor" });
+    expect(toMinh.body.request).toMatchObject({
+      groupId: group.id,
+      toMemberId: minhId,
+      creditorMemberId: group.ownerMemberId,
+      billId,
+      debtorBound: true,
+      role: "creditor",
+    });
     expect(toHoa.body.request).toMatchObject({ toMemberId: hoaId, debtorBound: false });
     const minhsList = await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests");
     expect(minhsList.body.requests).toEqual([{ ...toMinh.body.request, role: "debtor" }]);
@@ -453,7 +461,7 @@ describe("a group that goes", () => {
     expect((await api(owner, "POST", `/v1/groups/${group.id}/leave`)).status).toBe(204);
 
     const left = await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests");
-    expect(left.body.requests).toEqual([{ ...made.body.request, role: "debtor", groupId: null, toMemberId: null, billId: null }]);
+    expect(left.body.requests).toEqual([{ ...made.body.request, role: "debtor", groupId: null, toMemberId: null, creditorMemberId: null, billId: null }]);
     const confirmed = await api<RequestView>(owner, "POST", `/v1/requests/${made.body.request.id}/confirmed-paid`);
     expect(confirmed.status).toBe(200);
     expect(await rows("SELECT * FROM settlements")).toEqual([]);
