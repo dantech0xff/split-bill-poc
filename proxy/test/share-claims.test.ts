@@ -176,7 +176,7 @@ describe("a claim", () => {
     const turnstile = fakeTurnstile();
     let last: Answer<Claimed> | null = null;
     for (let count = 0; count < POLICY.maxClaims; count++) {
-      // A new IP for every ten claims, which is as many as one IP makes in an hour.
+      // A new IP whenever one has made as many new claims as it may in an hour.
       last = await newClaim(turnstile, link.token, `Guest ${count + 1}`, ["i1"], `198.51.100.${Math.floor(count / POLICY.newClaimsPerHour) + 1}`);
       expect(last.status, `claim ${count + 1}`).toBe(200);
     }
@@ -287,25 +287,28 @@ describe("the limits of one IP", () => {
     await env.DB.prepare("UPDATE rate_windows SET used = ?3 WHERE account = ?1 AND kind = ?2").bind(name, kind, used).run();
   }
 
-  it("are 10 new claims an hour, counted before Cloudflare is asked", async () => {
-    const link = await publish(await person());
+  it("are as many new claims an hour as a link holds, counted before Cloudflare is asked", async () => {
+    const owner = await person();
+    const link = await publish(owner);
+    const next = await publish(owner);
     const turnstile = fakeTurnstile();
     const ip = "203.0.113.20";
     let first: Answer<Claimed> | null = null;
+    // A whole table on one Wi-Fi fills a link from one address.
     for (let count = 0; count < POLICY.newClaimsPerHour; count++) {
       const made = await newClaim(turnstile, link.token, `Guest ${count}`, ["i1"], ip);
       expect(made.status).toBe(200);
       first ??= made;
     }
 
-    const refused = await newClaim(turnstile, link.token, "One too many", ["i1"], ip);
+    const refused = await newClaim(turnstile, next.token, "One too many", ["i1"], ip);
 
     expect(refused.status).toBe(429);
     expect(refused.body).toEqual({ error: "rate_limited" });
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(3_500);
     expect(turnstile.checks()).toBe(POLICY.newClaimsPerHour);
     expect((await changeClaim(link.token, first?.body.key ?? "", "Guest 0", ["i2"], ip)).status).toBe(200);
-    expect((await newClaim(turnstile, link.token, "Another IP", ["i1"], "203.0.113.21")).status).toBe(200);
+    expect((await newClaim(turnstile, next.token, "Another IP", ["i1"], "203.0.113.21")).status).toBe(200);
   });
 
   it("are 120 claim writes an hour, new or not", async () => {

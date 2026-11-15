@@ -579,7 +579,8 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
 - A new claim is judged in this order: 409 `locked`, 400 for an item, 409 `full`, 503
   `not_configured`, 403 for a missing token, 429, then Cloudflare's verdict. So Cloudflare is
   asked only about claims that can land.
-- Limits per hashed IP: 10 new claims an hour, counted before Cloudflare is asked, and 120 claim
+- Limits per hashed IP: 30 new claims an hour, as many as a link holds, so a whole table can claim
+  from one Wi-Fi; they are counted before Cloudflare is asked. Also 120 claim
   writes an hour, new or not; 600 reads an hour over `open`, `live`, `/v1/request-links/view` and
   `/v1/invites/preview`. Past any of them, 429 `rate_limited` with `Retry-After`. A request that
   reached Cloudflare without an address is 400.
