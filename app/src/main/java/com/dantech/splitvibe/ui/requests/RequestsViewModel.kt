@@ -3,6 +3,7 @@ package com.dantech.splitvibe.ui.requests
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.account.Account
+import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
@@ -128,8 +129,14 @@ class RequestLinkViewModel(private val token: String, private val repository: Re
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                mutableState.update { it.copy(working = false, message = ProxyErrors.messageOf(e)) }
+                // A link someone else already took on answers 409, and shows them nothing of the request.
+                val message = if ((e as? ProxyException)?.status == 409) TAKEN else ProxyErrors.messageOf(e)
+                mutableState.update { it.copy(working = false, message = message) }
             }
         }
+    }
+
+    private companion object {
+        const val TAKEN = "Someone else already took this request on. Ask the person who sent it for a new link."
     }
 }

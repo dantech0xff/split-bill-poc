@@ -75,5 +75,15 @@ class RequestsViewModelTest {
         assertTrue(viewModel.state.value.accepted)
     }
 
+    @Test
+    fun `a link someone else took on says so`() {
+        server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"conflict"}"""))
+
+        val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, proxy.account.account)
+        awaitOnMain { viewModel.state.value.message != null }
+
+        assertTrue(viewModel.state.value.message!!.startsWith("Someone else already took this request on."))
+    }
+
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
 }
