@@ -39,6 +39,9 @@ import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
 import com.dantech.splitvibe.notifications.Push
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.claim.ClaimActions
+import com.dantech.splitvibe.ui.claim.ClaimScreen
+import com.dantech.splitvibe.ui.claim.ClaimViewModel
 import com.dantech.splitvibe.ui.common.ShareEffect
 import com.dantech.splitvibe.ui.groups.GroupActions
 import com.dantech.splitvibe.ui.groups.GroupScreen
@@ -95,6 +98,10 @@ data class JoinGroupKey(val token: String) : NavKey
 
 @Serializable
 data object RequestsKey : NavKey
+
+/** The link of the bill open on the split screen, where everyone at the table picks what they had. */
+@Serializable
+data object ClaimKey : NavKey
 
 /** A payment request link that was opened: `/r/{token}` on the proxy's address. */
 @Serializable
@@ -191,6 +198,32 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onExit = { backStack.remove(SplitKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
+                            onPickTogether = { backStack.open(ClaimKey) },
+                        )
+                    }
+                }
+                entry<ClaimKey> {
+                    Screen {
+                        // Works on the bill the split screen has open, which stays the one copy that is written.
+                        val claimViewModel: ClaimViewModel = koinViewModel { parametersOf(splitViewModel) }
+                        val claimState by claimViewModel.state.collectAsStateWithLifecycle()
+                        val saved by claimViewModel.bill.collectAsStateWithLifecycle()
+                        LaunchedEffect(claimState.closed) { if (claimState.closed) backStack.remove(ClaimKey) }
+                        ClaimScreen(
+                            state = claimState,
+                            saved = saved,
+                            actions = ClaimActions(
+                                onMatch = claimViewModel::match,
+                                onRemove = claimViewModel::remove,
+                                onLock = claimViewModel::lock,
+                                onSend = claimViewModel::send,
+                                onReopen = claimViewModel::reopen,
+                                onRevoke = claimViewModel::revoke,
+                                onRetry = claimViewModel::start,
+                                onOpenSettings = { backStack.open(SettingsKey) },
+                                onDismissMessage = claimViewModel::dismissMessage,
+                                onBack = { backStack.remove(ClaimKey) },
+                            ),
                         )
                     }
                 }

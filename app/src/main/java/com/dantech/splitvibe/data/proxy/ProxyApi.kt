@@ -30,6 +30,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 
 /**
  * A refusal or failure the AI proxy reported, before an answer or in place of one. [status] is 200
@@ -118,6 +120,23 @@ class ProxyApi(
             if (response.code == 204) null else jsonOf(response)
         }
     }
+
+    /**
+     * A call to a route anyone with a link may use, such as reading a bill link: it carries no
+     * session and no install id, only what [body] holds. Throws [ProxyException] when the proxy refuses.
+     */
+    suspend fun public(path: String, body: JsonElement): JsonObject =
+        send(anonymousRequest(path).post(body.toString().toRequestBody(JSON)).build()) { response ->
+            if (!response.isSuccessful) throw failureOf(response)
+            jsonOf(response)
+        }
+
+    /**
+     * Opens a WebSocket to [path] offering [protocols], which is where a link's token travels, as
+     * the proxy keeps addresses in its traces and header values not.
+     */
+    fun webSocket(path: String, protocols: List<String>, listener: WebSocketListener): WebSocket =
+        client.newWebSocket(anonymousRequest(path).header("Sec-WebSocket-Protocol", protocols.joinToString(", ")).build(), listener)
 
     private fun post(path: String, body: JsonObject, withSession: Boolean = true): Request =
         request(path, withSession).post(body.toString().toRequestBody(JSON)).build()

@@ -38,6 +38,8 @@ fun SplitScreen(
     onExit: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPaymentMethods: () -> Unit = {},
+    /** Opens the link of the bill on screen, where everyone at the table picks what they had. */
+    onPickTogether: () -> Unit = {},
 ) {
     // Collected without waiting for the next frame, so a field always shows what was just typed
     // into it and never a value from a keystroke before.
@@ -91,6 +93,7 @@ fun SplitScreen(
                 finish()
             },
             onLinkedToGroup = viewModel::linkToGroup,
+            onPickTogether = onPickTogether,
         )
 
     // One surface with the button that opened this screen, so the screen grows out of that button.

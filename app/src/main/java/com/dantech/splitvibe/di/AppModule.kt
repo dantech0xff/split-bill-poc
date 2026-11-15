@@ -16,6 +16,7 @@ import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
+import com.dantech.splitvibe.data.share.ShareRepository
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.GatewayBillAnalyzer
 import com.dantech.splitvibe.notifications.DeviceRegistrar
@@ -23,6 +24,8 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.MlKitBillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.claim.BillOnScreen
+import com.dantech.splitvibe.ui.claim.ClaimViewModel
 import com.dantech.splitvibe.ui.groups.AddToGroupViewModel
 import com.dantech.splitvibe.ui.groups.GroupViewModel
 import com.dantech.splitvibe.ui.groups.GroupsViewModel
@@ -75,6 +78,7 @@ val appModule = module {
     single { ProxyCache(get<SplitVibeDatabase>().proxyCache()) }
     single { GroupRepository(api = get(), cache = get(), account = get()) }
     single { RequestRepository(api = get(), cache = get(), account = get()) }
+    single { ShareRepository(api = get()) }
 
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }
@@ -100,6 +104,15 @@ val appModule = module {
         )
     }
     viewModel { AddToGroupViewModel(groups = get(), requests = get(), fx = get()) }
+    viewModel { (host: BillOnScreen) ->
+        ClaimViewModel(
+            host = host,
+            shares = get(),
+            paymentMethods = get(),
+            settings = get<SettingsStore>().settings,
+            account = get<AccountStore>().account,
+        )
+    }
     viewModel { RequestsViewModel(repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel {
@@ -125,6 +138,7 @@ val appModule = module {
             fx = get(),
             contactNames = get(),
             savedState = get(),
+            shares = get(),
         )
     }
 }

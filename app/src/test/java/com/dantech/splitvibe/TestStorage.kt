@@ -13,6 +13,7 @@ import com.dantech.splitvibe.data.people.ContactNames
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.share.ShareRepository
 import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.ocr.BillImageLoader
@@ -67,6 +68,7 @@ fun testSplitViewModel(
     savedState: SavedStateHandle = SavedStateHandle(),
     settings: MutableStateFlow<AppSettings> = MutableStateFlow(AppSettings(localCurrency = localCurrency)),
     saveDelayMs: Long = 0,
+    shares: ShareRepository? = null,
 ): SplitBillViewModel = SplitBillViewModel(
     settings = settings,
     account = account,
@@ -81,4 +83,5 @@ fun testSplitViewModel(
     contactNames = storage.contactNames,
     savedState = savedState,
     saveDelayMs = saveDelayMs,
+    shares = shares,
 )

@@ -70,6 +70,7 @@ class DesignSystemBoundaryTest {
         allowedSamples.forEach { line -> assertEquals(line, emptyList<String>(), violationsIn(line, "SomeScreen.kt")) }
 
         assertEquals(emptyList<String>(), violationsIn("SplitVibeTheme {", "MainActivity.kt"))
+        assertEquals(emptyList<String>(), violationsIn("delay(PING_MS)", "ShareRepository.kt"))
     }
 
     private fun violationsIn(line: String, fileName: String): List<String> = FORBIDDEN
@@ -106,7 +107,8 @@ private val FORBIDDEN = listOf(
                 """|\banimate\w*AsState\s*\(|\banimateContentSize\s*\(""",
         ),
     ),
-    Rule("a delay of its own", Regex("""\bdelay\s*\(""")),
+    // A live connection waits between attempts and pings to stay open: the network's timing, not motion's.
+    Rule("a delay of its own", Regex("""\bdelay\s*\("""), allowedIn = setOf("ShareRepository.kt")),
 )
 
 /** The app's screens, and the catalog that shows the components in debug builds. */

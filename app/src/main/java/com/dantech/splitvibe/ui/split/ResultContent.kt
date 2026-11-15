@@ -108,6 +108,8 @@ class ResultActions(
     val onFinish: () -> Unit,
     /** The bill was added to a group, or sent to it again. */
     val onLinkedToGroup: (GroupLink) -> Unit = {},
+    /** Opens the bill's link, where everyone at the table picks what they had. */
+    val onPickTogether: () -> Unit = {},
 )
 
 /**
@@ -159,6 +161,7 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
                 onSendRequests = actions.onSendRequests,
                 onFinish = actions.onFinish,
                 onAddToGroup = { addingToGroup = true },
+                onPickTogether = actions.onPickTogether,
             )
         },
     ) { padding ->
@@ -634,13 +637,22 @@ private fun PaidRow(result: SplitResultState, onClick: () -> Unit, modifier: Mod
 }
 
 @Composable
-private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFinish: () -> Unit, onAddToGroup: () -> Unit) {
+private fun FinishBar(
+    result: SplitResultState,
+    onSendRequests: () -> Unit,
+    onFinish: () -> Unit,
+    onAddToGroup: () -> Unit,
+    onPickTogether: () -> Unit,
+) {
     val payments = result.plan.payments
     val iPaidItAll = payments.singleOrNull()?.participantId == ME_ID
     val others = result.split.shares.filter { it.personId != ME_ID && it.totalMinor > 0 }
     // A bill shared in a group is kept there; one already in a group is sent to it again after a change.
     val inGroup = result.saved.group
     val toGroup = SvMenuOption(inGroup?.let { "Update in ${it.groupName}" } ?: "Add to a group", onAddToGroup)
+    // Everyone at the table picks what they had on a page of their own; the bill's link opens with it.
+    val pickLabel = if (result.saved.share == null) "Let everyone pick their items" else "See what everyone picked"
+    val pickTogether = SvMenuOption(pickLabel, onPickTogether)
     SvBottomBar {
         when {
             result.problems.isNotEmpty() -> SvPrimaryButton("Finish the split", onClick = {}, enabled = false)
@@ -650,7 +662,7 @@ private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFi
                 text = "Update in ${inGroup.groupName}",
                 onClick = onAddToGroup,
                 moreLabel = "More ways to finish",
-                options = listOf(SvMenuOption("Finish the split", onFinish)),
+                options = listOf(SvMenuOption("Finish the split", onFinish), pickTogether),
             )
 
             iPaidItAll && others.isNotEmpty() -> {
@@ -659,7 +671,7 @@ private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFi
                     text = "Request ${result.bill.format(others.sumOf { it.totalMinor })} from $people",
                     onClick = onSendRequests,
                     moreLabel = "More ways to finish",
-                    options = listOf(toGroup, SvMenuOption("Finish without asking", onFinish)),
+                    options = listOf(toGroup, pickTogether, SvMenuOption("Finish without asking", onFinish)),
                     // The button turns into the mark that confirms the requests on the next step.
                     modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true),
                 )
@@ -669,7 +681,7 @@ private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFi
                 text = "Finish the split",
                 onClick = onFinish,
                 moreLabel = "More ways to finish",
-                options = listOf(toGroup),
+                options = listOf(toGroup, pickTogether),
             )
         }
     }

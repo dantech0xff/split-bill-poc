@@ -52,6 +52,8 @@ data class SavedBill(
     val exchangeRate: ExchangeRate? = null,
     /** The group this bill was added to, if any, as the group last accepted it. */
     val group: GroupLink? = null,
+    /** The link that lets everyone at the table pick their items in a browser, while it is shared. */
+    val share: ShareLink? = null,
     val schemaVersion: Int = SCHEMA_VERSION,
 ) {
     /**
@@ -88,6 +90,10 @@ data class GroupLink(
     /** The id of the group's copy, which is the bill's own id unless the group's copy was deleted and the bill added again. */
     val billId: String? = null,
 )
+
+/** A bill link the proxy keeps for this bill: its id there, and the address that people open. */
+@Serializable
+data class ShareLink(val shareId: String, val url: String)
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")

@@ -13,10 +13,13 @@ import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.bills.ShareLink
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.data.people.ContactNames
 import com.dantech.splitvibe.data.people.PeopleRepository
+import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.share.ShareRepository
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Division
@@ -37,6 +40,7 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.claim.BillOnScreen
 import java.io.IOException
 import java.math.BigDecimal
 import java.util.Locale
@@ -168,13 +172,18 @@ class SplitBillViewModel(
     private val savedState: SavedStateHandle,
     private val clock: () -> Long = System::currentTimeMillis,
     saveDelayMs: Long = SAVE_DELAY_MS,
-) : ViewModel() {
+    /** Shows the bill again on its link after each change; without it, a bill's link keeps what it showed. */
+    private val shares: ShareRepository? = null,
+) : ViewModel(),
+    BillOnScreen {
 
     /** The people the user split with before, most recent first, to suggest their names. */
     val people: StateFlow<List<Person>> = peopleRepository.people.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val mutableState = MutableStateFlow(SplitUiState())
     val state: StateFlow<SplitUiState> = mutableState.asStateFlow()
+
+    override val billOnScreen: StateFlow<SavedBill?> = state.map { it.result?.saved }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private var work: Job? = null
 
@@ -480,8 +489,25 @@ class SplitBillViewModel(
         change { it.copy(group = link) }
     }
 
+    override fun linkToShare(link: ShareLink?) {
+        if (mutableState.value.result?.saved?.id == null) return
+        change { it.copy(share = link) }
+    }
+
+    override fun applyPlan(plan: SplitPlan) = change { it.copy(plan = plan) }
+
+    override suspend fun storedBill(): SavedBill? {
+        val id = mutableState.value.result?.saved?.id ?: return null
+        val pending = pendingSave.value
+        if (pending != null && pendingSave.compareAndSet(pending, null)) {
+            claimPages(pending)
+            persist(pending)
+        }
+        return saveLock.withLock { bills.get(id) }
+    }
+
     /** Marks the split as finished; it stays in the history and can still be opened and changed. */
-    fun finish() {
+    override fun finish() {
         val result = mutableState.value.result ?: return
         if (result.problems.isNotEmpty()) return
         change { it.copy(status = BillStatus.FINAL) }
@@ -596,6 +622,7 @@ class SplitBillViewModel(
                 val written = bills.save(bill.copy(revision = storedRevisions[bill.id] ?: 0))
                 storedRevisions[written.id] = written.revision
                 saveFailing = false
+                if (written.share != null) showOnLink(written)
             } catch (e: BillConflictException) {
                 onConflict(bill)
             } catch (e: CancellationException) {
@@ -608,6 +635,29 @@ class SplitBillViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Shows [saved] on its link, so people pick from the bill as it is now. A link that no longer works
+     * is forgotten; one that cannot be reached now shows this change with the next one.
+     */
+    private fun showOnLink(saved: SavedBill) {
+        val shares = shares ?: return
+        viewModelScope.launch {
+            try {
+                shares.project(saved, settings.value.myName)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ProxyException) {
+                if (e.status == HTTP_NOT_FOUND || e.status == HTTP_GONE) forgetLink(saved.id)
+            } catch (e: Exception) {
+                // Shown with the next change that goes through.
+            }
+        }
+    }
+
+    private fun forgetLink(billId: String) {
+        if (mutableState.value.result?.saved?.id == billId) change { it.copy(share = null) }
     }
 
     /** Another writer saved [bill] first. What is stored now is shown, and changes made to the refused copy are dropped. */
@@ -694,6 +744,8 @@ class SplitBillViewModel(
         const val KEY_EDITING = "editing"
         const val KEY_OPENED = "opened"
         const val KEY_ON_INPUT = "onInput"
+        const val HTTP_NOT_FOUND = 404
+        const val HTTP_GONE = 410
     }
 }
 
