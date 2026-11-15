@@ -161,7 +161,7 @@ Xóa:
 - [x] Đăng nhập Google, đăng xuất, xóa tài khoản, số lượt còn lại
 - [x] Job kiểm proxy trong CI, Dependabot cho npm, `docs/proxy.md`
 - [ ] Bộ đánh giá và báo cáo chọn model
-- [ ] Proxy đã triển khai và một lần gọi thật từ bản `prodRelease` thành công
+- [ ] Proxy đã triển khai và một lần gọi thật từ bản `prodRelease` thành công. Ngày 15/11/2026 proxy đã lên workers.dev của tài khoản chủ sản phẩm, có `HASH_SALT` và `SESSION_SIGNING_KEY` ngẫu nhiên, và mọi đường đã trả lời đúng. Còn chờ: chủ sản phẩm đặt `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID` sau khi tạo OAuth client, rồi một lần gọi thật từ bản `prodRelease`.
 
 ## Success Criteria
 
