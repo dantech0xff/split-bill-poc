@@ -23,6 +23,12 @@ type SourceFailure = { ok: false; reason: string };
  */
 export const FX_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * After a refresh fails, requests hand out the rates held, or none, for this long before the
+ * source is asked again, so an outage of the source does not make every request wait for it.
+ */
+export const FX_RETRY_PAUSE_MS = 5 * 60 * 1000;
+
 /** How long one refresh waits for the source, both of its requests together. */
 const FX_SOURCE_TIMEOUT_MS = 10_000;
 
@@ -35,6 +41,8 @@ const SOURCE_HEADERS = { accept: "application/json", "user-agent": "split-vibe-p
 const MAX_SOURCE_BYTES = 1024 * 1024;
 
 const SNAPSHOT = "snapshot";
+/** When the last refresh failed; gone once one works again. */
+const FAILED_AT = "refreshFailedAt";
 const CURRENCY_CODE = /^[A-Z]{3}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -49,17 +57,19 @@ export class FxBook extends DurableObject {
 
   /**
    * The rates to hand out at [now]: the snapshot held, fetched again first when there is none or
-   * it is [FX_MAX_AGE_MS] old. When that fetch fails, the snapshot held is handed out as it is;
-   * null means there has never been one.
+   * it is [FX_MAX_AGE_MS] old, unless a refresh failed less than [FX_RETRY_PAUSE_MS] ago. When
+   * that fetch fails, the snapshot held is handed out as it is; null means there has never been one.
    */
   async rates(now: number): Promise<FxSnapshot | null> {
     const held = await this.ctx.storage.get<FxSnapshot>(SNAPSHOT);
     if (held !== undefined && now - held.fetchedAt < FX_MAX_AGE_MS) return held;
+    const failedAt = await this.ctx.storage.get<number>(FAILED_AT);
+    if (failedAt !== undefined && now - failedAt < FX_RETRY_PAUSE_MS) return held ?? null;
     await this.refresh(now);
     return (await this.ctx.storage.get<FxSnapshot>(SNAPSHOT)) ?? null;
   }
 
-  /** Fetches the rates whatever the age of those held, and says whether new ones were kept. */
+  /** Fetches the rates whatever the age of those held or the last failure, and says whether new ones were kept. */
   refresh(now: number): Promise<boolean> {
     this.refreshing ??= this.fetchAndKeep(now).finally(() => {
       this.refreshing = null;
@@ -71,9 +81,11 @@ export class FxBook extends DurableObject {
     const fetched = await fetchFxSnapshot(now, FX_SOURCE_TIMEOUT_MS);
     if (!fetched.ok) {
       console.error(JSON.stringify({ event: "fx_refresh_failed", reason: fetched.reason }));
+      await this.ctx.storage.put(FAILED_AT, now);
       return false;
     }
     await this.ctx.storage.put(SNAPSHOT, fetched.snapshot);
+    await this.ctx.storage.delete(FAILED_AT);
     console.log(JSON.stringify({ event: "fx_refreshed", currencies: Object.keys(fetched.snapshot.rates).length }));
     return true;
   }

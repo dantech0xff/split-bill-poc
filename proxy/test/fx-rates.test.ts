@@ -2,7 +2,7 @@ import { createExecutionContext, createScheduledController, runInDurableObject, 
 import { env } from "cloudflare:workers";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { fetchFxSnapshot, FX_MAX_AGE_MS, type FxSnapshot } from "../src/fx-book";
+import { fetchFxSnapshot, FX_MAX_AGE_MS, FX_RETRY_PAUSE_MS, type FxSnapshot } from "../src/fx-book";
 import { fxBook } from "../src/fx-rates";
 import worker from "../src/index";
 import { network } from "./network";
@@ -61,8 +61,20 @@ function heldSnapshot(ageMs: number): FxSnapshot {
   };
 }
 
+/** Puts [snapshot] in the object as the rates held, with no failed refresh since. */
 async function hold(snapshot: FxSnapshot): Promise<void> {
-  await runInDurableObject(fxBook(env), (_, state) => state.storage.put("snapshot", snapshot));
+  await runInDurableObject(fxBook(env), async (_, state) => {
+    await state.storage.put("snapshot", snapshot);
+    await state.storage.delete("refreshFailedAt");
+  });
+}
+
+/** Moves the last failed refresh [ageMs] into the past, as if that much time had gone by since. */
+async function failedAgo(ageMs: number): Promise<void> {
+  await runInDurableObject(fxBook(env), async (_, state) => {
+    if ((await state.storage.get<number>("refreshFailedAt")) === undefined) throw new Error("No refresh has failed");
+    await state.storage.put("refreshFailedAt", Date.now() - ageMs);
+  });
 }
 
 function held(): Promise<FxSnapshot | undefined> {
@@ -177,6 +189,39 @@ describe("the exchange rates", () => {
     expect(await held()).toBeUndefined();
   });
 
+  it("are not asked for again for a few minutes after a fetch failed, and then are", async () => {
+    const snapshot = heldSnapshot(2 * FX_MAX_AGE_MS);
+    await hold(snapshot);
+    const failing = source(() => new HttpResponse("busy", { status: 503 }));
+    await send(ratesRequest());
+    const askedBefore = failing.length;
+
+    const during = await send(ratesRequest());
+
+    expect(during.status).toBe(200);
+    expect(JSON.parse(during.body)).toEqual(snapshot);
+    expect(failing).toHaveLength(askedBefore);
+
+    network.resetHandlers();
+    const working = source();
+    await failedAgo(FX_RETRY_PAUSE_MS);
+    const after = await send(ratesRequest());
+
+    expect((JSON.parse(after.body) as FxSnapshot).rates).toEqual(FIAT);
+    expect(working).toHaveLength(2);
+  });
+
+  it("are unavailable without asking the source again for a few minutes when it failed and there are none", async () => {
+    const asked = source(() => new HttpResponse(null, { status: 500 }));
+    await send(ratesRequest());
+    const askedBefore = asked.length;
+
+    const again = await send(ratesRequest());
+
+    expect(again.status).toBe(503);
+    expect(asked).toHaveLength(askedBefore);
+  });
+
   it("are fetched once for requests that come together", async () => {
     let answer!: () => void;
     const answered = new Promise<void>((resolve) => {
@@ -248,6 +293,19 @@ describe("the answer", () => {
 });
 
 describe("the daily cron", () => {
+  it("asks the source also in the minutes after a failed fetch", async () => {
+    await hold(heldSnapshot(2 * FX_MAX_AGE_MS));
+    source(() => new HttpResponse("busy", { status: 503 }));
+    await send(ratesRequest());
+    network.resetHandlers();
+    const asked = source();
+
+    await worker.scheduled(createScheduledController({ cron: "30 16 * * *" }), env);
+
+    expect(asked).toHaveLength(2);
+    expect((await held())?.rates).toEqual(FIAT);
+  });
+
   it("fetches the rates again, also when those held are fresh", async () => {
     await hold(heldSnapshot(60_000));
     const asked = source();

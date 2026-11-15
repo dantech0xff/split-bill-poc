@@ -33,8 +33,10 @@ its version with `X-SplitVibe-Version`; only the exchange rates need neither. A 
 shape; the app's and the proxy's tests both use that file. A bill photographed in several pages is
 still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="…">` per photo, in
 order, with rows numbered from 1 and coordinates from 0 to 1000 within each page. A one-page bill
-stays `<bill_ocr rows="N">` with its rows directly inside. The full contract, with every error
-code, is in [the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md).
+stays `<bill_ocr rows="N">` with its rows directly inside. The full contract of the bill read,
+the session, usage and account routes, with every error code, is in
+[the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md); the
+exchange rates and their one error are described [below](#exchange-rates).
 
 ### Calls and limits
 
@@ -65,7 +67,9 @@ One Durable Object, `FxBook`, holds the latest snapshot and when it was fetched.
 every day at 16:30 UTC, after the European Central Bank publishes, and a request that finds no
 snapshot, or one a day old, fetches it first. A fetch that fails, takes more than 10 seconds or
 answers with anything unexpected never replaces the snapshot: the route hands out the last one, and
-`fetchedAt` shows its age. Only when there has never been a snapshot does a failed fetch answer 503
+`fetchedAt` shows its age. After a failed fetch, requests are answered from what is held for five
+minutes before the source is asked again, so an outage of the source does not slow every request;
+the cron always asks. Only when there has never been a snapshot does a failed fetch answer 503
 `fx_unavailable`. An answer may be cached for an hour.
 
 ### What it keeps
