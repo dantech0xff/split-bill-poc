@@ -19,7 +19,7 @@ const present = existsSync(devVars)
   : [];
 const missing = NEEDED.filter((name) => !present.includes(name));
 if (missing.length > 0) {
-  console.error(`proxy/.dev.vars lacks ${missing.join(", ")}: see "End-to-end tests" in web/README.md.`);
+  console.error(`proxy/.dev.vars lacks ${missing.join(", ")}: see "End-to-end tests" in docs/web.md.`);
   process.exit(1);
 }
 
