@@ -19,7 +19,7 @@ import {
 import { bodyTokenOf, linkUrl, requestToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
-import { addressRefusal, admitHourly } from "./rate-limit";
+import { addressOf, admitHourly, hourlyRefusal } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
 /** How often a debtor may be reminded, in days; 0 is never. */
@@ -290,15 +290,18 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
  * `POST /v1/request-links/view` with `{"token"}`: the request a link carries, for its web page,
  * which needs no session: who asks whom for how much and for what, whether it is `open`,
  * `reported` or `confirmed`, and how to pay it, as the creditor's app built it (null when it sent
- * none). Nothing names an account. 404 and 410 as for `open`; counts as a read of the IP.
+ * none). Nothing names an account. 404 and 410 as for `open`; a link that works counts as a read
+ * of the IP.
  */
 export async function viewRequestLinkRoute(request: Request, env: Env): Promise<Response> {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
   if (!input.ok) return input.response;
-  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
-  if (refused !== null) return refused;
+  const address = await addressOf(request, env);
+  if (!address.ok) return address.response;
   const linked = await linkedRequest(env.DB, input.value.token);
   if (!linked.ok) return linked.response;
+  const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
   const row = linked.row;
   const status = row.confirmed_paid_at !== null ? "confirmed" : row.reported_paid_at !== null ? "reported" : "open";
   return jsonResponse(200, {

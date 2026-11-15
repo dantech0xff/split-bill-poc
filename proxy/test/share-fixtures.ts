@@ -1,4 +1,6 @@
+import { env } from "cloudflare:workers";
 import type { Env } from "../src/index";
+import { hashed, ipKey } from "../src/ledger";
 import type { BillProjection, PublicShare, ShareView } from "../src/share-state";
 import type { FakeTurnstile } from "./fake-turnstile";
 import { send } from "./requests";
@@ -56,6 +58,13 @@ export async function fromPage<T = Record<string, unknown>>(path: string, body: 
 /** A new claim on the link [token], with a token of [turnstile]'s widget. */
 export function newClaim(turnstile: FakeTurnstile, token: string, name: string, itemIds: string[], ip?: string) {
   return fromPage<Claimed>("/v1/shares/claim", { token, name, itemIds, turnstile: turnstile.token() }, ip);
+}
+
+/** What the IP [ip] has counted of [kind] this hour, straight from the database; undefined before its first. */
+export async function windowOf(ip: string, kind: string): Promise<{ started_at: number; used: number } | undefined> {
+  const name = `ip:${await hashed(ipKey(ip), env.HASH_SALT)}`;
+  const found = await env.DB.prepare("SELECT started_at, used FROM rate_windows WHERE account = ?1 AND kind = ?2").bind(name, kind).first<{ started_at: number; used: number }>();
+  return found ?? undefined;
 }
 
 /** The claim of the browser holding [key], with its name and items replaced. */

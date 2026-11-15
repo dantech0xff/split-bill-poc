@@ -2,7 +2,7 @@ import type { Env } from "./index";
 import { inputOf, textOf } from "./input";
 import { bodyTokenOf, randomToken, tokenHash, tokenOf } from "./links";
 import { POLICY } from "./policy";
-import { addressRefusal } from "./rate-limit";
+import { addressOf, hourlyRefusal } from "./rate-limit";
 import { errorResponse, jsonResponse } from "./respond";
 import { LIVE_PROTOCOL } from "./share-room";
 import {
@@ -22,7 +22,9 @@ import {
 import { turnstilePassed, turnstileReady, turnstileTokenOf } from "./turnstile";
 
 // The routes a bill link's web page calls. They need no session: the link's token, in the body or
-// in the live connection's subprotocols, is all they take, and they never change the bill.
+// in the live connection's subprotocols, is all they take, and they never change the bill. Each
+// counts against the hourly limits of the caller's IP only once the token led to a link that
+// works, so that a token that leads nowhere, and a request past a limit, writes nothing.
 
 /** The claim of the browser that holds the key whose hash is [keyHash], if the link has one. */
 function claimOf(share: Share, keyHash: string | null): ClaimRow | undefined {
@@ -40,10 +42,12 @@ export async function openShareRoute(request: Request, env: Env): Promise<Respon
     return token === null ? null : { token: token.token, key: tokenOf(body.key) };
   });
   if (!input.ok) return input.response;
-  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
-  if (refused !== null) return refused;
+  const address = await addressOf(request, env);
+  if (!address.ok) return address.response;
   const found = await linkedShare(env.DB, input.value.token, Date.now());
   if (!found.ok) return found.response;
+  const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
   const key = input.value.key;
   const mine = claimOf(found.share, key === null ? null : await tokenHash(key));
   return jsonResponse(200, { share: publicView(found.share), you: mine?.id ?? null });
@@ -72,10 +76,10 @@ function claimed(share: Share, claimId: string, key?: string): Response {
  * refuses, 403 `turnstile`. The IP's new claims are counted before Cloudflare is asked, so that
  * nobody can make the proxy ask more than [POLICY.newClaimsPerHour] times an hour (429 past it).
  */
-async function newClaimRefusal(request: Request, env: Env, turnstile: string | null): Promise<Response | null> {
+async function newClaimRefusal(request: Request, env: Env, address: string, turnstile: string | null): Promise<Response | null> {
   if (!turnstileReady(env)) return errorResponse(503, "not_configured");
   if (turnstile === null) return errorResponse(403, "turnstile");
-  const refused = await addressRefusal(request, env, "claim_new", POLICY.newClaimsPerHour);
+  const refused = await hourlyRefusal(env.DB, address, "claim_new", POLICY.newClaimsPerHour);
   if (refused !== null) return refused;
   return (await turnstilePassed(env, turnstile, new URL(request.url).hostname)) ? null : errorResponse(403, "turnstile");
 }
@@ -89,24 +93,30 @@ async function newClaimRefusal(request: Request, env: Env, turnstile: string | n
  * key the browser keeps from then on, of which only the hash is stored. `itemIds` must be items
  * of the bill (400), a link holds [POLICY.maxClaims] claims (409 `full`), and takes them only while
  * open (409 `locked`). A claim lands only while all of that still holds, in the same statement, so
- * one written before a lock is in the lock's answer and one after it is refused. Every claim
- * counts against the IP's [POLICY.claimWritesPerHour].
+ * one written before a lock is in the lock's answer and one after it is refused. Every claim on a
+ * link that works counts against the IP's [POLICY.claimWritesPerHour].
  */
 export async function claimRoute(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const input = await inputOf(request, POLICY.maxClaimBodyBytes, claimingOf);
   if (!input.ok) return input.response;
   const wanted = input.value;
-  const refused = await addressRefusal(request, env, "claim_write", POLICY.claimWritesPerHour);
-  if (refused !== null) return refused;
+  const address = await addressOf(request, env);
+  if (!address.ok) return address.response;
   const db = env.DB;
   const keyHash = wanted.key === null ? null : await tokenHash(wanted.key);
   const itemIds = JSON.stringify(wanted.itemIds);
+  let counted = false;
   // A Turnstile token is good for one check: once it passed, a claim that has to be decided again does not ask again.
   let passed = false;
-  for (let attempt = 1; attempt <= SHARE_WRITE_ATTEMPTS; attempt++) {
+  for (let round = 1; round <= SHARE_WRITE_ATTEMPTS; round++) {
     const now = Date.now();
     const found = await linkedShare(db, wanted.token, now);
     if (!found.ok) return found.response;
+    if (!counted) {
+      const refused = await hourlyRefusal(db, address.name, "claim_write", POLICY.claimWritesPerHour);
+      if (refused !== null) return refused;
+      counted = true;
+    }
     const share = found.share;
     if (share.row.status !== "open") return errorResponse(409, "locked");
     const items = new Set(billOf(share.row).items.map((item) => item.id));
@@ -128,7 +138,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
     }
     if (share.claims.length >= POLICY.maxClaims) return errorResponse(409, "full");
     if (!passed) {
-      const notNow = await newClaimRefusal(request, env, wanted.turnstile);
+      const notNow = await newClaimRefusal(request, env, address.name, wanted.turnstile);
       if (notNow !== null) return notNow;
       passed = true;
     }
@@ -167,10 +177,12 @@ export async function liveShareRoute(request: Request, env: Env): Promise<Respon
     .filter((protocol) => protocol !== "");
   const others = offered.filter((protocol) => protocol !== LIVE_PROTOCOL);
   if (others.length !== 1 || offered.length !== 2) return errorResponse(400, "input");
-  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
-  if (refused !== null) return refused;
+  const address = await addressOf(request, env);
+  if (!address.ok) return address.response;
   const found = await linkedShare(env.DB, tokenOf(others[0]), Date.now());
   if (!found.ok) return found.response;
+  const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
   // The object gets nothing of the request, the token least of all: only the upgrade.
   return shareRoom(env, found.share.row.id).fetch(new Request("https://share-room/connect", { headers: { upgrade: "websocket" } }));
 }

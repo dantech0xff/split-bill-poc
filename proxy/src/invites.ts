@@ -5,7 +5,7 @@ import { idOf, inputOf, textOf, uuidOf } from "./input";
 import { bodyTokenOf, linkUrl, randomToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
-import { addressRefusal, admitHourly } from "./rate-limit";
+import { addressOf, admitHourly, hourlyRefusal } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
 /**
@@ -84,15 +84,17 @@ export const openInviteRoute = signedIn(async ({ request, env, account }) => {
 /**
  * `POST /v1/invites/preview` with `{"token"}`: the name and currency of the group an invite leads
  * to, for the invite's web page, which needs no session; nothing of its members. 404 and 410 as
- * for `open`; counts as a read of the IP.
+ * for `open`; an invite that works counts as a read of the IP.
  */
 export async function previewInviteRoute(request: Request, env: Env): Promise<Response> {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
   if (!input.ok) return input.response;
-  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
-  if (refused !== null) return refused;
+  const address = await addressOf(request, env);
+  if (!address.ok) return address.response;
   const invited = await invitedGroup(env.DB, input.value.token);
   if (!invited.ok) return invited.response;
+  const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
   const group = await env.DB.prepare("SELECT name, currency_code, currency_digits FROM groups WHERE id = ?1")
     .bind(invited.groupId)
     .first<{ name: string; currency_code: string; currency_digits: number }>();

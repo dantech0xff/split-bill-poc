@@ -125,11 +125,14 @@ export const POLICY = {
   /**
    * What one hashed IP may do in an hour without a session: new claims, which also need Turnstile;
    * claim writes, new or not; and reads of bill links, of payment request links and of invites
-   * for the web pages, live connections included. A whole table can claim from one restaurant
-   * Wi-Fi, or from behind one carrier's address: as many new claims as a link holds.
+   * for the web pages, live connections included. Only a token that leads to a link, a request or
+   * an invite that works is counted. A whole table can claim from one restaurant Wi-Fi, or from
+   * behind one carrier's address: as many new claims as a link holds, and about ten taps for each.
+   * Turnstile, the owner's removal of a claim, locking and revoking are what stop one address from
+   * filling a link.
    */
   newClaimsPerHour: 30,
-  claimWritesPerHour: 120,
+  claimWritesPerHour: 300,
   webReadsPerHour: 600,
 } as const;
 

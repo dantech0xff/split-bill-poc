@@ -11,11 +11,12 @@ import { errorResponse } from "./respond";
 export type HourlyKind = "invite" | "request" | "group_write" | "share" | "share_write" | "claim_new" | "claim_write" | "web_read";
 
 /**
- * Counts one more [kind] made by [name] in a fixed window of an hour, and says whether it is
- * within [limit]. [name] is an account, or what [addressName] makes of an IP. The window starts
- * with the first one counted and starts over an hour later. A refused attempt is counted as well,
- * which does not make the window last longer. One statement reads and counts, so requests that
- * come together cannot both take the last place.
+ * Counts one more [kind] made by [name] in a fixed window of an hour while that stays within
+ * [limit], and says whether it did. [name] is an account, or what [addressOf] makes of an IP. The
+ * window starts with the first one counted and starts over an hour later. One statement reads and
+ * counts, so requests that come together cannot both take the last place. A refused attempt writes
+ * nothing: once the window is full, the statement leaves its row as it is until the hour is over,
+ * so that requests past a limit cost no writes.
  */
 export async function admitHourly(
   db: D1Database,
@@ -24,39 +25,46 @@ export async function admitHourly(
   limit: number,
   now: number,
 ): Promise<{ ok: true } | { ok: false; retryAfter: number }> {
-  const window = await db
+  const counted = await db
     .prepare(
       `INSERT INTO rate_windows (account, kind, started_at, used) VALUES (?1, ?2, ?3, 1)
        ON CONFLICT (account, kind) DO UPDATE SET
          started_at = CASE WHEN ?3 - started_at >= ?4 THEN ?3 ELSE started_at END,
          used = CASE WHEN ?3 - started_at >= ?4 THEN 1 ELSE used + 1 END
-       RETURNING started_at, used`,
+       WHERE ?3 - rate_windows.started_at >= ?4 OR rate_windows.used < ?5
+       RETURNING used`,
     )
-    .bind(name, kind, now, POLICY.hourMs)
-    .first<{ started_at: number; used: number }>();
-  if (window === null) throw new Error("The hourly window was not counted");
-  if (window.used <= limit) return { ok: true };
-  return { ok: false, retryAfter: Math.max(1, Math.ceil((window.started_at + POLICY.hourMs - now) / 1000)) };
+    .bind(name, kind, now, POLICY.hourMs, limit)
+    .first<{ used: number }>();
+  if (counted !== null) return { ok: true };
+  // The window is full and was left as it is; when it started says how long until it starts over.
+  const full = await db
+    .prepare("SELECT started_at FROM rate_windows WHERE account = ?1 AND kind = ?2")
+    .bind(name, kind)
+    .first<{ started_at: number }>();
+  const startedAt = full?.started_at ?? now;
+  return { ok: false, retryAfter: Math.max(1, Math.ceil((startedAt + POLICY.hourMs - now) / 1000)) };
 }
 
 /**
- * The name an IP counts under: `ip:` and a salted hash of it, as for the IP limits of bill reads,
- * so that the address itself is never stored. An IPv6 address counts by its /64. Null for a
- * request that reached the edge without an address.
+ * The name the IP of [request] counts under: `ip:` and a salted hash of it, as for the IP limits
+ * of bill reads, so that the address itself is never stored. An IPv6 address counts by its /64. A
+ * request that reached the edge without an address gets the answer 400 `input` instead. Naming
+ * an address writes nothing; [hourlyRefusal] counts under the name.
  */
-export async function addressName(request: Request, env: Env): Promise<string | null> {
+export async function addressOf(request: Request, env: Env): Promise<{ ok: true; name: string } | { ok: false; response: Response }> {
   const ip = clientIp(request);
-  return ip.ok ? `ip:${await hashed(ipKey(ip.ip), env.HASH_SALT)}` : null;
+  if (!ip.ok) return { ok: false, response: errorResponse(400, "input") };
+  return { ok: true, name: `ip:${await hashed(ipKey(ip.ip), env.HASH_SALT)}` };
 }
 
 /**
- * Counts one more [kind] from the IP [request] came from against [limit] an hour, for the routes
- * the web pages call without a session. The answer to refuse it with: 429 `rate_limited` past the
- * limit, or 400 `input` for a request that carries no address; null when it may go on.
+ * Counts one more [kind] of [name] against [limit] an hour, as [admitHourly] does: the answer 429
+ * `rate_limited` with `Retry-After` past the limit, or null when it may go on. The routes of the web
+ * pages call it only once a token led to a link, a request or an invite that works, so that a token
+ * that leads nowhere is answered without a write.
  */
-export async function addressRefusal(request: Request, env: Env, kind: HourlyKind, limit: number): Promise<Response | null> {
-  const name = await addressName(request, env);
-  if (name === null) return errorResponse(400, "input");
-  const gate = await admitHourly(env.DB, name, kind, limit, Date.now());
+export async function hourlyRefusal(db: D1Database, name: string, kind: HourlyKind, limit: number): Promise<Response | null> {
+  const gate = await admitHourly(db, name, kind, limit, Date.now());
   return gate.ok ? null : errorResponse(429, "rate_limited", { retryAfter: gate.retryAfter });
 }

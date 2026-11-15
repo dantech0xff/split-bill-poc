@@ -5,8 +5,8 @@ import { hashed, ipKey } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import type { ShareView } from "../src/share-state";
 import { FAILING_SECRET, fakeTurnstile, PASSING_SECRET } from "./fake-turnstile";
-import { billRequest, model, ANSWER, proxyRequest, send } from "./requests";
-import { billProjection, changeClaim, type Claimed, fromPage, newClaim, openShare, payPal, publish } from "./share-fixtures";
+import { billRequest, ipName, model, ANSWER, proxyRequest, send } from "./requests";
+import { billProjection, changeClaim, type Claimed, fromPage, newClaim, openShare, payPal, publish, windowOf } from "./share-fixtures";
 import { type Answer, api, invite, linkToken, newGroup, person, rows, sha256, VND } from "./shared";
 
 type Viewed = { share: ShareView };
@@ -311,7 +311,8 @@ describe("the limits of one IP", () => {
     expect((await newClaim(turnstile, next.token, "Another IP", ["i1"], "203.0.113.21")).status).toBe(200);
   });
 
-  it("are 120 claim writes an hour, new or not", async () => {
+  it("are 300 claim writes an hour, new or not, about ten for each claim a link holds", async () => {
+    expect(POLICY.claimWritesPerHour).toBe(10 * POLICY.maxClaims);
     const link = await publish(await person());
     const ip = "203.0.113.30";
     const made = await newClaim(fakeTurnstile(), link.token, "Minh", ["i1"], ip);
@@ -362,6 +363,105 @@ describe("the limits of one IP", () => {
     }
     expect(live.status).toBe(429);
     expect((await openShare(link.token, undefined, "203.0.113.41")).status).toBe(200);
+  });
+
+  it("write nothing once they are reached: a refused request leaves its window as it was", async () => {
+    const owner = await person();
+    const link = await publish(owner);
+    const ip = "203.0.113.70";
+    const made = await newClaim(fakeTurnstile(), link.token, "Minh", ["i1"], ip);
+    expect(made.status).toBe(200);
+    for (const [kind, limit] of [
+      ["web_read", POLICY.webReadsPerHour],
+      ["claim_write", POLICY.claimWritesPerHour],
+    ] as const) {
+      await openShare(link.token, undefined, ip);
+      await useUp(ip, kind, limit);
+    }
+    const before = { reads: await windowOf(ip, "web_read"), writes: await windowOf(ip, "claim_write"), news: await windowOf(ip, "claim_new") };
+
+    const refused = [
+      await openShare(link.token, made.body.key, ip),
+      await send(new Request("https://proxy.test/v1/shares/live", { headers: { upgrade: "websocket", "sec-websocket-protocol": `splitvibe.v1, ${link.token}`, "CF-Connecting-IP": ip } })),
+      await changeClaim(link.token, made.body.key ?? "", "Minh", ["i2"], ip),
+      await newClaim(fakeTurnstile(), link.token, "Hoa", ["i2"], ip),
+    ];
+
+    expect(refused.map((answer) => answer.status)).toEqual([429, 429, 429, 429]);
+    expect({ reads: await windowOf(ip, "web_read"), writes: await windowOf(ip, "claim_write"), news: await windowOf(ip, "claim_new") }).toEqual(before);
+    expect(before.reads?.used).toBe(POLICY.webReadsPerHour);
+    expect(before.news?.used).toBe(1);
+  });
+
+  it("write nothing for new claims past their limit, and do not ask Cloudflare", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    const ip = "203.0.113.71";
+    expect((await newClaim(turnstile, link.token, "Minh", ["i1"], ip)).status).toBe(200);
+    await useUp(ip, "claim_new", POLICY.newClaimsPerHour);
+    const before = await windowOf(ip, "claim_new");
+
+    const refused = await newClaim(turnstile, link.token, "Hoa", ["i2"], ip);
+
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(3_500);
+    expect(await windowOf(ip, "claim_new")).toEqual(before);
+    expect(turnstile.checks()).toBe(1);
+  });
+
+  it("count nothing, and write nothing, for a token that leads to no link, request or invite that works", async () => {
+    const owner = await person();
+    const revoked = await publish(owner);
+    const expired = await publish(owner);
+    await api(owner, "DELETE", `/v1/shares/${revoked.id}`);
+    await env.DB.prepare("UPDATE shares SET expires_at = ?2 WHERE id = ?1").bind(expired.id, Date.now() - 1).run();
+    const group = await newGroup(owner, "Flat 4B", VND);
+    const revokedInvite = await invite(group);
+    await api(owner, "DELETE", `/v1/groups/${group.id}/invites`);
+    const request = await api<{ request: { id: string }; url: string }>(owner, "POST", "/v1/requests", {
+      id: crypto.randomUUID(),
+      amountMinor: 50_000,
+      currency: VND,
+      payerName: "Minh",
+      creditorName: "Lan",
+      method: {},
+    });
+    await api(owner, "DELETE", `/v1/requests/${request.body.request.id}`);
+    const ip = "203.0.113.72";
+    const turnstile = fakeTurnstile();
+    const live = (token: string) =>
+      send(new Request("https://proxy.test/v1/shares/live", { headers: { upgrade: "websocket", "sec-websocket-protocol": `splitvibe.v1, ${token}`, "CF-Connecting-IP": ip } }));
+    const unknown = "AAAAAAAAAAAAAAAAAAAAAA";
+
+    const answers = [
+      await openShare(unknown, undefined, ip),
+      await openShare("not-a-token", undefined, ip),
+      await newClaim(turnstile, unknown, "Minh", ["i1"], ip),
+      await live(unknown),
+      await fromPage("/v1/request-links/view", { token: unknown }, ip),
+      await fromPage("/v1/invites/preview", { token: unknown }, ip),
+      await openShare(revoked.token, undefined, ip),
+      await openShare(expired.token, undefined, ip),
+      await newClaim(turnstile, expired.token, "Minh", ["i1"], ip),
+      await live(revoked.token),
+      await fromPage("/v1/request-links/view", { token: linkToken(request.body.url) }, ip),
+      await fromPage("/v1/invites/preview", { token: revokedInvite }, ip),
+    ];
+
+    expect(answers.map((answer) => answer.status)).toEqual([404, 404, 404, 404, 404, 404, 410, 410, 410, 410, 410, 410]);
+    expect(await rows("SELECT kind FROM rate_windows WHERE account = ?1", await ipName(ip))).toEqual([]);
+    expect(turnstile.checks()).toBe(0);
+  });
+
+  it("count a read only once its token led to a link that works", async () => {
+    const link = await publish(await person());
+    const ip = "203.0.113.73";
+
+    await openShare("AAAAAAAAAAAAAAAAAAAAAA", undefined, ip);
+    await openShare(link.token, undefined, ip);
+    await openShare(link.token, undefined, ip);
+
+    expect((await windowOf(ip, "web_read"))?.used).toBe(2);
   });
 });
 

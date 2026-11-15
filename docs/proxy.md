@@ -580,10 +580,17 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
   `not_configured`, 403 for a missing token, 429, then Cloudflare's verdict. So Cloudflare is
   asked only about claims that can land.
 - Limits per hashed IP: 30 new claims an hour, as many as a link holds, so a whole table can claim
-  from one Wi-Fi; they are counted before Cloudflare is asked. Also 120 claim
-  writes an hour, new or not; 600 reads an hour over `open`, `live`, `/v1/request-links/view` and
-  `/v1/invites/preview`. Past any of them, 429 `rate_limited` with `Retry-After`. A request that
-  reached Cloudflare without an address is 400.
+  from one Wi-Fi; they are counted before Cloudflare is asked. Also 300 claim writes an hour, new or
+  not, about ten for each claim a link holds; 600 reads an hour over `open`, `live`,
+  `/v1/request-links/view` and `/v1/invites/preview`. Past any of them, 429 `rate_limited` with
+  `Retry-After`. A request that reached Cloudflare without an address is 400.
+- A request is counted only once its token led to a link, a request or an invite that works: a
+  token that leads nowhere is 404, and one whose link, request or invite no longer works 410,
+  neither counted. A request past a limit is refused without being counted. So neither writes
+  anything to D1.
+- One address may make as many new claims as a link holds, so these limits alone do not keep one
+  address from filling a link. What does is Turnstile, which every new claim passes, and the owner,
+  who can remove a claim, lock the link or revoke it.
 - The Turnstile token and the key open nothing else: every other route ignores them.
 - A claim's body is at most 32 KB, and that of `open` 16 KB.
 
@@ -612,8 +619,9 @@ The live connection:
 | `POST /v1/request-links/view` `{"token"}` | `{"request": {"creditorName","payerName","amountMinor","currency","title","status","payment","createdAt"}}` |
 | `POST /v1/invites/preview` `{"token"}` | `{"group": {"name","currency"}}` |
 
-- Neither needs a session; each counts as a read of the IP. A body without a `token` text is 400,
-  an unknown token 404; a deleted request, or an expired or revoked invite, is 410.
+- Neither needs a session. Each counts as a read of the IP, once its token led to a request or an
+  invite that works. A body without a `token` text is 400, an unknown token 404; a deleted request,
+  or an expired or revoked invite, is 410.
 - `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
   app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
   null. RequestView does not carry it.
