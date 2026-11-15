@@ -27,7 +27,7 @@
     "MIN_APP_VERSION": "1",
     "GOOGLE_CLIENT_ID": "",
     "ANDROID_CERT_SHA256": "",
-    "TURNSTILE_SITE_KEY": "",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAGB-qh7Zte4I2dnY",
     "ABUSE_EMAIL": ""
   },
   // The exchange rates are fetched every day at 16:30 UTC, once the European Central Bank has
