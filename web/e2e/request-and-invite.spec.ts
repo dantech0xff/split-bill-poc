@@ -1,0 +1,93 @@
+import { devices, expect, test } from "@playwright/test";
+import { Account, expectPageHeaders, watchForCspViolations } from "./local-proxy";
+
+const ORIGIN = "http://127.0.0.1:8797";
+const HOST = "127.0.0.1:8797";
+const PLAY = "https://play.google.com/store/apps/details?id=com.dantech.splitvibe";
+const FALLBACK = `S.browser_fallback_url=${encodeURIComponent(PLAY)};end`;
+
+test("a payment request shows who asks whom for what, how to pay, and opens in the app", async ({ page, request, browser }) => {
+  const lan = new Account(request, "e2e-creditor");
+  const asked = await lan.makeRequest({
+    amountMinor: 150000,
+    currency: { code: "VND", fractionDigits: 0 },
+    payerName: "Minh",
+    creditorName: "Lan",
+    title: "Hot pot",
+    method: {},
+    payment: {
+      link: "https://paypal.me/lan/150000VND",
+      qrPayload: "https://paypal.me/lan/150000VND",
+      details: "PayPal: paypal.me/lan\nAmount: ₫150,000",
+      amountFilledIn: true,
+    },
+  });
+  const violations = await watchForCspViolations(page, ORIGIN);
+  const answer = await page.goto(`/r/#${asked.token}`);
+  expectPageHeaders(answer?.headers() ?? {}, HOST);
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lan asks Minh for");
+  await expect(page.locator(".hero")).toHaveText(/₫150,000\s*For Hot pot\s*Not paid yet/);
+  const pay = page.getByRole("link", { name: "Pay on paypal.me" });
+  await expect(pay).toHaveAttribute("href", "https://paypal.me/lan/150000VND");
+  await expect(pay).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(page.getByRole("img", { name: "QR code to pay ₫150,000" })).toBeVisible();
+  await expect(page.getByText("PayPal: paypal.me/lan")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy the details" })).toBeVisible();
+  await expect(page.getByText("The amount, ₫150,000, is filled in for you.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open in Split Vibe" })).toHaveAttribute(
+    "href",
+    `intent://${HOST}/r/#${asked.token}#Intent;scheme=https;package=com.dantech.splitvibe;${FALLBACK}`,
+  );
+  await expect(page.getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", /subject=Report%20abuse%3A%20Split%20Vibe%20payment%20request%20link$/);
+
+  // Away from Android, the button goes to Google Play, without the token.
+  const iphone = await browser.newContext({ ...devices["iPhone 15"], baseURL: ORIGIN });
+  const elsewhere = await iphone.newPage();
+  await elsewhere.goto(`/r/#${asked.token}`);
+  await expect(elsewhere.getByRole("link", { name: "Get Split Vibe on Google Play" })).toHaveAttribute("href", PLAY);
+  await iphone.close();
+
+  // Once the creditor withdraws it, the link no longer works.
+  await lan.deleteRequest(asked.id);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link no longer works");
+  expect(violations).toEqual([]);
+});
+
+test("a group invite shows the group and how to get the app to join", async ({ page, request }) => {
+  const lan = new Account(request, "e2e-group-owner");
+  const group = await lan.makeGroup("Chiang Mai trip", { code: "THB", fractionDigits: 2 });
+  const token = await lan.makeInvite(group);
+  const violations = await watchForCspViolations(page, ORIGIN);
+  const answer = await page.goto(`/g/#${token}`);
+  expectPageHeaders(answer?.headers() ?? {}, HOST);
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Chiang Mai trip");
+  await expect(page.getByText("Balances in THB")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "How to join" })).toBeVisible();
+  await expect(page.getByRole("listitem").first()).toHaveText("Get Split Vibe from Google Play on your Android phone.");
+  await expect(page.getByRole("link", { name: "Open in Split Vibe" })).toHaveAttribute(
+    "href",
+    `intent://${HOST}/g/#${token}#Intent;scheme=https;package=com.dantech.splitvibe;${FALLBACK}`,
+  );
+
+  // Once the owner turns invites off, the link no longer works.
+  await lan.revokeInvites(group);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link no longer works");
+  await expect(page.getByText("Ask the group for a new one.")).toBeVisible();
+  expect(violations).toEqual([]);
+});
+
+test("the page's scripts and styles are served from /assets/ to be cached for good", async ({ page }) => {
+  const assets: Array<{ url: string; cache: string | undefined }> = [];
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname.startsWith("/assets/")) assets.push({ url: response.url(), cache: response.headers()["cache-control"] });
+  });
+  await page.goto("/g/#AAAAAAAAAAAAAAAAAAAAAA");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link does not exist");
+  const paths = assets.map((asset) => new URL(asset.url).pathname).sort();
+  expect(paths).toEqual([expect.stringMatching(/^\/assets\/.+\.css$/), expect.stringMatching(/^\/assets\/.+\.js$/)]);
+  for (const asset of assets) expect(asset.cache).toBe("public, max-age=31536000, immutable");
+});

@@ -34,3 +34,28 @@ npm run size      # gzipped size of the initial download, against its 150 KB bud
 
 `npm run build` writes `dist/index.html` and hashed scripts and styles under `dist/assets/`, which
 the proxy's `npm run build:web` embeds into the Worker. Nothing else is served.
+
+## End-to-end tests
+
+`npm run e2e` runs Playwright in a phone viewport against `wrangler dev`, which it starts from
+`proxy/` on port 8797 (devtools on 9339) and stops at the end. Before that it builds the web app,
+embeds it with the proxy's `npm run build:web`, and gives a fresh local D1 database under
+`web/.e2e/` the proxy's migrations: every local request counts as one address, so the hourly
+limits of an earlier run would otherwise carry over. Turnstile runs for real with Cloudflare's
+always-pass test keys, so the browser and the Worker both need to reach
+`challenges.cloudflare.com`; behind an HTTPS proxy, the browser uses `HTTPS_PROXY`.
+
+It needs `proxy/.dev.vars` (git ignores it), with `HASH_SALT` and `SESSION_SIGNING_KEY` as
+docs/proxy.md describes them, and these local values:
+
+```properties
+GOOGLE_CLIENT_ID=local-e2e.apps.googleusercontent.com
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+ABUSE_EMAIL=abuse@example.com
+```
+
+The tests sign the owner in with a session they make from the same `HASH_SALT` and
+`SESSION_SIGNING_KEY`, as the proxy would. They use the Chromium at `/opt/pw-browsers/chromium`
+when there is one, or the one `npx playwright install chromium` puts in place; set
+`PW_CHROMIUM_PATH` to use another.
