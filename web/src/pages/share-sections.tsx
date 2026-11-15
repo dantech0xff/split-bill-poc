@@ -1,0 +1,294 @@
+import type { RefObject } from "preact";
+import { type BillItem, type BillProjection, type Currency, OWNER_PARTICIPANT_ID, type PublicShare } from "../contract";
+import { formatBillDate } from "../dates";
+import { formatMoney } from "../money";
+import { type ClaimProblem, MAX_NAME_LENGTH, type ShareState, isNameProblem } from "../share-controller";
+import { claimersOf, listOf, ownerNameOf, participantLabel, statusSentence } from "../share-state";
+import { CheckIcon, ExpandIcon } from "../ui/icons";
+import { PaymentBlock } from "../ui/payment-block";
+import { waitText } from "../ui/problem-view";
+
+export interface ShareActions {
+  setName(name: string): void;
+  commitName(): void;
+  toggle(itemId: string): void;
+  retry(): void;
+  dismissBillUpdate(): void;
+}
+
+export function BillHeader({ bill }: { bill: BillProjection }) {
+  const items = bill.items.length === 1 ? "1 item" : `${bill.items.length} items`;
+  const facts = bill.date === null ? items : `${formatBillDate(bill.date)} · ${items}`;
+  return (
+    <section class="hero" aria-labelledby="bill-title">
+      <h1 id="bill-title" class="type-title-large hero__title">
+        {bill.merchant ?? "Shared bill"}
+      </h1>
+      <p class="type-body-medium">{facts}</p>
+      <p class="type-title-small hero__label">Bill total</p>
+      <p class="type-display-small hero__amount">{formatMoney(bill.totalMinor, bill.currency)}</p>
+    </section>
+  );
+}
+
+export function StatusBanner({ share }: { share: PublicShare }) {
+  if (share.status === "open") return null;
+  return <p class="banner type-body-large">{statusSentence(share.status, share.bill)}</p>;
+}
+
+export function claimProblemText(problem: ClaimProblem, owner: string | null): string {
+  const payer = owner ?? "the payer";
+  switch (problem.kind) {
+    case "name_missing":
+      return "Type your name first, then tap what you had.";
+    case "name_too_long":
+      return `Use a name of at most ${MAX_NAME_LENGTH} characters.`;
+    case "name_invalid":
+      return "Your name has characters that cannot be used. Type it again.";
+    case "human_check_failed":
+      return "The check that you are a person could not finish. Tap your item again to retry.";
+    case "turnstile":
+      return "The check that you are a person did not go through. Tap your item again to retry.";
+    case "full":
+      return `This bill already has 30 people picking items. Ask ${payer} to add you.`;
+    case "locked":
+      return `Picks are closed: ${payer} is settling the split.`;
+    case "rate_limited":
+      return `Too many picks from this network. ${waitText(problem.retryAfterSeconds)}`;
+    case "not_configured":
+      return "Picking items does not work right now. You can still see the bill.";
+    case "input":
+      return "That pick could not be saved. Check your name, then try again.";
+    case "network":
+      return "Your pick was not saved: check your connection, then try again.";
+    case "unexpected":
+      return "Your pick was not saved. Try again in a moment.";
+  }
+}
+
+interface ClaimFormProps {
+  state: ShareState;
+  actions: ShareActions;
+  humanCheckSlot: RefObject<HTMLDivElement | null> | null;
+}
+
+export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
+  const owner = state.share === null ? null : ownerNameOf(state.share.bill);
+  const problem = state.claimProblem;
+  return (
+    <section class="section" aria-labelledby="claim-title">
+      <h2 id="claim-title" class="type-title-medium">
+        Who are you?
+      </h2>
+      <div class="text-field">
+        <label for="claim-name" class="type-body-small text-field__label">
+          Your name
+        </label>
+        <input
+          id="claim-name"
+          class="text-field__input type-body-large"
+          type="text"
+          value={state.name}
+          maxLength={MAX_NAME_LENGTH}
+          autocomplete="nickname"
+          autocapitalize="words"
+          spellcheck={false}
+          enterKeyHint="done"
+          aria-invalid={isNameProblem(problem) ? "true" : undefined}
+          aria-describedby={problem === null ? "claim-help" : "claim-help claim-problem"}
+          onInput={(event) => actions.setName(event.currentTarget.value)}
+          onChange={() => actions.commitName()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+      </div>
+      <p id="claim-help" class="type-body-medium supporting">
+        Type your name, then tap what you had. Everyone with this link sees your picks.
+      </p>
+      {!state.persistent && (
+        <p class="notice type-body-medium">Your picks are kept only while this page stays open. Keep it open until the bill is settled.</p>
+      )}
+      {state.removedByOwner && (
+        <p class="notice type-body-medium">{`${owner ?? "The payer"} took your picks off the bill. Tap what you had to pick again.`}</p>
+      )}
+      <div class="human-check" ref={humanCheckSlot} />
+      <p class="type-body-medium supporting claim-progress">
+        {state.checking ? "Checking that you are a person…" : state.saving ? "Saving your picks…" : ""}
+      </p>
+      {problem !== null && (
+        <p id="claim-problem" class="error-text type-body-medium" role="alert">
+          {claimProblemText(problem, owner)}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function quantityPrefix(quantity: string | null): string {
+  return quantity === null || quantity === "1" ? "" : `${quantity} × `;
+}
+
+interface ItemContentProps {
+  item: BillItem;
+  currency: Currency;
+  mine: boolean;
+  others: string[];
+}
+
+function ItemContent({ item, currency, mine, others }: ItemContentProps) {
+  const spoken = mine ? ["you", ...others] : others;
+  return (
+    <>
+      <span class="item__name type-body-large">
+        {quantityPrefix(item.quantity)}
+        {item.name}
+      </span>
+      <span class="item__amount type-title-medium">{formatMoney(item.amountMinor, currency)}</span>
+      {spoken.length > 0 && (
+        <span class="item__claimers">
+          <span class="visually-hidden">{`, picked by ${listOf(spoken)}`}</span>
+          <span class="chips" aria-hidden="true">
+            {mine && <span class="chip chip--you type-label-medium">You</span>}
+            {others.map((name, index) => (
+              <span key={index} class="chip type-label-medium">
+                {name}
+              </span>
+            ))}
+          </span>
+        </span>
+      )}
+    </>
+  );
+}
+
+interface ItemsSectionProps {
+  share: PublicShare;
+  picks: ReadonlySet<string>;
+  you: string | null;
+  onToggle: (itemId: string) => void;
+}
+
+export function ItemsSection({ share, picks, you, onToggle }: ItemsSectionProps) {
+  const open = share.status === "open";
+  const { currency } = share.bill;
+  return (
+    <section class="section" aria-labelledby="items-title">
+      <h2 id="items-title" class="type-title-medium">
+        Items
+      </h2>
+      {open && <p class="type-body-medium supporting">Tap what you had. Several people can share an item.</p>}
+      <ul class="group">
+        {share.bill.items.map((item) => {
+          const mine = picks.has(item.id);
+          const others = claimersOf(share, item.id)
+            .filter((claim) => claim.id !== you)
+            .map((claim) => claim.name);
+          const content = <ItemContent item={item} currency={currency} mine={mine} others={others} />;
+          return (
+            <li key={item.id} class="group__item">
+              {open ? (
+                <button type="button" class="item item--toggle" aria-pressed={mine ? "true" : "false"} onClick={() => onToggle(item.id)}>
+                  <span class="item__check" aria-hidden="true">
+                    {mine && <CheckIcon />}
+                  </span>
+                  {content}
+                </button>
+              ) : (
+                <div class="item">{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+export function TotalsSection({ bill }: { bill: BillProjection }) {
+  return (
+    <section class="section" aria-labelledby="totals-title">
+      <h2 id="totals-title" class="visually-hidden">
+        Charges and total
+      </h2>
+      <ul class="group">
+        {bill.charges.map((charge) => (
+          <li key={charge.id} class="group__item row">
+            <span class="type-body-large">{charge.label}</span>
+            <span class="type-body-large">{formatMoney(charge.amountMinor, bill.currency)}</span>
+          </li>
+        ))}
+        <li class="group__item row row--total">
+          <span class="type-title-medium">Total</span>
+          <span class="type-title-medium">{formatMoney(bill.totalMinor, bill.currency)}</span>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+export function AmountsSection({ share }: { share: PublicShare }) {
+  const { bill, amounts } = share;
+  if (amounts === null) return null;
+  const owner = ownerNameOf(bill);
+  const rows = bill.participants.flatMap((participant) => {
+    const amount = amounts[participant.id];
+    return amount === undefined ? [] : [{ participant, amount }];
+  });
+  const payable = rows.filter((row) => row.amount.payment !== null).length;
+  return (
+    <section class="section" aria-labelledby="amounts-title">
+      <h2 id="amounts-title" class="type-title-medium">
+        What each person pays
+      </h2>
+      {payable > 1 && <p class="type-body-medium supporting">Tap your name to see how to pay.</p>}
+      <ul class="group">
+        {rows.map(({ participant, amount }) => {
+          const name = participantLabel(participant);
+          const money = formatMoney(amount.amountMinor, bill.currency);
+          const isOwner = participant.id === OWNER_PARTICIPANT_ID;
+          if (amount.payment !== null) {
+            return (
+              <li key={participant.id} class="group__item person">
+                <details class="person__details" open={payable === 1}>
+                  <summary class="person__row">
+                    <span class="person__name type-body-large">{name}</span>
+                    <span class="person__amount type-title-medium">{money}</span>
+                    <span class="person__expand">
+                      <ExpandIcon />
+                    </span>
+                  </summary>
+                  <PaymentBlock payment={amount.payment} amountMinor={amount.amountMinor} currency={bill.currency} />
+                </details>
+              </li>
+            );
+          }
+          const note = isOwner
+            ? "Shared this bill"
+            : amount.amountMinor === 0
+              ? "Nothing to pay"
+              : `No way to pay was added: settle it with ${owner ?? "the payer"} directly.`;
+          return (
+            <li key={participant.id} class="group__item person">
+              <div class="person__row">
+                <span class="person__name type-body-large">
+                  {name}
+                  <span class="person__note type-body-medium supporting">{note}</span>
+                </span>
+                <span class="person__amount type-title-medium">{money}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+export function LiveRegion({ announcement }: { announcement: ShareState["announcement"] }) {
+  return (
+    <div class="visually-hidden" aria-live="polite" aria-atomic="true">
+      {announcement !== null && <span key={announcement.id}>{announcement.text}</span>}
+    </div>
+  );
+}

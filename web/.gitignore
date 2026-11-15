@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Playwright's results and the local state wrangler dev keeps for the end-to-end tests.
+test-results/
+playwright-report/
+.e2e/

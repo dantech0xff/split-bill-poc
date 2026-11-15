@@ -1,0 +1,50 @@
+{
+  "share": {
+    "status": "locked",
+    "revision": 11,
+    "expiresAt": 1765782000000,
+    "bill": {
+      "merchant": "Pho 24",
+      "date": "2026-11-14",
+      "currency": { "code": "VND", "fractionDigits": 0 },
+      "items": [
+        { "id": "i1", "name": "Pho bo", "quantity": "2", "amountMinor": 130000 },
+        { "id": "i2", "name": "Spring rolls", "quantity": null, "amountMinor": 45000 },
+        { "id": "i3", "name": "Iced coffee", "quantity": "1", "amountMinor": 35000 }
+      ],
+      "charges": [{ "id": "c1", "label": "Service charge", "amountMinor": 21000 }],
+      "totalMinor": 231000,
+      "participants": [
+        { "id": "me", "name": "" },
+        { "id": "p1", "name": "Minh" },
+        { "id": "p2", "name": "An" }
+      ]
+    },
+    "claims": [
+      { "id": "c-minh", "name": "Minh", "itemIds": ["i1", "i3"] },
+      { "id": "c-an", "name": "An", "itemIds": ["i1", "i2"] }
+    ],
+    "amounts": {
+      "me": { "amountMinor": 77000, "payment": null },
+      "p1": {
+        "amountMinor": 86500,
+        "payment": {
+          "link": "https://paypal.me/lan/86500VND",
+          "qrPayload": null,
+          "details": "PayPal: paypal.me/lan\nAmount: ₫86,500",
+          "amountFilledIn": true
+        }
+      },
+      "p2": {
+        "amountMinor": 67500,
+        "payment": {
+          "link": null,
+          "qrPayload": "00020101021238540010A00000072701240006970416011025767885902080208QRIBFTTA53037045405675005802VN62070803Pho6304B1C2",
+          "details": "Bank: ACB (970416)\nAccount: 257678859\nName: LAN NGUYEN\nAmount: ₫67,500",
+          "amountFilledIn": false
+        }
+      }
+    }
+  },
+  "you": null
+}

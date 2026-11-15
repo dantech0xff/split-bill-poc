@@ -1,0 +1,17 @@
+{
+  "request": {
+    "creditorName": "Lan",
+    "payerName": "Minh",
+    "amountMinor": 150000,
+    "currency": { "code": "VND", "fractionDigits": 0 },
+    "title": "Hot pot",
+    "status": "open",
+    "payment": {
+      "link": "upi://pay?pa=lan@okbank&pn=Lan&am=1500.00&cu=INR",
+      "qrPayload": "upi://pay?pa=lan@okbank&pn=Lan&am=1500.00&cu=INR",
+      "details": "UPI: lan@okbank\nAmount: ₹1,500.00",
+      "amountFilledIn": true
+    },
+    "createdAt": 1763180000000
+  }
+}

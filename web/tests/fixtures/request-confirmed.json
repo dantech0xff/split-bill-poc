@@ -1,0 +1,17 @@
+{
+  "request": {
+    "creditorName": "Lan",
+    "payerName": "Minh",
+    "amountMinor": 150000,
+    "currency": { "code": "VND", "fractionDigits": 0 },
+    "title": "Hot pot",
+    "status": "confirmed",
+    "payment": {
+      "link": "https://paypal.me/lan/150000VND",
+      "qrPayload": null,
+      "details": "PayPal: paypal.me/lan",
+      "amountFilledIn": true
+    },
+    "createdAt": 1763180000000
+  }
+}
