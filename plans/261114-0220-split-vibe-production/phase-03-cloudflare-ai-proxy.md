@@ -163,6 +163,24 @@ Xóa:
 - [ ] Bộ đánh giá và báo cáo chọn model
 - [ ] Proxy đã triển khai và một lần gọi thật từ bản `prodRelease` thành công. Ngày 15/11/2026 proxy đã lên workers.dev của tài khoản chủ sản phẩm, có `HASH_SALT` và `SESSION_SIGNING_KEY` ngẫu nhiên, và mọi đường đã trả lời đúng. Còn chờ: chủ sản phẩm đặt `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID` sau khi tạo OAuth client, rồi một lần gọi thật từ bản `prodRelease`.
 
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 14 và 15/11/2026 trên nhánh feat/phase-03-cloudflare-ai-proxy, đã fast-forward vào main -->
+Bốn trên sáu tiêu chí đạt và có bằng chứng. Hai tiêu chí còn lại cần key Anthropic thật: một lần gọi thật từ bản `prodRelease`, và báo cáo chọn model.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Không bản build nào có key hay lớp `com.anthropic` | Đạt | Thư viện Anthropic Java, test và checksum của nó đã gỡ hết. Bước "No Anthropic code in the packages" của CI quét các tệp dex trong APK `prodRelease`, AAB và APK `devDebug` ở mọi pull request và mỗi lần push lên `main` |
+| Một lần gọi thật từ bản `prodRelease` trả về đúng hóa đơn mẫu | Chưa đạt | Proxy đã chạy trên workers.dev từ ngày 15/11/2026. Mọi đường trả lời đúng khi gọi thật; đọc hóa đơn trả 503 `not_configured` cho đến khi chủ sản phẩm đặt `ANTHROPIC_API_KEY` |
+| Bản `prodRelease` không còn đường nào đòi API key | Đạt | Tìm "API key" trong mã giao diện của app cho kết quả 0 |
+| Test của proxy theo các giao kèo ở trên | Đạt | 81 test trong `proxy/test` chạy trong runtime của Workers với model giả. Mỗi chỗ kiểm quan trọng đã được thử lại bằng cách cài lỗi vào mã, và test tương ứng đều hỏng |
+| Tắt AI trên proxy thì yêu cầu kế tiếp báo AI đang tắt, bật lại là dùng được ngay | Đạt | `GatewayBillAnalyzerTest` (AI tắt rồi bật lại) và các test `ai_off` của proxy. Nhập tay thuộc Phase 4 |
+| Báo cáo đánh giá chọn model | Chưa đạt | Cần key Anthropic thật |
+
+Hai vòng review độc lập ([proxy](../reports/code-reviewer-261114-1335-phase-03-proxy-review.md), [app](../reports/code-reviewer-261114-1450-phase-03-app-review.md)) đã được sửa hết trước khi merge. Lần gọi thật đầu tiên vào proxy đã triển khai tìm ra thêm một lỗi: khi chưa từng đặt key Anthropic thì đọc hóa đơn trả 500 thay vì 503. Lỗi này đã được sửa, có test, rồi triển khai lại.
+
+Trước khi merge, mọi bước kiểm của CI đều qua trên máy: ktlint, 150 test JVM (65 ở `:core:domain`, 2 ở `:core:designsystem`, 83 ở `:app`), Android Lint, các gói release, bundle, bản dev, test thiết bị và mô-đun baseline profile. Test thiết bị và checksum cũng qua trên GitHub (lần chạy `43611160189` và `43611160148`).
+
 ## Success Criteria
 
 - Mọi biến thể build không có key và không có lớp `com.anthropic`: quét các tệp dex trong AAB `prodRelease` và APK `devDebug`, kết quả phải là 0.
