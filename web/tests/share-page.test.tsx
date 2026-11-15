@@ -100,6 +100,13 @@ describe("the bill link's page", () => {
     expect(textOf(limited.querySelector('[role="alert"]'))).toBe("Too many picks from this network. Try again in 30 seconds.");
   });
 
+  it("takes the person to the name field when a pick needs a name", () => {
+    const page = mount(<ShareView state={stateOf(shareOpen, { claimProblem: { kind: "name_missing" } })} actions={actions()} />);
+    expect(document.activeElement).toBe(page.querySelector("#claim-name"));
+    expect(page.querySelector("#claim-name")?.getAttribute("aria-invalid")).toBe("true");
+    expect(textOf(page.querySelector('[role="alert"]'))).toBe("Type your name first, then tap what you had.");
+  });
+
   it("freezes the picks while the payer settles the split", () => {
     const page = mount(<ShareView state={stateOf(shareLocking)} actions={actions()} />);
     expect(textOf(page.querySelector(".banner"))).toBe("Picks are closed: Lan is settling the split.");

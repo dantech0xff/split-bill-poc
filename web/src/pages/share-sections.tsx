@@ -1,4 +1,5 @@
 import type { RefObject } from "preact";
+import { useEffect, useRef } from "preact/hooks";
 import { type BillItem, type BillProjection, type Currency, OWNER_PARTICIPANT_ID, type PublicShare } from "../contract";
 import { formatBillDate } from "../dates";
 import { formatMoney } from "../money";
@@ -75,6 +76,11 @@ interface ClaimFormProps {
 export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
   const owner = state.share === null ? null : ownerNameOf(state.share.bill);
   const problem = state.claimProblem;
+  const nameField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    // A pick without a usable name takes the person to the field to fix it.
+    if (isNameProblem(problem)) nameField.current?.focus();
+  }, [problem]);
   return (
     <section class="section" aria-labelledby="claim-title">
       <h2 id="claim-title" class="type-title-medium">
@@ -85,6 +91,7 @@ export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
           Your name
         </label>
         <input
+          ref={nameField}
           id="claim-name"
           class="text-field__input type-body-large"
           type="text"
