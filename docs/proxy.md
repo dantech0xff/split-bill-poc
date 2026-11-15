@@ -680,7 +680,9 @@ The live connection:
   in `web/` leaves in `web/dist`: `index.html`, and the `.js` and `.css` files of its `assets/`.
   Git ignores the module. `npm run build:web` in `proxy/` builds `web/` and writes the module; the
   proxy's typecheck, tests and `npm run dev` write it too, from `web/dist` as it is, or as a
-  placeholder page while `web/` is not built. Writing it stops on a page the Worker could not serve
+  placeholder page while `web/` is not built. With `REQUIRE_WEB=1` in its environment, or
+  `--require`, the script stops instead of writing the placeholder, as `npm run bundle` asks for a
+  deploy (see [Deploy it](#deploy-it)). Writing it stops on a page the Worker could not serve
   whole, by the checks of [`web/scripts/page-checks.mjs`](../web/scripts/page-checks.mjs), which
   `npm run build` in `web/` makes too: a script or a style that is not under `/assets/`, a
   reference with a scheme or to another origin, an inline script or style, a `style` attribute or
@@ -858,10 +860,18 @@ These steps need the owner's accounts.
    npx wrangler deploy
    ```
 
-   A deploy through the Cloudflare API instead bundles `src/index.ts` the same way, after the same
-   build, with the bindings, variables, migrations and cron of `wrangler.jsonc`. The deploy also
-   adds the `FxBook` class of Durable Objects (migration `v2`) and the `ShareRoom` class
-   (migration `v3`), and sets the daily cron in `triggers.crons` of `wrangler.jsonc`, which
+   A deploy through the Cloudflare API instead uploads the bundle that `npm run bundle` writes, with
+   the bindings, variables, migrations and cron of `wrangler.jsonc`. It builds the web app, embeds
+   it with `REQUIRE_WEB=1`, so that it stops rather than bundle the placeholder page, and has
+   Wrangler bundle `src/index.ts` as `wrangler deploy` would, into the directory it is given (or
+   `BUNDLE_DIR`), with `--dry-run`, which deploys nothing:
+
+   ```bash
+   npm run bundle -- <directory>
+   ```
+
+   The deploy also adds the `FxBook` class of Durable Objects (migration `v2`) and the `ShareRoom`
+   class (migration `v3`), and sets the daily cron in `triggers.crons` of `wrangler.jsonc`, which
    fetches the exchange rates, sends the reminders and deletes bill links that expired or were
    revoked. A new or changed cron can take up to 15 minutes to start; until it first runs, the
    first request for the rates fetches them.

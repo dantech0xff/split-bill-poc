@@ -6,6 +6,8 @@
 // It reads `web/dist`, where `npm run build` in `web/` writes `index.html` and, in `assets/`, the
 // page's hashed `.js` and `.css` files. Until `web/dist` exists, it writes a small placeholder
 // page instead, so that the proxy's typecheck, tests and `wrangler dev` work without the web app.
+// With `--require`, or `REQUIRE_WEB=1`, it stops instead, as a bundle for a deploy must hold the
+// web app: `npm run bundle` asks for that.
 //
 // The page's two meta tags that the Worker fills, `sv-turnstile-site-key` and `sv-abuse-email`,
 // are written as `<meta name="…" content="">`, and added before `</head>` when the page lacks
@@ -118,8 +120,16 @@ ${entries.join("\n")}
 `;
 }
 
+/** Whether this run must embed the web app, as for a deploy, and stop rather than write the placeholder. */
+function webRequired() {
+  return process.argv.includes("--require") || process.env.REQUIRE_WEB === "1";
+}
+
 async function main() {
   const built = existsSync(join(DIST, "index.html"));
+  if (!built && webRequired()) {
+    throw new EmbedError("web/dist was not built, and this bundle must hold the web app: run `npm ci --prefix ../web`, then `npm run build:web`.");
+  }
   const assets = built ? await assetsIn(join(DIST, "assets")) : new Map([["placeholder.css", { type: CONTENT_TYPES[".css"], body: PLACEHOLDER_STYLE }]]);
   const page = withFilledTags(built ? await readFile(join(DIST, "index.html"), "utf8") : PLACEHOLDER_PAGE);
   checkPage(page, assets);

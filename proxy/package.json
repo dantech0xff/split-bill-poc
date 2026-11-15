@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build:web": "npm --prefix ../web run build && node scripts/embed-web.mjs",
+    "bundle": "node scripts/bundle.mjs",
     "test": "node scripts/embed-web.mjs && vitest run",
     "typecheck": "node scripts/embed-web.mjs && wrangler types && tsc",
     "dev": "node scripts/embed-web.mjs && wrangler dev"
