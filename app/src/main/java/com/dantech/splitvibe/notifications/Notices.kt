@@ -57,7 +57,12 @@ object Notices {
             putExtra(EXTRA_KIND, kind)
             data["groupId"]?.let { putExtra(EXTRA_GROUP_ID, it) }
         }
-        val tap = PendingIntent.getActivity(context, kind.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val tap = PendingIntent.getActivity(
+            context,
+            kind.hashCode(),
+            open,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         val notice = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)

@@ -44,12 +44,12 @@ import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.settings.SettingsStore
-import com.dantech.splitvibe.designsystem.components.SvListRow
-import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 

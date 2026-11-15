@@ -135,8 +135,12 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
                 }
 
                 MethodKind.DETAILS -> {
-                    Field("What it is", first, { first = it }, capitalization = KeyboardCapitalization.Words, hint = "Such as Zelle or Bank transfer.")
-                    Field("Details", second, { second = it }, singleLine = false, hint = "What the payer types in, such as an email or an account.")
+                    Field("What it is", first, {
+                        first = it
+                    }, capitalization = KeyboardCapitalization.Words, hint = "Such as Zelle or Bank transfer.")
+                    Field("Details", second, {
+                        second = it
+                    }, singleLine = false, hint = "What the payer types in, such as an email or an account.")
                 }
             }
 
@@ -155,7 +159,9 @@ private fun BankPicker(bankBin: String, onPick: (String) -> Unit) {
     Field("Bank", query.ifEmpty { picked?.shortName.orEmpty() }, { query = it }, hint = picked?.let { "Code ${it.bin}" })
     val search = query.trim().lowercase(Locale.ROOT)
     if (search.isNotEmpty()) {
-        val matches = VietQrBanks.ALL.filter { it.shortName.lowercase(Locale.ROOT).contains(search) || it.bin.startsWith(search) }.take(MATCHES)
+        val matches = VietQrBanks.ALL.filter {
+            it.shortName.lowercase(Locale.ROOT).contains(search) || it.bin.startsWith(search)
+        }.take(MATCHES)
         if (matches.isEmpty()) Text("No bank goes by that name.", style = MaterialTheme.typography.bodyMedium)
         Column {
             matches.forEach { bank ->

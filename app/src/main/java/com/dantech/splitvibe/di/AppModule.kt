@@ -18,6 +18,7 @@ import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.GatewayBillAnalyzer
+import com.dantech.splitvibe.notifications.DeviceRegistrar
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.MlKitBillTextRecognizer
@@ -28,7 +29,6 @@ import com.dantech.splitvibe.ui.groups.GroupsViewModel
 import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
-import com.dantech.splitvibe.notifications.DeviceRegistrar
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
 import com.dantech.splitvibe.ui.requests.RequestsViewModel

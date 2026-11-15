@@ -98,7 +98,10 @@ class JoinGroupViewModelTest {
         assertTrue(viewModel.state.value.message!!.contains("run out"))
     }
 
-    private fun viewModel() = JoinGroupViewModel("token-7", groups, proxy.account.account, settings) { settings.value = settings.value.copy(myName = it) }
+    private fun viewModel() = JoinGroupViewModel("token-7", groups, proxy.account.account, settings) {
+        settings.value =
+            settings.value.copy(myName = it)
+    }
 
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
 }

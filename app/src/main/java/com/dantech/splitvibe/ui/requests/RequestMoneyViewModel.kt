@@ -12,7 +12,6 @@ import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
 import com.dantech.splitvibe.ui.split.PersonRequest
-import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,31 +97,29 @@ class RequestMoneyViewModel(
     /** Records that the request to [participantId] went out. */
     fun markShared(participantId: String) = shared.update { it + participantId }
 
-    private suspend fun track(saved: SavedBill, person: PersonRequest, chosen: SavedPaymentMethod, name: String, title: String?): String? = try {
-        val bill = saved.bill
-        // The same bill, person, amount and method make the same request, so sharing it again
-        // does not ask the proxy for a second one.
-        val id = UUID.nameUUIDFromBytes("${saved.id}/${person.participant.id}/${person.amountMinor}/${chosen.id}".toByteArray()).toString()
-        requests.create(
-            NewRequest(
-                id = id,
-                amountMinor = person.amountMinor,
-                currency = bill.currency,
-                payerName = person.participant.name,
-                creditorName = name,
-                title = title,
-                method = chosen.method,
-                billId = saved.id,
-            ),
-        ).url
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: IOException) {
-        notice.value = UNTRACKED
-        null
-    } catch (e: Exception) {
-        notice.value = UNTRACKED
-        null
+    private suspend fun track(saved: SavedBill, person: PersonRequest, chosen: SavedPaymentMethod, name: String, title: String?): String? {
+        // The same bill, person, amount and method make the same request, so sharing it again does
+        // not ask the proxy for a second one.
+        val key = "${saved.id}/${person.participant.id}/${person.amountMinor}/${chosen.id}"
+        val request = NewRequest(
+            id = UUID.nameUUIDFromBytes(key.toByteArray()).toString(),
+            amountMinor = person.amountMinor,
+            currency = saved.bill.currency,
+            payerName = person.participant.name,
+            creditorName = name,
+            title = title,
+            method = chosen.method,
+            billId = saved.id,
+        )
+        return try {
+            requests.create(request).url
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The message still goes, only without the link to say it was paid.
+            notice.value = UNTRACKED
+            null
+        }
     }
 
     private companion object {

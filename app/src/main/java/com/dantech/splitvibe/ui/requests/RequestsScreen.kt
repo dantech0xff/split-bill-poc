@@ -2,7 +2,6 @@ package com.dantech.splitvibe.ui.requests
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +45,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.dantech.splitvibe.data.requests.RequestStatus
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -88,7 +88,9 @@ fun RequestsScreen(requests: List<RequestView>?, signedIn: Boolean, status: Prox
         topBar = {
             TopAppBar(
                 title = { Text("Requests") },
-                navigationIcon = { IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
                 actions = { if (signedIn) SvOverflowMenu(label = "More", options = listOf(SvMenuOption("Reload", actions.onRefresh))) },
             )
         },
@@ -106,12 +108,25 @@ fun RequestsScreen(requests: List<RequestView>?, signedIn: Boolean, status: Prox
                 }
             }
             status.message?.let {
-                item { SvMessageCard(text = it, isError = true, action = "OK", onAction = actions.onDismissMessage, modifier = Modifier.padding(SvSpacing.lg)) }
+                item {
+                    SvMessageCard(
+                        text = it,
+                        isError = true,
+                        action = "OK",
+                        onAction = actions.onDismissMessage,
+                        modifier = Modifier.padding(SvSpacing.lg),
+                    )
+                }
             }
             if (status.working && requests == null) item { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
             val all = requests.orEmpty()
             if (signedIn && requests != null && all.isEmpty()) {
-                item { SvEmptyState(icon = Icons.AutoMirrored.Filled.List, text = "Requests you send after a split, and those sent to you, show here.") }
+                item {
+                    SvEmptyState(
+                        icon = Icons.AutoMirrored.Filled.List,
+                        text = "Requests you send after a split, and those sent to you, show here.",
+                    )
+                }
             }
             section("To pay", all.filter { !it.isMine }) { request, position ->
                 RequestRow(request, position) {
@@ -130,7 +145,11 @@ fun RequestsScreen(requests: List<RequestView>?, signedIn: Boolean, status: Prox
                             SvOverflowMenu(
                                 label = "More for the request to ${request.payerName}",
                                 options = buildList {
-                                    if (request.status == RequestStatus.WAITING) add(SvMenuOption("It arrived, confirm it") { actions.onConfirmPaid(request.id) })
+                                    if (request.status ==
+                                        RequestStatus.WAITING
+                                    ) {
+                                        add(SvMenuOption("It arrived, confirm it") { actions.onConfirmPaid(request.id) })
+                                    }
                                     add(SvMenuOption("Send a reminder") { actions.onRemind(request) })
                                     RequestView.REMINDER_DAYS.filter { it != request.remindEveryDays }.forEach { days ->
                                         add(SvMenuOption(reminderLabel(days)) { actions.onSetReminders(request.id, days) })
@@ -176,7 +195,11 @@ private fun RequestRow(request: RequestView, position: SvRowPosition, trailing: 
         Column(modifier = Modifier.weight(1f)) {
             Text(listOfNotNull(who, request.title).joinToString(" · "), style = MaterialTheme.typography.bodyLarge)
             Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
-            Text(statusText(request), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                statusText(request),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         trailing()
     }
@@ -185,7 +208,13 @@ private fun RequestRow(request: RequestView, position: SvRowPosition, trailing: 
 /** How a request stands, from the side of whoever looks at it. */
 internal fun statusText(request: RequestView): String = when (request.status) {
     RequestStatus.PAID -> "Paid and confirmed"
-    RequestStatus.REPORTED_PAID -> if (request.isMine) "${request.payerName} says it is paid. Confirm once it arrived." else "You said you paid. Waiting for them to confirm."
+
+    RequestStatus.REPORTED_PAID -> if (request.isMine) {
+        "${request.payerName} says it is paid. Confirm once it arrived."
+    } else {
+        "You said you paid. Waiting for them to confirm."
+    }
+
     RequestStatus.WAITING -> when {
         !request.isMine -> "Not paid yet"
         !request.debtorBound -> "Not opened in the app yet" + reminderNote(request)
@@ -193,7 +222,13 @@ internal fun statusText(request: RequestView): String = when (request.status) {
     }
 }
 
-private fun reminderNote(request: RequestView): String = if (request.remindEveryDays > 0) ". ${reminderLabel(request.remindEveryDays)}" else ""
+private fun reminderNote(request: RequestView): String = if (request.remindEveryDays >
+    0
+) {
+    ". ${reminderLabel(request.remindEveryDays)}"
+} else {
+    ""
+}
 
 private fun reminderLabel(days: Int): String = when (days) {
     0 -> "No reminders"
@@ -223,18 +258,30 @@ private fun PaySheet(request: RequestView, onReportPaid: () -> Unit, onDismiss: 
 @Composable
 fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
     val method = request.paymentMethod
-    val paying = remember(request.id, method) { method?.let { PaymentRequestBuilder.build(it, request.amountMinor, request.bill, request.title) } }
+    val paying =
+        remember(request.id, method) { method?.let { PaymentRequestBuilder.build(it, request.amountMinor, request.bill, request.title) } }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         if (method == null || paying == null) {
-            Text("This request carries no way to pay. Ask them how they would like to be paid.", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "This request carries no way to pay. Ask them how they would like to be paid.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
             return@Column
         }
         paying.qrPayload?.let { payload ->
             val code = remember(payload) { QrCodes.bitmap(payload, CODE_PX).asImageBitmap() }
             SvCard(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Image(code, contentDescription = "Payment code for ${method.title}", modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm))
+                Image(
+                    code,
+                    contentDescription = "Payment code for ${method.title}",
+                    modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm),
+                )
             }
-            Text("Scan it in your banking app.", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text(
+                "Scan it in your banking app.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
         }
         paying.link?.takeIf { it != paying.qrPayload || method is PaymentMethod.Upi }?.let { link -> OpenLinkButton(link, method) }
         DetailsCard(paying)
@@ -248,12 +295,14 @@ private fun OpenLinkButton(link: String, method: PaymentMethod) {
     var confirming by rememberSaveable { mutableStateOf(false) }
     val open = {
         try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)))
+            context.startActivity(Intent(Intent.ACTION_VIEW, link.toUri()))
         } catch (e: ActivityNotFoundException) {
             // No app takes the link; the details below still work.
         }
     }
-    OutlinedButton(onClick = { if (method is PaymentMethod.PastedLink) confirming = true else open() }, modifier = Modifier.fillMaxWidth()) {
+    OutlinedButton(onClick = {
+        if (method is PaymentMethod.PastedLink) confirming = true else open()
+    }, modifier = Modifier.fillMaxWidth()) {
         Text("Open ${method.title}")
     }
     if (confirming) {

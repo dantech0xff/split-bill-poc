@@ -104,7 +104,10 @@ class RequestMoneyViewModelTest {
 
         val prepared = viewModel.prepare(saved, request, name = "Dana")
 
-        assertTrue(prepared.text, prepared.text.endsWith("Open it in Split Vibe to say when you have paid: https://proxy.example/r/token-1"))
+        assertTrue(
+            prepared.text,
+            prepared.text.endsWith("Open it in Split Vibe to say when you have paid: https://proxy.example/r/token-1"),
+        )
         assertTrue(prepared.tracked)
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals("Dana", body["creditorName"]!!.jsonPrimitive.content)

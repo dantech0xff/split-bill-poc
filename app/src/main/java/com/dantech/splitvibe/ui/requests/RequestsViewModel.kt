@@ -27,7 +27,11 @@ class RequestsViewModel(private val repository: RequestRepository, account: Stat
 
     val requests: StateFlow<List<RequestView>?> = repository.requests.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.session != null)
+    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        account.value.session != null,
+    )
 
     private val work = MutableStateFlow(ProxyWork())
     val status: StateFlow<ProxyWork> = work.asStateFlow()
@@ -54,7 +58,14 @@ class RequestsViewModel(private val repository: RequestRepository, account: Stat
     /** A reminder to send by hand, for a payer without the app or one who switched notices off. */
     fun remind(request: RequestView) = run {
         val paying = request.paymentMethod?.let { PaymentRequestBuilder.build(it, request.amountMinor, request.bill, request.title) }
-        val text = RequestMessages.reminder(request.payerName, request.amountMinor, request.bill, request.title, paying, repository.linkOf(request.id))
+        val text = RequestMessages.reminder(
+            request.payerName,
+            request.amountMinor,
+            request.bill,
+            request.title,
+            paying,
+            repository.linkOf(request.id),
+        )
         toShare.value = ShareText(text, paying)
     }
 
@@ -80,10 +91,16 @@ class RequestsViewModel(private val repository: RequestRepository, account: Stat
 }
 
 /** Where opening a request link stands. */
-data class RequestLinkState(val request: RequestView? = null, val accepted: Boolean = false, val working: Boolean = false, val message: String? = null)
+data class RequestLinkState(
+    val request: RequestView? = null,
+    val accepted: Boolean = false,
+    val working: Boolean = false,
+    val message: String? = null,
+)
 
 /** Opens a request link: shows what is asked and how to pay, and takes the request on so the payer can say they paid. */
-class RequestLinkViewModel(private val token: String, private val repository: RequestRepository, private val account: StateFlow<Account>) : ViewModel() {
+class RequestLinkViewModel(private val token: String, private val repository: RequestRepository, private val account: StateFlow<Account>) :
+    ViewModel() {
 
     private val mutableState = MutableStateFlow(RequestLinkState())
     val state: StateFlow<RequestLinkState> = mutableState.asStateFlow()

@@ -11,7 +11,11 @@ import kotlinx.serialization.json.put
  * under the install's own random id. Signing out takes it back, and deleting the account removes it
  * on the proxy's side.
  */
-class DeviceRegistrar(private val api: ProxyApi, private val account: AccountStore, private val token: suspend () -> String? = Push::token) {
+class DeviceRegistrar(
+    private val api: ProxyApi,
+    private val account: AccountStore,
+    private val token: suspend () -> String? = Push::token,
+) {
 
     /** Sends [newToken], or the current token when it is not given; does nothing without push or a sign-in. */
     suspend fun register(newToken: String? = null) {

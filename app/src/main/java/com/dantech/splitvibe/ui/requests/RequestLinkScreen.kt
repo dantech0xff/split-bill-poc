@@ -42,7 +42,9 @@ fun RequestLinkScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Payment request") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
             )
         },
     ) { padding ->

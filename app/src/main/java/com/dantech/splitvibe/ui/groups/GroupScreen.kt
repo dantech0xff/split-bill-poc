@@ -53,9 +53,9 @@ import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Transfer
+import com.dantech.splitvibe.ui.common.ProxyWork
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.serialization.json.JsonPrimitive
@@ -90,7 +90,9 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
         topBar = {
             TopAppBar(
                 title = { Text(state?.group?.name ?: "Group") },
-                navigationIcon = { IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
                 actions = {
                     if (state != null) {
                         SvOverflowMenu(
@@ -110,14 +112,24 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             status.message?.let { message ->
                 item {
-                    SvMessageCard(text = message, isError = true, action = "OK", onAction = actions.onDismissMessage, modifier = Modifier.padding(SvSpacing.lg))
+                    SvMessageCard(
+                        text = message,
+                        isError = true,
+                        action = "OK",
+                        onAction = actions.onDismissMessage,
+                        modifier = Modifier.padding(SvSpacing.lg),
+                    )
                 }
             }
             if (state == null) {
                 item { if (status.working) SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
                 return@LazyColumn
             }
-            balances(state, onMarkReceived = { dialog = GroupDialog.Received(it.fromMemberId, it.amountMinor) }, onAskFor = actions.onAskFor)
+            balances(
+                state,
+                onMarkReceived = { dialog = GroupDialog.Received(it.fromMemberId, it.amountMinor) },
+                onAskFor = actions.onAskFor,
+            )
             members(state, actions, onAddPlaceholder = { dialog = GroupDialog.Placeholder })
             bills(state, onDelete = actions.onDeleteBill)
             activity(state)
@@ -316,7 +328,12 @@ private fun LazyListScope.bills(state: GroupState, onDelete: (String) -> Unit) {
                 )
             }
             Text(state.currency.format(bill.totalMinor), style = MaterialTheme.typography.amountMedium)
-            if (mayDelete) SvOverflowMenu(label = "More for ${titleOf(bill)}", options = listOf(SvMenuOption("Delete from the group") { onDelete(bill.id) }))
+            if (mayDelete) {
+                SvOverflowMenu(
+                    label = "More for ${titleOf(bill)}",
+                    options = listOf(SvMenuOption("Delete from the group") { onDelete(bill.id) }),
+                )
+            }
         }
     }
 }
@@ -361,7 +378,9 @@ internal fun describe(entry: LogEntryDto, state: GroupState): String {
 
 /** The bill's merchant as its document gives it, else a plain name. */
 internal fun titleOf(bill: GroupBillDto): String {
-    val fromDocument = runCatching { ProxyCache.json.decodeFromJsonElement(GroupBillDocument.serializer(), bill.document).saved.bill.merchant }
+    val fromDocument = runCatching {
+        ProxyCache.json.decodeFromJsonElement(GroupBillDocument.serializer(), bill.document).saved.bill.merchant
+    }
         .getOrNull()
     val plain = (bill.document["merchant"] as? JsonPrimitive)?.contentOrNull
     return (fromDocument ?: plain)?.takeIf { it.isNotBlank() } ?: "A bill"

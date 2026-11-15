@@ -73,9 +73,16 @@ class AddToGroupViewModelTest {
                 received += request
                 val body = when {
                     request.path == "/v1/groups" -> GroupFixtures.groupList()
-                    request.path == "/v1/fx-rates" -> """{"base":"EUR","source":"Frankfurter","fetchedAt":1,"rates":""" +
-                        """{"EUR":{"rate":1,"date":"2026-11-14"},"USD":{"rate":1.25,"date":"2026-11-14"},"THB":{"rate":44.375,"date":"2026-11-14"}}}"""
-                    request.method == "PUT" -> GroupFixtures.groupState(extraBills = "," + GroupFixtures.bill("bill-9", ME, "Dinner", 35_500, "{}", "{}"))
+
+                    request.path == "/v1/fx-rates" ->
+                        """{"base":"EUR","source":"Frankfurter","fetchedAt":1,"rates":""" +
+                            """{"EUR":{"rate":1,"date":"2026-11-14"},"USD":{"rate":1.25,"date":"2026-11-14"},"THB":{"rate":44.375,"date":"2026-11-14"}}}"""
+
+                    request.method == "PUT" -> GroupFixtures.groupState(
+                        extraBills =
+                            "," + GroupFixtures.bill("bill-9", ME, "Dinner", 35_500, "{}", "{}"),
+                    )
+
                     else -> GroupFixtures.groupState()
                 }
                 return MockResponse().setHeader("Content-Type", "application/json").setBody(body)

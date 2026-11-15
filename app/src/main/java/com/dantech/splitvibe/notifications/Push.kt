@@ -17,7 +17,12 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 object Push {
 
     val isConfigured: Boolean
-        get() = listOf(BuildConfig.FIREBASE_APP_ID, BuildConfig.FIREBASE_API_KEY, BuildConfig.FIREBASE_PROJECT_ID, BuildConfig.FIREBASE_SENDER_ID)
+        get() = listOf(
+            BuildConfig.FIREBASE_APP_ID,
+            BuildConfig.FIREBASE_API_KEY,
+            BuildConfig.FIREBASE_PROJECT_ID,
+            BuildConfig.FIREBASE_SENDER_ID,
+        )
             .all { it.isNotBlank() }
 
     /** Starts Firebase with the build's settings, once, and makes the channel the notices come in. */

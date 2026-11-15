@@ -129,7 +129,13 @@ fun PaymentMethodsScreen(
 }
 
 @Composable
-private fun MethodRow(saved: SavedPaymentMethod, position: SvRowPosition, onEdit: () -> Unit, onMakeMain: () -> Unit, onRemove: () -> Unit) {
+private fun MethodRow(
+    saved: SavedPaymentMethod,
+    position: SvRowPosition,
+    onEdit: () -> Unit,
+    onMakeMain: () -> Unit,
+    onRemove: () -> Unit,
+) {
     val method = saved.method
     val label = listOfNotNull(method.title, method.summary, "main".takeIf { saved.isMain }).joinToString(", ")
     SvListRow(position = position, label = label, onClickLabel = "Change", onClick = onEdit) {

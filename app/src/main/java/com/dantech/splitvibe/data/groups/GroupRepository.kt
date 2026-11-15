@@ -65,10 +65,14 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     /** Keeps a place in the group under [name] for someone who does not have the app. */
     suspend fun addPlaceholder(id: String, name: String) = state(
-        call("POST", "v1/groups/$id/members", buildJsonObject {
-            put("id", UUID.randomUUID().toString())
-            put("name", name.trim())
-        }),
+        call(
+            "POST",
+            "v1/groups/$id/members",
+            buildJsonObject {
+                put("id", UUID.randomUUID().toString())
+                put("name", name.trim())
+            },
+        ),
     )
 
     suspend fun renameMember(id: String, memberId: String, name: String) =
@@ -81,7 +85,8 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
         refreshGroups()
     }
 
-    suspend fun invite(id: String): Invite = ProxyCache.json.decodeFromJsonElement(Invite.serializer(), checkNotNull(call("POST", "v1/groups/$id/invites")))
+    suspend fun invite(id: String): Invite =
+        ProxyCache.json.decodeFromJsonElement(Invite.serializer(), checkNotNull(call("POST", "v1/groups/$id/invites")))
 
     /** Takes back every invite link of [id], so nobody else can use one to join. */
     suspend fun revokeInvites(id: String) {
@@ -130,7 +135,10 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
         val body = buildJsonObject {
             put("expectedRevision", expectedRevision)
             put("document", ProxyCache.json.encodeToJsonElement(GroupBillDocument.serializer(), document))
-            put("conversion", rate?.let { ProxyCache.json.encodeToJsonElement(ConversionDto(it.rate.toPlainString(), it.date, it.source)) } ?: JsonNull)
+            put(
+                "conversion",
+                rate?.let { ProxyCache.json.encodeToJsonElement(ConversionDto(it.rate.toPlainString(), it.date, it.source)) } ?: JsonNull,
+            )
             put("totalMinor", amounts.totalMinor)
             put("shares", ProxyCache.json.encodeToJsonElement(amounts.shares))
             put("paid", ProxyCache.json.encodeToJsonElement(amounts.paid))

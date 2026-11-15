@@ -65,7 +65,10 @@ class RequestRepositoryTest {
         val created = requests.create(newRequest)
 
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
-        assertEquals("""{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}""", body["method"].toString())
+        assertEquals(
+            """{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}""",
+            body["method"].toString(),
+        )
         assertEquals("Dana", body["creditorName"]!!.jsonPrimitive.content)
         assertEquals("https://proxy.example/r/token-1", created.url)
         assertEquals("https://proxy.example/r/token-1", requests.linkOf("r1"))

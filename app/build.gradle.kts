@@ -57,7 +57,8 @@ val firebase: Map<String, String> = firebaseSettings.mapNotNull { (field, proper
     localProperties.getProperty(property)?.trim()?.takeIf { it.isNotEmpty() }?.let { field to it }
 }.toMap()
 check(firebase.isEmpty() || firebase.size == firebaseSettings.size) {
-    "Push needs all four Firebase settings or none. Missing: " + (firebaseSettings.keys - firebase.keys).joinToString { firebaseSettings.getValue(it) }
+    "Push needs all four Firebase settings or none. Missing: " +
+        (firebaseSettings.keys - firebase.keys).joinToString { firebaseSettings.getValue(it) }
 }
 
 // Invite and payment links point at the proxy's own address, which opens them in the app once

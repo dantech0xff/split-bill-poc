@@ -30,7 +30,11 @@ class GroupsViewModel(
     val groups: StateFlow<List<GroupSummary>?> = repository.groups.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** Groups need a sign-in: they are shared with other people through the proxy. */
-    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.session != null)
+    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        account.value.session != null,
+    )
 
     private val work = MutableStateFlow(ProxyWork())
     val status: StateFlow<ProxyWork> = work.asStateFlow()

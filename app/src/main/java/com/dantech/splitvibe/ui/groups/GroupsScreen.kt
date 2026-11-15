@@ -43,8 +43,8 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.ui.common.ProxyWork
 
 /** The user's groups, such as housemates or a trip, each with balances across its bills. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +66,9 @@ fun GroupsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Groups") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
             )
         },
         floatingActionButton = {
@@ -87,7 +89,13 @@ fun GroupsScreen(
             }
             status.message?.let { message ->
                 item {
-                    SvMessageCard(text = message, isError = true, action = "OK", onAction = onDismissMessage, modifier = Modifier.padding(SvSpacing.lg))
+                    SvMessageCard(
+                        text = message,
+                        isError = true,
+                        action = "OK",
+                        onAction = onDismissMessage,
+                        modifier = Modifier.padding(SvSpacing.lg),
+                    )
                 }
             }
             if (status.working && groups == null) item { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }

@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
@@ -83,9 +84,8 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
-import java.math.BigDecimal
-import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.ui.groups.AddToGroupSheet
+import java.math.BigDecimal
 import org.koin.androidx.compose.koinViewModel
 
 /** What the bill and people step asks the flow to do. */
@@ -656,7 +656,12 @@ private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFi
                 )
             }
 
-            else -> SvSplitButton(text = "Finish the split", onClick = onFinish, moreLabel = "More ways to finish", options = listOf(toGroup))
+            else -> SvSplitButton(
+                text = "Finish the split",
+                onClick = onFinish,
+                moreLabel = "More ways to finish",
+                options = listOf(toGroup),
+            )
         }
     }
 }

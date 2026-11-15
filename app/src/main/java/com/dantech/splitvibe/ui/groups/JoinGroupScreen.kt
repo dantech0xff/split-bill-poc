@@ -79,7 +79,9 @@ class JoinGroupViewModel(
         if (!signedIn) return
         run {
             val invitation = repository.invitation(token)
-            mutableState.update { it.copy(invitation = invitation, joinedGroupId = invitation.group.id.takeIf { invitation.alreadyMember }) }
+            mutableState.update {
+                it.copy(invitation = invitation, joinedGroupId = invitation.group.id.takeIf { invitation.alreadyMember })
+            }
         }
     }
 
@@ -128,7 +130,9 @@ fun JoinGroupScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Join a group") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
             )
         },
     ) { padding ->
@@ -162,7 +166,10 @@ fun JoinGroupScreen(
                 }
             }
             if (state.waiting) {
-                SvMessageCard(text = "Asked. The group's owner decides whether you are that person; the group opens once they say yes.", isError = false)
+                SvMessageCard(
+                    text = "Asked. The group's owner decides whether you are that person; the group opens once they say yes.",
+                    isError = false,
+                )
                 return@Column
             }
             OutlinedTextField(
@@ -187,7 +194,13 @@ fun JoinGroupScreen(
             }
             val chosen = claiming
             SvPrimaryButton(
-                text = if (chosen == null) "Join the group" else "Ask to be ${invitation.placeholders.firstOrNull { it.id == chosen }?.name}",
+                text = if (chosen ==
+                    null
+                ) {
+                    "Join the group"
+                } else {
+                    "Ask to be ${invitation.placeholders.firstOrNull { it.id == chosen }?.name}"
+                },
                 onClick = { if (chosen == null) onJoin(name) else onClaim(chosen, name) },
                 enabled = name.isNotBlank() && !state.working,
             )

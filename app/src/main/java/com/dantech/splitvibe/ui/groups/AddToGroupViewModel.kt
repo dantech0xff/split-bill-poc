@@ -68,7 +68,9 @@ class AddToGroupViewModel(private val groups: GroupRepository, private val fx: F
         mutableState.update { it.copy(group = group, memberOf = matched(saved, group), rate = rate) }
     }
 
-    fun match(participantId: String, memberId: String) = mutableState.update { it.copy(memberOf = it.memberOf + (participantId to memberId)) }
+    fun match(participantId: String, memberId: String) = mutableState.update {
+        it.copy(memberOf = it.memberOf + (participantId to memberId))
+    }
 
     /** Converts at [rate], such as the one the user's card was charged at. */
     fun setRate(rate: BigDecimal, saved: SavedBill) {
@@ -84,7 +86,15 @@ class AddToGroupViewModel(private val groups: GroupRepository, private val fx: F
         val participants = saved.plan.participants.map { it.id }
         if (!current.memberOf.keys.containsAll(participants)) return null
         val shares = saved.plan.result(saved.bill).shares
-        val amounts = GroupConversion.amountsOf(saved.bill.totalMinor, shares, saved.plan.payments, current.memberOf.filterKeys { it in participants })
+        val amounts = GroupConversion.amountsOf(
+            saved.bill.totalMinor,
+            shares,
+            saved.plan.payments,
+            current.memberOf.filterKeys {
+                it in
+                    participants
+            },
+        )
         return GroupConversion.convert(amounts, saved.bill.currency, group.currency, current.rate)
     }
 

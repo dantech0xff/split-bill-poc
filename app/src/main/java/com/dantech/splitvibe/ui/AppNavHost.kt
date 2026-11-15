@@ -39,8 +39,6 @@ import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
 import com.dantech.splitvibe.notifications.Push
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.scan.DocumentScanner
-import com.dantech.splitvibe.ui.history.HistoryScreen
-import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.common.ShareEffect
 import com.dantech.splitvibe.ui.groups.GroupActions
 import com.dantech.splitvibe.ui.groups.GroupScreen
@@ -49,14 +47,16 @@ import com.dantech.splitvibe.ui.groups.GroupsScreen
 import com.dantech.splitvibe.ui.groups.GroupsViewModel
 import com.dantech.splitvibe.ui.groups.JoinGroupScreen
 import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
+import com.dantech.splitvibe.ui.history.HistoryScreen
+import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
+import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.requests.RequestActions
 import com.dantech.splitvibe.ui.requests.RequestLinkScreen
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
 import com.dantech.splitvibe.ui.requests.RequestsScreen
 import com.dantech.splitvibe.ui.requests.RequestsViewModel
-import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
-import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
@@ -400,7 +400,8 @@ private fun NoticePermission(signedIn: Boolean) {
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(signedIn) {
         if (!signedIn) return@LaunchedEffect
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val granted =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         val preferences = context.getSharedPreferences("notices", Context.MODE_PRIVATE)
         if (granted || preferences.getBoolean(ASKED, false)) return@LaunchedEffect
         preferences.edit { putBoolean(ASKED, true) }

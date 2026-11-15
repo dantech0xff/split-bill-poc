@@ -81,7 +81,10 @@ fun AddToGroupSheet(
             if (group == null) {
                 val list = choices.orEmpty()
                 if (choices != null && list.isEmpty()) {
-                    Text("You are not in a group yet. Make one in Groups, from the home screen.", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "You are not in a group yet. Make one in Groups, from the home screen.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
                 list.forEach { summary ->
                     SvPersonChoiceRow(
