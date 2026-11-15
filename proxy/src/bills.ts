@@ -1,6 +1,6 @@
 import { changeGroup, type Conversion, isMember, keep, logStatement, outsider, reply, stateAnswer, write } from "./group-state";
 import { signedIn } from "./identity";
-import { byteLength, countOf, idOf, inputOf, isRecord, moneyOf, textOf, TOO_LARGE, uuidOf } from "./input";
+import { byteLength, countOf, idOf, inputOf, isDay, isRecord, moneyOf, textOf, TOO_LARGE, uuidOf } from "./input";
 import { POLICY } from "./policy";
 import { errorResponse } from "./respond";
 
@@ -32,7 +32,6 @@ type StoredBill = {
 
 /** A rate as a decimal number, which the app keeps as text so that no digit is lost. */
 const RATE = /^(?:0|[1-9]\d{0,17})(?:\.\d{1,18})?$/;
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * The bill [body] holds, when it follows the contract: amounts are whole minor units from 0 to
@@ -91,11 +90,6 @@ function conversionOf(value: unknown): Conversion | undefined {
   if (typeof rate !== "string" || !RATE.test(rate) || !/[1-9]/.test(rate)) return undefined;
   if (typeof date !== "string" || !isDay(date) || source === null) return undefined;
   return { rate, date, source };
-}
-
-function isDay(text: string): boolean {
-  const time = DAY.test(text) ? Date.parse(`${text}T00:00:00Z`) : Number.NaN;
-  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === text;
 }
 
 function sameBill(stored: StoredBill, bill: BillInput): boolean {

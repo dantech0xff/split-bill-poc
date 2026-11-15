@@ -142,6 +142,65 @@ export function byteLength(text: string): number {
   return new TextEncoder().encode(text).byteLength;
 }
 
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Whether [text] is a day that exists, written `YYYY-MM-DD`. */
+export function isDay(text: string): boolean {
+  const time = DAY.test(text) ? Date.parse(`${text}T00:00:00Z`) : Number.NaN;
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === text;
+}
+
+/**
+ * How a payer pays one amount, as the creditor's app built it with its `PaymentRequestBuilder`,
+ * for a web page that cannot build payment codes itself: a [link] to open, a [qrPayload] to
+ * scan, the [details] to pay by hand, and whether the link or the code carries the amount.
+ */
+export type PaymentPayload = { link: string | null; qrPayload: string | null; details: string; amountFilledIn: boolean };
+
+/** Every control character but the line feed and the carriage return. */
+const CONTROL_BUT_LINE_BREAKS = /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+/** Whitespace and control characters, which no link a page opens may hold. */
+const NOT_IN_LINKS = /[\s\u0000-\u001f\u007f-\u009f]/;
+
+/**
+ * A payment as the contract takes it; null for null or a missing value, undefined for anything
+ * else. Its link is null, an `https://` URL with a host or a `upi://pay?` link, of at most
+ * [POLICY.maxPaymentLinkChars] and without whitespace: the page opens no other scheme. Its code
+ * to scan is null or at most [POLICY.maxPaymentCodeChars]; its details are 1 to
+ * [POLICY.maxPaymentDetailsChars]. Both may break lines and hold no other control character.
+ * Lengths are counted as code points. A link or a code that is missing counts as null.
+ */
+export function optionalPaymentOf(value: unknown): PaymentPayload | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const link = value.link === undefined || value.link === null ? null : paymentLinkOf(value.link);
+  const qrPayload = value.qrPayload === undefined || value.qrPayload === null ? null : lineTextOf(value.qrPayload, 0, POLICY.maxPaymentCodeChars);
+  const details = lineTextOf(value.details, 1, POLICY.maxPaymentDetailsChars);
+  const { amountFilledIn } = value;
+  if (link === undefined || qrPayload === undefined || details === undefined || typeof amountFilledIn !== "boolean") return undefined;
+  return { link, qrPayload, details, amountFilledIn };
+}
+
+/** [value] when it is a link a page may open, as `optionalPaymentOf` says; undefined otherwise. */
+function paymentLinkOf(value: unknown): string | undefined {
+  if (typeof value !== "string" || [...value].length > POLICY.maxPaymentLinkChars || NOT_IN_LINKS.test(value)) return undefined;
+  if (value.startsWith("upi://pay?")) return value;
+  if (!value.startsWith("https://")) return undefined;
+  try {
+    return new URL(value).hostname !== "" ? value : undefined;
+  } catch {
+    // Not a URL at all.
+    return undefined;
+  }
+}
+
+/** [value] as it is, when it is text of [min] to [max] code points whose only control characters are line breaks. */
+function lineTextOf(value: unknown, min: number, max: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const length = [...value].length;
+  return length >= min && length <= max && !CONTROL_BUT_LINE_BREAKS.test(value) ? value : undefined;
+}
+
 /** The request when [body] follows the contract, or null. Fields the contract does not name are ignored. */
 export function billRequestOf(body: unknown): BillRequest | null {
   if (typeof body !== "object" || body === null || Array.isArray(body)) return null;

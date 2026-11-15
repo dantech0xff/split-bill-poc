@@ -74,6 +74,10 @@ export const POLICY = {
   /** A bill's document and a request's payment method, serialized as JSON, in bytes. */
   maxBillDocumentBytes: 64 * 1024,
   maxMethodBytes: 4 * 1024,
+  /** What a web page shows of how to pay: a link, a code to scan and the details to pay by hand, in characters. */
+  maxPaymentLinkChars: 2_048,
+  maxPaymentCodeChars: 512,
+  maxPaymentDetailsChars: 1_000,
   /**
    * A group's state is always sent whole, and read whole by every change, and an account's groups
    * are listed whole; these keep both small enough for the CPU time and the D1 reads a request
@@ -99,6 +103,10 @@ export const POLICY = {
   remindersPerRun: 40,
   /** Invites and deleted requests are forgotten this long after they stopped working; their links then answer 404. */
   forgetAfterMs: 30 * 24 * 60 * 60 * 1000,
+
+  // The web pages.
+  /** What one hashed IP may read in an hour without a session: payment request links and invites, for the web pages. */
+  webReadsPerHour: 600,
 } as const;
 
 export type RateLimit = { perMinute: number; perDay: number };

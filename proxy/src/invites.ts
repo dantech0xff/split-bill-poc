@@ -1,10 +1,11 @@
 import { changeGroup, groupCountOf, isMember, keep, logStatement, outsider, readGroup, reply, stateAnswer, write } from "./group-state";
 import { signedIn } from "./identity";
+import type { Env } from "./index";
 import { idOf, inputOf, textOf, uuidOf } from "./input";
 import { bodyTokenOf, linkUrl, randomToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
-import { admitHourly } from "./rate-limit";
+import { addressRefusal, admitHourly } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
 /**
@@ -79,6 +80,25 @@ export const openInviteRoute = signedIn(async ({ request, env, account }) => {
     alreadyMember: isMember(group),
   });
 });
+
+/**
+ * `POST /v1/invites/preview` with `{"token"}`: the name and currency of the group an invite leads
+ * to, for the invite's web page, which needs no session; nothing of its members. 404 and 410 as
+ * for `open`; counts as a read of the IP.
+ */
+export async function previewInviteRoute(request: Request, env: Env): Promise<Response> {
+  const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
+  if (!input.ok) return input.response;
+  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
+  const invited = await invitedGroup(env.DB, input.value.token);
+  if (!invited.ok) return invited.response;
+  const group = await env.DB.prepare("SELECT name, currency_code, currency_digits FROM groups WHERE id = ?1")
+    .bind(invited.groupId)
+    .first<{ name: string; currency_code: string; currency_digits: number }>();
+  if (group === null) return errorResponse(404, "not_found");
+  return jsonResponse(200, { group: { name: group.name, currency: { code: group.currency_code, fractionDigits: group.currency_digits } } });
+}
 
 type Joining = { token: string | null; kind: "join" | "claim"; memberId: string; name: string };
 

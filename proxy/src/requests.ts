@@ -1,18 +1,32 @@
 import { changeGroup, type Group, isMember, outsider, type Plan, readGroup, reply, write } from "./group-state";
 import { type Call, signedIn } from "./identity";
 import type { Env } from "./index";
-import { byteLength, type Currency, currencyOf, idOf, inputOf, isRecord, moneyOf, optionalUuidOf, textOf, TOO_LARGE, uuidOf } from "./input";
+import {
+  byteLength,
+  type Currency,
+  currencyOf,
+  idOf,
+  inputOf,
+  isRecord,
+  moneyOf,
+  optionalPaymentOf,
+  optionalUuidOf,
+  type PaymentPayload,
+  textOf,
+  TOO_LARGE,
+  uuidOf,
+} from "./input";
 import { bodyTokenOf, linkUrl, requestToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
-import { admitHourly } from "./rate-limit";
+import { addressRefusal, admitHourly } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
 /** How often a debtor may be reminded, in days; 0 is never. */
 const REMIND_DAYS: readonly number[] = [0, 1, 3, 7];
 
 const COLUMNS = `id, creditor, debtor, debtor_bound_at, amount_minor, currency_code, currency_digits, payer_name, creditor_name, title,
-  method, group_id, to_member_id, creditor_member_id, bill_id, created_at, reported_paid_at, confirmed_paid_at, remind_every_days, deleted_at`;
+  method, payment, group_id, to_member_id, creditor_member_id, bill_id, created_at, reported_paid_at, confirmed_paid_at, remind_every_days, deleted_at`;
 
 type RequestRow = {
   id: string;
@@ -26,6 +40,8 @@ type RequestRow = {
   creditor_name: string;
   title: string | null;
   method: string;
+  /** The PaymentPayload for the request's web page, as JSON. */
+  payment: string | null;
   group_id: string | null;
   to_member_id: string | null;
   creditor_member_id: string | null;
@@ -111,6 +127,7 @@ type NewRequest = {
   creditorName: string;
   title: string | null;
   method: string;
+  payment: string | null;
   groupId: string | null;
   toMemberId: string | null;
   billId: string | null;
@@ -128,15 +145,29 @@ function newRequestOf(body: Record<string, unknown>): NewRequest | typeof TOO_LA
   const toMemberId = optionalUuidOf(body.toMemberId);
   const billId = optionalUuidOf(body.billId);
   const remindEveryDays = body.remindEveryDays ?? 0;
+  const payment = optionalPaymentOf(body.payment);
   if (id === null || amountMinor === null || amountMinor === 0 || currency === null) return null;
-  if (payerName === null || creditorName === null || title === null) return null;
+  if (payerName === null || creditorName === null || title === null || payment === undefined) return null;
   if (groupId === undefined || toMemberId === undefined || billId === undefined || !isRecord(body.method)) return null;
   // A member is named exactly when a group is.
   if ((groupId === null) !== (toMemberId === null)) return null;
   if (typeof remindEveryDays !== "number" || !REMIND_DAYS.includes(remindEveryDays)) return null;
   const method = JSON.stringify(body.method);
   if (byteLength(method) > POLICY.maxMethodBytes) return TOO_LARGE;
-  return { id, amountMinor, currency, payerName, creditorName, title: title === "" ? null : title, method, groupId, toMemberId, billId, remindEveryDays };
+  return {
+    id,
+    amountMinor,
+    currency,
+    payerName,
+    creditorName,
+    title: title === "" ? null : title,
+    method,
+    payment: payment === null ? null : JSON.stringify(payment),
+    groupId,
+    toMemberId,
+    billId,
+    remindEveryDays,
+  };
 }
 
 /** The answer to creating a request, whose creditor is the caller: 201 with the request as they see it, and the link to share. */
@@ -146,7 +177,8 @@ async function created(call: Call, row: RequestRow): Promise<Response> {
 
 /**
  * `POST /v1/requests`: the caller asks someone to pay them, with the one payment method they
- * chose. In a group, the payer is a member other than the caller, the currency is the group's,
+ * chose, and optionally the `payment` their app built from it for the request's web page. In a
+ * group, the payer is a member other than the caller, the currency is the group's,
  * and a payer with an account becomes the debtor at once and is notified; anyone else becomes
  * the debtor by accepting the link. The same request sent again answers as the first time did. A
  * creditor may make 30 requests an hour.
@@ -179,8 +211,8 @@ export const createRequestRoute = signedIn(async (call) => {
     row = await db
       .prepare(
         `INSERT INTO requests (id, creditor, debtor, debtor_bound_at, amount_minor, currency_code, currency_digits, payer_name, creditor_name, title,
-           method, group_id, to_member_id, creditor_member_id, bill_id, link_hash, created_at, remind_every_days)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+           method, payment, group_id, to_member_id, creditor_member_id, bill_id, link_hash, created_at, remind_every_days)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
          RETURNING ${COLUMNS}`,
       )
       .bind(
@@ -195,6 +227,7 @@ export const createRequestRoute = signedIn(async (call) => {
         wanted.creditorName,
         wanted.title,
         wanted.method,
+        wanted.payment,
         wanted.groupId,
         wanted.toMemberId,
         creditorMemberId,
@@ -252,6 +285,36 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
   if (row.debtor_bound_at !== null && row.debtor !== account) return errorResponse(409, "conflict");
   return jsonResponse(200, { ...viewOf(row, "debtor"), debtorBound: true });
 });
+
+/**
+ * `POST /v1/request-links/view` with `{"token"}`: the request a link carries, for its web page,
+ * which needs no session: who asks whom for how much and for what, whether it is `open`,
+ * `reported` or `confirmed`, and how to pay it, as the creditor's app built it (null when it sent
+ * none). Nothing names an account. 404 and 410 as for `open`; counts as a read of the IP.
+ */
+export async function viewRequestLinkRoute(request: Request, env: Env): Promise<Response> {
+  const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
+  if (!input.ok) return input.response;
+  const refused = await addressRefusal(request, env, "web_read", POLICY.webReadsPerHour);
+  if (refused !== null) return refused;
+  const linked = await linkedRequest(env.DB, input.value.token);
+  if (!linked.ok) return linked.response;
+  const row = linked.row;
+  const status = row.confirmed_paid_at !== null ? "confirmed" : row.reported_paid_at !== null ? "reported" : "open";
+  return jsonResponse(200, {
+    request: {
+      creditorName: row.creditor_name,
+      payerName: row.payer_name,
+      amountMinor: row.amount_minor,
+      currency: { code: row.currency_code, fractionDigits: row.currency_digits },
+      title: row.title,
+      status,
+      // The Worker's own JSON, checked when the request was made.
+      payment: row.payment === null ? null : (JSON.parse(row.payment) as PaymentPayload),
+      createdAt: row.created_at,
+    },
+  });
+}
 
 /**
  * `POST /v1/request-links/accept` with `{"token"}`: the caller becomes the request's debtor, when
@@ -416,8 +479,8 @@ export const changeRequestRoute = signedIn(async ({ request, env, params, accoun
 
 /**
  * `DELETE /v1/requests/{id}`: the creditor withdraws a request that is not confirmed; 409 once it
- * is. What it held is emptied at once; the row itself stays for a while, so that its link
- * answers 410. Deleting it again answers 204 as well.
+ * is. What it held, its payment for the web page included, is emptied at once; the row itself
+ * stays for a while, so that its link answers 410. Deleting it again answers 204 as well.
  */
 export const deleteRequestRoute = signedIn(async ({ env, params, account }) => {
   const id = uuidOf(params[0]);
@@ -428,7 +491,7 @@ export const deleteRequestRoute = signedIn(async ({ env, params, account }) => {
     if (row.deleted_at !== null) return emptyResponse(204);
     if (row.confirmed_paid_at !== null) return errorResponse(409, "conflict");
     const deleted = await env.DB.prepare(
-      `UPDATE requests SET deleted_at = ?3, debtor = NULL, payer_name = '', creditor_name = '', title = NULL, method = '{}',
+      `UPDATE requests SET deleted_at = ?3, debtor = NULL, payer_name = '', creditor_name = '', title = NULL, method = '{}', payment = NULL,
          group_id = NULL, to_member_id = NULL, creditor_member_id = NULL, bill_id = NULL
        WHERE id = ?1 AND creditor = ?2 AND confirmed_paid_at IS NULL AND deleted_at IS NULL`,
     )

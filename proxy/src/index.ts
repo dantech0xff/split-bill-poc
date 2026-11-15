@@ -14,7 +14,7 @@ import {
   renameGroupRoute,
   renameMemberRoute,
 } from "./groups";
-import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
+import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, previewInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
 import { assetLinksRoute, linkPageRoute } from "./links";
 import { QuotaBook } from "./quota-book";
@@ -28,6 +28,7 @@ import {
   listRequestsRoute,
   openRequestLinkRoute,
   reportPaidRoute,
+  viewRequestLinkRoute,
 } from "./requests";
 import { errorResponse } from "./respond";
 
@@ -103,6 +104,9 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/request-links/open", { POST: openRequestLinkRoute }],
   ["/v1/request-links/accept", { POST: acceptRequestLinkRoute }],
   ["/v1/devices/:device", { PUT: putDeviceRoute, DELETE: deleteDeviceRoute }],
+  // The routes of the web pages, which need no session.
+  ["/v1/request-links/view", { POST: viewRequestLinkRoute }],
+  ["/v1/invites/preview", { POST: previewInviteRoute }],
   ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
   ["/g/", { GET: linkPageRoute }],
   ["/r/", { GET: linkPageRoute }],

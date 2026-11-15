@@ -281,6 +281,97 @@ describe("a request link", () => {
   });
 });
 
+describe("a request link's web page", () => {
+  type WebView = { request: Record<string, unknown> };
+  const PAYMENT = {
+    link: null,
+    qrPayload: "00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA53037045406150000",
+    details: "Bank: Vietcombank (970436)\nAccount: 0123456789\nName: NGUYEN LAN\nAmount: ₫150,000",
+    amountFilledIn: true,
+  };
+
+  function view(token: string) {
+    return api<WebView>(null, "POST", "/v1/request-links/view", { token });
+  }
+
+  it("shows, without a session, who asks whom for how much and how to pay, as the creditor's app built it", async () => {
+    const lan = await person();
+    const made = await ask(lan, { payment: PAYMENT });
+    const token = tokenOf(made.body.url);
+
+    const seen = await view(token);
+
+    expect(made.status).toBe(201);
+    expect(made.body.request).not.toHaveProperty("payment");
+    expect(seen.status).toBe(200);
+    expect(seen.headers.get("cache-control")).toBe("no-store");
+    expect(seen.body).toEqual({
+      request: {
+        creditorName: "Lan",
+        payerName: "Minh",
+        amountMinor: 150_000,
+        currency: VND,
+        title: "Hot pot at Manwah",
+        status: "open",
+        payment: PAYMENT,
+        createdAt: made.body.request.createdAt,
+      },
+    });
+    expect(JSON.stringify(seen.body)).not.toMatch(new RegExp(`${lan.account}|${made.body.request.id}|970436","accountNumber`));
+    expect((await view(tokenOf((await ask(lan)).body.url))).body.request.payment).toBeNull();
+  });
+
+  it("says whether the request is open, reported paid or confirmed", async () => {
+    const lan = await person();
+    const minh = await person();
+    const made = await ask(lan, { payment: PAYMENT });
+    const token = tokenOf(made.body.url);
+    const statusOf = async () => (await view(token)).body.request.status;
+
+    expect(await statusOf()).toBe("open");
+    await api(minh, "POST", "/v1/request-links/accept", { token });
+    await api(minh, "POST", `/v1/requests/${made.body.request.id}/reported-paid`);
+    expect(await statusOf()).toBe("reported");
+    await api(lan, "POST", `/v1/requests/${made.body.request.id}/confirmed-paid`);
+    expect(await statusOf()).toBe("confirmed");
+  });
+
+  it("answers 404 for a link never made, and 410 once its request was deleted, which empties how it is paid", async () => {
+    const lan = await person();
+    const made = await ask(lan, { payment: PAYMENT });
+    const token = tokenOf(made.body.url);
+
+    for (const unknown of ["AAAAAAAAAAAAAAAAAAAAAA", "too-short"]) expect((await view(unknown)).body).toEqual({ error: "not_found" });
+    expect((await api(null, "POST", "/v1/request-links/view", {})).body).toEqual({ error: "input" });
+    await api(lan, "DELETE", `/v1/requests/${made.body.request.id}`);
+
+    expect((await view(token)).status).toBe(410);
+    expect((await view(token)).body).toEqual({ error: "gone" });
+    expect(await rows("SELECT payment FROM requests")).toEqual([{ payment: null }]);
+  });
+
+  it("takes only a payment whose link is https with a host or a UPI payment, and whose fields follow the contract", async () => {
+    const lan = await person();
+    for (const payment of [
+      { ...PAYMENT, link: "http://pay.example/lan" },
+      { ...PAYMENT, link: "javascript:alert(1)" },
+      { ...PAYMENT, details: "" },
+      { ...PAYMENT, qrPayload: "q".repeat(POLICY.maxPaymentCodeChars + 1) },
+      { ...PAYMENT, amountFilledIn: undefined },
+      "upi://pay?pa=lan@okbank",
+    ]) {
+      const refused = await ask(lan, { payment });
+      expect(refused.status, JSON.stringify(payment).slice(0, 80)).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
+    const upi = { link: "upi://pay?pa=lan@okbank&pn=Lan&am=150.00&cu=INR", qrPayload: null, details: "UPI ID: lan@okbank", amountFilledIn: true };
+    const made = await ask(lan, { currency: { code: "INR", fractionDigits: 2 }, payment: upi });
+    expect(made.status).toBe(201);
+    expect((await view(tokenOf(made.body.url))).body.request.payment).toEqual(upi);
+    expect((await ask(lan, { payment: null })).status).toBe(201);
+  });
+});
+
 describe("paying", () => {
   async function accepted() {
     const lan = await person();

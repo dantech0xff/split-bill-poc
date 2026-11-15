@@ -7,6 +7,37 @@ import { addBill, addPlaceholder, api, invite, join, memberView, newGroup, perso
 type Invite = { token: string; url: string; expiresAt: number };
 type InviteView = { group: { id: string; name: string; currency: unknown }; placeholders: Array<{ id: string; name: string }>; alreadyMember: boolean };
 
+describe("an invite's web page", () => {
+  it("shows, without a session, the name and currency of the group, and nothing of its members", async () => {
+    const owner = await person();
+    const group = await newGroup(owner, "Flat 4B");
+    await addPlaceholder(group, "Minh Placeholder");
+    const token = await invite(group);
+
+    const seen = await api(null, "POST", "/v1/invites/preview", { token });
+
+    expect(seen.status).toBe(200);
+    expect(seen.headers.get("cache-control")).toBe("no-store");
+    expect(seen.body).toEqual({ group: { name: "Flat 4B", currency: THB } });
+    expect(JSON.stringify(seen.body)).not.toMatch(new RegExp(`${group.id}|${owner.account}|Placeholder|Owner`));
+  });
+
+  it("answers 404 for a token never made, and 410 once the invite has expired or was revoked", async () => {
+    const owner = await person();
+    const group = await newGroup(owner);
+    const preview = (token: unknown) => api(null, "POST", "/v1/invites/preview", { token });
+
+    for (const token of ["AAAAAAAAAAAAAAAAAAAAAA", "too-short"]) expect((await preview(token)).body).toEqual({ error: "not_found" });
+    expect((await preview(42)).body).toEqual({ error: "input" });
+    const expiring = await invite(group);
+    await env.DB.prepare("UPDATE invites SET expires_at = ?2 WHERE token_hash = ?1").bind(await sha256(expiring), Date.now() - 1).run();
+    expect((await preview(expiring)).body).toEqual({ error: "gone" });
+    const revoked = await invite(group);
+    await api(owner, "DELETE", `/v1/groups/${group.id}/invites`);
+    expect((await preview(revoked)).status).toBe(410);
+  });
+});
+
 describe("an invite", () => {
   it("is made by any member, lasts 14 days, and is kept only as a hash", async () => {
     const owner = await person();
