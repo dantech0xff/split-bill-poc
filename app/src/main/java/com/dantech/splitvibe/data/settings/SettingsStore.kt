@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppSettings(
     /** ISO 4217 code of the currency this payment app works in, for example "VND". */
     val localCurrency: String,
+    /** The name the user goes by in groups and on their requests; empty until they give one. */
+    val myName: String = "",
 )
 
 /** Where the app's own settings are kept on the device. */
@@ -40,16 +42,30 @@ class SettingsStore(context: Context) {
         state.value = read()
     }
 
-    private fun read(): AppSettings = AppSettings(localCurrency = preferences.getString(KEY_LOCAL_CURRENCY, null) ?: deviceCurrency())
+    /** Keeps the name the user goes by, trimmed and at most [MAX_NAME] characters; a blank one is ignored. */
+    fun saveName(name: String) {
+        val clean = name.trim().take(MAX_NAME)
+        if (clean.isNotEmpty()) preferences.edit { putString(KEY_MY_NAME, clean) }
+        state.value = read()
+    }
+
+    private fun read(): AppSettings = AppSettings(
+        localCurrency = preferences.getString(KEY_LOCAL_CURRENCY, null) ?: deviceCurrency(),
+        myName = preferences.getString(KEY_MY_NAME, null).orEmpty(),
+    )
 
     /** The currency of the phone's region, as a sensible default for the app's own currency. */
     private fun deviceCurrency(): String =
         runCatching { Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault(FALLBACK_CURRENCY)
 
-    private companion object {
-        const val KEY_LOCAL_CURRENCY = "local_currency"
-        const val OLD_KEY_API_KEY = "anthropic_api_key_encrypted"
-        const val OLD_KEY_MODEL = "model"
-        const val FALLBACK_CURRENCY = "USD"
+    companion object {
+        /** As long as the proxy takes a name. */
+        const val MAX_NAME = 60
+
+        private const val KEY_LOCAL_CURRENCY = "local_currency"
+        private const val KEY_MY_NAME = "my_name"
+        private const val OLD_KEY_API_KEY = "anthropic_api_key_encrypted"
+        private const val OLD_KEY_MODEL = "model"
+        private const val FALLBACK_CURRENCY = "USD"
     }
 }

@@ -18,6 +18,7 @@ import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.editor.BillEditorContent
 import kotlinx.coroutines.Dispatchers
+import org.koin.androidx.compose.koinViewModel
 
 /** The button that sends the requests turns into the mark that confirms them; both carry this name. */
 internal const val SEND_SURFACE = "send"
@@ -36,6 +37,7 @@ fun SplitScreen(
     scanIntent: suspend (Activity) -> IntentSender?,
     onExit: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPaymentMethods: () -> Unit = {},
 ) {
     // Collected without waiting for the next frame, so a field always shows what was just typed
     // into it and never a value from a keystroke before.
@@ -94,7 +96,14 @@ fun SplitScreen(
     Box(modifier = Modifier.sharedSurface(SPLIT_SURFACE)) {
         SvSteps(step = step, stepOf = SplitStep::name) { shown ->
             when (shown) {
-                is SplitStep.Sent -> SentContent(result = shown.result, requests = shown.requests, onDone = finish)
+                is SplitStep.Sent -> RequestMoneyContent(
+                    result = shown.result,
+                    requests = shown.requests,
+                    // One for each bill, so a request step never shows what was sent for another one.
+                    viewModel = koinViewModel(key = "requests-${shown.result.saved.id}"),
+                    onOpenPaymentMethods = onOpenPaymentMethods,
+                    onDone = finish,
+                )
 
                 is SplitStep.Edit -> BillEditorContent(
                     bill = shown.result.bill,
@@ -154,7 +163,7 @@ private sealed interface SplitStep {
         override val name get() = "result"
     }
 
-    data class Sent(val result: SplitResultState, val requests: List<PaymentRequest>) : SplitStep {
+    data class Sent(val result: SplitResultState, val requests: List<PersonRequest>) : SplitStep {
         override val name get() = "sent"
     }
 }

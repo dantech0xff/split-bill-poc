@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +43,9 @@ import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.settings.SettingsStore
+import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
@@ -61,10 +65,12 @@ fun SettingsScreen(
     accountUi: AccountUiState,
     canSignIn: Boolean,
     actions: AccountActions,
-    onSave: (localCurrency: String) -> Unit,
+    onSave: (localCurrency: String, myName: String) -> Unit,
+    onOpenPaymentMethods: () -> Unit,
     onBack: () -> Unit,
 ) {
     var localCurrency by rememberSaveable { mutableStateOf(settings.localCurrency) }
+    var myName by rememberSaveable { mutableStateOf(settings.myName) }
     val currencyIsValid = BillCurrency.isKnownCode(localCurrency)
 
     Scaffold(
@@ -109,7 +115,34 @@ fun SettingsScreen(
                 },
             )
 
-            SvPrimaryButton("Save", onClick = { onSave(localCurrency) }, enabled = currencyIsValid)
+            OutlinedTextField(
+                value = myName,
+                onValueChange = { myName = it.take(SettingsStore.MAX_NAME) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Your name") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                supportingText = { Text("How you show in groups and on the requests you send.") },
+            )
+
+            SvListRow(
+                position = SvRowPosition.Single,
+                label = "Ways to get paid",
+                onClickLabel = "Open",
+                onClick = onOpenPaymentMethods,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Ways to get paid", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Bank accounts, PayPal, UPI or links that your requests carry",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            }
+
+            SvPrimaryButton("Save", onClick = { onSave(localCurrency, myName) }, enabled = currencyIsValid)
         }
     }
 }

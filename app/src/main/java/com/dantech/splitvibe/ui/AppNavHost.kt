@@ -33,6 +33,8 @@ import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
+import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
@@ -54,6 +56,9 @@ data object SettingsKey : NavKey
 
 @Serializable
 data object HistoryKey : NavKey
+
+@Serializable
+data object PaymentMethodsKey : NavKey
 
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
@@ -130,6 +135,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                             // Back to the list of bills when the bill was opened from there, else home.
                             onExit = { backStack.remove(SplitKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                         )
                     }
                 }
@@ -168,11 +174,26 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                                     onDeleteAccount = { settingsViewModel.deleteAccount(context) },
                                 )
                             },
-                            onSave = { localCurrency ->
+                            onSave = { localCurrency, myName ->
                                 settingsStore.save(localCurrency)
+                                settingsStore.saveName(myName)
                                 backStack.remove(SettingsKey)
                             },
+                            onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onBack = { backStack.remove(SettingsKey) },
+                        )
+                    }
+                }
+                entry<PaymentMethodsKey> {
+                    Screen {
+                        val paymentMethodsViewModel: PaymentMethodsViewModel = koinViewModel()
+                        val methods by paymentMethodsViewModel.methods.collectAsStateWithLifecycle()
+                        PaymentMethodsScreen(
+                            methods = methods,
+                            onSave = paymentMethodsViewModel::save,
+                            onMakeMain = paymentMethodsViewModel::makeMain,
+                            onRemove = paymentMethodsViewModel::remove,
+                            onBack = { backStack.remove(PaymentMethodsKey) },
                         )
                     }
                 }

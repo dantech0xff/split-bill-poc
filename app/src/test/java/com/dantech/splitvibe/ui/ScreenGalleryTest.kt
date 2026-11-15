@@ -310,7 +310,8 @@ class ScreenGalleryTest {
                             accountUi = AccountUiState(),
                             canSignIn = true,
                             actions = NO_ACTIONS,
-                            onSave = {},
+                            onSave = { _, _ -> },
+                            onOpenPaymentMethods = {},
                             onBack = {},
                         )
 
@@ -320,7 +321,8 @@ class ScreenGalleryTest {
                             accountUi = AccountUiState(),
                             canSignIn = true,
                             actions = NO_ACTIONS,
-                            onSave = {},
+                            onSave = { _, _ -> },
+                            onOpenPaymentMethods = {},
                             onBack = {},
                         )
 
@@ -331,7 +333,8 @@ class ScreenGalleryTest {
                             accountUi = AccountUiState(),
                             canSignIn = true,
                             actions = NO_ACTIONS,
-                            onSave = {},
+                            onSave = { _, _ -> },
+                            onOpenPaymentMethods = {},
                             onBack = {},
                         )
                     }

@@ -23,6 +23,7 @@ import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
+import com.dantech.splitvibe.domain.PersonShare
 import com.dantech.splitvibe.domain.SplitMode
 import com.dantech.splitvibe.domain.SplitPlan
 import com.dantech.splitvibe.domain.SplitPlanner
@@ -70,8 +71,10 @@ const val ME_LABEL = "You"
 
 enum class Progress { IDLE, LOADING_PHOTO, READING_TEXT, ASKING_CLAUDE }
 
-/** A request for money that would be sent to someone. Nothing is actually sent yet. */
-data class PaymentRequest(val participant: Participant, val amountMinor: Long)
+/** What one person is asked to pay back for a bill: their share of it. */
+data class PersonRequest(val participant: Participant, val share: PersonShare) {
+    val amountMinor: Long get() = share.totalMinor
+}
 
 /** The bill on screen and what it comes to under its plan. */
 data class SplitResultState(
@@ -128,7 +131,8 @@ data class SplitUiState(
     val result: SplitResultState? = null,
     /** The bill is open in the editor. */
     val editing: Boolean = false,
-    val sentRequests: List<PaymentRequest>? = null,
+    /** The people asked to pay back, once the user chose to ask them. */
+    val sentRequests: List<PersonRequest>? = null,
     /** Something to tell the person once, such as a bill that was changed elsewhere. */
     val notice: String? = null,
     /** The bill was opened from the list of bills, so leaving it goes back there rather than to its photos. */
@@ -454,15 +458,15 @@ class SplitBillViewModel(
     }
 
     /**
-     * Records the requests for the confirmation screen and finishes the split. This is where a
-     * real payment app would call its payments API; nothing is sent yet.
+     * Finishes the split and moves on to asking each person who owes something to pay it back. The
+     * requests themselves go out from the next step, one person at a time, through the share sheet.
      */
     fun sendRequests() {
         val result = mutableState.value.result ?: return
         if (result.problems.isNotEmpty()) return
         val requests = result.split.shares.mapNotNull { share ->
             val participant = result.plan.participant(share.personId) ?: return@mapNotNull null
-            PaymentRequest(participant, share.totalMinor).takeIf { !participant.isMe && it.amountMinor > 0 }
+            PersonRequest(participant, share).takeIf { !participant.isMe && it.amountMinor > 0 }
         }
         if (requests.isEmpty()) return
         finish()

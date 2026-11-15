@@ -125,7 +125,7 @@ class SplitFlowTest {
         // Step 3: money is requested from everyone but the payer.
         val requested = shares.shares.filter { it.personId != ME_ID }.sumOf { it.totalMinor }
         compose.onNodeWithText("Request ${vnd.format(requested)} from 2 people").performClick()
-        compose.onNodeWithText("Requests sent").assertIsDisplayed()
+        compose.onNodeWithText("Ask for the money").assertIsDisplayed()
         assertEquals(listOf("p1", "p2"), viewModel.state.value.sentRequests?.map { it.participant.id })
 
         // The finished split is kept on the phone with the shares as they were requested.

@@ -87,7 +87,7 @@ class SplitFlowOnDeviceTest {
         val request = hasText("Request", substring = true) and hasClickAction()
         awaitNode(request)
         compose.onNode(request).performClick()
-        compose.onNodeWithText("Requests sent").assertIsDisplayed()
+        compose.onNodeWithText("Ask for the money").assertIsDisplayed()
 
         compose.onNodeWithText("Done").performClick()
         compose.onNodeWithText("Recent bills").assertIsDisplayed()

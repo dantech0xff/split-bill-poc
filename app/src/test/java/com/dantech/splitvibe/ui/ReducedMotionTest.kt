@@ -117,7 +117,7 @@ class ReducedMotionTest {
         assertNull(viewModel.state.value.error)
 
         compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
-        compose.onNodeWithText("Requests sent").assertExists()
+        compose.onNodeWithText("Ask for the money").assertExists()
     }
 
     private fun showWorkingState() {

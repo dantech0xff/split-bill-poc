@@ -104,7 +104,7 @@ class BillLifecycleTest {
         compose.onNode(hasText("Name") and hasSetTextAction()).performTextInput("Minh")
         compose.onNode(hasText("Add") and hasClickAction()).performClick()
         compose.onNodeWithText("Request ${vnd.format(60_000)} from 1 person").performClick()
-        compose.onNodeWithText("Requests sent").assertIsDisplayed()
+        compose.onNodeWithText("Ask for the money").assertIsDisplayed()
 
         val id = checkNotNull(viewModel.state.value.result).saved.id
         awaitOnMain { runBlocking { storage.bills.get(id) }?.status == BillStatus.FINAL }

@@ -23,6 +23,8 @@ import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.MlKitBillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryViewModel
+import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
+import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import java.io.File
@@ -67,6 +69,16 @@ val appModule = module {
 
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }
+    viewModel { PaymentMethodsViewModel(repository = get()) }
+    viewModel {
+        RequestMoneyViewModel(
+            paymentMethods = get(),
+            requests = get(),
+            account = get<AccountStore>().account,
+            settings = get<SettingsStore>().settings,
+            saveName = get<SettingsStore>()::saveName,
+        )
+    }
     viewModel {
         SplitBillViewModel(
             settings = get<SettingsStore>().settings,

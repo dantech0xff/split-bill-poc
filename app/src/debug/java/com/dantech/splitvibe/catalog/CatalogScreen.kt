@@ -71,6 +71,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
@@ -237,7 +238,7 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Choices", hint = "SvChoiceGroup, SvChoiceChips and SvSplitButton.")
+                SvSectionHeader("Choices", hint = "SvChoiceGroup, SvChoiceChips, SvSplitButton and SvOverflowMenu.")
                 var mode by remember { mutableIntStateOf(0) }
                 var way by remember { mutableIntStateOf(1) }
                 Column(
@@ -250,12 +251,15 @@ fun CatalogScreen() {
                         selected = way,
                         onSelect = { way = it },
                     )
-                    SvSplitButton(
-                        text = "Request all",
-                        onClick = {},
-                        moreLabel = "More ways to request",
-                        options = listOf(SvMenuOption("Request one by one") {}, SvMenuOption("Copy the amounts") {}),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SvSplitButton(
+                            text = "Request all",
+                            onClick = {},
+                            moreLabel = "More ways to request",
+                            options = listOf(SvMenuOption("Request one by one") {}, SvMenuOption("Copy the amounts") {}),
+                        )
+                        SvOverflowMenu(label = "More for this bill", options = listOf(SvMenuOption("Remove") {}))
+                    }
                 }
             }
 

@@ -43,6 +43,27 @@ check(googleWebClientId.isEmpty() || Regex("[A-Za-z0-9-]+\\.apps\\.googleusercon
     "splitvibe.googleWebClientId must be a web client ID such as 1234-abcd.apps.googleusercontent.com, but it is $googleWebClientId"
 }
 
+// Firebase is used for one thing only, receiving the push notices the proxy sends about requests and
+// groups. Its four values are public settings of the Android app in the Firebase console (Project
+// settings), set in local.properties. Without all four the app is built without push, and every
+// other flow works the same.
+val firebaseSettings = mapOf(
+    "APP_ID" to "splitvibe.firebaseAppId",
+    "API_KEY" to "splitvibe.firebaseApiKey",
+    "PROJECT_ID" to "splitvibe.firebaseProjectId",
+    "SENDER_ID" to "splitvibe.firebaseSenderId",
+)
+val firebase: Map<String, String> = firebaseSettings.mapNotNull { (field, property) ->
+    localProperties.getProperty(property)?.trim()?.takeIf { it.isNotEmpty() }?.let { field to it }
+}.toMap()
+check(firebase.isEmpty() || firebase.size == firebaseSettings.size) {
+    "Push needs all four Firebase settings or none. Missing: " + (firebaseSettings.keys - firebase.keys).joinToString { firebaseSettings.getValue(it) }
+}
+
+// Invite and payment links point at the proxy's own address, which opens them in the app once
+// Android has checked the proxy's assetlinks.json.
+fun linkHostOf(url: String): String = runCatching { URI(url).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "links.invalid"
+
 // The upload key never lives in the repository. A release build is signed only when all four
 // variables are set, which only the release workflow does. Everywhere else it comes out unsigned.
 val uploadKeyParts = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
@@ -72,6 +93,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        firebaseSettings.keys.forEach { field -> buildConfigField("String", "FIREBASE_$field", "\"${firebase[field].orEmpty()}\"") }
+        // Every build type made from release, such as the baseline profile's, uses the release address.
+        manifestPlaceholders["linkHost"] = linkHostOf(releaseAiProxyUrl)
     }
 
     signingConfigs {
@@ -88,6 +112,7 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "AI_PROXY_URL", "\"$debugAiProxyUrl\"")
+            manifestPlaceholders["linkHost"] = linkHostOf(debugAiProxyUrl)
         }
         release {
             buildConfigField("String", "AI_PROXY_URL", "\"$releaseAiProxyUrl\"")
@@ -211,6 +236,11 @@ dependencies {
 
     // Talks to the AI proxy; the answer streams in as lines of JSON.
     implementation(libs.okhttp)
+
+    // Draws the payment QR codes a request carries.
+    implementation(libs.zxing.core)
+    // Receives the proxy's push notices about requests and groups; Firebase is used for nothing else.
+    implementation(libs.firebase.messaging)
 
     // Signing in with Google through the system's Credential Manager, which hands the app an ID
     // token that the proxy checks.
