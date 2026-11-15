@@ -5,7 +5,8 @@ Worker in [`proxy/`](../proxy), and the Worker asks Claude. The Worker holds the
 prompt and the answer schema, counts each person's calls, limits each network address, caps what
 the whole service may spend in a day, and keeps nothing of the bill. It also hands the app the
 day's exchange rates, keeps what signed-in people share (groups, their bills and settlements, and
-payment requests) and sends their push notifications.
+payment requests), sends their push notifications, and serves the web pages of shared links, where
+people without the app claim the items they had on a bill, or see a payment request or an invite.
 
 ```mermaid
 flowchart LR
@@ -15,8 +16,12 @@ flowchart LR
     claude --> worker
     worker -->|streamed answer| app
     worker -->|once a day| rates[Frankfurter:<br/>exchange rates]
-    worker --> d1[D1: groups, bills,<br/>settlements, requests,<br/>devices]
+    worker --> d1[D1: groups, bills,<br/>settlements, requests,<br/>devices, bill links]
     worker -->|push| fcm[FCM HTTP v1]
+    browser[Browser: the web page] -->|link token, claims| worker
+    worker -->|new claims| turnstile[Turnstile Siteverify]
+    worker --> rooms[Durable Objects:<br/>live connections<br/>of bill links]
+    rooms -->|changes| browser
 ```
 
 ## What it does
@@ -29,7 +34,9 @@ flowchart LR
 | `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's counters, and its part in the shared data, are gone |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
-| `GET /.well-known/assetlinks.json`, `GET /g/`, `GET /r/` | Android, a browser | App Links, and a page for a link opened without the app |
+| `/v1/shares…` | the app, signed in; a browser with the link | bill links and their claims, [below](#bill-links-and-the-web-pages) |
+| `POST /v1/request-links/view`, `POST /v1/invites/preview` | a browser with the link | what the web page of a payment request or an invite shows |
+| `GET /.well-known/assetlinks.json`, `GET /s/`, `GET /r/`, `GET /g/`, `GET /assets/…` | Android, a browser | App Links, and the web app for a link opened without the app |
 
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
 its version with `X-SplitVibe-Version`; the exchange rates, the shared data and the links need
@@ -95,15 +102,27 @@ carries. No email, Google name or photo is stored, nor a person's list of paymen
 stays on the phone. Invite and request links are kept as SHA-256 hashes of their tokens. How
 deleting an account changes the shared data is described [below](#deleting-an-account).
 
+A bill link keeps, until it expires or is revoked and the next daily run deletes it, what its page
+shows: the bill as the owner's app projected it (merchant, date, items, charges, total and the
+names of the participants), the claims under the names people typed with the items they took, and
+once the split is settled what each participant owes and how to pay it. A payment request may
+also keep how to pay it as its creditor's app built it for its page. Link tokens and the keys of
+claims are kept as SHA-256 hashes. What the web pages do without a session is counted per hour and
+per address, under the same salted hash of the address as the limits of bill reads, never the
+address itself, and forgotten by the daily run once the hour is over. The `ShareRoom` objects hold
+open connections only.
+
 The Worker prints one log line per bill read: the outcome, whether the caller is an install or an
 account, the model, the tokens, the cost and the time taken. For notifications it prints their
-type and how many devices got them, never an id, a token or any text. Cloudflare's invocation
+type and how many devices got them, never an id, a token or any text. When Turnstile cannot judge
+a claim, it prints Cloudflare's error codes, never the token. Cloudflare's invocation
 logs are off in `wrangler.jsonc`, because they record every request's headers, among them the
 session and the IP address. Traces are on: they show how long each request, each call to Claude
 and each Durable Object took, its outcome and its CPU time, with the country and city, the network
 and the user agent, but no header values, no IP address and no body. They do show each request's
 URL, so no path holds anything secret: paths hold ids only, and link tokens travel in a link's
-fragment and in request bodies. Those CPU times tell whether the free plan's limit is enough.
+fragment, in request bodies, and in the subprotocols of a live connection. Those CPU times tell
+whether the free plan's limit is enough.
 
 ## Shared data: groups, payment requests and push
 
@@ -120,7 +139,8 @@ by its tests; the app is trusted with nothing.
   makes. Making something again under an id that already exists for the same caller answers as
   the first time did and changes nothing, so a lost answer can be retried.
 - A shared link carries its token in the fragment, `https://<the proxy's host>/g/#<token>` or
-  `/r/#<token>`, which no browser sends, and the app sends it in a body as `"token"`. No URL path
+  `/r/#<token>` (and `/s/#<token>` for a [bill link](#bill-links-and-the-web-pages)), which no
+  browser sends, and the app sends it in a body as `"token"`. No URL path
   or query ever holds one. A body without a `token` text is 400; a token no link could hold, or
   that no link has, is 404.
 - Money is a whole number of minor units, from 0 to 10^15 (`BillCurrency.MAX_AMOUNT_MINOR`); more
@@ -314,8 +334,10 @@ RequestView:
   again; only the token's SHA-256 is kept. Because the creditor is part of it, an id that is
   forgotten after a deletion and used again by another account gets another link, and the old
   link stays dead.
-- A deleted request is emptied at once (method, names, title, debtor and group) and forgotten 30
-  days later, after which its link is 404.
+- A deleted request is emptied at once (method, payment, names, title, debtor and group) and
+  forgotten 30 days later, after which its link is 404.
+- A request may also carry `"payment"`: how to pay it, as the creditor's app built it for the
+  request's [web page](#payment-requests-and-invites-on-the-web).
 
 ### Devices and push notifications
 
@@ -367,7 +389,9 @@ The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongsi
   free plan's 50 subrequests, and the rest go the next day. The run fetches FCM's access token
   once: without push set up, or without a token, nothing is sent and nothing is recorded.
 - Invites and deleted requests are forgotten 30 days after they stopped working, and the hourly
-  counters once their hour is over.
+  counters, those of the web pages' addresses among them, once their hour is over.
+- Bill links that expired or were revoked are deleted, with their claims. This calls no Durable
+  Object, so it takes none of the run's subrequests.
 
 ### App Links
 
@@ -376,9 +400,10 @@ It lists `com.dantech.splitvibe` and `com.dantech.splitvibe.dev`, each with ever
 variable `ANDROID_CERT_SHA256` (comma-separated SHA-256 fingerprints, `AB:CD:…`, upper-cased by the
 Worker; one that is not one is left out and logged). Without any, it is `[]`. Where the app does
 not open a link, a browser asks for `GET /g/` or `GET /r/`, without the fragment that holds the
-token, and gets the same short page for every link, saying to open it on a phone with Split Vibe
-installed; the proxy never sees the token, so the page shows nothing of the group or the request.
-A token in the path, as in `/g/<token>`, is 404. These three need no session and no install id.
+token, and gets the web app's page, the same for every link: its script reads the token from the
+fragment and shows the invite or the request, as [the pages](#the-pages) describe. A token in the
+path, as in `/g/<token>`, is 404. Bill links, `/s/`, are not App Links and always open in the
+browser. None of these needs a session or an install id.
 
 ### Deleting an account
 
@@ -391,8 +416,11 @@ changing anyone's balance: amounts and settlements stay as they are.
 - A group it owns passes to the member with an account who joined first, and its bills pass to
   the group's owner.
 - Its claims, devices and hourly counters are deleted.
-- On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and
-  `creditorName` becomes "Former member" on all of them. The account is then taken off every
+- Its bill links are deleted, with their claims. Pages that have one open hear nothing more, and
+  learn it at their next request.
+- On the requests it made, the payment method of each one not yet confirmed becomes `{}`, its
+  `payment` for the web page is emptied with it, and `creditorName` becomes "Former member" on
+  all of them. The account is then taken off every
   request, as creditor and as debtor: the other side keeps the request, nobody can act as the
   deleted account on it, and no notice goes to it or for it. A creditor whose debtor was deleted
   gets `unpaid` notices instead of the debtor's reminders. Signing in again with the same Google
@@ -427,25 +455,39 @@ The routes of a link's owner need their session; the owner is the account that m
 | `DELETE /v1/shares/{id}/claims/{claimId}` | `{"share": ShareView}`, without that claim |
 | `DELETE /v1/shares/{id}` | 204: the link is revoked |
 
+- No route lists links. To any account but its owner, a link's routes answer 404, as for an id
+  no link has; `PUT` answers 409.
 - A link lasts 30 days from when it was made; nothing extends it. Its token is the first 128 bits
-  of an HMAC-SHA-256 under `HASH_SALT` of `share-link:<owner's account>:<link id>`, so the owner
-  gets the same link every time, and only its SHA-256 is kept.
+  of an HMAC-SHA-256 under `HASH_SALT` of `share-link:<owner's account>:<link id>:<when it was
+  made>`, so the owner gets the same link every time, and only its SHA-256 is kept. As the time it
+  was made is part of it, a link made again under the same id, once the daily run deleted the
+  first, gets another token, and the old link stays dead.
+- Once a link was revoked or has expired, its routes answer 410 `gone`, revoking aside. Expiry is
+  judged at every request, so this holds before the daily run deletes the link; after that, the
+  link is unknown (404).
 - `PUT` makes the link, or shows a changed bill on it. The `billId` stays the same (else 400). A
-  `billRevision` lower than the one kept is 409 `conflict`; another account's id is 409; a revoked
-  link is 410 `gone`. Claims keep only the item ids still in the bill. A `locked` link goes back to
-  `locking` and loses its amounts, so the split is settled again. An account makes at most 30
-  links an hour, and 300 changes an hour over all its links (429 past either).
+  `billRevision` lower than the one kept is 409 `conflict`; the same `billRevision` with the same
+  bill changes nothing. Claims keep only the item ids still in the bill, in their order. A
+  `locked` link goes back to `locking` and loses its amounts, so the split is settled again.
+- An account makes at most 30 links an hour, and 300 changes an hour over all its links (429 past
+  either). Every call of `PUT` on a link that exists, `lock`, `reopen`, `finalize` and removing a
+  claim counts as a change, whatever it then decides; reading and revoking count against nothing.
 - `lock` turns `open` into `locking`, and reads every claim in the same batch: a claim written
   before it is in the answer, and one after it is refused. On a `locking` or `locked` link it
   answers the link as it is.
-- `reopen` turns `locking` or `locked` into `open` and drops the amounts.
-- `finalize` needs `locking` or `locked` (else 409). `amounts` names every participant of `bill`
-  and nobody else; each `amountMinor` is 0 to 10^15, and together they come to `bill.totalMinor`
-  (else 400). `billRevision` follows the rule of `PUT`.
-- Removing a claim works while the link is `open` or `locking` (409 once `locked`); the browser
-  that made it then has no claim, and needs Turnstile again to claim.
+- `reopen` turns `locking` or `locked` into `open` and drops the amounts; an open link is answered
+  as it is.
+- `finalize` needs `locking` or `locked` (else 409 `conflict`). `amounts` names every participant
+  of `bill` and nobody else; each `amountMinor` is 0 to 10^15, and together they come to
+  `bill.totalMinor` (else 400). `bill` is shown as with `PUT`, and `billRevision` follows the rule
+  of `PUT`. The same settlement sent again to a `locked` link changes nothing.
+- Removing a claim works while the link is `open` or `locking` (409 `locked` once `locked`); a
+  claim the link does not have, as when the call is sent again, changes nothing. The browser that
+  made it then has no claim, and needs Turnstile again to claim.
 - Revoking deletes every claim, empties the bill and the amounts, and tells every open page that
-  the link is gone. Revoking again answers 204.
+  the link is gone. Revoking again answers 204, until the daily run deletes the link; an expired
+  link can be revoked too.
+- A body of these routes is at most 512 KB.
 
 BillProjection, what the page shows of a bill:
 
@@ -457,14 +499,17 @@ BillProjection, what the page shows of a bill:
  "participants": [{"id": "me", "name": "Lan"}, {"id": "p1", "name": "Minh"}]}
 ```
 
+- Only these fields are kept; anything else the app sends in `bill` is dropped.
 - `merchant` is null or 1 to 80 characters; `date` null or a real `YYYY-MM-DD`.
 - `items` holds 1 to 200 items and `charges` 0 to 20; `participants` holds 1 to 30 people.
 - Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list.
-- Names and labels are 1 to 80 characters; a participant's name is 1 to 60, and may be empty for
-  `me`, which the page then calls the bill's owner.
-- `quantity` is null or a decimal such as `"2"` or `"0.5"`.
+- Names and labels are trimmed and 1 to 80 characters, without control characters; a
+  participant's name is 1 to 60, and may be empty for `me`, which the page then calls the bill's
+  owner.
+- `quantity` is null or a decimal written as text, such as `"2"`, `"0.5"` or `"-1"`: no exponent,
+  no leading zero, and at most 20 digits on each side of the point.
 - An item's `amountMinor` is 0 to 10^15, a charge's -10^15 to 10^15, and `totalMinor` 0 to 10^15.
-- The whole bill is at most 64 KB (413 past that).
+- The whole bill, as kept, is at most 64 KB of JSON (413 past that).
 
 ShareView, as its owner sees it:
 
@@ -477,7 +522,10 @@ ShareView, as its owner sees it:
 
 - `status` is `open`, `locking` or `locked`.
 - `revision` moves on by one at every change of the link or its claims.
-- `amounts` is null until the split is settled, then `{"<participant id>": {"amountMinor", "payment"}}`.
+- `claims` are in the order they were made; a claim's `updatedAt` is when its browser last wrote
+  it, which dropping items the bill no longer has does not change.
+- `amounts` is null until the split is settled, then `{"<participant id>": {"amountMinor", "payment"}}`,
+  in the order of the bill's participants.
 
 `payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
 person and that amount.
@@ -486,15 +534,19 @@ person and that amount.
 {"link": "https://paypal.me/lan/71500VND", "qrPayload": null, "details": "PayPal: paypal.me/lan\nAmount: ₫71,500", "amountFilledIn": true}
 ```
 
-- `link` is null, an `https:` URL with a host, or a `upi://pay?` link, at most 2,048 characters.
-  The proxy refuses any other scheme (400), and the page shows nothing else.
+- `link` is null, a URL that starts `https://` and has a host, or a link that starts
+  `upi://pay?`, at most 2,048 characters, without whitespace or control characters. The proxy
+  refuses any other scheme (400), and the page shows nothing else.
 - `qrPayload` is null or at most 512 characters, with no control characters but line breaks.
-- `details` is 1 to 1,000 characters, with line breaks allowed.
+- `details` is 1 to 1,000 characters, with line breaks allowed and no other control character.
+- `amountFilledIn` is true or false. A `link` or `qrPayload` left out is null, and so is a
+  `payment` left out. Lengths are counted in code points.
 
 ### Claiming items
 
-These routes need no session. The token is in the body; a link that does not exist is 404, and one
-that was revoked or has expired is 410 `gone`, however long ago.
+These routes need no session. The token is in the body: a body without a `token` text is 400, a
+token no link could hold, or that no link has, is 404, and one whose link was revoked or has
+expired is 410 `gone` until the daily run deletes the link, and 404 after that.
 
 | Route | Answer |
 |---|---|
@@ -506,36 +558,51 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
 `updatedAt`. It names no account and holds no hash and no IP.
 
 - A claim is the items one browser took, under a name its user typed:
-  - Without `key`, or with a key the link does not know, it is a new claim. It needs `turnstile`,
-    a token of the Turnstile widget with the action `claim`, which the proxy checks with
-    Cloudflare.
-  - A missing or refused token is 403 `turnstile`; without the `TURNSTILE_SECRET` secret, a new
-    claim is 503 `not_configured`.
-  - The answer then carries `key`, 22 base64url characters, which the browser keeps and sends
-    from then on; only its SHA-256 is kept.
-  - With a known `key`, the claim's name and items are replaced, without Turnstile.
-- `name` is trimmed and 1 to 40 characters; `itemIds` holds unique ids of the bill's items, and may
-  be empty (else 400). A link holds at most 30 claims (409 `full`), and takes them only while
-  `open` (409 `locked` otherwise).
-- Limits per hashed IP: 10 new claims an hour and 120 claim writes an hour; 600 reads an hour over
-  `open`, `live`, `/v1/request-links/view` and `/v1/invites/preview`. Past any of them, 429.
+  - Without `key`, or with a key the link does not know (text that is not 22 base64url
+    characters is one), it is a new claim. It needs `turnstile`, a token of the Turnstile widget
+    solved with the action `claim` on the proxy's host, which the proxy checks with Cloudflare's
+    Siteverify. A token passes once.
+  - A missing or refused token is 403 `turnstile`, and so is one Cloudflare does not judge within
+    5 seconds; a token is text of 1 to 2,048 characters, and anything else counts as missing.
+    Without the `TURNSTILE_SECRET` secret, a new claim is 503 `not_configured`.
+  - With one of Cloudflare's test secrets, whose answers carry no action and `example.com` as the
+    hostname, only whether the token passed is checked. Such a secret never belongs on the
+    deployed Worker.
+  - The answer then carries `key`, 22 base64url characters that the proxy made, which the browser
+    keeps and sends from then on; only its SHA-256 is kept.
+  - With a known `key`, the claim's name and items are replaced, without Turnstile; the same name
+    and items again change nothing.
+- `name` is trimmed and 1 to 40 characters, without control characters; `itemIds` holds unique ids
+  of the bill's items, and may be empty (else 400). A link holds at most 30 claims (409 `full`),
+  and takes them only while `open` (409 `locked` otherwise). A claim is written only while all of
+  that still holds, in the same batch as the check.
+- A new claim is judged in this order: 409 `locked`, 400 for an item, 409 `full`, 503
+  `not_configured`, 403 for a missing token, 429, then Cloudflare's verdict. So Cloudflare is
+  asked only about claims that can land.
+- Limits per hashed IP: 10 new claims an hour, counted before Cloudflare is asked, and 120 claim
+  writes an hour, new or not; 600 reads an hour over `open`, `live`, `/v1/request-links/view` and
+  `/v1/invites/preview`. Past any of them, 429 `rate_limited` with `Retry-After`. A request that
+  reached Cloudflare without an address is 400.
 - The Turnstile token and the key open nothing else: every other route ignores them.
+- A claim's body is at most 32 KB, and that of `open` 16 KB.
 
 The live connection:
 
-- The browser sends the two protocols; the proxy picks `splitvibe.v1`. The token travels in that
-  header because traces keep URLs and not header values.
+- The browser sends the two protocols, in either order; the proxy picks `splitvibe.v1`. The token
+  travels in that header because traces keep URLs and not header values. A request that is not a
+  WebSocket upgrade, or that offers anything but those two protocols, is 400 `input`.
 - After every change of the link or its claims, every page gets `{"type": "share", "share":
-  PublicShare}`. Once the link is revoked, they get `{"type": "gone"}` and the connection closes.
-  An expired link, or one whose owner deleted their account, sends nothing more; the page learns
-  it at its next request.
-- A link holds at most 50 connections (429 past that). A page may send `ping` and gets `pong`; it
-  sends nothing else.
+  PublicShare}`. Once the link is revoked, they get `{"type": "gone"}`, and the connection closes
+  with the code 1000 and the reason `gone`. An expired link, or one whose owner deleted their
+  account, sends nothing more; the page learns it at its next request.
+- A link holds at most 50 connections (429 `rate_limited` past that, with `Retry-After: 60`). A
+  page may send `ping` and gets `pong`, which does not wake the link's object; it sends nothing
+  else, and a connection that does is closed with the code 1008.
 - A page should connect first, then call `open`, and keep whichever view has the higher
   `revision`.
 - Each link has a Durable Object, `ShareRoom` (binding `SHARE_ROOM`), that holds only its
-  connections and passes on what the Worker gives it after each change. D1 holds the data, so a
-  lost connection loses nothing.
+  connections, through the WebSocket Hibernation API, and passes on what the Worker gives it after
+  each change. D1 holds the data, so a lost connection loses nothing.
 
 ### Payment requests and invites on the web
 
@@ -544,35 +611,48 @@ The live connection:
 | `POST /v1/request-links/view` `{"token"}` | `{"request": {"creditorName","payerName","amountMinor","currency","title","status","payment","createdAt"}}` |
 | `POST /v1/invites/preview` `{"token"}` | `{"group": {"name","currency"}}` |
 
-- Neither needs a session. An unknown token is 404; a deleted request, or an expired or revoked
-  invite, is 410.
+- Neither needs a session; each counts as a read of the IP. A body without a `token` text is 400,
+  an unknown token 404; a deleted request, or an expired or revoked invite, is 410.
 - `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
   app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
-  null.
-- Deleting an account empties `payment` along with `method` on the requests it made.
+  null. RequestView does not carry it.
+- Deleting a request empties its `payment` at once. Deleting an account empties `payment` along
+  with `method` on the requests it made that are not confirmed.
 
 ### The pages
 
-- `GET /s/`, `GET /r/` and `GET /g/` answer the web app's page. Its script reads the token from the
-  fragment and calls the routes above; a token in the path, as in `/s/<token>`, is 404.
+- `GET /s/`, `GET /r/` and `GET /g/` answer the web app's page, the same for every link. Its
+  script reads the token from the fragment and calls the routes above; a token in the path, as in
+  `/s/<token>`, is 404.
 - The Worker fills two tags of the page from its variables:
   - `<meta name="sv-turnstile-site-key">` from `TURNSTILE_SITE_KEY`;
   - `<meta name="sv-abuse-email">` from `ABUSE_EMAIL`, the address of the "Report abuse" link,
     which the page leaves out while it is empty.
-- The page's headers:
+  - A value that is not shaped as a site key (letters, digits, `_` and `-`) or as an address
+    (something `@` something, without whitespace) leaves its tag empty, and is logged.
+- The page's headers, with `<host>` the host the page was asked at:
   - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
   - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`
   - `cache-control: no-store`
 - `GET /assets/<name>` serves the page's scripts and styles with `cache-control: public,
-  max-age=31536000, immutable`; any other name is 404.
-- The web app is built from [`web/`](../web) and put into the Worker's bundle when the Worker is
-  built.
+  max-age=31536000, immutable` and `x-content-type-options: nosniff`; any other name is 404.
+- The web app is built from [`web/`](../web) and put into the Worker's bundle, as the module
+  `proxy/src/web-assets.generated.ts` that
+  [`proxy/scripts/embed-web.mjs`](../proxy/scripts/embed-web.mjs) writes from what `npm run build`
+  in `web/` leaves in `web/dist`: `index.html`, and the `.js` and `.css` files of its `assets/`.
+  Git ignores the module. `npm run build:web` in `proxy/` builds `web/` and writes the module; the
+  proxy's typecheck, tests and `npm run dev` write it too, from `web/dist` as it is, or as a
+  placeholder page while `web/` is not built. Writing it stops on a page the Worker could not serve
+  whole: a script or a style that is not under `/assets/`, any other kind of file in `assets/`, or
+  an inline script or style, which the page's policy would block. Workers Static Assets are not
+  used, since the Worker is deployed through the Cloudflare API.
 - `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
   app where it is installed, and the page elsewhere.
 
 ### Cleaning up
 
 - The daily run deletes links whose `expiresAt` has passed, with their claims, and revoked links.
+  It calls no Durable Object, so pages that still have such a link open hear nothing of it.
 - Deleting an account deletes every link it made, with their claims.
 
 ## Run it on a computer
@@ -593,11 +673,25 @@ SESSION_SIGNING_KEY=<at least 32 random characters>
 
 `openssl rand -base64 32` makes a good salt or signing key. To try push notifications, also add
 `FCM_SERVICE_ACCOUNT` with the service account's key file on one line; without it, nothing is sent.
+To try claims on a bill link, add `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY`, for instance
+Cloudflare's test pair `1x0000000000000000000000000000000AA` and `1x00000000000000000000AA`, which
+pass every claim; without the secret, a new claim answers 503.
 `wrangler dev` keeps the D1 database on the computer, under `proxy/.wrangler/`; give it the schema
 once, and again after a new migration:
 
 ```bash
 npx wrangler d1 migrations apply split-vibe --local
+```
+
+The pages of `/s/`, `/r/` and `/g/` are the web app built from `web/`; until it is built, they are
+a placeholder. To see the real pages, install the web app's packages once and build it:
+
+```bash
+npm ci --prefix ../web
+```
+
+```bash
+npm run build:web
 ```
 
 Then start it on port 8787:
@@ -630,7 +724,13 @@ The tests run the Worker and its Durable Objects in the workers runtime against 
 streams the way the Messages API does and a fake Frankfurter, so they need no key and no network.
 Each test starts from an empty local D1 database with the migrations of `proxy/migrations/`
 applied, and push goes to a fake of Google's token endpoint and of FCM, which checks the signed
-token request. GitHub Actions runs both for every pull request.
+token request. New claims go to a fake of Turnstile's Siteverify, which hands out tokens for an
+action and a host and passes each once, and answers Cloudflare's test secrets as Cloudflare does.
+Live connections are opened as a browser opens them. A claim and a lock are raced by landing one
+just before the other's batch, both ways round. The tests of the pages read nothing of what the
+page says, so they hold for the web app and for the placeholder alike. Both commands first write
+the module of the web app, from `web/dist` as it is. GitHub Actions runs both for every pull
+request, after building `web/` once it has a lock file.
 
 ## Deploy it
 
@@ -665,6 +765,15 @@ These steps need the owner's accounts.
    npx wrangler d1 migrations apply split-vibe --remote
    ```
 
+   `0002_shares.sql` adds the tables of bill links and the `payment` column of requests; it only
+   adds, but note the database's bookmark before applying it, which D1's Time Travel can restore
+   (within 7 days on the free plan, with `npx wrangler d1 time-travel restore split-vibe
+   --bookmark=<bookmark>`):
+
+   ```bash
+   npx wrangler d1 time-travel info split-vibe
+   ```
+
    For push notifications, make a service account in the Firebase project that may send FCM
    messages (the project's Firebase Admin SDK account may), download a JSON key for it, and set the
    whole file as a secret. Without it, the proxy sends no notification and everything else works.
@@ -678,18 +787,43 @@ These steps need the owner's accounts.
    in `wrangler.jsonc`, separated by commas; they are public. `keytool -list -v` prints them, and
    Play Console shows the app signing key's.
 
-4. Deploy:
+4. **The web pages.** Make a Turnstile widget for `<the proxy's host>`: in the Cloudflare
+   dashboard under Turnstile, or with the API's `POST /accounts/{account_id}/challenges/widgets`
+   and `{"name", "mode": "managed", "domains": ["<the proxy's host>"]}`. Put its site key into
+   `TURNSTILE_SITE_KEY` in `wrangler.jsonc`; it is public. Set its secret key, `result.secret` in
+   the API's answer, as a secret; without it the pages show links but take no new claim (503):
+
+   ```bash
+   npx wrangler secret put TURNSTILE_SECRET
+   ```
+
+   Put the address that reports of abuse go to into `ABUSE_EMAIL` in `wrangler.jsonc`; while it is
+   empty, the pages show no "Report abuse" link.
+
+5. Deploy. Build the web app first, from `proxy/`, so that the bundle holds it: without it, the
+   bundle serves the placeholder page, or does not build when the module was never written.
+
+   ```bash
+   npm ci --prefix ../web
+   ```
+
+   ```bash
+   npm run build:web
+   ```
 
    ```bash
    npx wrangler deploy
    ```
 
-   The deploy also adds the `FxBook` class of Durable Objects (migration `v2`) and sets the daily
-   cron in `triggers.crons` of `wrangler.jsonc`, which fetches the exchange rates and sends the
-   reminders. A new or changed cron can take up to 15 minutes to start; until it first runs, the
+   A deploy through the Cloudflare API instead bundles `src/index.ts` the same way, after the same
+   build, with the bindings, variables, migrations and cron of `wrangler.jsonc`. The deploy also
+   adds the `FxBook` class of Durable Objects (migration `v2`) and the `ShareRoom` class
+   (migration `v3`), and sets the daily cron in `triggers.crons` of `wrangler.jsonc`, which
+   fetches the exchange rates, sends the reminders and deletes bill links that expired or were
+   revoked. A new or changed cron can take up to 15 minutes to start; until it first runs, the
    first request for the rates fetches them.
 
-5. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
+6. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
    a value with a placeholder such as `<your-subdomain>` still in it.
 
@@ -703,7 +837,7 @@ Worker's logs show CPU limit errors, move to the paid plan.
 
 Never keep a secret in `wrangler.jsonc`, in `local.properties` that is committed, or in a workflow.
 `HASH_SALT` must not change once the proxy is live: every count and every account in the shared
-data is named by it, and every payment request link is made with it.
+data is named by it, and every payment request link and bill link is made with it.
 
 ## Switches
 
