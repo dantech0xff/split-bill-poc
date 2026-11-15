@@ -60,71 +60,85 @@ object PaymentRequestBuilder {
     ): PaymentRequest {
         val shownAmount = "Amount: ${currency.format(amountMinor, locale)}"
         val shownNote = note?.trim()?.takeIf { it.isNotEmpty() }?.let { "Note: $it" }
-        if (method.problem() != null) {
-            return PaymentRequest(null, null, lines("This payment method cannot be used.", shownAmount, shownNote), false)
+        val unusable = PaymentRequest(null, null, lines("This payment method cannot be used.", shownAmount, shownNote), false)
+        if (method.problem() != null) return unusable
+        // A method that came from someone else's phone may still hold something no code can carry;
+        // it is then shown as unusable rather than taking the app down.
+        return try {
+            requestFor(method, amountMinor, currency, note, shownAmount, shownNote)
+        } catch (e: IllegalArgumentException) {
+            unusable
+        }
+    }
+
+    private fun requestFor(
+        method: PaymentMethod,
+        amountMinor: Long,
+        currency: BillCurrency,
+        note: String?,
+        shownAmount: String,
+        shownNote: String?,
+    ): PaymentRequest = when (method) {
+        is PaymentMethod.PayPalMe -> {
+            val amount = payPalAmount(amountMinor, currency)
+            val link = "https://paypal.me/${method.handle}" + (amount?.let { "/$it" } ?: "")
+            PaymentRequest(link, null, lines("PayPal: paypal.me/${method.handle}", shownAmount, shownNote), amount != null)
         }
 
-        return when (method) {
-            is PaymentMethod.PayPalMe -> {
-                val amount = payPalAmount(amountMinor, currency)
-                val link = "https://paypal.me/${method.handle}" + (amount?.let { "/$it" } ?: "")
-                PaymentRequest(link, null, lines("PayPal: paypal.me/${method.handle}", shownAmount, shownNote), amount != null)
-            }
-
-            is PaymentMethod.Upi -> {
-                val amount = majorText(amountMinor, currency, "INR", decimals = 2)
-                val query = buildList {
-                    add("pa=${method.vpa}")
-                    add("pn=${encode(method.name)}")
-                    if (amount != null) {
-                        add("am=$amount")
-                        add("cu=INR")
-                    }
-                    upiNote(note)?.let { add("tn=${encode(it)}") }
+        is PaymentMethod.Upi -> {
+            val amount = majorText(amountMinor, currency, "INR", decimals = 2)
+            val query = buildList {
+                add("pa=${method.vpa}")
+                add("pn=${encode(method.name)}")
+                if (amount != null) {
+                    add("am=$amount")
+                    add("cu=INR")
                 }
-                val link = "upi://pay?" + query.joinToString("&")
-                PaymentRequest(link, link, lines("UPI ID: ${method.vpa}", "Name: ${method.name}", shownAmount, shownNote), amount != null)
+                upiNote(note)?.let { add("tn=${encode(it)}") }
             }
-
-            is PaymentMethod.PromptPay -> {
-                val amount = majorText(amountMinor, currency, "THB", decimals = 2)?.takeIf { it.length <= EMV_AMOUNT_LENGTH }
-                PaymentRequest(null, promptPay(method, amount), lines("PromptPay: ${method.id}", shownAmount, shownNote), amount != null)
-            }
-
-            is PaymentMethod.VietQr -> {
-                val amount = majorText(amountMinor, currency, "VND", decimals = 0)?.takeIf { it.length <= EMV_AMOUNT_LENGTH }
-                val details = lines(
-                    "Bank: ${method.bankName} (${method.bankBin})",
-                    "Account: ${method.account}",
-                    "Name: ${method.accountName}",
-                    shownAmount,
-                    shownNote,
-                )
-                PaymentRequest(null, vietQr(method, amount, vietQrPurpose(note)), details, amount != null)
-            }
-
-            is PaymentMethod.SepaQr -> {
-                val amount = majorText(amountMinor, currency, "EUR", decimals = null)
-                    ?.takeIf { BigDecimal(it) <= BigDecimal(EPC_MAX_AMOUNT) }
-                val details = lines(
-                    "Name: ${method.name}",
-                    "IBAN: ${method.groupedIban}",
-                    method.compactBic?.let { "BIC: $it" },
-                    shownAmount,
-                    shownNote,
-                )
-                val payload = epcQr(method, amount, sepaText(note))
-                PaymentRequest(null, payload, details, amount != null && payload != null)
-            }
-
-            is PaymentMethod.PastedLink -> {
-                val link = method.url.trim()
-                PaymentRequest(link, null, lines("Pay at: $link", shownAmount, shownNote), false)
-            }
-
-            is PaymentMethod.PlainDetails ->
-                PaymentRequest(null, null, lines("${method.label}: ${method.details}", shownAmount, shownNote), false)
+            val link = "upi://pay?" + query.joinToString("&")
+            PaymentRequest(link, link, lines("UPI ID: ${method.vpa}", "Name: ${method.name}", shownAmount, shownNote), amount != null)
         }
+
+        is PaymentMethod.PromptPay -> {
+            val amount = majorText(amountMinor, currency, "THB", decimals = 2)?.takeIf { it.length <= EMV_AMOUNT_LENGTH }
+            PaymentRequest(null, promptPay(method, amount), lines("PromptPay: ${method.id}", shownAmount, shownNote), amount != null)
+        }
+
+        is PaymentMethod.VietQr -> {
+            val amount = majorText(amountMinor, currency, "VND", decimals = 0)?.takeIf { it.length <= EMV_AMOUNT_LENGTH }
+            val details = lines(
+                "Bank: ${method.bankName} (${method.bankBin})",
+                "Account: ${method.account}",
+                "Name: ${method.accountName}",
+                shownAmount,
+                shownNote,
+            )
+            PaymentRequest(null, vietQr(method, amount, vietQrPurpose(note)), details, amount != null)
+        }
+
+        is PaymentMethod.SepaQr -> {
+            // The guidelines take euros to the cent, up to 999,999,999.99.
+            val amount = majorText(amountMinor, currency, "EUR", decimals = null)
+                ?.takeIf { BigDecimal(it) <= BigDecimal(EPC_MAX_AMOUNT) && BigDecimal(it).scale() <= 2 }
+            val details = lines(
+                "Name: ${method.name}",
+                "IBAN: ${method.groupedIban}",
+                method.compactBic?.let { "BIC: $it" },
+                shownAmount,
+                shownNote,
+            )
+            val payload = epcQr(method, amount, sepaText(note))
+            PaymentRequest(null, payload, details, amount != null && payload != null)
+        }
+
+        is PaymentMethod.PastedLink -> {
+            val link = method.link
+            PaymentRequest(link, null, lines("Pay at: $link", shownAmount, shownNote), false)
+        }
+
+        is PaymentMethod.PlainDetails ->
+            PaymentRequest(null, null, lines("${method.label}: ${method.details}", shownAmount, shownNote), false)
     }
 
     /**

@@ -176,6 +176,26 @@ class PaymentRequestBuilderTest {
         }
     }
 
+    @Test
+    fun `digits other than 0 to 9 make no code and take nothing down`() {
+        // Thai digits pass Char.isDigit, but no payment code can carry them.
+        listOf(PaymentMethod.PromptPay("๑๒๓๔๕๖๗๘๙๐๑๒๓"), PaymentMethod.PromptPay("0๘๑๒๓๔๕๖๗๘"), PaymentMethod.PromptPay("０８１２３４５６７８"))
+            .forEach { method ->
+                assertEquals(method.toString(), "Enter a Thai mobile number, a 13-digit ID or a 15-digit e-wallet ID.", method.problem())
+                val request = build(method, 1_000, thb)
+                assertNull(request.qrPayload)
+                assertFalse(request.amountFilledIn)
+            }
+    }
+
+    @Test
+    fun `a SEPA code never carries euros below the cent, and a pasted link opens with a lower-case scheme`() {
+        val sepa = PaymentMethod.SepaQr("Red Cross of Belgium", "BE72000000001616")
+        assertEquals("BCD\n002\n1\nSCT\n\nRed Cross of Belgium\nBE72000000001616", build(sepa, 12_345, BillCurrency("EUR", 3)).qrPayload)
+
+        assertEquals("https://revolut.me/asha", build(PaymentMethod.PastedLink("HTTPS://revolut.me/asha"), 1_000, eur).link)
+    }
+
     private fun build(method: PaymentMethod, amountMinor: Long, currency: BillCurrency, note: String? = null) =
         PaymentRequestBuilder.build(method, amountMinor, currency, note, Locale.US)
 }

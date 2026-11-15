@@ -65,12 +65,13 @@ sealed interface PaymentMethod {
         override val title: String get() = "PromptPay"
         override val summary: String get() = id
 
-        val digits: String get() = id.filter(Char::isDigit)
+        /** The id's digits; only 0 to 9 count, as only those go into a payment code. */
+        val digits: String get() = id.filter(::isAsciiDigit)
 
         override fun problem(): String? {
             // A plus sign only starts an international mobile number.
             val international = id.trim().startsWith("+") && id.count { it == '+' } == 1
-            val valid = id.all { it.isDigit() || it in "- " || (it == '+' && international) } &&
+            val valid = id.all { isAsciiDigit(it) || it in "- " || (it == '+' && international) } &&
                 when (digits.length) {
                     10 -> !international && digits.startsWith("0")
                     11 -> international && digits.startsWith("66")
@@ -139,6 +140,9 @@ sealed interface PaymentMethod {
         /** The address of the payment service, or null when the link is not one the app opens. */
         val host: String? get() = paymentHostOf(url)
 
+        /** The link as it is opened: trimmed, with the scheme in lower case, which Android matches exactly. */
+        val link: String get() = url.trim().let { "https" + it.substring(it.indexOf(':')) }
+
         override fun problem(): String? =
             "Paste a secure link from a payment service, such as revolut.me or wise.com.".takeIf { host == null }
     }
@@ -202,6 +206,9 @@ sealed interface PaymentMethod {
             return BigInteger(digits).mod(BigInteger.valueOf(97)) == BigInteger.ONE
         }
 
-        private fun isAsciiLetterOrDigit(char: Char) = char in 'a'..'z' || char in 'A'..'Z' || char in '0'..'9'
+        private fun isAsciiLetterOrDigit(char: Char) = char in 'a'..'z' || char in 'A'..'Z' || isAsciiDigit(char)
+
+        // Char.isDigit also takes Thai, full-width and other digits, which no payment code carries.
+        private fun isAsciiDigit(char: Char) = char in '0'..'9'
     }
 }
