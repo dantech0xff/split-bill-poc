@@ -213,7 +213,14 @@ export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
   });
 });
 
-/** Deletes a group and, through the schema's cascades, its members, claims, invites, bills, settlements and log. */
+/**
+ * Deletes a group and, through the schema's cascades, its members, claims, invites, bills,
+ * settlements and log. Payment requests made in it stay between their two people, without the
+ * group, its members or its bill.
+ */
 export function deleteGroupStatements(db: D1Database, groupId: string): D1PreparedStatement[] {
-  return [db.prepare("DELETE FROM groups WHERE id = ?1").bind(groupId)];
+  return [
+    db.prepare("UPDATE requests SET group_id = NULL, to_member_id = NULL, creditor_member_id = NULL, bill_id = NULL WHERE group_id = ?1").bind(groupId),
+    db.prepare("DELETE FROM groups WHERE id = ?1").bind(groupId),
+  ];
 }

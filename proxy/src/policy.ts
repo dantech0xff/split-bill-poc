@@ -60,24 +60,37 @@ export const POLICY = {
   maxDocumentChars: 20_000,
   maxInstructionChars: 1_000,
 
-  // Groups, their bills and settlements.
+  // Groups, payment requests and push notifications.
   hourMs: 60 * 60 * 1000,
   /** The largest body of a route on shared data, a bill's aside, which may be [maxBodyBytes]. */
   maxSharedBodyBytes: 16 * 1024,
   /** How long an invite link works after it was made. */
   inviteMs: 14 * 24 * 60 * 60 * 1000,
-  /** Invites one account may make in an hour, over every group. */
+  /** Invites one account may make in an hour, over every group, and payment requests one creditor may. */
   invitesPerHour: 20,
+  requestsPerHour: 30,
   /** The largest amount of money the proxy takes, in minor units: the app's `BillCurrency.MAX_AMOUNT_MINOR`. */
   maxAmountMinor: 1_000_000_000_000_000,
-  /** A bill's document, serialized as JSON, in bytes. */
+  /** A bill's document and a request's payment method, serialized as JSON, in bytes. */
   maxBillDocumentBytes: 64 * 1024,
+  maxMethodBytes: 4 * 1024,
   /** A group's state is always sent whole, and an account's groups are listed whole; these keep both small. */
   maxMembers: 100,
   maxBills: 1_000,
   maxGroupsPerAccount: 100,
-  /** The newest log entries a group's state carries. */
+  /** The devices an account keeps; registering one more forgets the one updated longest ago. */
+  maxDevices: 10,
+  /** The newest log entries a group's state carries, and the newest requests a list carries. */
   logEntries: 100,
+  listedRequests: 200,
+  /**
+   * Notifications one daily run may send for reminders. With the token fetch and the two fetches
+   * of the exchange rates it stays under the 50 subrequests a Worker on the free plan may make;
+   * reminders left over go out the next day. Raise it on the paid plan.
+   */
+  remindersPerRun: 40,
+  /** Invites and deleted requests are forgotten this long after they stopped working; their links then answer 404. */
+  forgetAfterMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
 
 export type RateLimit = { perMinute: number; perDay: number };

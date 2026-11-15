@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { GroupState } from "../src/group-state";
 import { POLICY } from "../src/policy";
-import { addBill, addPlaceholder, api, billBody, join, newGroup, type Person, person, rows, stateOf, type TestGroup } from "./shared";
+import { addBill, addPlaceholder, api, billBody, join, newGroup, type Person, person, rows, stateOf, type TestGroup, THB } from "./shared";
 
 /** A group of four: its owner, two members with accounts, and a placeholder. */
 async function household() {
@@ -212,11 +212,21 @@ describe("amounts", () => {
     expect(max).toBe(1_000_000_000_000_000);
     const settle = (amountMinor: number) =>
       api(lan, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor });
+    const ask = (amountMinor: number) =>
+      api(lan, "POST", "/v1/requests", {
+        id: crypto.randomUUID(),
+        amountMinor,
+        currency: THB,
+        payerName: "Minh",
+        creditorName: "Lan",
+        method: { kind: "PlainDetails", text: "Pay me" },
+      });
 
     const largest = await putBill(group, lan, crypto.randomUUID(), billBody({ [lanId]: max / 2, [minhId]: max / 2 }, { [lanId]: max }));
     expect(largest.status).toBe(200);
     expect(largest.body.bills[0].totalMinor).toBe(max);
     expect((await settle(max)).status).toBe(200);
+    expect((await ask(max)).status).toBe(201);
 
     const over = [
       { ...billBody({ [lanId]: max + 1 }, { [lanId]: max + 1 }) },
@@ -225,6 +235,7 @@ describe("amounts", () => {
     ];
     for (const body of over) expect((await putBill(group, lan, crypto.randomUUID(), body)).status).toBe(400);
     expect((await settle(max + 1)).status).toBe(400);
+    expect((await ask(max + 1)).status).toBe(400);
   });
 });
 

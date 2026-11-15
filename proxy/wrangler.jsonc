@@ -15,19 +15,20 @@
     "traces": { "enabled": true }
   },
   // Switches and public settings. GOOGLE_CLIENT_ID is the app's web client ID at Google; sign-in
-  // stays off until it is set. Secrets (ANTHROPIC_API_KEY, HASH_SALT, SESSION_SIGNING_KEY) are set
-  // with `wrangler secret put` and never written here.
+  // stays off until it is set. Secrets (ANTHROPIC_API_KEY, HASH_SALT, SESSION_SIGNING_KEY and the
+  // optional FCM_SERVICE_ACCOUNT) are set with `wrangler secret put` and never written here.
   "vars": {
     "AI_ENABLED": "true",
     "MIN_APP_VERSION": "1",
     "GOOGLE_CLIENT_ID": ""
   },
   // The exchange rates are fetched every day at 16:30 UTC, once the European Central Bank has
-  // published its rates of the day, and also by the first request that finds them a day old.
+  // published its rates of the day, and also by the first request that finds them a day old. The
+  // same run sends the payment reminders that are due and forgets expired invites.
   "triggers": {
     "crons": ["30 16 * * *"]
   },
-  // Groups, their members, bills and settlements. Apply the migrations in
+  // Groups, their bills and settlements, payment requests and devices. Apply the migrations in
   // migrations_dir before a deploy that needs them: `wrangler d1 migrations apply split-vibe --remote`.
   "d1_databases": [
     {

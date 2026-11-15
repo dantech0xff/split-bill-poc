@@ -131,6 +131,12 @@ export async function inputOf<T>(
   return { ok: true, value };
 }
 
+/** A UUID like [uuidOf], or null for null or a missing value; undefined when [value] is something else. */
+export function optionalUuidOf(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  return typeof value === "string" ? (uuidOf(value) ?? undefined) : undefined;
+}
+
 /** How many bytes [text] takes in UTF-8. */
 export function byteLength(text: string): number {
   return new TextEncoder().encode(text).byteLength;

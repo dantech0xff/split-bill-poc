@@ -167,6 +167,16 @@ describe("a group", () => {
       ["POST", `/v1/groups/${group.id}/settlements`],
       ["GET", "/v1/invites/AAAAAAAAAAAAAAAAAAAAAA"],
       ["POST", "/v1/invites/AAAAAAAAAAAAAAAAAAAAAA/join"],
+      ["GET", "/v1/requests"],
+      ["POST", "/v1/requests"],
+      ["PATCH", `/v1/requests/${id}`],
+      ["DELETE", `/v1/requests/${id}`],
+      ["POST", `/v1/requests/${id}/reported-paid`],
+      ["POST", `/v1/requests/${id}/confirmed-paid`],
+      ["GET", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA"],
+      ["POST", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA/accept"],
+      ["PUT", `/v1/devices/${id}`],
+      ["DELETE", `/v1/devices/${id}`],
     ];
 
     for (const [method, path] of routes) {

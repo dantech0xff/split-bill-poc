@@ -1,12 +1,24 @@
 import { accountRoute, sessionRoute, usageRoute } from "./account";
 import { billAnalysis } from "./bill-analysis";
 import { deleteBillRoute, putBillRoute, recordSettlementRoute } from "./bills";
+import { deleteDeviceRoute, putDeviceRoute } from "./devices";
 import { FxBook } from "./fx-book";
 import { fxRatesRoute, refreshFxRates } from "./fx-rates";
 import { addMemberRoute, createGroupRoute, leaveGroupRoute, listGroupsRoute, readGroupRoute, renameGroupRoute, renameMemberRoute } from "./groups";
 import { approveClaimRoute, createInviteRoute, joinGroupRoute, readInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
 import { QuotaBook } from "./quota-book";
+import { forgetExpired, sendReminders } from "./reminders";
+import {
+  acceptRequestLinkRoute,
+  changeRequestRoute,
+  confirmPaidRoute,
+  createRequestRoute,
+  deleteRequestRoute,
+  listRequestsRoute,
+  readRequestLinkRoute,
+  reportPaidRoute,
+} from "./requests";
 import { errorResponse } from "./respond";
 
 export { AbuseLedger, FxBook, QuotaBook };
@@ -26,13 +38,18 @@ export interface Env {
   HASH_SALT: string;
   /** Key that signs the sessions the proxy hands out after a Google sign-in; at least 32 bytes. Sign-in is off without it. */
   SESSION_SIGNING_KEY?: string;
+  /**
+   * The JSON key file of the Google service account that sends push notifications through FCM.
+   * A secret; without it no notification is sent, and everything else works the same.
+   */
+  FCM_SERVICE_ACCOUNT?: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
   GOOGLE_CLIENT_ID: string;
   /** "true" while bills may be read with AI; anything else turns AI off without a release. */
   AI_ENABLED: string;
   /** The oldest version code of the app that may still read bills. */
   MIN_APP_VERSION: string;
-  /** Groups, their members, bills and settlements; the schema is in `migrations/`. */
+  /** Groups, their bills and settlements, payment requests and devices; the schema is in `migrations/`. */
   DB: D1Database;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
   ABUSE_LEDGER: DurableObjectNamespace<AbuseLedger>;
@@ -63,6 +80,13 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/groups/:group/settlements", { POST: recordSettlementRoute }],
   ["/v1/invites/:token", { GET: readInviteRoute }],
   ["/v1/invites/:token/join", { POST: joinGroupRoute }],
+  ["/v1/requests", { GET: listRequestsRoute, POST: createRequestRoute }],
+  ["/v1/requests/:request", { PATCH: changeRequestRoute, DELETE: deleteRequestRoute }],
+  ["/v1/requests/:request/reported-paid", { POST: reportPaidRoute }],
+  ["/v1/requests/:request/confirmed-paid", { POST: confirmPaidRoute }],
+  ["/v1/request-links/:token", { GET: readRequestLinkRoute }],
+  ["/v1/request-links/:token/accept", { POST: acceptRequestLinkRoute }],
+  ["/v1/devices/:device", { PUT: putDeviceRoute, DELETE: deleteDeviceRoute }],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */
@@ -100,8 +124,15 @@ export default {
     }
   },
 
-  /** The daily cron of `wrangler.jsonc`, which fetches the exchange rates. */
+  /**
+   * The daily cron of `wrangler.jsonc`: fetches the exchange rates, sends the reminders that are
+   * due and forgets expired invites. Each runs whatever the others do; the run fails when one did,
+   * so that it shows as failed among the Worker's cron events.
+   */
   async scheduled(_controller, env): Promise<void> {
-    await refreshFxRates(env);
+    const now = Date.now();
+    const runs = await Promise.allSettled([refreshFxRates(env), sendReminders(env, now), forgetExpired(env, now)]);
+    const failed = runs.find((run): run is PromiseRejectedResult => run.status === "rejected");
+    if (failed !== undefined) throw failed.reason;
   },
 } satisfies ExportedHandler<Env>;

@@ -3,6 +3,7 @@ import { signedIn } from "./identity";
 import { idOf, inputOf, textOf, uuidOf } from "./input";
 import { linkUrl, randomToken, tokenHash, tokenOf } from "./links";
 import { POLICY } from "./policy";
+import { notify } from "./push";
 import { admitHourly } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
@@ -91,12 +92,12 @@ const waiting = () => jsonResponse(202, { status: "pending" });
 /**
  * `POST /v1/invites/{token}/join`. With `{"memberId","name"}` the caller joins as a new member
  * and gets the group's state. With `{"claimMemberId","name"}` they ask to become that
- * placeholder: the claim waits for the owner, and the answer is 202
+ * placeholder: the claim waits for the owner, who is notified, and the answer is 202
  * `{"status":"pending"}`. A member gets the group's state whatever they send, and so never
  * claims. A placeholder can have one claim waiting, and an account one claim per group; a claim
  * on a member with an account, or on a placeholder someone else claimed, is 409.
  */
-export const joinGroupRoute = signedIn(async ({ request, env, params, account }) => {
+export const joinGroupRoute = signedIn(async ({ request, env, ctx, params, account }) => {
   const invited = await invitedGroup(env.DB, params[0]);
   if (!invited.ok) return invited.response;
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, joiningOf);
@@ -129,6 +130,7 @@ export const joinGroupRoute = signedIn(async ({ request, env, params, account })
     if (group.myClaim !== null) return reply(group.myClaim.member_id === memberId ? waiting() : errorResponse(409, "conflict"));
     if (group.claims.some((claim) => claim.member_id === memberId)) return reply(errorResponse(409, "conflict"));
     if ((await groupCountOf(db, account)) >= POLICY.maxGroupsPerAccount) return reply(errorResponse(413, "too_large"));
+    const owner = group.members.find((member) => member.id === group.row.owner_member_id);
     return write(
       [
         db
@@ -137,6 +139,7 @@ export const joinGroupRoute = signedIn(async ({ request, env, params, account })
         logStatement(db, groupId, now, "claim_requested", memberId, memberId),
       ],
       waiting,
+      () => ctx.waitUntil(notify(env, owner?.account ?? null, { type: "claim", groupId })),
     );
   });
 });

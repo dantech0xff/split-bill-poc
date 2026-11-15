@@ -1,6 +1,6 @@
 import { POLICY } from "./policy";
 
-export type HourlyKind = "invite";
+export type HourlyKind = "invite" | "request";
 
 /**
  * Counts one more [kind] made by [account] in a fixed window of an hour, and says whether it is
