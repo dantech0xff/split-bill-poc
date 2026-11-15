@@ -120,7 +120,9 @@ jobs:
             exit 0
           fi
           npm ci --prefix ../web
-          npm run build:web
+          # Builds the web app into the Worker, then the bundle a deploy uploads, without deploying:
+          # it fails rather than bundle the placeholder page.
+          npm run bundle -- "$RUNNER_TEMP/bundle"
           # The pages' own tests: every state, the link filter, money, claims and the live connection.
           npm test --prefix ../web
 
