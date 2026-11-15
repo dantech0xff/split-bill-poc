@@ -10,17 +10,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.content.IntentCompat
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.AppLink
 import com.dantech.splitvibe.ui.AppNavHost
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Photos shared from another app are taken once, not again when the activity comes back.
+        // Photos shared from another app, and a link or a notice that opened the app, are taken
+        // once, not again when the activity comes back.
         val shared = if (savedInstanceState == null) sharedImagesOf(intent, packageName) else emptyList()
+        val link = if (savedInstanceState == null) AppLink.of(intent, BuildConfig.AI_PROXY_URL) else null
         setContent {
             SplitVibeTheme {
-                AppNavHost(sharedImages = shared)
+                AppNavHost(sharedImages = shared, link = link)
             }
         }
     }

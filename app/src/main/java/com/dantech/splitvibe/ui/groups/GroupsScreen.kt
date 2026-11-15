@@ -43,6 +43,7 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.domain.BillCurrency
 
 /** The user's groups, such as housemates or a trip, each with balances across its bills. */
@@ -51,7 +52,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 fun GroupsScreen(
     groups: List<GroupSummary>?,
     signedIn: Boolean,
-    status: GroupWork,
+    status: ProxyWork,
     myName: String,
     localCurrency: String,
     onCreate: (name: String, currency: String, myName: String) -> Unit,

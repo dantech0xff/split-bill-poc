@@ -12,6 +12,7 @@ import com.dantech.splitvibe.domain.Transfer
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
 import com.dantech.splitvibe.ui.common.ProxyErrors
+import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.ui.requests.RequestMessages
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -42,8 +43,8 @@ class GroupViewModel(
 
     val group: StateFlow<GroupState?> = repository.group(groupId).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val work = MutableStateFlow(GroupWork())
-    val status: StateFlow<GroupWork> = work.asStateFlow()
+    private val work = MutableStateFlow(ProxyWork())
+    val status: StateFlow<ProxyWork> = work.asStateFlow()
 
     /** What to share next, such as an invite link; the screen hands it to the share sheet once. */
     private val toShare = MutableStateFlow<ShareText?>(null)
@@ -141,11 +142,11 @@ class GroupViewModel(
             work.update { it.copy(working = true) }
             try {
                 block()
-                work.update { GroupWork() }
+                work.update { ProxyWork() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                work.update { GroupWork(message = ProxyErrors.messageOf(e)) }
+                work.update { ProxyWork(message = ProxyErrors.messageOf(e)) }
             }
         }
     }

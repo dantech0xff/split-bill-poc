@@ -8,6 +8,7 @@ import com.dantech.splitvibe.data.groups.GroupSummary
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.ui.common.ProxyErrors
+import com.dantech.splitvibe.ui.common.ProxyWork
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,9 +18,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/** What a groups screen shows besides its data: whether a call is running, and what went wrong. */
-data class GroupWork(val working: Boolean = false, val message: String? = null)
 
 /** The user's groups, and making a new one. */
 class GroupsViewModel(
@@ -34,8 +32,8 @@ class GroupsViewModel(
     /** Groups need a sign-in: they are shared with other people through the proxy. */
     val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.session != null)
 
-    private val work = MutableStateFlow(GroupWork())
-    val status: StateFlow<GroupWork> = work.asStateFlow()
+    private val work = MutableStateFlow(ProxyWork())
+    val status: StateFlow<ProxyWork> = work.asStateFlow()
 
     val myName: String get() = settings.value.myName
 
@@ -67,11 +65,11 @@ class GroupsViewModel(
             work.update { it.copy(working = true) }
             try {
                 block()
-                work.update { GroupWork() }
+                work.update { ProxyWork() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                work.update { GroupWork(message = ProxyErrors.messageOf(e)) }
+                work.update { ProxyWork(message = ProxyErrors.messageOf(e)) }
             }
         }
     }

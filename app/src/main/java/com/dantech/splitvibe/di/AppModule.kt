@@ -28,7 +28,10 @@ import com.dantech.splitvibe.ui.groups.GroupsViewModel
 import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
+import com.dantech.splitvibe.notifications.DeviceRegistrar
+import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
+import com.dantech.splitvibe.ui.requests.RequestsViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import java.io.File
@@ -50,8 +53,10 @@ val appModule = module {
             // A build without the app's web client ID cannot sign in.
             google = BuildConfig.GOOGLE_WEB_CLIENT_ID.takeIf { it.isNotBlank() }?.let(::CredentialManagerGoogleAccounts),
             cache = get(),
+            devices = get(),
         )
     }
+    single { DeviceRegistrar(api = get(), account = get()) }
     single { BillImageLoader(androidContext()) }
     single<BillTextRecognizer> { MlKitBillTextRecognizer() }
     single { DocumentScanner() }
@@ -95,6 +100,8 @@ val appModule = module {
         )
     }
     viewModel { AddToGroupViewModel(groups = get(), fx = get()) }
+    viewModel { RequestsViewModel(repository = get(), account = get<AccountStore>().account) }
+    viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), account = get<AccountStore>().account) }
     viewModel {
         RequestMoneyViewModel(
             paymentMethods = get(),

@@ -53,6 +53,7 @@ import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Transfer
 import java.text.DateFormat
@@ -83,7 +84,7 @@ class GroupActions(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GroupScreen(state: GroupState?, status: GroupWork, actions: GroupActions) {
+fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
     var dialog by rememberSaveable { mutableStateOf<GroupDialog?>(null) }
     Scaffold(
         topBar = {

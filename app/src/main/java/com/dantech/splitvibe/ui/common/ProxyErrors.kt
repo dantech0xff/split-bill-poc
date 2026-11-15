@@ -4,6 +4,9 @@ import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import java.io.IOException
 
+/** What a screen of groups or requests shows besides its data: whether a call is running, and what went wrong. */
+data class ProxyWork(val working: Boolean = false, val message: String? = null)
+
 /** What to tell the user when a call about groups or requests did not work. */
 object ProxyErrors {
 

@@ -1,6 +1,12 @@
 package com.dantech.splitvibe.ui
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
@@ -13,6 +19,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -28,6 +36,7 @@ import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.motion.SvMotion
 import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
+import com.dantech.splitvibe.notifications.Push
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryScreen
@@ -41,6 +50,11 @@ import com.dantech.splitvibe.ui.groups.GroupsViewModel
 import com.dantech.splitvibe.ui.groups.JoinGroupScreen
 import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.requests.RequestActions
+import com.dantech.splitvibe.ui.requests.RequestLinkScreen
+import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
+import com.dantech.splitvibe.ui.requests.RequestsScreen
+import com.dantech.splitvibe.ui.requests.RequestsViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.settings.AccountActions
@@ -79,6 +93,13 @@ data class GroupKey(val id: String) : NavKey
 @Serializable
 data class JoinGroupKey(val token: String) : NavKey
 
+@Serializable
+data object RequestsKey : NavKey
+
+/** A payment request link that was opened: `/r/{token}` on the proxy's address. */
+@Serializable
+data class RequestLinkKey(val token: String) : NavKey
+
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
 
@@ -86,9 +107,10 @@ const val SPLIT_SURFACE = "split"
  * The app's screens and how they lead to one another.
  *
  * @param sharedImages photos of a bill another app shared with Split Vibe, which a new split starts from.
+ * @param link an invite or request link, or a tapped notice, that opened the app.
  */
 @Composable
-fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
+fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val backStack = rememberNavBackStack(HomeKey)
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
     val splitViewModel: SplitBillViewModel = koinViewModel()
@@ -109,6 +131,18 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
         backStack.open(SplitKey)
     }
     val openBill: (String) -> Unit = { id -> splitViewModel.open(id) { backStack.open(SplitKey) } }
+
+    LaunchedEffect(link) {
+        when (link) {
+            is AppLink.JoinGroup -> backStack.open(JoinGroupKey(link.token))
+            is AppLink.OpenRequest -> backStack.open(RequestLinkKey(link.token))
+            is AppLink.Group -> backStack.open(GroupKey(link.id))
+            AppLink.Requests -> backStack.open(RequestsKey)
+            null -> Unit
+        }
+    }
+    // Asked once someone is signed in, as that is when notices can come; saying no changes nothing else.
+    NoticePermission(signedIn = account.session != null)
 
     // One timing for the fade between screens and for a surface that grows into the next screen,
     // so both stay together when a back swipe scrubs through them.
@@ -142,6 +176,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                             onSeeAllBills = { backStack.open(HistoryKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onOpenGroups = { backStack.open(GroupsKey) },
+                            onOpenRequests = { backStack.open(RequestsKey) },
                         )
                     }
                 }
@@ -280,6 +315,48 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                         )
                     }
                 }
+                entry<RequestsKey> {
+                    Screen {
+                        val requestsViewModel: RequestsViewModel = koinViewModel()
+                        val requests by requestsViewModel.requests.collectAsStateWithLifecycle()
+                        val signedIn by requestsViewModel.signedIn.collectAsStateWithLifecycle()
+                        val status by requestsViewModel.status.collectAsStateWithLifecycle()
+                        val share by requestsViewModel.share.collectAsStateWithLifecycle()
+                        ShareEffect(share = share, onShared = requestsViewModel::shared)
+                        RequestsScreen(
+                            requests = requests,
+                            signedIn = signedIn,
+                            status = status,
+                            actions = remember(requestsViewModel) {
+                                RequestActions(
+                                    onReportPaid = requestsViewModel::reportPaid,
+                                    onConfirmPaid = requestsViewModel::confirmPaid,
+                                    onRemind = requestsViewModel::remind,
+                                    onSetReminders = requestsViewModel::setReminders,
+                                    onDelete = requestsViewModel::delete,
+                                    onRefresh = requestsViewModel::refresh,
+                                    onOpenSettings = { backStack.open(SettingsKey) },
+                                    onDismissMessage = requestsViewModel::dismissMessage,
+                                    onBack = { backStack.remove(RequestsKey) },
+                                )
+                            },
+                        )
+                    }
+                }
+                entry<RequestLinkKey> { key ->
+                    Screen {
+                        val linkViewModel: RequestLinkViewModel = koinViewModel(key = "request-${key.token}") { parametersOf(key.token) }
+                        val state by linkViewModel.state.collectAsStateWithLifecycle()
+                        RequestLinkScreen(
+                            state = state,
+                            signedIn = linkViewModel.signedIn,
+                            onAccept = linkViewModel::accept,
+                            onReportPaid = linkViewModel::reportPaid,
+                            onOpenSettings = { backStack.open(SettingsKey) },
+                            onBack = { backStack.remove(key) },
+                        )
+                    }
+                }
                 entry<PaymentMethodsKey> {
                     Screen {
                         val paymentMethodsViewModel: PaymentMethodsViewModel = koinViewModel()
@@ -311,3 +388,24 @@ private fun SharedTransitionScope.Screen(content: @Composable () -> Unit) {
 private fun NavBackStack<NavKey>.open(key: NavKey) {
     if (lastOrNull() != key) add(key)
 }
+
+/**
+ * Asks once for leave to show notices, on Android 13 and later, when push is set up in this build
+ * and someone is signed in. Whatever the answer, every flow works the same.
+ */
+@Composable
+private fun NoticePermission(signedIn: Boolean) {
+    if (!Push.isConfigured || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val context = LocalContext.current
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(signedIn) {
+        if (!signedIn) return@LaunchedEffect
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val preferences = context.getSharedPreferences("notices", Context.MODE_PRIVATE)
+        if (granted || preferences.getBoolean(ASKED, false)) return@LaunchedEffect
+        preferences.edit { putBoolean(ASKED, true) }
+        ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+}
+
+private const val ASKED = "asked"

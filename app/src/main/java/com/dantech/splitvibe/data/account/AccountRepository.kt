@@ -4,6 +4,7 @@ import android.content.Context
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.notifications.DeviceRegistrar
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -17,6 +18,8 @@ class AccountRepository(
     private val google: GoogleAccounts?,
     /** Groups and requests of the account signed in now; another account must never see them. */
     private val cache: ProxyCache? = null,
+    /** Where the account's push notices go; this install stops getting them on signing out. */
+    private val devices: DeviceRegistrar? = null,
 ) {
 
     /** False in a build that has no address for the proxy or no web client ID for Google. */
@@ -35,6 +38,7 @@ class AccountRepository(
 
     /** Also ends a sign-in that has run out: this phone's free reads are used again. */
     suspend fun signOut(context: Context) {
+        devices?.unregister()
         store.clearSession()
         cache?.clear()
         forgetGoogle(context)

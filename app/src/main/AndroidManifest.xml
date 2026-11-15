@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Only needed to reach the app's AI proxy. OCR runs on the device; photos come from Google's
+    <!-- Only needed to reach the app's proxy. OCR runs on the device; photos come from Google's
          document scanner, the system picker, the system camera app or a share, and people from the
          system contact picker, so no storage, camera or contacts permission is requested. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Push notices about payment requests and groups. Saying no turns only the notices off. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".SplitVibeApp"
@@ -34,7 +36,27 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- Invite links (/g/) and payment request links (/r/) on the proxy's own address open
+                 here, once Android has checked the proxy's /.well-known/assetlinks.json. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="${linkHost}" />
+                <data android:pathPrefix="/g/" />
+                <data android:pathPrefix="/r/" />
+            </intent-filter>
         </activity>
+
+        <!-- Receives the proxy's push notices through Firebase; nothing arrives in a build without its settings. -->
+        <service
+            android:name=".notifications.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <!-- Gives the system camera app a place to write the captured bill photo. -->
         <provider

@@ -58,6 +58,7 @@ fun HomeScreen(
     onSeeAllBills: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenGroups: () -> Unit = {},
+    onOpenRequests: () -> Unit = {},
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
@@ -105,6 +106,11 @@ fun HomeScreen(
                         Icon(Icons.Default.Person, contentDescription = null)
                         Spacer(Modifier.width(SvSpacing.sm))
                         Text("Groups")
+                    }
+                    FilledTonalButton(onClick = onOpenRequests) {
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
+                        Spacer(Modifier.width(SvSpacing.sm))
+                        Text("Requests")
                     }
                 }
             }
