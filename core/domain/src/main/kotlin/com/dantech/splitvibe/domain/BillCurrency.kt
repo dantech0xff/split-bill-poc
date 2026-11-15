@@ -5,6 +5,8 @@ import java.math.RoundingMode
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * The currency a bill is denominated in.
@@ -12,6 +14,7 @@ import java.util.Locale
  * Every amount in the app is a whole number of the currency's smallest unit ("minor units": cents
  * for USD, dong for VND). Splitting integers means no money is lost or invented by rounding.
  */
+@Serializable
 data class BillCurrency(val code: String, val fractionDigits: Int) {
 
     /** Converts a decimal amount in major units (12.50) to minor units (1250), rounding half up. */
@@ -19,9 +22,37 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
 
     fun toMajor(minor: Long): BigDecimal = BigDecimal.valueOf(minor, fractionDigits)
 
+    /**
+     * An amount as someone typed it, in minor units: "12.50" and "12,50" are 1250 cents, while for a
+     * currency without decimals "65.000" and "65,000" are 65000 dong. A separator counts as the
+     * decimal point only when the digits after it fit the currency; otherwise it groups thousands.
+     * Null when the text is not an amount.
+     */
+    fun parse(text: String): Long? {
+        val cleaned = text.trim().replace(" ", "").replace("\u00a0", "")
+        if (cleaned.isEmpty()) return null
+        val negative = cleaned.startsWith("-")
+        val body = cleaned.removePrefix("-")
+        if (body.isEmpty() || !body.all { it.isDigit() || it == '.' || it == ',' }) return null
+        val lastSeparator = body.indexOfLast { it == '.' || it == ',' }
+        val decimals = if (lastSeparator < 0) 0 else body.length - lastSeparator - 1
+        val number = if (lastSeparator >= 0 && decimals in 1..fractionDigits) {
+            body.substring(0, lastSeparator).filter(Char::isDigit) + "." + body.substring(lastSeparator + 1)
+        } else {
+            body.filter(Char::isDigit)
+        }
+        if (number.isEmpty() || number == ".") return null
+        val minor = runCatching { toMinor(BigDecimal(number)) }.getOrNull() ?: return null
+        return if (negative) -minor else minor
+    }
+
+    /** [minor] written the way [parse] reads it back, without a currency sign or grouping, such as "12.50". */
+    fun inputText(minor: Long): String = toMajor(minor).toPlainString()
+
     // Building a formatter is slow, and an amount that runs through the numbers in between is
     // formatted on every frame. A formatter must not be shared between threads, so each thread
     // keeps its own, for the last locale it was asked for.
+    @Transient
     private val formatters = ThreadLocal<Pair<Locale, NumberFormat>>()
 
     fun format(minor: Long, locale: Locale = Locale.getDefault()): String {

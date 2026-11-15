@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.llm
 
 import com.dantech.splitvibe.domain.BillCurrency
-import com.dantech.splitvibe.domain.BillReconciler
 import com.dantech.splitvibe.domain.ChargeKind
 import com.dantech.splitvibe.domain.ItemAssignmentHint
 import com.dantech.splitvibe.domain.ShareRule
@@ -47,7 +46,7 @@ class BillAnalysisParserTest {
         assertEquals(224_640L, bill.totalMinor)
         assertTrue(bill.warnings.isEmpty())
         assertEquals(
-            SplitHint(people = listOf("Minh"), itemAssignments = listOf(ItemAssignmentHint(1, ShareRule.ONLY, listOf("Minh"), false))),
+            SplitHint(people = listOf("Minh"), itemAssignments = listOf(ItemAssignmentHint("i2", ShareRule.ONLY, listOf("Minh"), false))),
             analysis.splitHint,
         )
         assertEquals("Đã đọc hóa đơn.", analysis.message)
@@ -109,9 +108,11 @@ class BillAnalysisParserTest {
             """.trimIndent(),
         ).bill
 
-        assertEquals(BillReconciler.DIFFERENCE_LABEL, bill.charges.single().label)
-        assertEquals(250L, bill.charges.single().amountMinor)
-        assertEquals(2, bill.warnings.size)
+        assertTrue(bill.charges.isEmpty())
+        assertEquals(1_650L, bill.totalMinor)
+        assertEquals(250L, bill.differenceMinor)
+        assertTrue(bill.differenceNote()!!.contains("Please check the items"))
+        assertEquals(listOf("The second item was unreadable."), bill.warnings)
     }
 
     @Test
@@ -127,6 +128,7 @@ class BillAnalysisParserTest {
         ).bill
 
         assertEquals(130_000L, bill.totalMinor)
+        assertNull("the lines make the total", bill.printedTotalMinor)
         assertTrue(bill.warnings.single().contains("total could not be read"))
     }
 
@@ -146,7 +148,7 @@ class BillAnalysisParserTest {
         ).splitHint
 
         assertEquals(
-            SplitHint(people = listOf("Minh"), itemAssignments = listOf(ItemAssignmentHint(0, ShareRule.ONLY, listOf("Lan"), true))),
+            SplitHint(people = listOf("Minh"), itemAssignments = listOf(ItemAssignmentHint("i1", ShareRule.ONLY, listOf("Lan"), true))),
             hint,
         )
     }
@@ -168,8 +170,8 @@ class BillAnalysisParserTest {
 
         assertEquals(
             listOf(
-                ItemAssignmentHint(0, ShareRule.ALL_EXCEPT, emptyList(), includesUser = true),
-                ItemAssignmentHint(1, ShareRule.ALL_EXCEPT, listOf("Lan"), includesUser = false),
+                ItemAssignmentHint("i1", ShareRule.ALL_EXCEPT, emptyList(), includesUser = true),
+                ItemAssignmentHint("i2", ShareRule.ALL_EXCEPT, listOf("Lan"), includesUser = false),
             ),
             hint.itemAssignments,
         )

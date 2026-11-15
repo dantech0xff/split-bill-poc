@@ -1,57 +1,44 @@
 package com.dantech.splitvibe.domain
 
-import com.dantech.splitvibe.data.contacts.Contact
 import java.text.Normalizer
 import java.util.Locale
 
 /**
- * Resolves a name the user typed in their instruction ("Minh", "emma w") to one of their contacts.
+ * Finds the people the user has split bills with before by the names they type, on the device.
  *
- * This runs on the device, so the contact list never has to be sent to the model: the model only
- * reports which names appear in the user's own instruction.
- *
- * Because the result decides who is asked for money, a contact is only returned as [Match.Found]
- * when the typed name is that person's full name, handle or given name and nobody else fits as
- * well. A surname or middle name alone ("Nguyễn", "Đức") is a hint, not an identification.
+ * Only an exact name, ignoring case, accents and punctuation, identifies someone again: "Minh" is
+ * the remembered "Minh", but not "Trần Quang Minh", who may well be someone else. Partial matches
+ * are only offered as suggestions while the user types.
  */
 object NameMatcher {
 
-    sealed interface Match {
-        data class Found(val contact: Contact) : Match
-
-        /** Not sure enough to choose: the user has to pick one of [candidates]. */
-        data class Ambiguous(val candidates: List<Contact>) : Match
-        data object None : Match
+    /** The remembered person called exactly [name], the first of them if several are; [people] come most recent first. */
+    fun find(name: String, people: List<Person>): Person? {
+        val wanted = tokens(name)
+        if (wanted.isEmpty()) return null
+        return people.firstOrNull { tokens(it.name) == wanted }
     }
 
-    fun match(mention: String, contacts: List<Contact>): Match {
-        val wanted = tokens(mention)
-        if (wanted.isEmpty()) return Match.None
-
-        val scored = contacts
-            .map { it to score(wanted, it) }
-            .filter { (_, score) -> score > 0 }
-        val best = scored.maxOfOrNull { (_, score) -> score } ?: return Match.None
-        val winners = scored.filter { (_, score) -> score == best }.map { (contact, _) -> contact }
-        return if (best >= GIVEN_NAME && winners.size == 1) Match.Found(winners.single()) else Match.Ambiguous(winners)
-    }
-
-    private fun score(wanted: List<String>, contact: Contact): Int {
-        val name = tokens(contact.name)
-        val givenName = tokens(contact.givenName)
-        val handle = normalize(contact.handle).replace(" ", "")
-        return when {
-            wanted == name || wanted.joinToString("") == handle -> EXACT
-            !name.containsAll(wanted) -> 0
-            givenName.isNotEmpty() && wanted.containsAll(givenName) -> GIVEN_NAME
-            else -> OTHER_NAME_PART
-        }
+    /**
+     * People whose name fits what the user has typed so far: every word typed starts one of the
+     * words of their name. Exact names come first, then the order of [people].
+     */
+    fun suggest(typed: String, people: List<Person>, limit: Int = 5): List<Person> {
+        val wanted = tokens(typed)
+        if (wanted.isEmpty()) return people.take(limit)
+        return people
+            .filter { person ->
+                val name = tokens(person.name)
+                wanted.all { word -> name.any { it.startsWith(word) } }
+            }
+            .sortedByDescending { tokens(it.name) == wanted }
+            .take(limit)
     }
 
     private fun tokens(text: String): List<String> = normalize(text).split(' ').filter { it.isNotEmpty() }
 
     /** Lower-cases, removes diacritics (so "Hà" matches "ha") and turns punctuation into spaces. */
-    internal fun normalize(text: String): String {
+    fun normalize(text: String): String {
         val decomposed = Normalizer.normalize(text.trim().removePrefix("@"), Normalizer.Form.NFD)
         return decomposed
             .replace(COMBINING_MARKS, "")
@@ -62,9 +49,6 @@ object NameMatcher {
             .trim()
     }
 
-    private const val EXACT = 3
-    private const val GIVEN_NAME = 2
-    private const val OTHER_NAME_PART = 1
     private val COMBINING_MARKS = Regex("\\p{M}+")
     private val NON_ALPHANUMERIC = Regex("[^\\p{L}\\p{Nd}]+")
 }

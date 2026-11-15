@@ -92,4 +92,31 @@ class BillCurrencyTest {
         assertNull("an unknown bill currency says nothing", billIn(BillCurrency("", 0)).currencyMismatchNote("VND"))
         assertNull(billIn(BillCurrency("USD", 2)).currencyMismatchNote(""))
     }
+
+    @Test
+    fun `typed amounts are read whichever separator people use`() {
+        val usd = BillCurrency("USD", 2)
+        val vnd = BillCurrency("VND", 0)
+
+        assertEquals(1_250L, usd.parse("12.50"))
+        assertEquals(1_250L, usd.parse("12,5"))
+        assertEquals(123_456L, usd.parse("1,234.56"))
+        assertEquals(123_456L, usd.parse("1.234,56"))
+        assertEquals(100_000L, usd.parse("1,000"))
+        assertEquals(-300L, usd.parse("-3"))
+        assertEquals(65_000L, vnd.parse("65.000"))
+        assertEquals(1_250_000L, vnd.parse("1,250,000"))
+        assertEquals(null, usd.parse(""))
+        assertEquals(null, usd.parse("12a"))
+        assertEquals(null, usd.parse("-"))
+    }
+
+    @Test
+    fun `an amount written for editing reads back the same`() {
+        val usd = BillCurrency("USD", 2)
+
+        assertEquals("12.50", usd.inputText(1_250))
+        assertEquals(1_250L, usd.parse(usd.inputText(1_250)))
+        assertEquals("65000", BillCurrency("VND", 0).inputText(65_000))
+    }
 }

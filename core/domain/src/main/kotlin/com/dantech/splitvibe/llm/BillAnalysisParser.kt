@@ -2,6 +2,7 @@ package com.dantech.splitvibe.llm
 
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.BillReconciler
 import com.dantech.splitvibe.domain.ChargeKind
@@ -73,8 +74,10 @@ object BillAnalysisParser {
         }
         val currency = BillCurrency.resolve(code, answer.amountDecimals, amounts)
 
-        val items = answer.items.map { item ->
+        // Ids follow the model's order, so the items its split refers to by position can be found by id.
+        val items = answer.items.mapIndexed { index, item ->
             BillItem(
+                id = itemId(index),
                 name = item.name.trim().ifEmpty { "Item" },
                 quantity = item.quantity,
                 unitPriceMinor = item.unitPrice?.also(::requirePlausible)?.let(currency::toMinor),
@@ -86,18 +89,21 @@ object BillAnalysisParser {
             val amount = currency.toMinor(charge.amount)
             // A discount always reduces the bill, whichever sign the model wrote it with.
             val signed = if (kind == ChargeKind.DISCOUNT && amount > 0) -amount else amount
-            if (signed == 0L) null else BillCharge(charge.label.trim().ifEmpty { defaultLabel(kind) }, kind, signed)
-        }
+            if (signed == 0L) null else BillCharge("", charge.label.trim().ifEmpty { BillEditor.defaultLabel(kind) }, kind, signed)
+        }.mapIndexed { index, charge -> charge.copy(id = "c${index + 1}") }
 
         val warnings = answer.warnings.map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
-        var total = currency.toMinor(answer.total)
-        if (total <= 0) {
+        val readTotal = currency.toMinor(answer.total)
+        val printedTotal = if (readTotal > 0) {
+            readTotal
+        } else {
             val computed = items.sumOf { it.amountMinor } + charges.sumOf { it.amountMinor }
             if (computed <= 0) {
                 return BillAnalysis.Rejected("No amounts could be read from this bill. Try a sharper, well-lit photo.")
             }
-            total = computed
             warnings += "The bill total could not be read, so the sum of the items is used instead."
+            // No total read: the lines make the total.
+            null
         }
 
         val bill = BillReconciler.reconcile(
@@ -106,7 +112,7 @@ object BillAnalysisParser {
             currency = currency,
             items = items,
             charges = charges,
-            totalMinor = total,
+            printedTotalMinor = printedTotal,
             warnings = warnings,
         )
         return BillAnalysis.Ready(bill, splitHint(answer.split, items.size), answer.message.trim())
@@ -118,7 +124,7 @@ object BillAnalysisParser {
         peopleCount = split.peopleCount?.takeIf { it in 1..MAX_PEOPLE },
         itemAssignments = split.itemAssignments
             .filter { it.itemIndex in 0 until itemCount }
-            .map { ItemAssignmentHint(it.itemIndex, shareRule(it.rule), cleanNames(it.people), it.includesUser) }
+            .map { ItemAssignmentHint(itemId(it.itemIndex), shareRule(it.rule), cleanNames(it.people), it.includesUser) }
             // A rule that names nobody says nothing about who shares the item.
             .filter { it.people.isNotEmpty() || it.includesUser },
     )
@@ -137,14 +143,7 @@ object BillAnalysisParser {
         else -> ChargeKind.OTHER
     }
 
-    private fun defaultLabel(kind: ChargeKind): String = when (kind) {
-        ChargeKind.TAX -> "Tax"
-        ChargeKind.SERVICE_CHARGE -> "Service charge"
-        ChargeKind.TIP -> "Tip"
-        ChargeKind.DISCOUNT -> "Discount"
-        ChargeKind.ROUNDING -> "Rounding"
-        ChargeKind.OTHER -> "Other"
-    }
+    private fun itemId(index: Int): String = "i${index + 1}"
 
     /** Rejects numbers no bill contains before they are scaled to minor units. */
     private fun requirePlausible(amount: BigDecimal) {

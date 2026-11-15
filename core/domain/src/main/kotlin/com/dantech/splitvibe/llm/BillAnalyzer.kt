@@ -13,11 +13,12 @@ import com.dantech.splitvibe.ocr.OcrResult
  */
 interface BillAnalyzer {
     /**
+     * @param pages what was read on each photo of the bill, in order; one bill can take several.
      * @param localCurrency ISO 4217 code of the currency the user's payment app works in, used
      *   when the bill does not show its own.
      * @throws BillAnalyzerException when the model could not be reached or gave no usable answer.
      */
-    suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis
+    suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis
 }
 
 sealed interface BillAnalysis {

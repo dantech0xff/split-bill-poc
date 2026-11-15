@@ -1,6 +1,5 @@
 package com.dantech.splitvibe.domain
 
-import com.dantech.splitvibe.data.contacts.Contact
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -8,160 +7,198 @@ import org.junit.Test
 
 class SplitPlannerTest {
 
-    private val minh = Contact("c1", "Trần Quang Minh", "Minh", "minh.tran")
-    private val lan = Contact("c2", "Lê Thị Lan", "Lan", "lan.le")
-    private val emmaW = Contact("c3", "Emma Wilson", "Emma", "emma.w")
-    private val emmaS = Contact("c4", "Emma Schneider", "Emma", "emma.schneider")
-    private val contacts = listOf(minh, lan, emmaW, emmaS)
+    private val minh = Person("person-1", "Minh")
+    private val lan = Person("person-2", "Lan")
+    private val people = listOf(minh, lan)
 
-    private val beer = 0
-    private val hotpot = 1
-    private val greens = 2
+    private val beer = "i1"
+    private val hotpot = "i2"
+    private val greens = "i3"
     private val bill = BillReconciler.reconcile(
         merchant = null,
         date = null,
         currency = BillCurrency("VND", 0),
         items = listOf(
-            BillItem("Bia Saigon", BigDecimal(2), 25_000, 50_000),
-            BillItem("Lau thai", BigDecimal.ONE, 350_000, 350_000),
-            BillItem("Rau muong", BigDecimal.ONE, 45_000, 45_000),
+            BillItem(beer, "Bia Saigon", BigDecimal(2), 25_000, 50_000),
+            BillItem(hotpot, "Lau thai", BigDecimal.ONE, 350_000, 350_000),
+            BillItem(greens, "Rau muong", BigDecimal.ONE, 45_000, 45_000),
         ),
         charges = emptyList(),
-        totalMinor = 445_000,
+        printedTotalMinor = 445_000,
         warnings = emptyList(),
     )
 
-    private fun only(item: Int, vararg people: String, me: Boolean = false) = ItemAssignmentHint(item, ShareRule.ONLY, people.toList(), me)
-    private fun allExcept(item: Int, vararg people: String, me: Boolean = false) =
+    private fun only(item: String, vararg people: String, me: Boolean = false) = ItemAssignmentHint(item, ShareRule.ONLY, people.toList(), me)
+    private fun allExcept(item: String, vararg people: String, me: Boolean = false) =
         ItemAssignmentHint(item, ShareRule.ALL_EXCEPT, people.toList(), me)
 
-    @Test
-    fun `plain split request starts with only the user`() {
-        val plan = SplitPlanner.fromHint(SplitHint(), bill, contacts)
+    private fun SplitPlan.names() = participants.map { it.name }
 
-        assertEquals(SplitPlan(includeMe = true), plan)
+    private fun SplitPlan.totals() = result(bill).shares.map { it.totalMinor }
+
+    @Test
+    fun `plain split request starts with only the user, who paid the whole bill`() {
+        val plan = SplitPlanner.fromHint(SplitHint(), bill, people)
+
         assertEquals(listOf(ME_ID), plan.participantIds)
+        assertEquals(SplitMode.EQUAL, plan.mode)
+        assertEquals(listOf(Payment(ME_ID, 445_000)), plan.payments)
         assertTrue(plan.openNotices().isEmpty())
+        assertTrue(plan.problems(bill).isEmpty())
     }
 
     @Test
-    fun `named people are selected and their items assigned`() {
-        val hint = SplitHint(people = listOf("Minh", "lan"), itemAssignments = listOf(only(beer, "Minh")))
+    fun `every name becomes a participant, someone known again or someone new`() {
+        val hint = SplitHint(people = listOf("minh", "Zoe", "Minh"))
 
-        val plan = SplitPlanner.fromHint(hint, bill, contacts)
+        val plan = SplitPlanner.fromHint(hint, bill, people)
 
-        assertEquals(listOf(ME_ID, "c1", "c2"), plan.participantIds)
-        assertEquals(mapOf(beer to setOf("c1")), plan.sharersByItem())
-        assertTrue(plan.openNotices().isEmpty())
+        assertEquals(listOf("", "Minh", "Zoe"), plan.names())
+        assertEquals(listOf(null, minh.id, null), plan.participants.map { it.personId })
+        assertEquals(listOf(ME_ID, "p1", "p2"), plan.participantIds)
+    }
+
+    @Test
+    fun `named people share only their items, the rest is shared by everyone`() {
+        val hint = SplitHint(people = listOf("Minh", "Lan"), itemAssignments = listOf(only(beer, "Minh")))
+
+        val plan = SplitPlanner.fromHint(hint, bill, people)
+
+        assertEquals(SplitMode.BY_ITEM, plan.mode)
+        assertEquals(mapOf(beer to Division.Equally(among = setOf("p1"))), plan.setup.items)
+        assertEquals(445_000L, plan.totals().sum())
+        assertEquals(listOf(131_667L, 181_667L, 131_666L), plan.totals())
     }
 
     @Test
     fun `person mentioned only for an item still joins the split`() {
-        val plan = SplitPlanner.fromHint(SplitHint(itemAssignments = listOf(only(greens, "Lan", me = true))), bill, contacts)
+        val plan = SplitPlanner.fromHint(SplitHint(itemAssignments = listOf(only(greens, "Lan", me = true))), bill, people)
 
-        assertEquals(listOf("c2"), plan.selectedContactIds)
-        assertEquals(mapOf(greens to setOf(ME_ID, "c2")), plan.sharersByItem())
+        assertEquals(listOf("", "Lan"), plan.names())
+        assertEquals(mapOf(greens to Division.Equally(among = setOf(ME_ID, "p1"))), plan.setup.items)
     }
 
     @Test
-    fun `item the user did not have is shared by everyone else, including people picked later`() {
+    fun `item the user did not have is shared by everyone else, including people added later`() {
         // "We are 3, I didn't drink": nobody is named, so the others are not known yet.
-        val plan = SplitPlanner.fromHint(SplitHint(peopleCount = 3, itemAssignments = listOf(allExcept(beer, me = true))), bill, contacts)
+        val plan = SplitPlanner.fromHint(SplitHint(peopleCount = 3, itemAssignments = listOf(allExcept(beer, me = true))), bill, people)
 
-        assertTrue("alone, the user still carries the item", plan.sharersByItem().isEmpty())
-        assertEquals(listOf("Your instruction mentions 3 people. Pick 2 more people below."), plan.openNotices())
+        assertEquals(listOf("Your instruction mentions 3 people. Add 2 more people below."), plan.openNotices())
 
-        val withFriends = plan.withContactToggled("c1").withContactToggled("c2")
+        val withFriends = plan.withParticipantAdded("Minh", minh.id).withParticipantAdded("Lan", lan.id)
 
-        assertEquals(mapOf(beer to setOf("c1", "c2")), withFriends.sharersByItem())
         assertTrue(withFriends.openNotices().isEmpty())
-        val split = SplitCalculator.split(bill, withFriends.participantIds, withFriends.sharersByItem())
-        assertEquals(listOf(131_667L, 156_667L, 156_666L), split.shares.map { it.totalMinor })
+        assertEquals(listOf(131_667L, 156_667L, 156_666L), withFriends.totals())
     }
 
     @Test
     fun `named person who did not have an item is left out of it`() {
         val hint = SplitHint(people = listOf("Minh", "Lan"), itemAssignments = listOf(allExcept(hotpot, "Lan")))
 
-        val plan = SplitPlanner.fromHint(hint, bill, contacts)
+        val plan = SplitPlanner.fromHint(hint, bill, people)
 
-        assertEquals(mapOf(hotpot to setOf(ME_ID, "c1")), plan.sharersByItem())
+        assertEquals(mapOf(hotpot to Division.Equally(except = setOf("p2"))), plan.setup.items)
+        // The hotpot is the user's and Minh's; the beer and the greens are everyone's.
+        assertEquals(listOf(206_667L, 206_667L, 31_666L), plan.totals())
     }
 
     @Test
-    fun `ambiguous and unknown names are left to the user instead of guessed`() {
-        val hint = SplitHint(people = listOf("Emma", "Zoe", "Minh"), itemAssignments = listOf(only(beer, "Minh", "Zoe")))
-
-        val plan = SplitPlanner.fromHint(hint, bill, contacts)
-
-        assertEquals(listOf("c1"), plan.selectedContactIds)
-        assertTrue("an item shared with an unknown person must not be assigned", plan.sharersByItem().isEmpty())
-        assertEquals(
-            listOf(
-                "\"Emma\" could be Emma Wilson or Emma Schneider. Pick the right person below.",
-                "\"Zoe\" is not in your contacts. Pick them below.",
-                "\"Bia Saigon\" was not assigned automatically. Tap it to choose who shares it.",
-            ),
-            plan.openNotices(),
-        )
-    }
-
-    @Test
-    fun `notices disappear once the user has dealt with them`() {
-        val hint = SplitHint(people = listOf("Emma", "Minh"), itemAssignments = listOf(only(beer, "Minh", "Emma")))
-        val plan = SplitPlanner.fromHint(hint, bill, contacts)
-        assertEquals(2, plan.openNotices().size)
-
-        val emmaPicked = plan.withContactToggled("c4")
-        assertEquals(listOf("\"Bia Saigon\" was not assigned automatically. Tap it to choose who shares it."), emmaPicked.openNotices())
-
-        val beerAssigned = emmaPicked.withItemSharers(beer, setOf("c1", "c4"))
-        assertTrue(beerAssigned.openNotices().isEmpty())
-    }
-
-    @Test
-    fun `user who is not taking part is left out everywhere`() {
+    fun `user who is not taking part shares nothing but still paid`() {
         val hint = SplitHint(people = listOf("Minh", "Lan"), userIncluded = false, itemAssignments = listOf(only(hotpot, "Lan", me = true)))
 
-        val plan = SplitPlanner.fromHint(hint, bill, contacts)
+        val plan = SplitPlanner.fromHint(hint, bill, people)
 
-        assertEquals(listOf("c1", "c2"), plan.participantIds)
-        assertEquals(mapOf(hotpot to setOf("c2")), plan.sharersByItem())
+        assertEquals(setOf(ME_ID), plan.setup.notSharing)
+        assertEquals(listOf("p1", "p2"), plan.sharingIds)
+        assertEquals(mapOf(hotpot to Division.Equally(among = setOf("p2"))), plan.setup.items)
+        assertEquals(0L, plan.result(bill).shareOf(ME_ID)!!.totalMinor)
+        assertEquals(listOf(Payment(ME_ID, 445_000)), plan.payments)
     }
 
     @Test
-    fun `assignment for an item that does not exist is ignored`() {
-        val plan = SplitPlanner.fromHint(SplitHint(itemAssignments = listOf(only(9, "Minh"))), bill, contacts)
+    fun `assignment for an item that is not on the bill is ignored`() {
+        val plan = SplitPlanner.fromHint(SplitHint(itemAssignments = listOf(only("i9", "Minh"))), bill, people)
 
-        assertEquals(SplitPlan(includeMe = true), plan)
+        assertEquals(SplitMode.EQUAL, plan.mode)
+        assertEquals(listOf(ME_ID), plan.participantIds)
     }
 
     @Test
     fun `choosing everyone or nobody for an item puts it back to shared by all`() {
-        val plan =
-            SplitPlan(
-                selectedContactIds = listOf("c1", "c2"),
-                assignments = mapOf(beer to setOf("c1")),
-                exclusions = mapOf(greens to setOf(ME_ID)),
-            )
+        val plan = SplitPlan().withParticipantAdded("Minh").withParticipantAdded("Lan").withMode(SplitMode.BY_ITEM, bill)
+            .withItemSharers(beer, setOf("p1"))
 
-        assertEquals(emptyMap<Int, Set<String>>(), plan.withItemSharers(beer, setOf(ME_ID, "c1", "c2")).assignments)
-        assertEquals(emptyMap<Int, Set<String>>(), plan.withItemSharers(beer, emptySet()).assignments)
-        assertEquals(mapOf(beer to setOf("c2")), plan.withItemSharers(beer, setOf("c2", "stranger")).assignments)
-        // A choice made by hand replaces what the instruction said about that item.
-        assertEquals(mapOf(beer to setOf("c1")), plan.withItemSharers(greens, setOf(ME_ID, "c1", "c2")).sharersByItem())
+        assertEquals(emptyMap<String, Division>(), plan.withItemSharers(beer, setOf(ME_ID, "p1", "p2")).setup.items)
+        assertEquals(emptyMap<String, Division>(), plan.withItemSharers(beer, emptySet()).setup.items)
+        assertEquals(mapOf(beer to Division.Equally(among = setOf("p2"))), plan.withItemSharers(beer, setOf("p2", "stranger")).setup.items)
     }
 
     @Test
-    fun `removing a person takes them off every item`() {
-        val plan =
-            SplitPlan(selectedContactIds = listOf("c1", "c2"), assignments = mapOf(beer to setOf("c1"), hotpot to setOf(ME_ID, "c2")))
+    fun `removing a person takes them off every item and every payment`() {
+        val plan = SplitPlan().withParticipantAdded("Minh").withParticipantAdded("Lan").withMode(SplitMode.BY_ITEM, bill)
+            .withItemSharers(beer, setOf("p1"))
+            .withItemSharers(hotpot, setOf(ME_ID, "p2"))
+            .withPayments(listOf(Payment(ME_ID, 400_000), Payment("p1", 45_000)))
 
-        val withoutMinh = plan.withContactToggled("c1")
-        assertEquals(mapOf(hotpot to setOf(ME_ID, "c2")), withoutMinh.assignments)
+        val withoutMinh = plan.withParticipantRemoved("p1", bill)
 
-        val withoutMe = plan.withMeToggled()
-        assertEquals(listOf("c1", "c2"), withoutMe.participantIds)
-        assertEquals(mapOf(beer to setOf("c1"), hotpot to setOf("c2")), withoutMe.assignments)
+        assertEquals(listOf(ME_ID, "p2"), withoutMinh.participantIds)
+        assertEquals(mapOf(hotpot to Division.Equally(among = setOf(ME_ID, "p2"))), withoutMinh.setup.items)
+        assertEquals(listOf(Payment(ME_ID, 400_000)), withoutMinh.payments)
+        assertEquals(plan, plan.withParticipantRemoved(ME_ID, bill))
+    }
+
+    @Test
+    fun `the user can stop sharing the bill and start again`() {
+        val plan = SplitPlan().withParticipantAdded("Minh").withBill(bill)
+
+        val paidOnly = plan.withMeSharingToggled()
+
+        assertEquals(listOf("p1"), paidOnly.sharingIds)
+        assertEquals(listOf(0L, 445_000L), paidOnly.totals())
+        assertEquals(plan, paidOnly.withMeSharingToggled())
+    }
+
+    @Test
+    fun `a new way of dividing starts from an even division`() {
+        val plan = SplitPlan().withParticipantAdded("Minh").withParticipantAdded("Lan").withBill(bill)
+
+        assertEquals(Division.ByShares(mapOf(ME_ID to 1L, "p1" to 1L, "p2" to 1L)), plan.withMode(SplitMode.BY_SHARES, bill).setup.whole)
+        assertEquals(Division.ByPercent(mapOf(ME_ID to 3_334L, "p1" to 3_333L, "p2" to 3_333L)), plan.withMode(SplitMode.BY_PERCENT, bill).setup.whole)
+        assertEquals(Division.ByAmount(mapOf(ME_ID to 148_334L, "p1" to 148_333L, "p2" to 148_333L)), plan.withMode(SplitMode.BY_AMOUNT, bill).setup.whole)
+        listOf(SplitMode.EQUAL, SplitMode.BY_ITEM, SplitMode.BY_SHARES, SplitMode.BY_PERCENT, SplitMode.BY_AMOUNT).forEach { mode ->
+            assertTrue("$mode starts complete", plan.withMode(mode, bill).problems(bill).isEmpty())
+        }
+    }
+
+    @Test
+    fun `someone added to exact amounts counts for nothing until given a part`() {
+        val plan = SplitPlan().withParticipantAdded("Minh").withBill(bill).withMode(SplitMode.BY_AMOUNT, bill)
+
+        val withLan = plan.withParticipantAdded("Lan")
+
+        assertTrue(withLan.problems(bill).isEmpty())
+        assertEquals(0L, withLan.result(bill).shareOf("p2")!!.totalMinor)
+        assertTrue(withLan.withWholeValue("p2", 10_000).problems(bill).single().startsWith("Amounts add up to"))
+    }
+
+    @Test
+    fun `a single payer follows the bill total, several payers keep their amounts`() {
+        val edited = BillEditor.withPrintedTotal(bill, 450_000)
+        val single = SplitPlan().withBill(bill)
+        val several = single.withParticipantAdded("Minh").withPayments(listOf(Payment(ME_ID, 400_000), Payment("p1", 45_000)))
+
+        assertEquals(listOf(Payment(ME_ID, 450_000)), single.withBill(edited).payments)
+        assertEquals(several.payments, several.withBill(edited).payments)
+        assertTrue(several.withBill(edited).problems(edited).single().startsWith("Payments add up to"))
+    }
+
+    @Test
+    fun `an item that was removed from the bill loses its division`() {
+        val plan = SplitPlan().withParticipantAdded("Minh").withMode(SplitMode.BY_ITEM, bill).withItemSharers(beer, setOf("p1"))
+
+        val withoutBeer = plan.withBill(BillEditor.withoutItem(bill, beer))
+
+        assertTrue(withoutBeer.setup.items.isEmpty())
     }
 }

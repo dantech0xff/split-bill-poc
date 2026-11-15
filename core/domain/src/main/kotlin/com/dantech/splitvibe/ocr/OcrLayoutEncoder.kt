@@ -60,21 +60,40 @@ object OcrLayoutEncoder {
      *
      * `12 | [40,410,420,440] "Ca phe sua da" | [520,410,560,440] "2" | [800,410,960,440] "70.000"`
      */
-    fun encode(ocr: OcrResult): String {
-        val rows = rows(ocr)
-        return buildString {
+    fun encode(ocr: OcrResult): String = encode(listOf(ocr))
+
+    /**
+     * The document for a bill photographed in [pages], in order. A single page is written as above;
+     * several are each written inside `<page n="…" rows="…">`, with rows numbered and positions
+     * measured on each page by itself, which is how the AI proxy's prompt describes them.
+     */
+    fun encode(pages: List<OcrResult>): String = buildString {
+        if (pages.size == 1) {
+            val rows = rows(pages.single())
             append("<bill_ocr rows=\"").append(rows.size).append("\">\n")
-            rows.forEachIndexed { index, row ->
-                append(index + 1)
-                for (fragment in row.fragments) {
-                    append(" | [")
-                    append(fragment.x1).append(',').append(fragment.y1).append(',')
-                    append(fragment.x2).append(',').append(fragment.y2)
-                    append("] ").append(quote(fragment.text))
-                }
-                append('\n')
+            appendRows(rows)
+        } else {
+            append("<bill_ocr pages=\"").append(pages.size).append("\">\n")
+            pages.forEachIndexed { index, page ->
+                val rows = rows(page)
+                append("<page n=\"").append(index + 1).append("\" rows=\"").append(rows.size).append("\">\n")
+                appendRows(rows)
+                append("</page>\n")
             }
-            append("</bill_ocr>")
+        }
+        append("</bill_ocr>")
+    }
+
+    private fun StringBuilder.appendRows(rows: List<LayoutRow>) {
+        rows.forEachIndexed { index, row ->
+            append(index + 1)
+            for (fragment in row.fragments) {
+                append(" | [")
+                append(fragment.x1).append(',').append(fragment.y1).append(',')
+                append(fragment.x2).append(',').append(fragment.y2)
+                append("] ").append(quote(fragment.text))
+            }
+            append('\n')
         }
     }
 
