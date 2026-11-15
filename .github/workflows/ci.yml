@@ -121,6 +121,8 @@ jobs:
           fi
           npm ci --prefix ../web
           npm run build:web
+          # The pages' own tests: every state, the link filter, money, claims and the live connection.
+          npm test --prefix ../web
 
       # Generates the binding types from wrangler.jsonc, then checks every file.
       - name: Types
