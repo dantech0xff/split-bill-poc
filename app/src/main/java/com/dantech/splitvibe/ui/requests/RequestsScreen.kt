@@ -156,9 +156,7 @@ fun RequestsScreen(
                             SvOverflowMenu(
                                 label = "More for the request to ${request.payerName}",
                                 options = buildList {
-                                    if (request.status ==
-                                        RequestStatus.WAITING
-                                    ) {
+                                    if (request.status == RequestStatus.WAITING) {
                                         add(SvMenuOption("It arrived, confirm it") { actions.onConfirmPaid(request.id) })
                                     }
                                     add(SvMenuOption("Send a reminder") { actions.onRemind(request) })
