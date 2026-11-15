@@ -346,6 +346,35 @@ describe("a bill link", () => {
     expect((await api(await person(), "DELETE", `/v1/shares/${link.id}`)).status).toBe(404);
   });
 
+  it("revoked again, answers at once, writing nothing and waking no page", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    await api(lan, "DELETE", `/v1/shares/${link.id}`);
+    const before = await rows("SELECT * FROM shares");
+    const touched: string[] = [];
+    // The database and the namespace of the links' rooms, recording what the route asks of them.
+    const db = new Proxy(env.DB, {
+      get(target, property) {
+        const value: unknown = Reflect.get(target, property);
+        if (property === "batch" || property === "exec") touched.push(`DB.${property}`);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const rooms = new Proxy(env.SHARE_ROOM, {
+      get(target, property) {
+        touched.push(`SHARE_ROOM.${String(property)}`);
+        const value: unknown = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+
+    const again = await api(lan, "DELETE", `/v1/shares/${link.id}`, undefined, { DB: db, SHARE_ROOM: rooms });
+
+    expect(again.status).toBe(204);
+    expect(touched).toEqual([]);
+    expect(await rows("SELECT * FROM shares")).toEqual(before);
+  });
+
   it("is made 30 times an hour by one account, and changed 300 times an hour over all its links", async () => {
     const lan = await person();
     const links: TestShare[] = [];

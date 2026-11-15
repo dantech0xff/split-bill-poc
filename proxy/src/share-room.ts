@@ -14,10 +14,10 @@ export type LiveUpdate = { type: "share"; share: PublicShare } | { type: "gone" 
 const FULL_RETRY_SECONDS = 60;
 
 /**
- * The live connections of one bill link, named by the link's id. It holds no data of its own: D1
- * holds the link, and the Worker hands this object each change once it is written, which it
- * passes on to every connection. A lost connection loses nothing, since the page reads the link
- * again when it reconnects.
+ * The live connections of one bill link, named by the link's id and when the link was made (see
+ * `shareRoom`). It holds no data of its own: D1 holds the link, and the Worker hands this object
+ * each change once it is written, which it passes on to every connection. A lost connection loses
+ * nothing, since the page reads the link again when it reconnects.
  *
  * Connections use the WebSocket Hibernation API, so the object can sleep while they are open and
  * quiet. A page's `ping` is answered `pong` without waking it. Pages send nothing else; a

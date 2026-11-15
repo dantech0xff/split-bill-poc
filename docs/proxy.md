@@ -491,8 +491,8 @@ The routes of a link's owner need their session; the owner is the account that m
   claim the link does not have, as when the call is sent again, changes nothing. The browser that
   made it then has no claim, and needs Turnstile again to claim.
 - Revoking deletes every claim, empties the bill, the amounts and `paidBy`, and tells every open
-  page that the link is gone. Revoking again answers 204, until the daily run deletes the link; an
-  expired link can be revoked too.
+  page that the link is gone. Revoking again answers 204 at once, writing nothing and telling no
+  page, until the daily run deletes the link; an expired link can be revoked too.
 - A body of these routes is at most 512 KB.
 
 BillProjection, what the page shows of a bill:
@@ -621,7 +621,9 @@ The live connection:
   `revision`.
 - Each link has a Durable Object, `ShareRoom` (binding `SHARE_ROOM`), that holds only its
   connections, through the WebSocket Hibernation API, and passes on what the Worker gives it after
-  each change. D1 holds the data, so a lost connection loses nothing.
+  each change. D1 holds the data, so a lost connection loses nothing. The object is named by the
+  link's id and when the link was made, so that a link made again under the same id never reaches
+  the connections of the first.
 
 ### Payment requests and invites on the web
 

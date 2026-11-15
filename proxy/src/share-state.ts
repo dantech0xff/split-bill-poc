@@ -218,18 +218,25 @@ export function keepItemsStatement(db: D1Database, shareId: string, itemIds: str
     .bind(shareId, JSON.stringify(itemIds));
 }
 
-/** The Durable Object that holds the live connections of link [shareId]. */
-export function shareRoom(env: Env, shareId: string): DurableObjectStub<ShareRoom> {
-  return env.SHARE_ROOM.get(env.SHARE_ROOM.idFromName(shareId));
+/** What names a link's [ShareRoom]: its id and when it was made, the two together naming one link only. */
+export type RoomName = Pick<ShareRow, "id" | "created_at">;
+
+/**
+ * The Durable Object that holds the live connections of the link [row]. It is named by the link's
+ * id and when the link was made, so that a link made again under the same id, once the first was
+ * deleted, never reaches the connections of the first.
+ */
+export function shareRoom(env: Env, row: RoomName): DurableObjectStub<ShareRoom> {
+  return env.SHARE_ROOM.get(env.SHARE_ROOM.idFromName(`${row.id}:${row.created_at}`));
 }
 
 /**
- * Passes [update] on to every page that has link [shareId] open, once the answer is on its way.
+ * Passes [update] on to every page that has the link [row] open, once the answer is on its way.
  * It never fails what it tells of: a page that misses it reads the link again when it reconnects.
  */
-export function tell(env: Env, ctx: ExecutionContext, shareId: string, update: LiveUpdate): void {
+export function tell(env: Env, ctx: ExecutionContext, row: RoomName, update: LiveUpdate): void {
   ctx.waitUntil(
-    shareRoom(env, shareId)
+    shareRoom(env, row)
       .broadcast(update)
       .catch((error: unknown) => {
         console.error(JSON.stringify({ event: "share_broadcast_failed", type: update.type, error: error instanceof Error ? error.name : "unknown" }));

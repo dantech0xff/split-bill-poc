@@ -18,6 +18,7 @@ import {
   type Share,
   SHARE_WRITE_ATTEMPTS,
   shareFrom,
+  type ShareRow,
   shareStatements,
   tell,
   writeShare,
@@ -86,7 +87,7 @@ async function changeShare(
     if (decided.kind === "keep") return ownerAnswer(call, share, 200, answering.withUrl);
     const written = await writeShare(env.DB, shareId, decided.statements);
     if (written === null) continue;
-    tell(env, ctx, shareId, { type: "share", share: publicView(written) });
+    tell(env, ctx, written.row, { type: "share", share: publicView(written) });
     return ownerAnswer(call, written, 200, answering.withUrl);
   }
   console.error(JSON.stringify({ event: "share_change_contended" }));
@@ -296,14 +297,21 @@ export const removeClaimRoute = signedIn(async (call) => {
 /**
  * `DELETE /v1/shares/{id}`: the owner revokes the link. Its claims are deleted and its bill,
  * amounts and who paid emptied at once, and every page that has it open hears that it is gone;
- * its token then answers 410 until the daily run deletes it. Revoking again answers 204 as well;
- * an expired link can be revoked too. It counts against no limit, since it is how an owner stops
- * abuse.
+ * its token then answers 410 until the daily run deletes it. Revoking again answers 204 at once,
+ * writing nothing and telling no page; an expired link can be revoked too. It counts against no
+ * limit, since it is how an owner stops abuse.
  */
 export const revokeShareRoute = signedIn(async ({ env, ctx, params, account }) => {
   const shareId = uuidOf(params[0]);
-  const row = shareId === null ? null : await env.DB.prepare("SELECT owner FROM shares WHERE id = ?1").bind(shareId).first<{ owner: string }>();
+  const row =
+    shareId === null
+      ? null
+      : await env.DB.prepare("SELECT id, owner, created_at, revoked_at FROM shares WHERE id = ?1")
+          .bind(shareId)
+          .first<Pick<ShareRow, "id" | "owner" | "created_at" | "revoked_at">>();
   if (shareId === null || row === null || row.owner !== account) return errorResponse(404, "not_found");
+  // Nothing is left to empty, and its pages already heard that it is gone.
+  if (row.revoked_at !== null) return emptyResponse(204);
   const db = env.DB;
   await db.batch([
     db
@@ -311,6 +319,6 @@ export const revokeShareRoute = signedIn(async ({ env, ctx, params, account }) =
       .bind(shareId, account, Date.now()),
     db.prepare("DELETE FROM share_claims WHERE share_id = ?1 AND EXISTS (SELECT 1 FROM shares WHERE id = ?1 AND owner = ?2)").bind(shareId, account),
   ]);
-  tell(env, ctx, shareId, { type: "gone" });
+  tell(env, ctx, row, { type: "gone" });
   return emptyResponse(204);
 });

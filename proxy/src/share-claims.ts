@@ -136,7 +136,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
         db.prepare("UPDATE share_claims SET name = ?3, item_ids = ?4, updated_at = ?5 WHERE share_id = ?1 AND key_hash = ?2").bind(shareId, keyHash, wanted.name, itemIds, now),
       ]);
       if (written === null) continue;
-      tell(env, ctx, shareId, { type: "share", share: publicView(written) });
+      tell(env, ctx, written.row, { type: "share", share: publicView(written) });
       return claimed(written, mine.id);
     }
     if (share.claims.length >= POLICY.maxClaims) return errorResponse(409, "full");
@@ -157,7 +157,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
         .bind(shareId, claimId, await tokenHash(key), wanted.name, itemIds, now),
     ]);
     if (written === null) continue;
-    tell(env, ctx, shareId, { type: "share", share: publicView(written) });
+    tell(env, ctx, written.row, { type: "share", share: publicView(written) });
     return claimed(written, claimId, key);
   }
   console.error(JSON.stringify({ event: "share_claim_contended" }));
@@ -187,5 +187,5 @@ export async function liveShareRoute(request: Request, env: Env): Promise<Respon
   const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
   if (refused !== null) return refused;
   // The object gets nothing of the request, the token least of all: only the upgrade.
-  return shareRoom(env, found.share.row.id).fetch(new Request("https://share-room/connect", { headers: { upgrade: "websocket" } }));
+  return shareRoom(env, found.share.row).fetch(new Request("https://share-room/connect", { headers: { upgrade: "websocket" } }));
 }

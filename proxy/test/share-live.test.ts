@@ -5,8 +5,8 @@ import { POLICY } from "../src/policy";
 import type { PublicShare } from "../src/share-state";
 import { fakeTurnstile } from "./fake-turnstile";
 import { fetchWorker } from "./requests";
-import { billProjection, changeClaim, newClaim, openShare, publish, type TestShare } from "./share-fixtures";
-import { api, person } from "./shared";
+import { billProjection, changeClaim, newClaim, openShare, type Owned, publish, type TestShare } from "./share-fixtures";
+import { api, linkToken, person } from "./shared";
 
 /** What a page heard on its connection, and how the connection closed. */
 type Page = { socket: WebSocket; heard: string[]; closed: { code: number; reason: string } | null };
@@ -63,8 +63,9 @@ function updates(page: Page): Array<{ type: string; share?: PublicShare }> {
   return page.heard.map((text) => JSON.parse(text) as { type: string; share?: PublicShare });
 }
 
+/** The object that holds [link]'s connections, named by its id and when it was made. */
 function room(link: TestShare) {
-  return env.SHARE_ROOM.get(env.SHARE_ROOM.idFromName(link.id));
+  return env.SHARE_ROOM.get(env.SHARE_ROOM.idFromName(`${link.id}:${link.share.createdAt}`));
 }
 
 describe("a link's live connection", () => {
@@ -143,6 +144,29 @@ describe("a link's live connection", () => {
     expect(await runInDurableObject(room(link), (_, state) => state.getWebSockets().length)).toBe(POLICY.maxLiveConnections);
     // Another link has room of its own.
     expect((await connect((await publish(await person())).token)).status).toBe(101);
+  });
+
+  it("of a link made again under the same id hears nothing of the new link", async () => {
+    const owner = await person();
+    const link = await publish(owner);
+    const old = await opened(link);
+    // The daily run deleted the link; its owner makes it again under the same id, later.
+    await env.DB.prepare("DELETE FROM shares WHERE id = ?1").bind(link.id).run();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const again = await api<Owned>(owner, "PUT", `/v1/shares/${link.id}`, { billId: link.billId, billRevision: 1, bill: billProjection() });
+    expect(again.status).toBe(201);
+    expect(again.body.share.createdAt).not.toBe(link.share.createdAt);
+    const token = linkToken(again.body.url);
+    const current = listen(await connect(token));
+
+    await newClaim(fakeTurnstile(), token, "Minh", ["i1"]);
+    await until(() => current.heard.length === 1);
+    await api(owner, "DELETE", `/v1/shares/${link.id}`);
+    await until(() => current.closed !== null);
+
+    expect(updates(current).map((update) => update.type)).toEqual(["share", "gone"]);
+    expect(old.heard).toEqual([]);
+    expect(old.closed).toBeNull();
   });
 
   it("needs an upgrade, the two subprotocols and a token of a link that works", async () => {
