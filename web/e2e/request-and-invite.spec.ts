@@ -87,7 +87,9 @@ test("the page's scripts and styles are served from /assets/ to be cached for go
   });
   await page.goto("/g/#AAAAAAAAAAAAAAAAAAAAAA");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link does not exist");
-  const paths = assets.map((asset) => new URL(asset.url).pathname).sort();
-  expect(paths).toEqual([expect.stringMatching(/^\/assets\/.+\.css$/), expect.stringMatching(/^\/assets\/.+\.js$/)]);
+  const paths = assets.map((asset) => new URL(asset.url).pathname);
+  expect(paths).toHaveLength(2);
+  expect(paths.filter((path) => /^\/assets\/[^/]+\.js$/.test(path))).toHaveLength(1);
+  expect(paths.filter((path) => /^\/assets\/[^/]+\.css$/.test(path))).toHaveLength(1);
   for (const asset of assets) expect(asset.cache).toBe("public, max-age=31536000, immutable");
 });
