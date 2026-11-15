@@ -3,12 +3,15 @@ import { env } from "cloudflare:workers";
 import { decodeJwt, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { GroupState } from "../src/group-state";
 import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf } from "../src/quota-book";
+import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
 import { network } from "./network";
 import { ANSWER, billRequest, last, model, proxyRequest, send } from "./requests";
+import { addBill, addPlaceholder, api, invite, join, memberView, newGroup, type Person, person, rows, signedInAgain, stateOf, VND } from "./shared";
 
 const CLIENT_ID = "test-web-client.apps.googleusercontent.com";
 const GOOGLE_SUB = "109876543210987654321";
@@ -202,5 +205,115 @@ describe("deleting an account", () => {
 
     expect(sent.status).toBe(401);
     expect(JSON.parse(sent.body)).toEqual({ error: "session" });
+  });
+});
+
+describe("deleting an account, in the shared data", () => {
+  /** What makes up each member's balance: their shares and payments of bills, and the settlements they paid and received. */
+  function sums(state: GroupState) {
+    const sums: Record<string, { shares: number; paid: number; sent: number; received: number }> = {};
+    const of = (id: string) => (sums[id] ??= { shares: 0, paid: 0, sent: 0, received: 0 });
+    for (const member of state.members) of(member.id);
+    for (const bill of state.bills) {
+      for (const [id, amount] of Object.entries(bill.shares)) of(id).shares += amount;
+      for (const [id, amount] of Object.entries(bill.paid)) of(id).paid += amount;
+    }
+    for (const settlement of state.settlements) {
+      of(settlement.fromMemberId).sent += settlement.amountMinor;
+      of(settlement.toMemberId).received += settlement.amountMinor;
+    }
+    return sums;
+  }
+
+  function deleteAccount(who: Person) {
+    return send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+  }
+
+  function newRequest(creditor: Person, extra: Record<string, unknown> = {}) {
+    return api<{ request: RequestView; url: string }>(creditor, "POST", "/v1/requests", {
+      id: crypto.randomUUID(),
+      amountMinor: 70_000,
+      currency: VND,
+      payerName: "Minh",
+      creditorName: "Lan",
+      title: "Groceries",
+      method: { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789" },
+      ...extra,
+    });
+  }
+
+  it("leaves its members as placeholders, and every member's shares, payments and settlements as they were", async () => {
+    const owner = await person();
+    const group = await newGroup(owner, "Flat 4B", VND);
+    const lan = await person();
+    const lanId = await join(group, lan, "Lan");
+    const minh = await person();
+    const minhId = await join(group, minh, "Minh");
+    const hoaId = await addPlaceholder(group, "Hoa");
+    const lansBill = await addBill(group, lan, { [group.ownerMemberId]: 300, [lanId]: 300, [minhId]: 200, [hoaId]: 200 }, { [lanId]: 1_000 });
+    await addBill(group, owner, { [lanId]: 500, [minhId]: 500 }, { [group.ownerMemberId]: 400, [minhId]: 600 });
+    await api(lan, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor: 150 });
+    await api(owner, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: lanId, amountMinor: 250 });
+    const before = await stateOf(group);
+    // What else Lan left: a device, a claim waiting in another group, requests made and owed.
+    await api(lan, "PUT", `/v1/devices/${crypto.randomUUID()}`, { token: "token-lan" });
+    const other = await newGroup(await person());
+    const otherPlaceholder = await addPlaceholder(other, "Lan?");
+    await api(lan, "POST", `/v1/invites/${await invite(other)}/join`, { claimMemberId: otherPlaceholder, name: "Lan" });
+    const open = (await newRequest(lan, { groupId: group.id, toMemberId: minhId })).body.request;
+    const paid = await newRequest(lan);
+    await api(minh, "POST", `/v1/request-links/${paid.body.url.split("/").pop()}/accept`);
+    await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
+    const owed = (await newRequest(owner, { groupId: group.id, toMemberId: lanId, creditorName: "Owner" })).body.request;
+
+    expect((await deleteAccount(lan)).status).toBe(204);
+
+    const after = await stateOf(group);
+    expect(after.members.find((member) => member.id === lanId)).toEqual(memberView(lanId, "Former member", false));
+    expect(sums(after)).toEqual(sums(before));
+    expect(sums(await stateOf(group, minh))).toEqual(sums(before));
+    expect(after.settlements).toEqual(before.settlements);
+    expect(after.bills.find((bill) => bill.id === lansBill)?.ownerMemberId).toBe(group.ownerMemberId);
+    expect(after.log[0]).toEqual({ at: expect.any(Number), kind: "member_left", memberId: lanId, subjectId: lanId });
+    expect((await stateOf(other)).claims).toEqual([]);
+
+    const minhs = (await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests")).body.requests;
+    expect(minhs.find((request) => request.id === open.id)).toEqual({ ...open, role: "debtor", method: {}, creditorName: "Former member" });
+    expect(minhs.find((request) => request.id === paid.body.request.id)).toMatchObject({ method: paid.body.request.method, creditorName: "Former member" });
+    const owners = (await api<{ requests: RequestView[] }>(owner, "GET", "/v1/requests")).body.requests;
+    expect(owners).toEqual([{ ...owed, debtorBound: true }]);
+    for (const table of ["groups", "members", "claims", "group_bills", "settlements", "group_log", "requests", "devices", "rate_windows"]) {
+      expect(JSON.stringify(await rows(`SELECT * FROM ${table}`)), table).not.toContain(lan.account);
+    }
+
+    const again = await signedInAgain(lan);
+    expect((await api(again, "GET", "/v1/groups")).body).toEqual({ groups: [] });
+    expect((await api(again, "GET", "/v1/requests")).body).toEqual({ requests: [] });
+    expect((await api(again, "GET", `/v1/groups/${group.id}`)).status).toBe(403);
+  });
+
+  it("passes a group it owns to the member with an account who joined first, and deletes one nobody else is in", async () => {
+    const owner = await person();
+    const shared = await newGroup(owner);
+    await addPlaceholder(shared, "Hoa");
+    const lan = await person();
+    const lanId = await join(shared, lan, "Lan");
+    await join(shared, await person(), "Minh");
+    const ownersBill = await addBill(shared, owner, { [lanId]: 100 }, { [shared.ownerMemberId]: 100 });
+    const alone = await newGroup(owner, "Just me", VND);
+    const somebody = await addPlaceholder(alone, "Somebody");
+    const request = (await newRequest(owner, { groupId: alone.id, toMemberId: somebody })).body.request;
+
+    expect((await deleteAccount(owner)).status).toBe(204);
+
+    const state = await stateOf(shared, lan);
+    expect(state.group.ownerMemberId).toBe(lanId);
+    expect(state.members.find((member) => member.id === lanId)?.isOwner).toBe(true);
+    expect(state.bills.find((bill) => bill.id === ownersBill)?.ownerMemberId).toBe(lanId);
+    expect(await rows("SELECT id FROM groups WHERE id = ?1", alone.id)).toEqual([]);
+    expect(await rows("SELECT id FROM members WHERE group_id = ?1", alone.id)).toEqual([]);
+    expect(await rows("SELECT group_id, to_member_id, creditor, method FROM requests WHERE id = ?1", request.id)).toEqual([
+      { group_id: null, to_member_id: null, creditor: null, method: "{}" },
+    ]);
   });
 });

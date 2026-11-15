@@ -1,7 +1,8 @@
-import { ALLOWANCES, callerOf, ledger, quotaBook } from "./identity";
+import { forgetSharedData } from "./account-data";
+import { ALLOWANCES, callerOf, ledger, quotaBook, sessionAccountOf } from "./identity";
 import type { Env } from "./index";
 import { readJson } from "./input";
-import { errorResponse, jsonResponse } from "./respond";
+import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 import { googleAccountOf, issueSession, signInReady } from "./session";
 import { aiEnabled } from "./switches";
 
@@ -34,12 +35,15 @@ export async function usageRoute(request: Request, env: Env): Promise<Response> 
 }
 
 /**
- * `DELETE /v1/account`: deletes everything the proxy holds about the signed-in account, which is
- * its call count and its spend counter. The app then forgets the session.
+ * `DELETE /v1/account`: deletes everything the proxy holds about the signed-in account: its call
+ * count, its spend counter, and its part in the shared data, which `forgetSharedData` takes out
+ * without changing anyone else's balances. The app then forgets the session.
  */
 export async function accountRoute(request: Request, env: Env): Promise<Response> {
-  const who = await callerOf(request, env);
-  if (!who.ok || who.caller.kind !== "google") return errorResponse(401, "session");
-  await Promise.all([quotaBook(env, who.caller.name).forget(), ledger(env, who.caller.name).forget()]);
-  return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+  const account = await sessionAccountOf(request, env);
+  if (account === null) return errorResponse(401, "session");
+  await forgetSharedData(env.DB, account, Date.now());
+  const name = `google:${account}`;
+  await Promise.all([quotaBook(env, name).forget(), ledger(env, name).forget()]);
+  return emptyResponse(204);
 }

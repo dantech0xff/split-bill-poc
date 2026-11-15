@@ -14,6 +14,11 @@ export async function person(): Promise<Person> {
   return { account, session: (await issueSession(account, env, Date.now())).session };
 }
 
+/** A new session for the same account, as after signing in again. */
+export async function signedInAgain(who: Person): Promise<Person> {
+  return { account: who.account, session: (await issueSession(who.account, env, Date.now())).session };
+}
+
 export type Answer<T> = { status: number; headers: Headers; body: T };
 
 /**
