@@ -25,7 +25,9 @@ class SplitPropertyTest {
     fun `split item by item, each item its own way`() = check(SplitMode.BY_ITEM) { bill, people, sharing ->
         SplitSetup(
             whole = null,
-            items = bill.items.filter { random.nextBoolean() }.associate { item -> item.id to divisionFor(item.amountMinor, people, sharing) },
+            items = bill.items.filter {
+                random.nextBoolean()
+            }.associate { item -> item.id to divisionFor(item.amountMinor, people, sharing) },
         )
     }
 
@@ -52,7 +54,12 @@ class SplitPropertyTest {
         val notSharing = people.filter { random.nextInt(5) == 0 }.toSet().takeIf { it.size < people.size } ?: emptySet()
         val sharing = people.filter { it !in notSharing }
         val setup = setupFor(bill, people, sharing).copy(notSharing = notSharing)
-        val payments = partition(bill.totalMinor, subsetOf(people).ifEmpty { setOf(ME_ID) }.toList()).map { (id, amount) -> Payment(id, amount) }
+        val payments = partition(
+            bill.totalMinor,
+            subsetOf(people).ifEmpty {
+                setOf(ME_ID)
+            }.toList(),
+        ).map { (id, amount) -> Payment(id, amount) }
 
         val result = SplitCalculator.split(bill, people, setup)
 
@@ -69,7 +76,13 @@ class SplitPropertyTest {
                 val sharers = result.shares.filter { it.totalMinor != 0L || bill.totalMinor == 0L }.map { it.totalMinor }
                 assertTrue(case, sharers.isEmpty() || sharers.max() - sharers.min() <= 1)
             }
-            is Division.ByAmount -> assertEquals(case, people.map { if (it in notSharing) 0L else whole.amounts[it] ?: 0L }, result.shares.map { it.totalMinor })
+
+            is Division.ByAmount -> {
+                // Everyone pays exactly the amount given to them; who does not share pays nothing.
+                val given = people.map { if (it in notSharing) 0L else whole.amounts[it] ?: 0L }
+                assertEquals(case, given, result.shares.map { it.totalMinor })
+            }
+
             else -> Unit
         }
         assertEquals(case, bill.totalMinor, payments.sumOf { it.amountMinor })

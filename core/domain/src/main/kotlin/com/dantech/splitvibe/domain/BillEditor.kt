@@ -31,7 +31,13 @@ object BillEditor {
     }
 
     /** Adds an item at the end. Without an amount, it is the quantity times the unit price. */
-    fun withItemAdded(bill: Bill, name: String, quantity: BigDecimal = BigDecimal.ONE, unitPriceMinor: Long? = null, amountMinor: Long? = null): Bill {
+    fun withItemAdded(
+        bill: Bill,
+        name: String,
+        quantity: BigDecimal = BigDecimal.ONE,
+        unitPriceMinor: Long? = null,
+        amountMinor: Long? = null,
+    ): Bill {
         val amount = amountMinor ?: unitPriceMinor?.let { lineAmount(quantity, it) } ?: 0L
         val item = BillItem(nextId("i", bill.items.map { it.id }), name.trim(), quantity, unitPriceMinor, amount.coerceAtLeast(0))
         return bill.copy(items = bill.items + item)
@@ -67,11 +73,13 @@ object BillEditor {
         return bill.copy(charges = bill.charges + charge)
     }
 
-    fun withCharge(bill: Bill, chargeId: String, label: String, kind: ChargeKind, amountMinor: Long): Bill = bill.copy(
-        charges = bill.charges.map {
-            if (it.id == chargeId) it.copy(label = label.trim().ifEmpty { defaultLabel(kind) }, kind = kind, amountMinor = amountMinor) else it
-        },
-    )
+    fun withCharge(bill: Bill, chargeId: String, label: String, kind: ChargeKind, amountMinor: Long): Bill {
+        val name = label.trim().ifEmpty { defaultLabel(kind) }
+        val charges = bill.charges.map { charge ->
+            if (charge.id == chargeId) charge.copy(label = name, kind = kind, amountMinor = amountMinor) else charge
+        }
+        return bill.copy(charges = charges)
+    }
 
     fun withoutCharge(bill: Bill, chargeId: String): Bill = bill.copy(charges = bill.charges.filter { it.id != chargeId })
 

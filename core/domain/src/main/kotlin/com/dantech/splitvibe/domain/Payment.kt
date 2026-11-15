@@ -35,10 +35,8 @@ object Payments {
         val paid = payments.sumOf { it.amountMinor }
         if (paid == totalMinor) return null
         val gap = totalMinor - paid
-        return if (gap > 0) {
-            "Payments add up to ${currency.format(paid)}, ${currency.format(gap)} short of the bill total of ${currency.format(totalMinor)}."
-        } else {
-            "Payments add up to ${currency.format(paid)}, ${currency.format(-gap)} more than the bill total of ${currency.format(totalMinor)}."
-        }
+        val given = "Payments add up to ${currency.format(paid)}"
+        val total = "the bill total of ${currency.format(totalMinor)}"
+        return if (gap > 0) "$given, ${currency.format(gap)} short of $total." else "$given, ${currency.format(-gap)} more than $total."
     }
 }

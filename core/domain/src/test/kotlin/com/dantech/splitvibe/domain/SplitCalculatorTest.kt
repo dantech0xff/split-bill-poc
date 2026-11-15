@@ -156,7 +156,19 @@ class SplitCalculatorTest {
     fun `the whole bill can be divided by shares`() {
         val bill = bill(items = listOf(8_000), charges = listOf(1_000))
 
-        val result = SplitCalculator.split(bill, listOf("me", "minh", "lan"), SplitSetup(whole = Division.ByShares(mapOf("me" to 1L, "minh" to 2L, "lan" to 0L))))
+        val result = SplitCalculator.split(
+            bill,
+            listOf("me", "minh", "lan"),
+            SplitSetup(
+                whole = Division.ByShares(
+                    mapOf(
+                        "me" to 1L,
+                        "minh" to 2L,
+                        "lan" to 0L,
+                    ),
+                ),
+            ),
+        )
 
         assertEquals(listOf(3_000L, 6_000L, 0L), result.totals())
         assertEquals(8_000L, result.shares.sumOf { it.itemsMinor })
@@ -166,7 +178,19 @@ class SplitCalculatorTest {
     fun `the whole bill can be divided by percent`() {
         val bill = bill(items = listOf(100_000), currency = vnd)
 
-        val result = SplitCalculator.split(bill, listOf("me", "minh", "lan"), SplitSetup(whole = Division.ByPercent(mapOf("me" to 3_333L, "minh" to 3_333L, "lan" to 3_334L))))
+        val result = SplitCalculator.split(
+            bill,
+            listOf("me", "minh", "lan"),
+            SplitSetup(
+                whole = Division.ByPercent(
+                    mapOf(
+                        "me" to 3_333L,
+                        "minh" to 3_333L,
+                        "lan" to 3_334L,
+                    ),
+                ),
+            ),
+        )
 
         assertEquals(listOf(33_330L, 33_330L, 33_340L), result.totals())
     }
@@ -175,7 +199,18 @@ class SplitCalculatorTest {
     fun `the whole bill can be divided by exact amounts`() {
         val bill = bill(items = listOf(7_000), charges = listOf(700))
 
-        val result = SplitCalculator.split(bill, listOf("me", "minh"), SplitSetup(whole = Division.ByAmount(mapOf("me" to 5_000L, "minh" to 2_700L))))
+        val result = SplitCalculator.split(
+            bill,
+            listOf("me", "minh"),
+            SplitSetup(
+                whole = Division.ByAmount(
+                    mapOf(
+                        "me" to 5_000L,
+                        "minh" to 2_700L,
+                    ),
+                ),
+            ),
+        )
 
         assertEquals(listOf(5_000L, 2_700L), result.totals())
         assertEquals(7_000L, result.shares.sumOf { it.itemsMinor })

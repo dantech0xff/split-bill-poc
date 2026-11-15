@@ -28,7 +28,8 @@ class SplitPlannerTest {
         warnings = emptyList(),
     )
 
-    private fun only(item: String, vararg people: String, me: Boolean = false) = ItemAssignmentHint(item, ShareRule.ONLY, people.toList(), me)
+    private fun only(item: String, vararg people: String, me: Boolean = false) =
+        ItemAssignmentHint(item, ShareRule.ONLY, people.toList(), me)
     private fun allExcept(item: String, vararg people: String, me: Boolean = false) =
         ItemAssignmentHint(item, ShareRule.ALL_EXCEPT, people.toList(), me)
 
@@ -164,8 +165,14 @@ class SplitPlannerTest {
         val plan = SplitPlan().withParticipantAdded("Minh").withParticipantAdded("Lan").withBill(bill)
 
         assertEquals(Division.ByShares(mapOf(ME_ID to 1L, "p1" to 1L, "p2" to 1L)), plan.withMode(SplitMode.BY_SHARES, bill).setup.whole)
-        assertEquals(Division.ByPercent(mapOf(ME_ID to 3_334L, "p1" to 3_333L, "p2" to 3_333L)), plan.withMode(SplitMode.BY_PERCENT, bill).setup.whole)
-        assertEquals(Division.ByAmount(mapOf(ME_ID to 148_334L, "p1" to 148_333L, "p2" to 148_333L)), plan.withMode(SplitMode.BY_AMOUNT, bill).setup.whole)
+        assertEquals(
+            Division.ByPercent(mapOf(ME_ID to 3_334L, "p1" to 3_333L, "p2" to 3_333L)),
+            plan.withMode(SplitMode.BY_PERCENT, bill).setup.whole,
+        )
+        assertEquals(
+            Division.ByAmount(mapOf(ME_ID to 148_334L, "p1" to 148_333L, "p2" to 148_333L)),
+            plan.withMode(SplitMode.BY_AMOUNT, bill).setup.whole,
+        )
         listOf(SplitMode.EQUAL, SplitMode.BY_ITEM, SplitMode.BY_SHARES, SplitMode.BY_PERCENT, SplitMode.BY_AMOUNT).forEach { mode ->
             assertTrue("$mode starts complete", plan.withMode(mode, bill).problems(bill).isEmpty())
         }

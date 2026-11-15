@@ -120,7 +120,11 @@ object SplitCalculator {
                 val sum = weights.sum()
                 when {
                     weights.any { it < 0 } -> Parts.Failed("A percentage cannot be less than zero.")
-                    sum != Division.ByPercent.FULL -> Parts.Failed("Percentages add up to ${percentText(sum)}. They need to add up to 100%.")
+
+                    sum != Division.ByPercent.FULL -> Parts.Failed(
+                        "Percentages add up to ${percentText(sum)}. They need to add up to 100%.",
+                    )
+
                     else -> Parts.Done(divideProportionally(amount, weights))
                 }
             }
@@ -130,8 +134,15 @@ object SplitCalculator {
                 val sum = values.sum()
                 when {
                     values.any { it < 0 } -> Parts.Failed("An amount cannot be less than zero.")
-                    sum < amount -> Parts.Failed("Amounts add up to ${currency.format(sum)}, ${currency.format(amount - sum)} short of ${currency.format(amount)}.")
-                    sum > amount -> Parts.Failed("Amounts add up to ${currency.format(sum)}, ${currency.format(sum - amount)} more than ${currency.format(amount)}.")
+
+                    sum < amount -> Parts.Failed(
+                        "Amounts add up to ${currency.format(sum)}, ${currency.format(amount - sum)} short of ${currency.format(amount)}.",
+                    )
+
+                    sum > amount -> Parts.Failed(
+                        "Amounts add up to ${currency.format(sum)}, ${currency.format(sum - amount)} more than ${currency.format(amount)}.",
+                    )
+
                     else -> Parts.Done(values)
                 }
             }
