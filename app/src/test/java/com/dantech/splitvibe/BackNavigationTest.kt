@@ -55,13 +55,18 @@ class BackNavigationTest {
             module {
                 viewModel {
                     SplitBillViewModel(
-                        contactRepository = get(),
                         settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
                         account = get<AccountStore>().account,
                         canSignIn = true,
                         imageLoader = get(),
                         recognizer = neverFinishes,
                         analyzer = NeverAsked,
+                        bills = get(),
+                        people = get(),
+                        pageStore = get(),
+                        fx = get(),
+                        contactNames = get(),
+                        savedState = get(),
                     ).also { splitViewModel = it }
                 }
             },
@@ -79,16 +84,16 @@ class BackNavigationTest {
         swipeBackHalfway()
         // While the finger is down both screens are drawn: the one being left and the one behind it.
         compose.onNodeWithText("New split").assertExists()
-        compose.onNodeWithText("Contacts").assertExists()
+        compose.onNodeWithText("Recent bills").assertExists()
         captureScreenRoboImage(File("src/test/screenshots/14-back-swipe-preview.png"))
 
         onBackDispatcher { dispatchOnBackCancelled() }
         compose.onNodeWithText("New split").assertIsDisplayed()
-        compose.onNodeWithText("Contacts").assertDoesNotExist()
+        compose.onNodeWithText("Recent bills").assertDoesNotExist()
 
         swipeBackHalfway()
         onBackDispatcher { onBackPressed() }
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
         compose.onNodeWithText("New split").assertDoesNotExist()
     }
 
@@ -105,7 +110,7 @@ class BackNavigationTest {
         compose.onNodeWithText("New split").assertIsDisplayed()
 
         onBackDispatcher { onBackPressed() }
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
     private fun swipeBackHalfway() = onBackDispatcher {

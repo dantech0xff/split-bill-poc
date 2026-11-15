@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Looper
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
@@ -13,21 +15,23 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.AiStatus
-import com.dantech.splitvibe.data.contacts.SeededContactRepository
-import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.ME_ID
-import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.dantech.splitvibe.testSplitViewModel
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -58,6 +62,7 @@ class SplitFlowTest {
     val compose = createComposeRule()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val storage = TestStorage(context)
     private val server = MockWebServer()
     private val vnd = BillCurrency("VND", 0)
 
@@ -69,7 +74,10 @@ class SplitFlowTest {
     fun setUp() = server.start()
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        storage.close()
+    }
 
     @Test
     fun `sample bill is read, split between people and requested`() {
@@ -90,24 +98,27 @@ class SplitFlowTest {
         assertTrue(sent, sent.contains(INSTRUCTION))
         assertFalse("no image may be uploaded", sent.contains("\"type\":\"image\""))
 
-        // Step 2: Minh and Lan were found in the contacts and the beers went to Minh.
+        // Step 2: Minh and Lan are on the bill, and the beers, the sixth line, went to Minh.
         val result = checkNotNull(viewModel.state.value.result)
-        assertEquals(listOf(ME_ID, "c01", "c02"), result.plan.participantIds)
-        assertEquals(mapOf(5 to setOf("c01")), result.plan.sharersByItem())
+        assertEquals(listOf(ME_ID, "p1", "p2"), result.plan.participantIds)
+        assertEquals(listOf("Minh", "Lan"), result.plan.participants.drop(1).map { it.name })
+        assertEquals(mapOf("i6" to Division.Equally(among = setOf("p1"))), result.plan.setup.items)
         compose.onNodeWithText(vnd.format(902_664)).assertIsDisplayed()
 
         val list = compose.onNode(hasScrollAction())
         list.performScrollToNode(hasText("Adds up to the bill total"))
-        compose.onNodeWithText(vnd.format(250_993)).assertIsDisplayed()
-        compose.onNodeWithText(vnd.format(400_680)).assertIsDisplayed()
-        compose.onNodeWithText(vnd.format(250_991)).assertIsDisplayed()
+        for (share in listOf(250_993L, 400_680L, 250_991L)) {
+            list.performScrollToNode(hasText(vnd.format(share)))
+            compose.onNodeWithText(vnd.format(share)).assertIsDisplayed()
+        }
 
         // The user changes who shares an item: Lan did not have any of the water.
         list.performScrollToNode(hasText("Nước suối"))
-        compose.onNodeWithText("Nước suối").performClick()
-        compose.onNode(hasText("Lê Thị Lan") and isToggleable()).performClick()
+        // Tapped through its action: the row may sit under a bar, which a touch would land on instead.
+        compose.onNodeWithText("Nước suối").performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNode(hasContentDescription("Lan") and isToggleable()).performClick()
         compose.onNodeWithText("Done").performClick()
-        awaitState { viewModel.state.value.result?.plan?.assignments?.get(6) == setOf(ME_ID, "c01") }
+        awaitState { viewModel.state.value.result?.plan?.setup?.items?.get("i7") == Division.Equally(among = setOf(ME_ID, "p1")) }
         val shares = checkNotNull(viewModel.state.value.result).split
         assertEquals("shares must still add up to the bill", 902_664L, shares.totalMinor)
 
@@ -115,7 +126,14 @@ class SplitFlowTest {
         val requested = shares.shares.filter { it.personId != ME_ID }.sumOf { it.totalMinor }
         compose.onNodeWithText("Request ${vnd.format(requested)} from 2 people").performClick()
         compose.onNodeWithText("Requests sent").assertIsDisplayed()
-        assertEquals(listOf("c01", "c02"), viewModel.state.value.sentRequests?.map { it.contact.id })
+        assertEquals(listOf("p1", "p2"), viewModel.state.value.sentRequests?.map { it.participant.id })
+
+        // The finished split is kept on the phone with the shares as they were requested.
+        val id = checkNotNull(viewModel.state.value.result).saved.id
+        awaitState { runBlocking { storage.bills.get(id) }?.status == BillStatus.FINAL }
+        val saved = checkNotNull(runBlocking { storage.bills.get(id) })
+        assertEquals(shares.shares, saved.shares)
+        assertEquals(listOf("Minh", "Lan"), saved.plan.participants.drop(1).map { it.name })
     }
 
     @Test
@@ -138,20 +156,19 @@ class SplitFlowTest {
     private fun showSplitScreen(): SplitBillViewModel {
         server.enqueue(Fixtures.proxyAnswer())
         val proxy = TestProxy(server, context)
-        val viewModel = SplitBillViewModel(
-            contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+        val viewModel = testSplitViewModel(
+            context,
+            storage,
             account = proxy.account.account,
-            canSignIn = true,
-            imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
             analyzer = proxy.analyzer,
+            localCurrency = "VND",
         )
         compose.setContent {
             SplitVibeTheme {
                 SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, onExit = {}, onOpenSettings = {})
+                }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
             }
         }
         return viewModel

@@ -1,20 +1,43 @@
 package com.dantech.splitvibe
 
+import android.content.ContentResolver
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.IntentCompat
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.AppNavHost
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Photos shared from another app are taken once, not again when the activity comes back.
+        val shared = if (savedInstanceState == null) sharedImagesOf(intent, packageName) else emptyList()
         setContent {
             SplitVibeTheme {
-                AppNavHost()
+                AppNavHost(sharedImages = shared)
             }
         }
     }
+}
+
+/**
+ * The photos another app shared, in order and at most as many as one bill has pages. Only photos
+ * another app hands over are taken: never a file path, and never a file of this app's own.
+ */
+internal fun sharedImagesOf(intent: Intent?, packageName: String): List<Uri> {
+    if (intent?.type?.startsWith("image/") != true) return emptyList()
+    val uris = when (intent.action) {
+        Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+        Intent.ACTION_SEND_MULTIPLE -> IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+        else -> emptyList()
+    }
+    return uris
+        .filter { it.scheme == ContentResolver.SCHEME_CONTENT && it.authority?.startsWith(packageName) != true }
+        .take(DocumentScanner.MAX_PAGES)
 }

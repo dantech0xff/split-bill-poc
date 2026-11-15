@@ -26,20 +26,20 @@ class AppStartupTest {
     @Test
     fun `app starts on the home screen and moves between screens`() {
         compose.onNodeWithText("Split Vibe").assertIsDisplayed()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
 
         compose.onNodeWithText("Split a bill").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
 
         // The arrow in the top bar, as opposed to the system back button.
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Settings").performClick()
         compose.onNodeWithText("Local currency").assertIsDisplayed()
 
         pressBack()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
     @Test
@@ -54,13 +54,13 @@ class AppStartupTest {
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("New split").assertIsDisplayed()
         pressBack()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Settings").performClick()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("Local currency").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
     private fun pressBack() {

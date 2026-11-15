@@ -13,6 +13,7 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ksp) apply false
 }
 
 // Code style. ktlint runs as a plain Java program, so no extra Gradle plugin is involved.

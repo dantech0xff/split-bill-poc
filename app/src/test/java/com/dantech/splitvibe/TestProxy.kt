@@ -38,7 +38,7 @@ object PlainCipher : TextCipher {
 
 /** For tests that stop before the bill is sent to be read. */
 object NeverAsked : BillAnalyzer {
-    override suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis =
+    override suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis =
         error("This test never gets as far as asking the model")
 }
 

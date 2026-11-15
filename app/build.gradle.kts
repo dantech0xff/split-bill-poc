@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.baselineprofile)
+    alias(libs.plugins.ksp)
 }
 
 // Where the app reaches the AI proxy (see proxy/ and docs/proxy.md). No key of any kind is built into
@@ -164,6 +165,11 @@ android {
     }
 }
 
+// Room writes the shape of each database version here, so a later version can be migrated to and tested.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:designsystem"))
@@ -195,6 +201,13 @@ dependencies {
 
     // On-device OCR: bundled Latin-script model, works offline without Google Play services downloads.
     implementation(libs.mlkit.text.recognition)
+    // The document scanner of Google Play services: finds the bill's edges, straightens it, takes several pages.
+    implementation(libs.mlkit.document.scanner)
+
+    // Bills, drafts and the people the user splits with live in a database on the phone.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     // Talks to the AI proxy; the answer streams in as lines of JSON.
     implementation(libs.okhttp)

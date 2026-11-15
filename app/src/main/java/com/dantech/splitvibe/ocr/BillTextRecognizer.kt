@@ -46,7 +46,8 @@ class MlKitBillTextRecognizer : BillTextRecognizer {
     }
 }
 
-private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
+/** Waits for a Google Play services task without blocking a thread. */
+internal suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
     addOnSuccessListener { continuation.resume(it) }
     addOnFailureListener { continuation.resumeWithException(it) }
     addOnCanceledListener { continuation.cancel() }

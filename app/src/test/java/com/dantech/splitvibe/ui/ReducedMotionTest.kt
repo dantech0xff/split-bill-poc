@@ -22,19 +22,18 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.NeverAsked
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.AiStatus
-import com.dantech.splitvibe.data.contacts.SeededContactRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.llm.BillAnalyzer
-import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
+import com.dantech.splitvibe.testSplitViewModel
 import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -69,6 +68,7 @@ class ReducedMotionTest {
     )
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val storage = TestStorage(context)
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
 
@@ -83,7 +83,10 @@ class ReducedMotionTest {
     fun setUp() = server.start()
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        storage.close()
+    }
 
     @Test
     fun `the working state stands still when animations are off`() {
@@ -129,14 +132,13 @@ class ReducedMotionTest {
     }
 
     private fun start(recognizer: BillTextRecognizer, analyzer: BillAnalyzer): SplitBillViewModel {
-        val viewModel = SplitBillViewModel(
-            contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(settings),
+        val viewModel = testSplitViewModel(
+            context,
+            storage,
             account = TestProxy(server, context).account.account,
-            canSignIn = true,
-            imageLoader = BillImageLoader(context),
             recognizer = recognizer,
             analyzer = analyzer,
+            localCurrency = settings.localCurrency,
         )
         compose.setContent {
             // No touch ripples: the platform draws them on real time, which would look like movement.
@@ -144,7 +146,7 @@ class ReducedMotionTest {
                 SplitVibeTheme {
                     SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                         Uri.EMPTY
-                    }, onExit = {}, onOpenSettings = {})
+                    }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
                 }
             }
         }

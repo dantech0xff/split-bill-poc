@@ -27,11 +27,11 @@ import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
-import com.dantech.splitvibe.domain.Bill
 
 /** Last step: confirms which requests would go out. No real payment request is created. */
 @Composable
-fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) {
+fun SentContent(result: SplitResultState, requests: List<PaymentRequest>, onDone: () -> Unit) {
+    val bill = result.bill
     Scaffold(
         bottomBar = {
             SvBottomBar { SvPrimaryButton("Done", onClick = onDone) }
@@ -62,17 +62,20 @@ fun SentContent(bill: Bill, requests: List<PaymentRequest>, onDone: () -> Unit) 
                     )
                 }
             }
-            itemsIndexed(requests, key = { _, request -> request.contact.id }) { index, request ->
+            itemsIndexed(requests, key = { _, request -> request.participant.id }) { index, request ->
+                val name = result.nameOf(request.participant.id)
                 SvListRow(position = SvRowPosition.of(index, requests.size)) {
-                    SvAvatar(request.contact.name)
+                    SvAvatar(name)
                     Spacer(Modifier.width(SvSpacing.md))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(request.contact.name, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "@${request.contact.handle}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text(name, style = MaterialTheme.typography.bodyLarge)
+                        result.converted(request.amountMinor)?.let { converted ->
+                            Text(
+                                "About $converted",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     Spacer(Modifier.width(SvSpacing.md))
                     Text(bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)

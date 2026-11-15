@@ -1,8 +1,12 @@
 package com.dantech.splitvibe.ui.split
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.IntentSender
 import android.net.Uri
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,17 +49,26 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.scan.DocumentScanner
+import kotlinx.coroutines.launch
 
-/** First step of a split: choose the bill photo and say how it should be split. */
+/**
+ * First step of a split: scan or photograph the bill and say how it should be split, or type the
+ * bill in by hand.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewSplitContent(
     state: SplitUiState,
     aiStatus: AiStatus,
     newCameraTarget: () -> Uri,
+    /** What to launch to scan a bill, or null when this phone cannot scan. */
+    scanIntent: suspend (Activity) -> IntentSender?,
     onBack: () -> Unit,
-    onPhotoPicked: (Uri) -> Unit,
+    /** The pages of one bill, in order. */
+    onPagesPicked: (List<Uri>) -> Unit,
     onSamplePicked: () -> Unit,
+    onManualEntry: () -> Unit,
     onInstructionChanged: (String) -> Unit,
     onAnalyze: () -> Unit,
     onCancel: () -> Unit,
@@ -86,8 +101,10 @@ fun NewSplitContent(
             PhotoSection(
                 state = state,
                 newCameraTarget = newCameraTarget,
-                onPhotoPicked = onPhotoPicked,
+                scanIntent = scanIntent,
+                onPagesPicked = onPagesPicked,
                 onSamplePicked = onSamplePicked,
+                onManualEntry = onManualEntry,
             )
 
             OutlinedTextField(
@@ -115,16 +132,29 @@ fun NewSplitContent(
 }
 
 @Composable
-private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhotoPicked: (Uri) -> Unit, onSamplePicked: () -> Unit) {
+private fun PhotoSection(
+    state: SplitUiState,
+    newCameraTarget: () -> Uri,
+    scanIntent: suspend (Activity) -> IntentSender?,
+    onPagesPicked: (List<Uri>) -> Unit,
+    onSamplePicked: () -> Unit,
+    onManualEntry: () -> Unit,
+) {
     var cameraTarget by rememberSaveable { mutableStateOf<Uri?>(null) }
     var cameraMissing by rememberSaveable { mutableStateOf(false) }
+    var scannerMissing by rememberSaveable { mutableStateOf(false) }
+    val activity = LocalActivity.current
+    val scope = rememberCoroutineScope()
 
-    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) onPhotoPicked(uri)
+    val scan = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        onPagesPicked(DocumentScanner.pagesOf(result))
+    }
+    val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(DocumentScanner.MAX_PAGES)) { uris ->
+        onPagesPicked(uris)
     }
     val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
         val target = cameraTarget
-        if (saved && target != null) onPhotoPicked(target)
+        if (saved && target != null) onPagesPicked(listOf(target))
     }
 
     SvCard(modifier = Modifier.fillMaxWidth()) {
@@ -138,19 +168,41 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
             val photo = state.photo
             if (photo != null) {
                 val image = remember(photo) { photo.asImageBitmap() }
+                val pages = state.pages.size
                 SvBillPhoto(
                     photo = image,
-                    contentDescription = "Bill photo",
+                    contentDescription = if (pages > 1) "First of $pages pages of the bill" else "Bill photo",
                     // From reading the text until the bill is worked out, not while the photo is still opening.
                     scanning = state.isBusy && state.progress != Progress.LOADING_PHOTO,
                 )
+                if (pages > 1) Text("$pages pages, read as one bill", style = MaterialTheme.typography.labelLarge)
             } else {
-                Text("Add a photo of the bill", style = MaterialTheme.typography.titleMedium)
+                Text("Add the bill", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "The text is read on this phone. The photo itself is never uploaded.",
+                    "Scan it or take a photo. The text is read on this phone; the photo itself is never uploaded.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            if (!scannerMissing && activity != null) {
+                FilledTonalButton(
+                    enabled = !state.isBusy,
+                    onClick = {
+                        scope.launch {
+                            val intent = scanIntent(activity)
+                            if (intent == null) {
+                                scannerMissing = true
+                            } else {
+                                try {
+                                    scan.launch(IntentSenderRequest.Builder(intent).build())
+                                } catch (e: ActivityNotFoundException) {
+                                    scannerMissing = true
+                                }
+                            }
+                        }
+                    },
+                ) { Text(if (photo == null) "Scan the bill" else "Scan again") }
             }
 
             // A flow row: with large text the second button moves to its own line instead of wrapping its label.
@@ -171,12 +223,22 @@ private fun PhotoSection(state: SplitUiState, newCameraTarget: () -> Uri, onPhot
                 OutlinedButton(
                     enabled = !state.isBusy,
                     onClick = {
-                        pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
-                ) { Text("Choose photo") }
+                ) { Text("Choose photos") }
             }
-            TextButton(enabled = !state.isBusy, onClick = onSamplePicked) { Text("Use the sample bill") }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm, Alignment.CenterHorizontally)) {
+                TextButton(enabled = !state.isBusy, onClick = onSamplePicked) { Text("Use the sample bill") }
+                TextButton(enabled = !state.isBusy, onClick = onManualEntry) { Text("Type it in by hand") }
+            }
 
+            if (scannerMissing) {
+                Text(
+                    "Scanning needs Google Play services, which this phone does not have. Take a photo or choose one instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (cameraMissing) {
                 Text(
                     "No camera app is available on this device. Choose a photo instead.",
@@ -203,7 +265,7 @@ private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () 
                 onCancel = onCancel,
             )
         } else {
-            SvPrimaryButton("Read and split the bill", onClick = onAnalyze, enabled = state.photo != null)
+            SvPrimaryButton("Read and split the bill", onClick = onAnalyze, enabled = state.pages.isNotEmpty())
         }
     }
 }

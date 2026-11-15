@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.ui
 
+import android.net.Uri
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
@@ -8,6 +9,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -21,11 +23,15 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import com.dantech.splitvibe.data.account.AccountStore
+import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.motion.SvMotion
 import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
 import com.dantech.splitvibe.ocr.BillImageLoader
+import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.history.HistoryScreen
+import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.SettingsScreen
@@ -46,19 +52,39 @@ data object SplitKey : NavKey
 @Serializable
 data object SettingsKey : NavKey
 
+@Serializable
+data object HistoryKey : NavKey
+
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
 
+/**
+ * The app's screens and how they lead to one another.
+ *
+ * @param sharedImages photos of a bill another app shared with Split Vibe, which a new split starts from.
+ */
 @Composable
-fun AppNavHost() {
+fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
     val backStack = rememberNavBackStack(HomeKey)
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
     val splitViewModel: SplitBillViewModel = koinViewModel()
     val settingsStore: SettingsStore = koinInject()
     val accountStore: AccountStore = koinInject()
     val imageLoader: BillImageLoader = koinInject()
+    val scanner: DocumentScanner = koinInject()
+    val billRepository: BillRepository = koinInject()
     val settings by settingsStore.settings.collectAsStateWithLifecycle()
     val account by accountStore.account.collectAsStateWithLifecycle()
+    val bills by remember(billRepository) { billRepository.listings() }.collectAsStateWithLifecycle(emptyList())
+
+    // Photos shared from another app start a split of their own.
+    LaunchedEffect(sharedImages) {
+        if (sharedImages.isEmpty()) return@LaunchedEffect
+        splitViewModel.startNewSplit()
+        splitViewModel.onPagesPicked(sharedImages)
+        backStack.open(SplitKey)
+    }
+    val openBill: (String) -> Unit = { id -> splitViewModel.open(id) { backStack.open(SplitKey) } }
 
     // One timing for the fade between screens and for a surface that grows into the next screen,
     // so both stay together when a back swipe scrubs through them.
@@ -83,11 +109,13 @@ fun AppNavHost() {
                 entry<HomeKey> {
                     Screen {
                         HomeScreen(
-                            contacts = splitViewModel.contacts,
+                            bills = bills,
                             onSplitBill = {
                                 splitViewModel.startNewSplit()
                                 backStack.open(SplitKey)
                             },
+                            onOpenBill = openBill,
+                            onSeeAllBills = { backStack.open(HistoryKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                         )
                     }
@@ -98,8 +126,26 @@ fun AppNavHost() {
                             viewModel = splitViewModel,
                             aiStatus = account.ai,
                             newCameraTarget = imageLoader::newCameraTarget,
-                            onExit = { backStack.removeAll { it != HomeKey } },
+                            scanIntent = scanner::startIntent,
+                            // Back to the list of bills when the bill was opened from there, else home.
+                            onExit = { backStack.remove(SplitKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
+                        )
+                    }
+                }
+                entry<HistoryKey> {
+                    Screen {
+                        // Lives as long as the list is open, with what was searched for.
+                        val historyViewModel: HistoryViewModel = koinViewModel()
+                        val listings by historyViewModel.listings.collectAsStateWithLifecycle()
+                        val query by historyViewModel.query.collectAsStateWithLifecycle()
+                        HistoryScreen(
+                            listings = listings,
+                            query = query,
+                            onQueryChanged = historyViewModel::onQueryChanged,
+                            onOpen = openBill,
+                            onDelete = historyViewModel::delete,
+                            onBack = { backStack.remove(HistoryKey) },
                         )
                     }
                 }

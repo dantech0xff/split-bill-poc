@@ -37,11 +37,15 @@ class GatewayBillAnalyzer(
     @Volatile
     private var unfinishedRead: Pair<List<String>, String>? = null
 
-    override suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis {
+    override suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis {
         if (!api.isSetUp) throw BillAnalyzerException(Kind.AI_OFF, checkNotNull(AiStatus.NOT_SET_UP.notice))
-        val content = listOf(OcrLayoutEncoder.encode(ocr), instruction.trim(), localCurrency)
+        val content = listOf(OcrLayoutEncoder.encode(pages), instruction.trim(), localCurrency)
         // The proxy refuses longer text. Saying so here tells the person what to change.
-        if (content[0].length > MAX_DOCUMENT_CHARS) throw BillAnalyzerException(Kind.BAD_REQUEST, TOO_LONG)
+        if (content[0].length >
+            MAX_DOCUMENT_CHARS
+        ) {
+            throw BillAnalyzerException(Kind.BAD_REQUEST, if (pages.size > 1) TOO_MANY_PAGES else TOO_LONG)
+        }
         val requestId = unfinishedRead?.takeIf { it.first == content }?.second ?: UUID.randomUUID().toString()
         // Kept from before the request goes out, so that a read cancelled while it waits keeps its id too.
         unfinishedRead = content to requestId
@@ -138,5 +142,6 @@ class GatewayBillAnalyzer(
         const val RETRY_LIMIT = "retry_limit"
         const val INPUT = "input"
         const val TOO_LONG = "The bill is too long to read in one go. Try photographing it in two parts."
+        const val TOO_MANY_PAGES = "These pages hold too much text to read in one go. Try fewer pages at a time."
     }
 }

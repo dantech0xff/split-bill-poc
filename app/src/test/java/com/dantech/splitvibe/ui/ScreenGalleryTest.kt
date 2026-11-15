@@ -7,33 +7,40 @@ import android.os.Looper
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
-import com.dantech.splitvibe.data.contacts.SeededContactRepository
+import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
-import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
+import com.dantech.splitvibe.testSplitViewModel
+import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.AccountUiState
@@ -46,7 +53,7 @@ import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertNull
@@ -81,10 +88,11 @@ class ScreenGalleryTest {
     val compose = createComposeRule()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val storage = TestStorage(context)
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
 
-    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN, SETTINGS_SIGN_IN_EXPIRED }
+    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN, SETTINGS_SIGN_IN_EXPIRED, HISTORY }
 
     private var screen by mutableStateOf(Screen.HOME)
 
@@ -99,7 +107,10 @@ class ScreenGalleryTest {
     fun setUp() = server.start()
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        storage.close()
+    }
 
     @Test
     fun `every screen of the split flow`() = everyScreen()
@@ -189,21 +200,47 @@ class ScreenGalleryTest {
         list.performScrollToNode(hasText("Adds up to the bill total"))
         shot("06-result-shares")
 
-        list.performScrollToNode(hasText("Add people"))
-        compose.onNodeWithText("Add people").performClick()
-        shot("07-pick-people")
-        compose.onNodeWithText("Done").performClick()
+        // Someone split with before is suggested as their name is typed.
+        list.performScrollToNode(hasText("Add someone"))
+        compose.onNodeWithText("Add someone").performClick()
+        compose.onNode(hasText("Name") and hasSetTextAction()).performTextInput("Bao")
+        shot("07-add-person")
+        compose.onNode(hasText("Add") and hasClickAction() and hasAnyAncestor(hasText("Bao Tran"))).performClick()
+        awaitState { viewModel.state.value.result?.plan?.participants?.size == 4 }
 
         // The list runs underneath the bottom bar, so bring the beers well clear of it before tapping the row.
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, HALF_PAGE_PX) }
+        list.performScrollToNode(hasText(BEERS))
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -HALF_PAGE_PX / 2) }
         compose.onNodeWithText(BEERS).performClick()
-        shot("08-item-sharers")
+        shot("08-item-split")
         compose.onNodeWithText("Done").performClick()
 
         list.performScrollToNode(hasText("Show what was sent to Claude"))
         compose.onNodeWithText("Show what was sent to Claude").performClick()
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, PAGE_PX) }
         shot("09-sent-to-claude")
+        compose.onNodeWithText("Hide what was sent to Claude").performClick()
+
+        // Divided by percent, each person's part can be typed in.
+        list.performScrollToNode(hasText("By percent"))
+        compose.onNodeWithText("By percent").performClick()
+        list.performScrollToNode(hasText("100% of 100%"))
+        shot("18-split-by-percent")
+
+        // Opened through its action: the row may sit under the bottom bar, which a touch would land on.
+        list.performScrollToNode(hasText("You paid", substring = true))
+        compose.onNode(hasText("You paid", substring = true) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithText("Several people").performClick()
+        shot("19-who-paid")
+        // Back to me paying it all, so the requests can go out.
+        compose.onNodeWithText("One person").performClick()
+        compose.onNodeWithText("Done").performClick()
+
+        compose.onNodeWithContentDescription("Edit bill").performClick()
+        shot("20-edit-bill")
+        compose.onNode(hasText("Done") and hasClickAction()).performClick()
+        // Back on the split before the clock is stopped below.
+        compose.onNode(hasText("Request", substring = true) and hasClickAction()).assertExists()
 
         // The request button turns into the mark that confirms the requests. The picture catches
         // that change halfway, with the clock stopped as for the working state.
@@ -213,6 +250,11 @@ class ScreenGalleryTest {
         shot("15-sending")
         compose.mainClock.autoAdvance = true
         shot("10-requests-sent")
+
+        // The finished split is the first bill in the list.
+        awaitState { runBlocking { storage.bills.get(checkNotNull(viewModel.state.value.result).saved.id) }?.status == BillStatus.FINAL }
+        show(Screen.HISTORY)
+        shot("21-history")
     }
 
     private fun wholeResultPage() {
@@ -228,33 +270,38 @@ class ScreenGalleryTest {
     }
 
     private fun start(answerDelaySeconds: Long): SplitBillViewModel {
+        // People split with before, whose names are suggested again.
+        storage.rememberTestPeople()
         server.enqueue(Fixtures.proxyAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
         val proxy = TestProxy(server, context)
-        val viewModel = SplitBillViewModel(
-            contactRepository = SeededContactRepository(),
-            settings = MutableStateFlow(settings),
+        val viewModel = testSplitViewModel(
+            context,
+            storage,
             account = proxy.account.account,
-            canSignIn = true,
-            imageLoader = BillImageLoader(context),
             recognizer = recordedMlKitOutput,
             analyzer = proxy.analyzer,
+            localCurrency = settings.localCurrency,
         )
         compose.setContent {
+            val bills by storage.bills.listings().collectAsState(emptyList())
             // No touch ripples: they are drawn by the platform on real time, so a picture taken
             // shortly after a tap would differ by a few pixels from run to run.
             CompositionLocalProvider(LocalRippleConfiguration provides null) {
                 SplitVibeTheme {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(contacts = viewModel.contacts, onSplitBill = {}, onOpenSettings = {})
+                        Screen.HOME -> HomeScreen(bills = bills, onSplitBill = {}, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {})
+
+                        Screen.HISTORY -> HistoryScreen(listings = bills, query = "", onQueryChanged = {
+                        }, onOpen = {}, onDelete = {}, onBack = {})
 
                         Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
-                        }, onExit = {}, onOpenSettings = {})
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
 
                         // What a build without the AI proxy's address shows.
                         Screen.SPLIT_WITHOUT_AI -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.NOT_SET_UP, newCameraTarget = {
                             Uri.EMPTY
-                        }, onExit = {}, onOpenSettings = {})
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
 
                         // Before signing in, with the count the proxy reported for this install.
                         Screen.SETTINGS -> SettingsScreen(

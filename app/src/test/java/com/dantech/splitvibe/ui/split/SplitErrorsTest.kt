@@ -8,22 +8,22 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.Session
-import com.dantech.splitvibe.data.contacts.SeededContactRepository
-import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
-import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
+import com.dantech.splitvibe.testSplitViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -39,6 +39,10 @@ class SplitErrorsTest {
     val compose = createComposeRule()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
+    private val storage = TestStorage(context)
+
+    @After
+    fun tearDown() = storage.close()
 
     private val recordedMlKitOutput = object : BillTextRecognizer {
         override suspend fun recognize(image: Bitmap): OcrResult = Fixtures.ocr("sample_bill_ocr.json")
@@ -86,9 +90,11 @@ class SplitErrorsTest {
                     state = SplitUiState(error = notice),
                     aiStatus = AiStatus.OFF,
                     newCameraTarget = { error("No photo is taken in this test") },
+                    scanIntent = { null },
                     onBack = {},
-                    onPhotoPicked = {},
+                    onPagesPicked = {},
                     onSamplePicked = {},
+                    onManualEntry = {},
                     onInstructionChanged = {},
                     onAnalyze = {},
                     onCancel = {},
@@ -102,9 +108,9 @@ class SplitErrorsTest {
 
     private data class Case(val kind: Kind, val signedIn: Boolean, val canSignIn: Boolean, val opensSettings: Boolean)
 
-    private fun viewModel(signedIn: Boolean, canSignIn: Boolean, analyzer: BillAnalyzer) = SplitBillViewModel(
-        contactRepository = SeededContactRepository(),
-        settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+    private fun viewModel(signedIn: Boolean, canSignIn: Boolean, analyzer: BillAnalyzer) = testSplitViewModel(
+        context,
+        storage,
         account = MutableStateFlow(
             Account(
                 installId = "split-errors-test",
@@ -114,13 +120,12 @@ class SplitErrorsTest {
             ),
         ),
         canSignIn = canSignIn,
-        imageLoader = BillImageLoader(context),
         recognizer = recordedMlKitOutput,
         analyzer = analyzer,
     )
 
     private fun failing(kind: Kind) = object : BillAnalyzer {
-        override suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis =
+        override suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis =
             throw BillAnalyzerException(kind, "The bill could not be read ($kind).")
     }
 }

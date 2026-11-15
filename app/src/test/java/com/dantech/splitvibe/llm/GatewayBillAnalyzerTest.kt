@@ -62,7 +62,7 @@ class GatewayBillAnalyzerTest {
     fun `sends the request the proxy's contract describes and reads the sample bill from its answer`() = runBlocking {
         server.enqueue(Fixtures.proxyAnswer())
 
-        val analysis = proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") as BillAnalysis.Ready
+        val analysis = proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") as BillAnalysis.Ready
 
         assertEquals(902_664L, analysis.bill.totalMinor)
         assertEquals(7, analysis.bill.items.size)
@@ -89,7 +89,7 @@ class GatewayBillAnalyzerTest {
         val answer = Fixtures.proxyAnswer().getBody()!!.readUtf8().lines().first { it.contains("\"result\"") }
         server.enqueue(ndjson("""{"type":"wait"}""", "", """{"type":"progress","share":0.5}""", """{"type":"wait"}""", answer))
 
-        val analysis = proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+        val analysis = proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
 
         assertTrue(analysis is BillAnalysis.Ready)
     }
@@ -134,7 +134,7 @@ class GatewayBillAnalyzerTest {
 
         for (case in cases) {
             server.enqueue(case.reply)
-            val failure = failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+            val failure = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
             assertEquals(case.toString(), case.kind, failure.kind)
             assertTrue("${failure.message} should say \"${case.says}\"", failure.message.orEmpty().contains(case.says))
         }
@@ -144,7 +144,7 @@ class GatewayBillAnalyzerTest {
     fun `keeps the calls left that come with an answer the model gave but could not finish`() = runBlocking {
         server.enqueue(ndjson("""{"type":"error","code":"refused","usage":$ONE_USED}"""))
 
-        failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(2, proxy.account.account.value.callsLeft?.remaining)
     }
@@ -153,7 +153,7 @@ class GatewayBillAnalyzerTest {
     fun `an answer that stops before its last line is a network failure`() = runBlocking {
         server.enqueue(ndjson("""{"type":"wait"}"""))
 
-        assertEquals(Kind.NETWORK, failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }.kind)
+        assertEquals(Kind.NETWORK, failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }.kind)
     }
 
     @Test
@@ -162,7 +162,7 @@ class GatewayBillAnalyzerTest {
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(2, TimeUnit.SECONDS))
 
-        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(ocr, INSTRUCTION, "VND") }
+        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.TIMEOUT, failure.kind)
     }
@@ -173,7 +173,7 @@ class GatewayBillAnalyzerTest {
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
 
-        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(ocr, INSTRUCTION, "VND") }
+        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.NETWORK, failure.kind)
     }
@@ -183,8 +183,8 @@ class GatewayBillAnalyzerTest {
         proxy.account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
         server.enqueue(refusal(401, """{"error":"session"}"""))
 
-        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }.kind)
-        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }.kind)
+        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }.kind)
+        assertEquals(Kind.SIGN_IN_EXPIRED, failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }.kind)
 
         assertEquals("Bearer signed-session", server.takeRequest().getHeader("Authorization"))
         assertEquals("the second read stops on the phone", 1, server.requestCount)
@@ -198,7 +198,7 @@ class GatewayBillAnalyzerTest {
         expiring.account.saveSession(Session("signed-session", expiresAt = now + 60_000))
         now += 60_000
 
-        val failure = failureOf { expiring.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val failure = failureOf { expiring.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.SIGN_IN_EXPIRED, failure.kind)
         assertTrue(failure.message.orEmpty().contains("Sign in again"))
@@ -220,15 +220,15 @@ class GatewayBillAnalyzerTest {
             server.enqueue(failure)
             server.enqueue(Fixtures.proxyAnswer())
 
-            failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
-            proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+            failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
+            proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
 
             val failed = requestIdOf(server.takeRequest())
             assertEquals("the read after ${failure.status} is the same request", failed, requestIdOf(server.takeRequest()))
             ids += failed
         }
         server.enqueue(Fixtures.proxyAnswer())
-        proxy.analyzer.analyze(ocr, "Split it four ways", "VND")
+        proxy.analyzer.analyze(listOf(ocr), "Split it four ways", "VND")
         ids += requestIdOf(server.takeRequest())
 
         assertEquals("a read that worked is not run again, and another instruction is another request", ids.size, ids.toSet().size)
@@ -240,10 +240,10 @@ class GatewayBillAnalyzerTest {
         server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(3, TimeUnit.SECONDS))
         server.enqueue(Fixtures.proxyAnswer())
 
-        val read = launch(Dispatchers.IO) { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val read = launch(Dispatchers.IO) { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
         val cancelled = server.takeRequest()
         read.cancelAndJoin()
-        proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+        proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
 
         assertEquals(requestIdOf(cancelled), requestIdOf(server.takeRequest()))
     }
@@ -259,8 +259,8 @@ class GatewayBillAnalyzerTest {
             server.enqueue(refused)
             server.enqueue(Fixtures.proxyAnswer())
 
-            failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
-            proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+            failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
+            proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
 
             assertNotEquals(refused.status, requestIdOf(server.takeRequest()), requestIdOf(server.takeRequest()))
         }
@@ -272,10 +272,34 @@ class GatewayBillAnalyzerTest {
         val long = OcrResult(imageWidth = 1000, imageHeight = 12_000, lines = rows)
         assertTrue(OcrLayoutEncoder.encode(long).length > 20_000)
 
-        val failure = failureOf { proxy.analyzer.analyze(long, INSTRUCTION, "VND") }
+        val failure = failureOf { proxy.analyzer.analyze(listOf(long), INSTRUCTION, "VND") }
 
         assertEquals(Kind.BAD_REQUEST, failure.kind)
         assertTrue(failure.message.orEmpty().contains("too long"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `the pages of one bill are sent as one document, each page numbered`() = runBlocking {
+        server.enqueue(Fixtures.proxyAnswer())
+
+        proxy.analyzer.analyze(listOf(ocr, ocr), INSTRUCTION, "VND")
+
+        val sent = (bodyOf(server.takeRequest()).getValue("ocrDocument") as JsonPrimitive).content
+        assertEquals(OcrLayoutEncoder.encode(listOf(ocr, ocr)), sent)
+        assertTrue(sent, sent.startsWith("<bill_ocr pages=\"2\">"))
+    }
+
+    @Test
+    fun `pages that hold more text together than the proxy takes ask for fewer pages`() = runBlocking {
+        val rows = List(150) { row -> OcrLine.upright("Item $row ${"x".repeat(80)}", 10f, row * 40f, 990f, row * 40f + 30f) }
+        val page = OcrResult(imageWidth = 1000, imageHeight = 6_000, lines = rows)
+        assertTrue(OcrLayoutEncoder.encode(page).length < 20_000)
+
+        val failure = failureOf { proxy.analyzer.analyze(listOf(page, page), INSTRUCTION, "VND") }
+
+        assertEquals(Kind.BAD_REQUEST, failure.kind)
+        assertTrue(failure.message.orEmpty().contains("fewer pages"))
         assertEquals(0, server.requestCount)
     }
 
@@ -284,7 +308,7 @@ class GatewayBillAnalyzerTest {
         val analyzer = GatewayBillAnalyzer(proxy.api, proxy.account, canSignIn = false)
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
 
-        val failure = failureOf { analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
         assertEquals("You have used your 3 free reads.", failure.message)
@@ -295,9 +319,9 @@ class GatewayBillAnalyzerTest {
         server.enqueue(refusal(503, """{"error":"ai_off"}"""))
         server.enqueue(Fixtures.proxyAnswer())
 
-        failureOf { proxy.analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
         assertEquals(AiStatus.OFF, proxy.account.account.value.ai)
-        proxy.analyzer.analyze(ocr, INSTRUCTION, "VND")
+        proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
         assertEquals(AiStatus.AVAILABLE, proxy.account.account.value.ai)
     }
 
@@ -306,7 +330,7 @@ class GatewayBillAnalyzerTest {
         val account = AccountStore(context, proxySetUp = false, cipher = PlainCipher)
         val analyzer = GatewayBillAnalyzer(ProxyApi("", account, appVersion = 1), account, canSignIn = false)
 
-        val failure = failureOf { analyzer.analyze(ocr, INSTRUCTION, "VND") }
+        val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.AI_OFF, failure.kind)
         assertEquals(AiStatus.NOT_SET_UP.notice, failure.message)

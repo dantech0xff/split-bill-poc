@@ -3,6 +3,8 @@ package com.dantech.splitvibe.data.proxy
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.fx.DayRate
+import com.dantech.splitvibe.data.fx.FxSnapshot
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
@@ -88,6 +90,12 @@ class ProxyApi(
         val body = jsonOf(response)
         val callsLeft = body["usage"]?.let(::callsLeftOf) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
         Usage(callsLeft, aiEnabled = body.boolean("aiEnabled") ?: true)
+    }
+
+    /** `GET /v1/fx-rates`: the day's exchange rates, which are the same for everyone. */
+    suspend fun fxRates(): FxSnapshot = send(request("v1/fx-rates", withSession = false).get().build()) { response ->
+        if (!response.isSuccessful) throw failureOf(response)
+        fxSnapshotOf(jsonOf(response)) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
     }
 
     /** `DELETE /v1/account`: deletes what the proxy keeps about the signed-in account. */
@@ -195,6 +203,23 @@ private fun callsLeftOf(element: JsonElement): CallsLeft? {
 }
 
 // Fields of the wrong shape read as missing, so a broken answer is a bad response rather than a crash.
+
+/** The rates in a `GET /v1/fx-rates` answer; a rate that is not a positive number with a day is left out. */
+private fun fxSnapshotOf(body: JsonObject): FxSnapshot? {
+    val base = body.text("base") ?: return null
+    val source = body.text("source") ?: return null
+    val fetchedAt = body.long("fetchedAt") ?: return null
+    val rates = body["rates"] as? JsonObject ?: return null
+    val kept = rates.mapNotNull { (code, value) ->
+        val entry = value as? JsonObject ?: return@mapNotNull null
+        // Read from the number as written, never through a floating-point value.
+        val rate = (entry["rate"] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toBigDecimalOrNull()
+        val date = entry.text("date")
+        if (rate == null || rate.signum() <= 0 || date == null) null else code to DayRate(rate, date)
+    }.toMap()
+    return if (kept.isEmpty()) null else FxSnapshot(base, source, fetchedAt, kept)
+}
+
 private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
 private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull

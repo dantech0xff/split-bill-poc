@@ -1,8 +1,9 @@
 package com.dantech.splitvibe
 
-import com.dantech.splitvibe.data.contacts.SeededContactRepository
+import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.ME_ID
-import com.dantech.splitvibe.domain.SplitCalculator
+import com.dantech.splitvibe.domain.Person
+import com.dantech.splitvibe.domain.SplitMode
 import com.dantech.splitvibe.domain.SplitPlanner
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalysisParser
@@ -22,7 +23,7 @@ import org.junit.Test
  */
 class RecordedSampleBillTest {
 
-    private val contacts = SeededContactRepository().contacts()
+    private val people = TestPeople.names.mapIndexed { index, name -> Person("person-${index + 1}", name) }
 
     @Test
     fun `real OCR output is laid out as the rows of the receipt`() {
@@ -64,13 +65,17 @@ class RecordedSampleBillTest {
     fun `instruction is turned into people, an item assignment and exact shares`() {
         val analysis = BillAnalysisParser.parse(Fixtures.text("sample_bill_answer.json")) as BillAnalysis.Ready
 
-        val plan = SplitPlanner.fromHint(analysis.splitHint, analysis.bill, contacts)
-        val split = SplitCalculator.split(analysis.bill, plan.participantIds, plan.assignments)
+        val plan = SplitPlanner.fromHint(analysis.splitHint, analysis.bill, people)
+        val split = plan.result(analysis.bill)
 
-        // "Minh" and "Lan" resolve to Trần Quang Minh (c01) and Lê Thị Lan (c02); the beers are item 5.
-        assertEquals(listOf(ME_ID, "c01", "c02"), plan.participantIds)
-        assertEquals(mapOf(5 to setOf("c01")), plan.assignments)
-        assertTrue(plan.notices.isEmpty())
+        // "Minh" is the Minh split with before; "Lan" is nobody known by exactly that name, so someone new.
+        assertEquals(listOf(ME_ID, "p1", "p2"), plan.participantIds)
+        assertEquals(listOf("", "Minh", "Lan"), plan.participants.map { it.name })
+        assertEquals(listOf(null, "person-1", null), plan.participants.map { it.personId })
+        // The beers are the sixth line, and only Minh had them.
+        assertEquals(SplitMode.BY_ITEM, plan.mode)
+        assertEquals(mapOf("i6" to Division.Equally(among = setOf("p1"))), plan.setup.items)
+        assertTrue(plan.openNotices().isEmpty())
 
         // Worked by hand: 664.000 of shared food is 221.334 + 221.333 + 221.333, Minh adds 132.000 of
         // beer, and the 106.664 of service charge and VAT follows each person's items.
@@ -78,5 +83,7 @@ class RecordedSampleBillTest {
         assertEquals(listOf(29_659L, 47_347L, 29_658L), split.shares.map { it.chargesMinor })
         assertEquals(listOf(250_993L, 400_680L, 250_991L), split.shares.map { it.totalMinor })
         assertEquals(902_664L, split.totalMinor)
+        // I paid it all.
+        assertEquals(null, plan.problems(analysis.bill).firstOrNull())
     }
 }

@@ -45,7 +45,6 @@ class SplitFlowOnDeviceTest {
             module {
                 viewModel {
                     SplitBillViewModel(
-                        contactRepository = get(),
                         settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
                         account = MutableStateFlow(
                             Account(installId = "on-device-test", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
@@ -54,6 +53,12 @@ class SplitFlowOnDeviceTest {
                         imageLoader = get(),
                         recognizer = get(),
                         analyzer = RecordedAnswer,
+                        bills = get(),
+                        people = get(),
+                        pageStore = get(),
+                        fx = get(),
+                        contactNames = get(),
+                        savedState = get(),
                     )
                 }
             },
@@ -85,7 +90,7 @@ class SplitFlowOnDeviceTest {
         compose.onNodeWithText("Requests sent").assertIsDisplayed()
 
         compose.onNodeWithText("Done").performClick()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
     /** Waits for work that runs off the main thread: loading the photo, reading its text. */
@@ -100,7 +105,7 @@ private object RecordedAnswer : BillAnalyzer {
         "Missing the recorded answer in src/sharedTest/resources/fixtures"
     }.readText()
 
-    override suspend fun analyze(ocr: OcrResult, instruction: String, localCurrency: String): BillAnalysis =
+    override suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis =
         BillAnalysisParser.parse(answer, localCurrency)
 }
 

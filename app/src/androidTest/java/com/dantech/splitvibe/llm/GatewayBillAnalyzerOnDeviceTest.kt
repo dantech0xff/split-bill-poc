@@ -70,7 +70,7 @@ class GatewayBillAnalyzerOnDeviceTest {
             ),
         )
 
-        val analysis = analyzerFor(restarted).analyze(ocr, "Split with Minh", localCurrency = "VND")
+        val analysis = analyzerFor(restarted).analyze(listOf(ocr), "Split with Minh", localCurrency = "VND")
 
         analysis as BillAnalysis.Ready
         assertEquals(65_000L, analysis.bill.totalMinor)
@@ -87,7 +87,7 @@ class GatewayBillAnalyzerOnDeviceTest {
         server.enqueue(MockResponse().setResponseCode(503).setHeader("content-type", "application/json").setBody("""{"error":"ai_off"}"""))
 
         try {
-            analyzer.analyze(ocr, "", localCurrency = "VND")
+            analyzer.analyze(listOf(ocr), "", localCurrency = "VND")
             fail("A proxy with AI switched off must not look like a readable bill")
         } catch (e: BillAnalyzerException) {
             assertEquals(BillAnalyzerException.Kind.AI_OFF, e.kind)

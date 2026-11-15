@@ -36,7 +36,7 @@ class AppLaunchTest {
     @Test
     fun appStartsAndOpensEachScreen() {
         compose.onNodeWithText("Split Vibe").assertIsDisplayed()
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Settings").performClick()
         compose.onNodeWithText("Settings").assertIsDisplayed()
@@ -55,6 +55,6 @@ class AppLaunchTest {
 
         compose.onNodeWithText("New split").assertIsDisplayed()
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
-        compose.onNodeWithText("Contacts").assertIsDisplayed()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 }
