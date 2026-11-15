@@ -35,21 +35,16 @@ data class GroupAmounts(val totalMinor: Long, val shares: Map<String, Long>, val
 object GroupConversion {
 
     /**
-     * A bill's [shares] and [payments], which belong to its participants, as amounts by group
-     * member. [memberOf] gives the member each participant is; two participants who are the same
-     * member are added together.
+     * A bill's [shares] and the payments towards it ([paid]), which belong to its participants, as
+     * amounts by group member. [memberOf] gives the member each participant is; two participants who
+     * are the same member are added together.
      */
-    fun amountsOf(
-        totalMinor: Long,
-        shares: List<PersonShare>,
-        payments: List<Payment>,
-        memberOf: Map<String, String>,
-    ): GroupAmounts {
+    fun amountsOf(totalMinor: Long, shares: List<PersonShare>, paid: List<Payment>, memberOf: Map<String, String>): GroupAmounts {
         fun member(participantId: String) = requireNotNull(memberOf[participantId]) { "$participantId is not matched to a member" }
         val byMemberShares = LinkedHashMap<String, Long>()
         shares.forEach { byMemberShares.merge(member(it.personId), it.totalMinor, Math::addExact) }
         val byMemberPaid = LinkedHashMap<String, Long>()
-        payments.forEach { byMemberPaid.merge(member(it.participantId), it.amountMinor, Math::addExact) }
+        paid.forEach { byMemberPaid.merge(member(it.participantId), it.amountMinor, Math::addExact) }
         return GroupAmounts(totalMinor, byMemberShares, byMemberPaid)
     }
 
