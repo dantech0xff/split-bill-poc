@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.requests
 
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.groups.CurrencyDto
+import com.dantech.splitvibe.data.payments.PaymentPayload
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
@@ -15,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -35,6 +37,8 @@ data class NewRequest(
     val toMemberId: String? = null,
     val billId: String? = null,
     val remindEveryDays: Int = 0,
+    /** How to pay, built in the app from [method], for the page of the request's link. */
+    val payment: PaymentPayload? = null,
 )
 
 /**
@@ -73,6 +77,8 @@ class RequestRepository(private val api: ProxyApi, private val cache: ProxyCache
             request.toMemberId?.let { put("toMemberId", it) }
             request.billId?.let { put("billId", it) }
             put("remindEveryDays", request.remindEveryDays)
+            // Written with its nulls, as the contract shows every field of it.
+            request.payment?.let { put("payment", Json.encodeToJsonElement(PaymentPayload.serializer(), it)) }
         }
         val answer = try {
             call("POST", "v1/requests", body)

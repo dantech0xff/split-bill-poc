@@ -7,6 +7,7 @@ import com.dantech.splitvibe.GroupFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.payments.PaymentPayload
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.payments.PaymentMethod
@@ -78,6 +79,20 @@ class RequestRepositoryTest {
         // Asking again for the same request sends nothing: it is the same request with the same link.
         assertEquals(created.url, requests.create(newRequest).url)
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `a request carries how to pay it, for the page its link opens, with every field written`() = runBlocking {
+        server.enqueue(json("""{"request":${GroupFixtures.request()},"url":"https://proxy.example/r/#token-1"}"""))
+        val payment = PaymentPayload(link = null, qrPayload = "00020101021238", details = "Bank: ACB", amountFilledIn = true)
+
+        requests.create(newRequest.copy(payment = payment))
+
+        val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(
+            """{"link":null,"qrPayload":"00020101021238","details":"Bank: ACB","amountFilledIn":true}""",
+            body["payment"].toString(),
+        )
     }
 
     @Test

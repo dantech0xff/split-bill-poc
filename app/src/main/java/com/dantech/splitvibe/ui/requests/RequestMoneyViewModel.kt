@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
+import com.dantech.splitvibe.data.payments.PaymentPayload
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.data.requests.NewRequest
 import com.dantech.splitvibe.data.requests.RequestRepository
@@ -77,7 +78,7 @@ class RequestMoneyViewModel(
         val chosen = method.value
         val title = listOfNotNull(bill.merchant?.takeIf { it.isNotBlank() }, bill.date).joinToString(", ").ifEmpty { null }
         val paying = chosen?.let { PaymentRequestBuilder.build(it.method, person.amountMinor, bill.currency, bill.merchant) }
-        val link = if (signedIn && chosen != null && name.isNotBlank()) track(saved, person, chosen, name, title) else null
+        val link = if (signedIn && chosen != null && name.isNotBlank()) track(saved, person, chosen, name, title, paying) else null
         val breakdown = person.share.takeIf { it.itemsMinor != 0L && it.chargesMinor != 0L }?.let {
             "That is ${bill.format(it.itemsMinor)} for what you had and ${bill.format(it.chargesMinor)} of the shared charges."
         }
@@ -97,7 +98,14 @@ class RequestMoneyViewModel(
     /** Records that the request to [participantId] went out. */
     fun markShared(participantId: String) = shared.update { it + participantId }
 
-    private suspend fun track(saved: SavedBill, person: PersonRequest, chosen: SavedPaymentMethod, name: String, title: String?): String? {
+    private suspend fun track(
+        saved: SavedBill,
+        person: PersonRequest,
+        chosen: SavedPaymentMethod,
+        name: String,
+        title: String?,
+        paying: PaymentRequest?,
+    ): String? {
         val payer = person.participant.name.trim()
         val request = NewRequest(
             // Asking again for the same share with the same method is the same request; a changed
@@ -110,6 +118,7 @@ class RequestMoneyViewModel(
             title = title,
             method = chosen.method,
             billId = saved.id,
+            payment = paying?.let(PaymentPayload::of),
         )
         return try {
             val created = requests.create(request)

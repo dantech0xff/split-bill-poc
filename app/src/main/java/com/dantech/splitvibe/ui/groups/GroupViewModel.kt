@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
+import com.dantech.splitvibe.data.payments.PaymentPayload
 import com.dantech.splitvibe.data.requests.NewRequest
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestStatus
@@ -141,6 +142,7 @@ class GroupViewModel(
                 method = it,
                 groupId = groupId,
                 toMemberId = transfer.fromMemberId,
+                payment = PaymentPayload.of(PaymentRequestBuilder.build(it, transfer.amountMinor, state.currency, state.group.name)),
             )
             requests.create(request).also { made ->
                 requests.withdrawReplaced(made.request) { old -> old.groupId == groupId && old.toMemberId == transfer.fromMemberId }
