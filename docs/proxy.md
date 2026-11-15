@@ -420,9 +420,9 @@ changing anyone's balance: amounts and settlements stay as they are.
 - Its claims, devices and hourly counters are deleted.
 - Its bill links are deleted, with their claims. Pages that have one open hear nothing more, and
   learn it at their next request.
-- On the requests it made, the payment method of each one not yet confirmed becomes `{}`, its
-  `payment` for the web page is emptied with it, and `creditorName` becomes "Former member" on
-  all of them. The account is then taken off every
+- On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and on
+  all of them, confirmed ones included, `payment` for the web page is emptied and `creditorName`
+  becomes "Former member". The account is then taken off every
   request, as creditor and as debtor: the other side keeps the request, nobody can act as the
   deleted account on it, and no notice goes to it or for it. A creditor whose debtor was deleted
   gets `unpaid` notices instead of the debtor's reminders. Signing in again with the same Google
@@ -629,9 +629,10 @@ The live connection:
   or an expired or revoked invite, is 410.
 - `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
   app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
-  null. RequestView does not carry it.
-- Deleting a request empties its `payment` at once. Deleting an account empties `payment` along
-  with `method` on the requests it made that are not confirmed.
+  null; it is null as well once the request is confirmed, when nothing is left to pay. RequestView
+  does not carry it.
+- Deleting a request empties its `payment` at once. Deleting an account empties `payment` on every
+  request it made, confirmed or not, and `method` on those not confirmed.
 
 ### The pages
 

@@ -60,5 +60,6 @@ CREATE TABLE share_claims (
 CREATE UNIQUE INDEX share_claims_by_key ON share_claims (share_id, key_hash);
 
 -- How the payer of a payment request pays it, as the creditor's app built it for the request's web
--- page, as JSON; null when the app sent none. Emptied with the request's method.
+-- page, as JSON; null when the app sent none. Emptied when the request is deleted, and on every
+-- request of an account that is deleted; the web page never shows it once the request is confirmed.
 ALTER TABLE requests ADD COLUMN payment TEXT;

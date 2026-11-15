@@ -4,6 +4,7 @@ import { POLICY } from "../src/policy";
 import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { fakeFcm } from "./fake-fcm";
+import { proxyRequest, send } from "./requests";
 import { addPlaceholder, api, join, linkToken, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
 
 type Created = { request: RequestView; url: string };
@@ -321,19 +322,40 @@ describe("a request link's web page", () => {
     expect((await view(tokenOf((await ask(lan)).body.url))).body.request.payment).toBeNull();
   });
 
-  it("says whether the request is open, reported paid or confirmed", async () => {
+  it("says whether the request is open, reported paid or confirmed, and how to pay it until it is confirmed", async () => {
     const lan = await person();
     const minh = await person();
     const made = await ask(lan, { payment: PAYMENT });
     const token = tokenOf(made.body.url);
-    const statusOf = async () => (await view(token)).body.request.status;
+    const seen = async () => (await view(token)).body.request;
 
-    expect(await statusOf()).toBe("open");
+    expect(await seen()).toMatchObject({ status: "open", payment: PAYMENT });
     await api(minh, "POST", "/v1/request-links/accept", { token });
     await api(minh, "POST", `/v1/requests/${made.body.request.id}/reported-paid`);
-    expect(await statusOf()).toBe("reported");
+    expect(await seen()).toMatchObject({ status: "reported", payment: PAYMENT });
     await api(lan, "POST", `/v1/requests/${made.body.request.id}/confirmed-paid`);
-    expect(await statusOf()).toBe("confirmed");
+    expect(await seen()).toMatchObject({ status: "confirmed", payment: null });
+  });
+
+  it("shows nothing of how its creditor was paid once the creditor deleted their account, confirmed or not", async () => {
+    const lan = await person();
+    const minh = await person();
+    const paid = await ask(lan, { payment: PAYMENT });
+    const open = await ask(lan, { payment: PAYMENT });
+    const token = tokenOf(paid.body.url);
+    await api(minh, "POST", "/v1/request-links/accept", { token });
+    await api(minh, "POST", `/v1/requests/${paid.body.request.id}/reported-paid`);
+    await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
+
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: lan.session }))).status).toBe(204);
+
+    for (const made of [paid, open]) {
+      const seen = await view(tokenOf(made.body.url));
+      expect(seen.status).toBe(200);
+      expect(seen.body.request).toMatchObject({ creditorName: "Former member", payment: null });
+    }
+    expect((await view(token)).body.request.status).toBe("confirmed");
+    expect(await rows("SELECT payment FROM requests")).toEqual([{ payment: null }, { payment: null }]);
   });
 
   it("answers 404 for a link never made, and 410 once its request was deleted, which empties how it is paid", async () => {

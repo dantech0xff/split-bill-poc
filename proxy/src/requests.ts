@@ -289,9 +289,9 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
 /**
  * `POST /v1/request-links/view` with `{"token"}`: the request a link carries, for its web page,
  * which needs no session: who asks whom for how much and for what, whether it is `open`,
- * `reported` or `confirmed`, and how to pay it, as the creditor's app built it (null when it sent
- * none). Nothing names an account. 404 and 410 as for `open`; a link that works counts as a read
- * of the IP.
+ * `reported` or `confirmed`, and how to pay it, as the creditor's app built it: null when it sent
+ * none, and once the request is confirmed, as nothing is left to pay. Nothing names an account.
+ * 404 and 410 as for `open`; a link that works counts as a read of the IP.
  */
 export async function viewRequestLinkRoute(request: Request, env: Env): Promise<Response> {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
@@ -303,7 +303,8 @@ export async function viewRequestLinkRoute(request: Request, env: Env): Promise<
   const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
   if (refused !== null) return refused;
   const row = linked.row;
-  const status = row.confirmed_paid_at !== null ? "confirmed" : row.reported_paid_at !== null ? "reported" : "open";
+  const confirmed = row.confirmed_paid_at !== null;
+  const status = confirmed ? "confirmed" : row.reported_paid_at !== null ? "reported" : "open";
   return jsonResponse(200, {
     request: {
       creditorName: row.creditor_name,
@@ -313,7 +314,7 @@ export async function viewRequestLinkRoute(request: Request, env: Env): Promise<
       title: row.title,
       status,
       // The Worker's own JSON, checked when the request was made.
-      payment: row.payment === null ? null : (JSON.parse(row.payment) as PaymentPayload),
+      payment: confirmed || row.payment === null ? null : (JSON.parse(row.payment) as PaymentPayload),
       createdAt: row.created_at,
     },
   });
