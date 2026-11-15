@@ -27,6 +27,18 @@ class BillProjectionTest {
     }
 
     @Test
+    fun `line breaks and other control characters read from a photo become spaces, which the proxy takes`() {
+        val bill = ShareFixtures.saved.bill
+        val read = bill.copy(merchant = "Pho\t24", items = bill.items.map { if (it.id == "i1") it.copy(name = "Pho\nbo\u0007") else it })
+
+        val projection = BillProjection.of(ShareFixtures.saved.copy(bill = read), myName = "Dana\r\n")
+
+        assertEquals("Pho 24", projection.merchant)
+        assertEquals("Pho bo", projection.items.first().name)
+        assertEquals("Dana", projection.participants.first().name)
+    }
+
+    @Test
     fun `a date that is not a day and a blank merchant are left out`() {
         val bill = ShareFixtures.saved.bill.copy(merchant = "  ", date = "14/11/2026")
 

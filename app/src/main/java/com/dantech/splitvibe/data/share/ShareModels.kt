@@ -36,15 +36,15 @@ data class BillProjection(
          */
         fun of(saved: SavedBill, myName: String): BillProjection {
             val bill = saved.bill
-            val charges = bill.charges.map { ProjectedCharge(it.id, it.label.trim().take(MAX_TEXT).ifEmpty { "Charge" }, it.amountMinor) }
+            val charges = bill.charges.map { ProjectedCharge(it.id, clean(it.label, MAX_TEXT).ifEmpty { "Charge" }, it.amountMinor) }
             return BillProjection(
-                merchant = bill.merchant?.trim()?.take(MAX_TEXT)?.takeIf { it.isNotEmpty() },
+                merchant = bill.merchant?.let { clean(it, MAX_TEXT) }?.takeIf { it.isNotEmpty() },
                 date = bill.date?.takeIf(::isDay),
                 currency = CurrencyDto.of(bill.currency),
                 items = bill.items.map { item ->
                     ProjectedItem(
                         id = item.id,
-                        name = item.name.trim().take(MAX_TEXT).ifEmpty { "Item" },
+                        name = clean(item.name, MAX_TEXT).ifEmpty { "Item" },
                         quantity = item.quantity.stripTrailingZeros().toPlainString(),
                         amountMinor = item.amountMinor,
                     )
@@ -58,13 +58,17 @@ data class BillProjection(
                 totalMinor = bill.totalMinor,
                 participants = saved.plan.participants.map { participant ->
                     val name = if (participant.isMe) myName else participant.name
-                    ProjectedPerson(participant.id, name.trim().take(MAX_NAME).ifEmpty { if (participant.isMe) "" else "Someone" })
+                    ProjectedPerson(participant.id, clean(name, MAX_NAME).ifEmpty { if (participant.isMe) "" else "Someone" })
                 },
             )
         }
 
         /** Whether [saved] fits on a link: it has lines, and not more lines or people than a page holds. */
         fun canShare(saved: SavedBill): Boolean = saved.bill.items.size in 1..MAX_ITEMS && saved.plan.participants.size <= MAX_PEOPLE
+
+        /** [text] on one line without control characters, which the proxy refuses, and at most [max] long. */
+        private fun clean(text: String, max: Int): String =
+            text.map { if (it.isISOControl()) ' ' else it }.joinToString("").replace(Regex(" {2,}"), " ").trim().take(max).trim()
 
         private fun isDay(text: String): Boolean = try {
             LocalDate.parse(text)
