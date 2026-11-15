@@ -3,7 +3,10 @@ import { POLICY } from "./policy";
 /** What the app sends to have one bill read: version 1 of the contract. */
 export type BillRequest = {
   requestId: string;
-  /** The rows of the bill as the app's `OcrLayoutEncoder` writes them, inside `<bill_ocr>` tags. */
+  /**
+   * The rows of the bill as the app's `OcrLayoutEncoder` writes them, inside `<bill_ocr>` tags:
+   * `<bill_ocr rows="N">` for one page, or `<bill_ocr pages="N">` holding one `<page>` per photo.
+   */
   ocrDocument: string;
   /** What the user typed; empty when they typed nothing. */
   instruction: string;

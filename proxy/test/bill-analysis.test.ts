@@ -97,6 +97,28 @@ describe("the contract", () => {
     expect(await spendOf(await ipName(IP))).toBeUndefined();
   });
 
+  it("accepts a bill photographed in two pages and hands its document to the model as it came", async () => {
+    const seen = model(ANSWER);
+    const ocrDocument = [
+      '<bill_ocr pages="2">',
+      '<page n="1" rows="2">',
+      '1 | [40,10,420,40] "PHO 24"',
+      '2 | [40,410,420,440] "Pho bo" | [800,410,960,440] "65.000"',
+      "</page>",
+      '<page n="2" rows="1">',
+      '1 | [40,100,420,130] "TONG CONG" | [800,100,960,130] "65.000"',
+      "</page>",
+      "</bill_ocr>",
+    ].join("\n");
+
+    const sent = await send(billRequest({ body: { ...sampleRequest, requestId: crypto.randomUUID(), ocrDocument } }));
+
+    expect(last(sent)).toMatchObject({ type: "result" });
+    const content = userMessage(ocrDocument, sampleRequest.instruction, sampleRequest.localCurrency);
+    expect(content.startsWith(`${ocrDocument}\n\n`)).toBe(true);
+    expect(seen[0].body.messages).toEqual([{ role: "user", content }]);
+  });
+
   it("accepts an empty instruction and no local currency", async () => {
     const seen = model(ANSWER);
 

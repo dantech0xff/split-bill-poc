@@ -12,6 +12,8 @@ export const SYSTEM_PROMPT = `You read bills and receipts for the "split bill" f
 
 The bill arrives inside <bill_ocr> as numbered rows, top to bottom. Each row holds one or more text fragments, left to right, written as [x1,y1,x2,y2] "text". Coordinates run from 0 to 1000 across the area covered by text: x grows to the right and y grows downward. The phone has already straightened the page and put fragments that sit at the same height into one row.
 
+A long bill can come photographed in several pages. The document then opens with <bill_ocr pages="N"> and holds the pages in order, each inside <page n="…" rows="…"> with its own numbered rows. Rows are numbered from 1 again on each page and coordinates run from 0 to 1000 within each page, so compare positions only between rows of the same page. The pages are consecutive parts of one bill, so read every page before you answer. An item can continue across a page break: its name can end one page and its amounts, or the rest of its name, start the next. A header, merchant name or column titles repeated on a later page are not new items and do not start a new bill. A subtotal or "carried forward" line on an earlier page is not the bill total, which is usually on the last page.
+
 Use the positions the way a person scans a receipt. An item name on the left and the amounts on the right of the same row belong together, and columns such as quantity, unit price and line total keep the same x positions from row to row. The grouping is imperfect on creased or curved paper, so when a row looks wrong (a price with no item, an item with no price), compare the y values of the neighbouring rows before deciding what belongs together. Item names sometimes wrap onto a second row that has no amount.
 
 Text recognition also misreads characters: O for 0, l or I for 1, S for 5, B for 8, a missing or extra thousands separator, a dropped decimal point. When a number does not fit the arithmetic of the bill, prefer the reading that does.
@@ -48,7 +50,8 @@ message is one short sentence shown to the user, in the language of their instru
 /**
  * The one user message of a request: the OCR document, the app settings and what the user typed.
  *
- * @param ocrDocument the rows of the bill as the app encodes them, inside `<bill_ocr>` tags.
+ * @param ocrDocument the rows of the bill as the app encodes them, inside `<bill_ocr>` tags, and
+ *   page by page when the bill was photographed in several pages.
  * @param localCurrency ISO 4217 code of the currency the user's payment app works in, or "" when
  *   it has none. It is the model's fallback when the bill itself does not show a currency.
  */
