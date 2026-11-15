@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Env } from "./index";
+import { isRecord } from "./input";
 import { POLICY } from "./policy";
 import { errorResponse } from "./respond";
 import type { PublicShare } from "./share-state";
@@ -12,6 +13,14 @@ export type LiveUpdate = { type: "share"; share: PublicShare } | { type: "gone" 
 
 /** How long a page that found a link's connections full waits before it tries again, in seconds. */
 const FULL_RETRY_SECONDS = 60;
+/**
+ * How long a connection may stay quiet before a full link closes it to make room: four of the
+ * pings a page sends every 30 seconds. A page that is open and shown never gets near it.
+ */
+const QUIET_MS = 2 * 60 * 1000;
+
+/** What a connection carries through hibernation: when it was accepted. */
+type Attachment = { acceptedAt: number };
 
 /**
  * The live connections of one bill link, named by the link's id and when the link was made (see
@@ -32,16 +41,45 @@ export class ShareRoom extends DurableObject<Env> {
   /**
    * Takes one more connection, once the Worker has checked the link's token: 101 with the
    * subprotocol [LIVE_PROTOCOL], or 429 `rate_limited` while the link already has
-   * [POLICY.maxLiveConnections] open.
+   * [POLICY.maxLiveConnections] open, after closing those that stayed quiet for [QUIET_MS].
    */
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return errorResponse(400, "input");
-    if (this.ctx.getWebSockets().length >= POLICY.maxLiveConnections) {
-      return errorResponse(429, "rate_limited", { retryAfter: FULL_RETRY_SECONDS });
-    }
+    if (!this.makeRoom(Date.now())) return errorResponse(429, "rate_limited", { retryAfter: FULL_RETRY_SECONDS });
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
+    server.serializeAttachment({ acceptedAt: Date.now() } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client, headers: { "sec-websocket-protocol": LIVE_PROTOCOL } });
+  }
+
+  /**
+   * Whether one more connection fits. Once the link has [POLICY.maxLiveConnections] open, the
+   * connections that sent no `ping` for [QUIET_MS], dropped ones that never said so or ones kept
+   * open to take places, are closed first.
+   */
+  private makeRoom(now: number): boolean {
+    const open = this.ctx.getWebSockets().filter((socket) => socket.readyState === WebSocket.OPEN);
+    let taken = open.length;
+    if (taken < POLICY.maxLiveConnections) return true;
+    for (const socket of open) {
+      if (now - this.lastHeard(socket) < QUIET_MS) continue;
+      taken -= 1;
+      try {
+        socket.close(1000, "quiet");
+      } catch {
+        // It closed meanwhile, which makes room as well.
+      }
+    }
+    return taken < POLICY.maxLiveConnections;
+  }
+
+  /** When [socket] last showed it is there: its latest `ping`, or when it was accepted. */
+  private lastHeard(socket: WebSocket): number {
+    const pinged = this.ctx.getWebSocketAutoResponseTimestamp(socket)?.getTime() ?? 0;
+    // What [fetch] attached when it accepted the connection.
+    const attached: unknown = socket.deserializeAttachment();
+    const acceptedAt = isRecord(attached) && typeof attached.acceptedAt === "number" ? attached.acceptedAt : 0;
+    return Math.max(pinged, acceptedAt);
   }
 
   /**

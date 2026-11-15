@@ -146,6 +146,31 @@ describe("a link's live connection", () => {
     expect((await connect((await publish(await person())).token)).status).toBe(101);
   });
 
+  it("when full, first closes the connections that stayed quiet for two minutes, and takes the new one", async () => {
+    const link = await publish(await person());
+    const early: Page[] = [];
+    for (let count = 1; count < POLICY.maxLiveConnections; count++) early.push(await opened(link));
+    const [pinging, ...quiet] = early;
+    pinging.socket.send("ping");
+    await until(() => pinging.heard.length === 1);
+    // These were accepted three minutes ago, and one of them pinged just now.
+    await runInDurableObject(room(link), (_, state) => {
+      for (const socket of state.getWebSockets()) socket.serializeAttachment({ acceptedAt: Date.now() - 3 * 60 * 1000 });
+    });
+    // The last place goes to a page that has not pinged yet, as none does in its first 30 seconds.
+    const fresh = await opened(link);
+
+    const joined = await connect(link.token);
+
+    expect(joined.status).toBe(101);
+    listen(joined);
+    await until(() => quiet.every((page) => page.closed !== null));
+    for (const page of quiet) expect(page.closed).toEqual({ code: 1000, reason: "quiet" });
+    expect(pinging.closed).toBeNull();
+    expect(fresh.closed).toBeNull();
+    expect(await runInDurableObject(room(link), (_, state) => state.getWebSockets().filter((socket) => socket.readyState === WebSocket.OPEN).length)).toBe(3);
+  });
+
   it("of a link made again under the same id hears nothing of the new link", async () => {
     const owner = await person();
     const link = await publish(owner);

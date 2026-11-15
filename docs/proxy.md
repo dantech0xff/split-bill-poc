@@ -614,8 +614,10 @@ The live connection:
   PublicShare}`. Once the link is revoked, they get `{"type": "gone"}`, and the connection closes
   with the code 1000 and the reason `gone`. An expired link, or one whose owner deleted their
   account, sends nothing more; the page learns it at its next request.
-- A link holds at most 50 connections (429 `rate_limited` past that, with `Retry-After: 60`). A
-  page may send `ping` and gets `pong`, which does not wake the link's object; it sends nothing
+- A link holds at most 50 connections. When it has 50, it first closes, with the code 1000 and the
+  reason `quiet`, those that sent no `ping` in the last two minutes and were opened before that;
+  while it still has 50, a new one is 429 `rate_limited`, with `Retry-After: 60`. A page sends
+  `ping` every 30 seconds and gets `pong`, which does not wake the link's object; it sends nothing
   else, and a connection that does is closed with the code 1008.
 - A page should connect first, then call `open`, and keep whichever view has the higher
   `revision`.
