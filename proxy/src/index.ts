@@ -6,13 +6,21 @@ import { errorResponse } from "./respond";
 
 export { AbuseLedger, QuotaBook };
 
+// Secrets are set apart from a deploy, so a Worker can run before they exist: those that may be
+// missing are optional, and the code that reads them says what happens without them.
 export interface Env {
-  /** The Anthropic key. A secret of the Worker; on a computer it sits in `.dev.vars`, which git ignores. */
-  ANTHROPIC_API_KEY: string;
-  /** Salt for the hashes that name objects after an IP or an account, so neither is stored as it is. */
+  /**
+   * The Anthropic key. A secret of the Worker; on a computer it sits in `.dev.vars`, which git
+   * ignores. Until it is set, bill reads answer 503 `not_configured`.
+   */
+  ANTHROPIC_API_KEY?: string;
+  /**
+   * Salt for the hashes that name objects after an IP or an account, so neither is stored as it is.
+   * Every route refuses to run without one, before it is read anywhere else.
+   */
   HASH_SALT: string;
-  /** Key that signs the sessions the proxy hands out after a Google sign-in; at least 32 bytes. */
-  SESSION_SIGNING_KEY: string;
+  /** Key that signs the sessions the proxy hands out after a Google sign-in; at least 32 bytes. Sign-in is off without it. */
+  SESSION_SIGNING_KEY?: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
   GOOGLE_CLIENT_ID: string;
   /** "true" while bills may be read with AI; anything else turns AI off without a release. */

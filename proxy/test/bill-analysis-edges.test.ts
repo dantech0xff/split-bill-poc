@@ -308,20 +308,25 @@ describe("a counter that cannot be reached", () => {
 
 describe("a proxy that is missing a setting", () => {
   it("refuses everything without a long enough salt for its hashes", async () => {
-    for (const request of [billRequest(), proxyRequest("GET", "/v1/usage"), proxyRequest("POST", "/v1/session", {}, "{}")]) {
-      const sent = await send(request, { HASH_SALT: "short" });
-      expect(sent.status).toBe(503);
-      expect(JSON.parse(sent.body)).toEqual({ error: "not_configured" });
+    // A secret that was never set is not there at all, which is not the same as empty.
+    for (const salt of ["short", undefined]) {
+      for (const request of [billRequest(), proxyRequest("GET", "/v1/usage"), proxyRequest("POST", "/v1/session", {}, "{}")]) {
+        const sent = await send(request, { HASH_SALT: salt });
+        expect(sent.status).toBe(503);
+        expect(JSON.parse(sent.body)).toEqual({ error: "not_configured" });
+      }
     }
   });
 
-  it("refuses to read bills without the Anthropic key", async () => {
+  it("refuses to read bills without the Anthropic key, also before the key was ever set", async () => {
     const seen = model(ANSWER);
 
-    const sent = await send(billRequest(), { ANTHROPIC_API_KEY: "" });
+    for (const key of ["", undefined]) {
+      const sent = await send(billRequest(), { ANTHROPIC_API_KEY: key });
 
-    expect(sent.status).toBe(503);
-    expect(JSON.parse(sent.body)).toEqual({ error: "not_configured" });
+      expect(sent.status).toBe(503);
+      expect(JSON.parse(sent.body)).toEqual({ error: "not_configured" });
+    }
     expect(seen).toHaveLength(0);
   });
 });

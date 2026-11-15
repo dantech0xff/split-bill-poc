@@ -41,7 +41,7 @@ const SYSTEM_BYTES = byteLength(SYSTEM_PROMPT);
 export async function billAnalysis(request: Request, env: Env, ctx: ExecutionContext, timing: Timing = TIMING): Promise<Response> {
   const started = Date.now();
   if (!aiEnabled(env)) return refused(started, "ai_off", errorResponse(503, "ai_off"));
-  if (env.ANTHROPIC_API_KEY.trim() === "") return refused(started, "not_configured", errorResponse(503, "not_configured"));
+  if ((env.ANTHROPIC_API_KEY ?? "").trim() === "") return refused(started, "not_configured", errorResponse(503, "not_configured"));
   if (!appVersionOk(request, env)) return refused(started, "update_required", errorResponse(426, "update_required"));
   const who = await callerOf(request, env);
   if (!who.ok) return refused(started, who.code, errorResponse(401, who.code));

@@ -90,5 +90,5 @@ export async function accountOfSession(session: string, env: Env): Promise<strin
 }
 
 function signingKey(env: Env): Uint8Array {
-  return new TextEncoder().encode(env.SESSION_SIGNING_KEY);
+  return new TextEncoder().encode(env.SESSION_SIGNING_KEY ?? "");
 }

@@ -113,7 +113,7 @@ describe("signing in", () => {
   it("stays off until the owner sets the app's client ID and a long enough signing key", async () => {
     const token = await idToken();
 
-    const offs: Array<Partial<typeof env>> = [{ GOOGLE_CLIENT_ID: "" }, { SESSION_SIGNING_KEY: "too short" }];
+    const offs: Array<Partial<typeof env>> = [{ GOOGLE_CLIENT_ID: "" }, { SESSION_SIGNING_KEY: "too short" }, { SESSION_SIGNING_KEY: undefined }];
     for (const settings of offs) {
       const sent = await signIn(token, settings);
       expect(sent.status).toBe(503);
