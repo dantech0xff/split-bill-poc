@@ -85,3 +85,25 @@ export function openShare(token: string, key?: string, ip?: string) {
 export function payPal(amountMinor: number) {
   return { link: `https://paypal.me/lan/${amountMinor}VND`, qrPayload: null, details: `PayPal: paypal.me/lan\nAmount: ₫${amountMinor}`, amountFilledIn: true };
 }
+
+/** The same database, but [before] runs once, just before the first batch whose SQL [matches] says it is the one. */
+export function racing(matches: (sql: string[]) => boolean, before: () => Promise<void>): D1Database {
+  let ran = false;
+  return new Proxy(env.DB, {
+    get(target, property) {
+      if (property !== "batch") {
+        const value: unknown = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return async (statements: D1PreparedStatement[]) => {
+        // A prepared statement keeps its SQL as `statement`; the test reads it to find the batch to race.
+        const sql = statements.map((statement) => (statement as unknown as { statement: string }).statement);
+        if (!ran && matches(sql)) {
+          ran = true;
+          await before();
+        }
+        return target.batch(statements);
+      };
+    },
+  });
+}

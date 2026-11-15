@@ -105,13 +105,14 @@ deleting an account changes the shared data is described [below](#deleting-an-ac
 A bill link keeps, until it expires or is revoked and the next daily run deletes it, what its page
 shows: the bill as the owner's app projected it (merchant, date, items, charges, total and the
 names of the participants), the claims under the names people typed with the items they took, and
-once the split is settled what each participant owes and how to pay it, and who paid the whole
-bill when its owner said so. A payment request may also keep how to pay it as its creditor's app
-built it for its page. Link tokens, the keys of claims and the attempts of first claims are kept
-as SHA-256 hashes. What the web pages do without a session is counted per hour and per address,
-under the same salted hash of the address as the limits of bill reads, never the address itself,
-and only for a token that leads to a link, a request or an invite that works; it is forgotten by
-the daily run once the hour is over. The `ShareRoom` objects hold open connections only.
+once the split is settled what each participant owes and how to pay it, who paid the whole bill
+when its owner said so, and which participant each claim is when its owner matched them. A payment
+request may also keep how to pay it as its creditor's app built it for its page. Link tokens, the
+keys of claims and the attempts of first claims are kept as SHA-256 hashes. What the web pages do
+without a session is counted per hour and per address, under the same salted hash of the address
+as the limits of bill reads, never the address itself, and only for a token that leads to a link,
+a request or an invite that works; it is forgotten by the daily run once the hour is over. The
+`ShareRoom` objects hold open connections only.
 
 The Worker prints one log line per bill read: the outcome, whether the caller is an install or an
 account, the model, the tokens, the cost and the time taken. For notifications it prints their
@@ -456,8 +457,8 @@ The routes of a link's owner need their session; the owner is the account that m
 | `PUT /v1/shares/{id}` `{"billId","billRevision","bill"}` | 201 the first time, then 200: `{"share": ShareView, "url"}`, with `url` `https://<the proxy's host>/s/#<token>` |
 | `GET /v1/shares/{id}` | `{"share": ShareView, "url"}` |
 | `POST /v1/shares/{id}/lock` | `{"share": ShareView}`: `locking`, with every claim written before it |
-| `POST /v1/shares/{id}/reopen` | `{"share": ShareView}`: `open` again, without amounts or `paidBy` |
-| `POST /v1/shares/{id}/finalize` `{"billRevision","bill","amounts","paidBy"?}` | `{"share": ShareView}`: `locked`, with the amounts and `paidBy` |
+| `POST /v1/shares/{id}/reopen` | `{"share": ShareView}`: `open` again, without amounts, `paidBy` or `matches` |
+| `POST /v1/shares/{id}/finalize` `{"billRevision","bill","amounts","paidBy"?,"matches"?}` | `{"share": ShareView}`: `locked`, with the amounts, `paidBy` and `matches` |
 | `DELETE /v1/shares/{id}/claims/{claimId}` | `{"share": ShareView}`, without that claim |
 | `DELETE /v1/shares/{id}` | 204: the link is revoked |
 
@@ -474,29 +475,36 @@ The routes of a link's owner need their session; the owner is the account that m
 - `PUT` makes the link, or shows a changed bill on it. The `billId` stays the same (else 400). A
   `billRevision` lower than the one kept is 409 `conflict`; the same `billRevision` with the same
   bill changes nothing. Claims keep only the item ids still in the bill, in their order. The link
-  loses its amounts and `paidBy`, and a `locked` link goes back to `locking`, so the split is
-  settled again.
+  loses its amounts, `paidBy` and `matches`, and a `locked` link goes back to `locking`, so the
+  split is settled again.
 - An account makes at most 30 links an hour, and 300 changes an hour over all its links (429 past
   either). Every call of `PUT` on a link that exists, `lock`, `reopen`, `finalize` and removing a
   claim counts as a change, whatever it then decides; reading and revoking count against nothing.
 - `lock` turns `open` into `locking`, and reads every claim in the same batch: a claim written
   before it is in the answer, and one after it is refused. On a `locking` or `locked` link it
   answers the link as it is.
-- `reopen` turns `locking` or `locked` into `open` and drops the amounts and `paidBy`; an open link
-  is answered as it is.
+- `reopen` turns `locking` or `locked` into `open` and drops the amounts, `paidBy` and `matches`;
+  an open link is answered as it is.
 - `finalize` needs `locking` or `locked` (else 409 `conflict`). `amounts` names every participant
   of `bill` and nobody else; each `amountMinor` is 0 to 10^15, and together they come to
   `bill.totalMinor` (else 400). `paidBy` is null, or the id of the one participant of `bill` who
-  paid the whole bill (another id is 400); left out, it is null. It is kept with the amounts and
-  dropped whenever they are: by a `PUT` that changes the bill, by `reopen` and by revoking. `bill`
-  is shown as with `PUT`, and `billRevision` follows the rule of `PUT`. The same settlement sent
-  again to a `locked` link, `paidBy` included, changes nothing.
+  paid the whole bill (another id is 400); left out, it is null.
+- `matches` in `finalize` says which participant of `bill` each claim is, as the owner matched
+  them: null, or `{"<claim id>": "<participant id>"}`, where every key is the id of one of the
+  link's claims and every value the id of a participant of `bill` (anything else is 400). Several
+  claims may be the same participant, and a claim left out is matched to nobody, as one with no
+  items puts nobody on the bill. Left out, or `{}`, it is null. The claims it names are checked
+  again in the batch that writes it, so a claim removed just before makes the settlement 400.
+- `paidBy` and `matches` are kept with the amounts and dropped whenever they are: by a `PUT` that
+  changes the bill, by `reopen` and by revoking. `bill` is shown as with `PUT`, and `billRevision`
+  follows the rule of `PUT`. The same settlement sent again to a `locked` link, `paidBy` and
+  `matches` included, whatever the order of their keys, changes nothing.
 - Removing a claim works while the link is `open` or `locking` (409 `locked` once `locked`); a
   claim the link does not have, as when the call is sent again, changes nothing. The browser that
   made it then has no claim, and needs Turnstile again to claim.
-- Revoking deletes every claim, empties the bill, the amounts and `paidBy`, and tells every open
-  page that the link is gone. Revoking again answers 204 at once, writing nothing and telling no
-  page, until the daily run deletes the link; an expired link can be revoked too.
+- Revoking deletes every claim, empties the bill, the amounts, `paidBy` and `matches`, and tells
+  every open page that the link is gone. Revoking again answers 204 at once, writing nothing and
+  telling no page, until the daily run deletes the link; an expired link can be revoked too.
 - A body of these routes is at most 512 KB.
 
 BillProjection, what the page shows of a bill:
@@ -528,7 +536,7 @@ ShareView, as its owner sees it:
 {"id": "…", "billId": "…", "billRevision": 3, "status": "open", "revision": 7,
  "createdAt": 1763190000000, "expiresAt": 1765782000000, "bill": {},
  "claims": [{"id": "…", "name": "Minh", "itemIds": ["i1"], "updatedAt": 1763190000000}],
- "amounts": null, "paidBy": null}
+ "amounts": null, "paidBy": null, "matches": null}
 ```
 
 - `status` is `open`, `locking` or `locked`.
@@ -541,6 +549,8 @@ ShareView, as its owner sees it:
   the owner named one, or null. Where an amount has no `payment`, the web page says that this
   person paid the bill and to settle up with them; when it is null, only to settle up with whoever
   paid.
+- `matches` is null until the split is settled, and when the owner matched no claim; then
+  `{"<claim id>": "<participant id>"}`, its keys sorted.
 
 `payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
 person and that amount.
@@ -782,10 +792,11 @@ applied, and push goes to a fake of Google's token endpoint and of FCM, which ch
 token request. New claims go to a fake of Turnstile's Siteverify, which hands out tokens for an
 action and a host and passes each once, and answers Cloudflare's test secrets as Cloudflare does.
 Live connections are opened as a browser opens them. A claim and a lock are raced by landing one
-just before the other's batch, both ways round. The tests of the pages read nothing of what the
-page says, so they hold for the web app and for the placeholder alike. Both commands first write
-the module of the web app, from `web/dist` as it is. GitHub Actions runs both for every pull
-request, after building `web/` once it has a lock file.
+just before the other's batch, both ways round, and a claim is removed just before the batch of a
+settlement that matches it. The tests of the pages read nothing of what the page says, so they
+hold for the web app and for the placeholder alike. Both commands first write the module of the
+web app, from `web/dist` as it is. GitHub Actions runs both for every pull request, after building
+`web/` once it has a lock file.
 
 ## Deploy it
 
@@ -820,10 +831,10 @@ These steps need the owner's accounts.
    npx wrangler d1 migrations apply split-vibe --remote
    ```
 
-   `0002_shares.sql` adds the tables of bill links and the `payment` column of requests; it only
-   adds, but note the database's bookmark before applying it, which D1's Time Travel can restore
-   (within 7 days on the free plan, with `npx wrangler d1 time-travel restore split-vibe
-   --bookmark=<bookmark>`):
+   `0002_shares.sql` adds the tables of bill links and the `payment` column of requests, and
+   `0003_share_matches.sql` the `matches` column of bill links. Both only add, but note the
+   database's bookmark before applying one, which D1's Time Travel can restore (within 7 days on
+   the free plan, with `npx wrangler d1 time-travel restore split-vibe --bookmark=<bookmark>`):
 
    ```bash
    npx wrangler d1 time-travel info split-vibe

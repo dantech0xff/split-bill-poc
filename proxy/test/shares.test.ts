@@ -16,9 +16,10 @@ import {
   type Owned,
   payPal,
   publish,
+  racing,
   type TestShare,
 } from "./share-fixtures";
-import { api, linkToken, person, rows, sha256, VND } from "./shared";
+import { type Answer, api, linkToken, person, rows, sha256, VND } from "./shared";
 
 type Viewed = { share: ShareView };
 
@@ -66,6 +67,7 @@ describe("a bill link", () => {
       claims: [],
       amounts: null,
       paidBy: null,
+      matches: null,
     });
     expect(made.body.share.createdAt).toBeGreaterThanOrEqual(before);
     const token = linkToken(made.body.url);
@@ -558,6 +560,164 @@ describe("settling a split", () => {
       paidBy: "p2",
     });
     expect(settled.body.share).toMatchObject({ status: "locked", paidBy: "p2" });
+  });
+
+  it("says which participant each claim is, to the owner and to everyone with the link, once the split is settled", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    const locked = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const matches = { [minh.you]: "p1", [hoa.you]: "me" };
+
+    const settled = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts(), matches });
+    const read = await api<Owned>(lan, "GET", `/v1/shares/${link.id}`);
+    const opened = await openShare(link.token, minh.key);
+
+    expect(link.share.matches).toBeNull();
+    expect(minh.share.matches).toBeNull();
+    expect(locked.body.share.matches).toBeNull();
+    expect(settled.status).toBe(200);
+    for (const share of [settled.body.share, read.body.share, opened.body.share]) {
+      expect(share).toMatchObject({ status: "locked", amounts: amounts() });
+      expect(share.matches).toEqual(matches);
+    }
+    // Kept with its keys sorted, as every settlement writes them.
+    const sorted = [minh.you, hoa.you].sort();
+    expect(Object.keys(opened.body.share.matches ?? {})).toEqual(sorted);
+    expect(await rows("SELECT matches FROM shares")).toEqual([{ matches: JSON.stringify(Object.fromEntries(sorted.map((id) => [id, matches[id]]))) }]);
+  });
+
+  it("matches several claims to one participant, and leaves the claims it does not name unmatched", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const settle = (matches: unknown) => api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts(), matches });
+
+    const both = await settle({ [minh.you]: "p1", [hoa.you]: "p1" });
+    const one = await settle({ [hoa.you]: "me" });
+    const none = await settle({});
+    const without = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts() });
+
+    expect(both.status).toBe(200);
+    expect(both.body.share.matches).toEqual({ [minh.you]: "p1", [hoa.you]: "p1" });
+    expect(one.body.share.matches).toEqual({ [hoa.you]: "me" });
+    // Matching no claim is the same as sending no matches.
+    expect(none.body.share).toMatchObject({ status: "locked", amounts: amounts(), matches: null });
+    expect(without.body.share).toMatchObject({ status: "locked", matches: null, revision: none.body.share.revision });
+  });
+
+  it("counts the same matches sent again, in any order, as the same settlement, and other matches as a change", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const settle = (matches: unknown) => api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts(), matches });
+
+    const first = await settle({ [minh.you]: "p1", [hoa.you]: "me" });
+    const reordered = await settle({ [hoa.you]: "me", [minh.you]: "p1" });
+    const changed = await settle({ [minh.you]: "p1", [hoa.you]: "p1" });
+    const fewer = await settle({ [minh.you]: "p1" });
+    const none = await settle(null);
+    const empty = await settle({});
+
+    expect(reordered.body).toEqual(first.body);
+    expect(changed.body.share.revision).toBe(first.body.share.revision + 1);
+    expect(fewer.body.share).toMatchObject({ revision: changed.body.share.revision + 1, matches: { [minh.you]: "p1" } });
+    expect(none.body.share).toMatchObject({ revision: fewer.body.share.revision + 1, matches: null });
+    expect(empty.body).toEqual(none.body);
+  });
+
+  it("refuses matches of a claim the link does not have, of someone who is not on the bill, or of another shape", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    const elsewhere = await newClaim(fakeTurnstile(), (await publish(lan)).token, "Tuan", ["i1"]);
+    await api(lan, "DELETE", `/v1/shares/${link.id}/claims/${hoa.you}`);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const before = await rows("SELECT * FROM shares WHERE id = ?1", link.id);
+    const settle = (matches: unknown, bill = billProjection(), shares: unknown = amounts()) =>
+      api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill, amounts: shares, matches });
+
+    for (const matches of [
+      { [crypto.randomUUID()]: "p1" },
+      // A claim its owner took off, and one of another link.
+      { [hoa.you]: "me" },
+      { [minh.you]: "p1", [elsewhere.body.you]: "p1" },
+      { [minh.you]: "p9" },
+      { [minh.you]: "ME" },
+      { [minh.you]: "" },
+      { [minh.you]: 1 },
+      { [minh.you]: null },
+      { [minh.you]: { id: "p1" } },
+      { [minh.you]: ["p1"] },
+      [minh.you],
+      [[minh.you, "p1"]],
+      "p1",
+      true,
+    ]) {
+      const refused = await settle(matches);
+      expect(refused.status, JSON.stringify(matches)).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
+    expect(await rows("SELECT * FROM shares WHERE id = ?1", link.id)).toEqual(before);
+    // Who a claim is must be one of the bill that is sent.
+    const others = billProjection({ participants: [{ id: "me", name: "Lan" }, { id: "p2", name: "An" }] });
+    const theirs = { me: { amountMinor: 107_250, payment: null }, p2: { amountMinor: 107_250, payment: null } };
+    expect((await settle({ [minh.you]: "p1" }, others, theirs)).status).toBe(400);
+    const settled = await settle({ [minh.you]: "p2" }, others, theirs);
+    expect(settled.status).toBe(200);
+    expect(settled.body.share.matches).toEqual({ [minh.you]: "p2" });
+  });
+
+  it("lands matches only while every claim they name is on the link: one taken off just before is refused, and nothing is kept", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const raced: { removed?: Answer<Viewed> } = {};
+    const db = racing(
+      (sql) => sql.some((text) => text.includes("status = 'locked'")),
+      async () => {
+        raced.removed = await api<Viewed>(lan, "DELETE", `/v1/shares/${link.id}/claims/${hoa.you}`);
+      },
+    );
+
+    const settled = await api(
+      lan,
+      "POST",
+      `/v1/shares/${link.id}/finalize`,
+      { billRevision: 1, bill: billProjection(), amounts: amounts(), matches: { [minh.you]: "p1", [hoa.you]: "me" } },
+      { DB: db },
+    );
+
+    expect(raced.removed?.status).toBe(200);
+    expect(settled.status).toBe(400);
+    expect(settled.body).toEqual({ error: "input" });
+    expect(await rows("SELECT status, amounts, matches FROM shares")).toEqual([{ status: "locking", amounts: null, matches: null }]);
+  });
+
+  it("drops the matches with the amounts: on a changed bill, on reopening and on revoking", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    const { minh, hoa } = await twoClaims(link);
+    const matches = { [minh.you]: "p1", [hoa.you]: "me" };
+    const settle = (billRevision: number) => api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision, bill: billProjection(), amounts: amounts(), matches });
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    expect((await settle(1)).body.share.matches).toEqual(matches);
+
+    const changed = await api<Owned>(lan, "PUT", `/v1/shares/${link.id}`, { billId: link.billId, billRevision: 2, bill: billProjection({ merchant: "Pho 25" }) });
+    expect(changed.body.share).toMatchObject({ status: "locking", amounts: null, paidBy: null, matches: null });
+    expect((await settle(2)).body.share.matches).toEqual(matches);
+    const reopened = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/reopen`);
+    expect(reopened.body.share).toMatchObject({ status: "open", amounts: null, matches: null });
+    expect((await openShare(link.token)).body.share.matches).toBeNull();
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    expect((await settle(2)).body.share.matches).toEqual(matches);
+    expect((await api(lan, "DELETE", `/v1/shares/${link.id}`)).status).toBe(204);
+    expect(await rows("SELECT amounts, paid_by, matches FROM shares")).toEqual([{ amounts: null, paid_by: null, matches: null }]);
+    // The schema keeps matches only with the amounts.
+    await expect(env.DB.prepare("UPDATE shares SET matches = '{}' WHERE id = ?1").bind(link.id).run()).rejects.toThrow(/CHECK constraint failed/);
   });
 
   it("refuses amounts that do not add up to the total, or that leave out or add a participant", async () => {

@@ -6,7 +6,7 @@ import { POLICY } from "../src/policy";
 import type { ShareView } from "../src/share-state";
 import { FAILING_SECRET, fakeTurnstile, PASSING_SECRET } from "./fake-turnstile";
 import { billRequest, ipName, model, ANSWER, proxyRequest, send } from "./requests";
-import { billProjection, changeClaim, type Claimed, fromPage, fromPageAt, newClaim, openShare, payPal, publish, windowOf } from "./share-fixtures";
+import { billProjection, changeClaim, type Claimed, fromPage, fromPageAt, newClaim, openShare, payPal, publish, racing, windowOf } from "./share-fixtures";
 import { type Answer, api, invite, linkToken, newGroup, person, rows, sha256, VND } from "./shared";
 
 /** What the Worker logged while [run] ran, one entry per line. */
@@ -21,28 +21,6 @@ async function logsOf(run: () => Promise<unknown>): Promise<string[]> {
 }
 
 type Viewed = { share: ShareView };
-
-/** The same database, but [before] runs once, just before the first batch whose SQL [matches] says it is the one. */
-function racing(matches: (sql: string[]) => boolean, before: () => Promise<void>): D1Database {
-  let ran = false;
-  return new Proxy(env.DB, {
-    get(target, property) {
-      if (property !== "batch") {
-        const value: unknown = Reflect.get(target, property);
-        return typeof value === "function" ? value.bind(target) : value;
-      }
-      return async (statements: D1PreparedStatement[]) => {
-        // A prepared statement keeps its SQL as `statement`; the test reads it to find the batch to race.
-        const sql = statements.map((statement) => (statement as unknown as { statement: string }).statement);
-        if (!ran && matches(sql)) {
-          ran = true;
-          await before();
-        }
-        return target.batch(statements);
-      };
-    },
-  });
-}
 
 /** A new claim on the link [token], with [turnstile] as its Turnstile token. */
 function newClaimWith(token: string, turnstile: string) {
@@ -687,7 +665,7 @@ describe("what anyone with a link sees", () => {
     });
     const viewed = await fromPage("/v1/request-links/view", { token: linkToken(request.body.url) }, ip);
 
-    expect(Object.keys(opened.body.share).sort()).toEqual(["amounts", "bill", "claims", "expiresAt", "paidBy", "revision", "status"]);
+    expect(Object.keys(opened.body.share).sort()).toEqual(["amounts", "bill", "claims", "expiresAt", "matches", "paidBy", "revision", "status"]);
     expect(Object.keys(opened.body.share.claims[0]).sort()).toEqual(["id", "itemIds", "name"]);
     const hashes = [
       ...(await rows<{ token_hash: string }>("SELECT token_hash FROM shares")).map((row) => row.token_hash),

@@ -22,9 +22,13 @@ export type BillProjection = {
 /** What each participant of a bill owes once its owner settled the split, and how to pay it, keyed by participant id. */
 export type ShareAmounts = Record<string, { amountMinor: number; payment: PaymentPayload | null }>;
 
+/** Which participant of the bill each claim is, as the owner matched them in settling the split: participant ids keyed by claim id. */
+export type ShareMatches = Record<string, string>;
+
 /**
  * A bill link as its owner sees it. Accounts, hashes and IPs never appear in it. `paidBy` is the
- * participant who paid the whole bill, when the owner named one in settling the split; it is null
+ * participant who paid the whole bill, when the owner named one in settling the split, and
+ * `matches` says which participant each claim is, when the owner matched any; both are null
  * whenever `amounts` is.
  */
 export type ShareView = {
@@ -39,6 +43,7 @@ export type ShareView = {
   claims: Array<{ id: string; name: string; itemIds: string[]; updatedAt: number }>;
   amounts: ShareAmounts | null;
   paidBy: string | null;
+  matches: ShareMatches | null;
 };
 
 /** A bill link as anyone with its token sees it: the owner's view without the link's ids, the bill's revision, and when things were made. */
@@ -50,6 +55,7 @@ export type PublicShare = {
   claims: Array<{ id: string; name: string; itemIds: string[] }>;
   amounts: ShareAmounts | null;
   paidBy: string | null;
+  matches: ShareMatches | null;
 };
 
 export type ShareRow = {
@@ -62,6 +68,7 @@ export type ShareRow = {
   bill: string | null;
   amounts: string | null;
   paid_by: string | null;
+  matches: string | null;
   created_at: number;
   expires_at: number;
   revoked_at: number | null;
@@ -77,7 +84,7 @@ export type ProjectedBill = { bill: BillProjection; json: string; itemIds: strin
 /** How many times a change reads the link again when it changed in a way the change depends on, before it answers 409. */
 export const SHARE_WRITE_ATTEMPTS = 3;
 
-const SHARE_COLUMNS = "id, owner, bill_id, status, revision, bill_revision, bill, amounts, paid_by, created_at, expires_at, revoked_at";
+const SHARE_COLUMNS = "id, owner, bill_id, status, revision, bill_revision, bill, amounts, paid_by, matches, created_at, expires_at, revoked_at";
 
 /** Statements whose results [shareFrom] reads: the link whose [by] is [value], and its claims. */
 export function shareStatements(db: D1Database, by: "id" | "token_hash", value: string): D1PreparedStatement[] {
@@ -119,8 +126,8 @@ export function isGone(row: ShareRow, now: number): boolean {
   return row.revoked_at !== null || now >= row.expires_at;
 }
 
-// The JSON a link's row holds is the Worker's own, written from a BillProjection, ShareAmounts and
-// arrays of item ids that were checked when they came in; it is read back as such.
+// The JSON a link's row holds is the Worker's own, written from a BillProjection, ShareAmounts,
+// ShareMatches and arrays of item ids that were checked when they came in; it is read back as such.
 
 /** The bill a working link shows. Only a revoked link has none, and nothing reads a revoked link's bill. */
 export function billOf(row: ShareRow): BillProjection {
@@ -141,6 +148,7 @@ export function ownerView({ row, claims }: Share): ShareView {
     claims: claims.map((claim) => ({ id: claim.id, name: claim.name, itemIds: JSON.parse(claim.item_ids) as string[], updatedAt: claim.updated_at })),
     amounts: row.amounts === null ? null : (JSON.parse(row.amounts) as ShareAmounts),
     paidBy: row.paid_by,
+    matches: row.matches === null ? null : (JSON.parse(row.matches) as ShareMatches),
   };
 }
 
@@ -153,6 +161,7 @@ export function publicView({ row, claims }: Share): PublicShare {
     claims: claims.map((claim) => ({ id: claim.id, name: claim.name, itemIds: JSON.parse(claim.item_ids) as string[] })),
     amounts: row.amounts === null ? null : (JSON.parse(row.amounts) as ShareAmounts),
     paidBy: row.paid_by,
+    matches: row.matches === null ? null : (JSON.parse(row.matches) as ShareMatches),
   };
 }
 
@@ -194,6 +203,12 @@ export function guardStatement(db: D1Database, shareId: string, now: number, con
 export function itemsInBill(parameter: string): string {
   return `NOT EXISTS (SELECT 1 FROM json_each(${parameter}) AS wanted
     WHERE wanted.value NOT IN (SELECT json_extract(item.value, '$.id') FROM json_each(shares.bill, '$.items') AS item))`;
+}
+
+/** SQL that holds while every key of the JSON object bound at [parameter], when it is not null, is a claim of the link whose id is ?1. */
+export function claimsOnLink(parameter: string): string {
+  return `NOT EXISTS (SELECT 1 FROM json_each(${parameter}) AS matched
+    WHERE matched.key NOT IN (SELECT id FROM share_claims WHERE share_id = ?1))`;
 }
 
 /**
@@ -356,4 +371,26 @@ export function amountsOf(value: unknown, bill: BillProjection): ShareAmounts | 
 export function paidByOf(value: unknown, bill: BillProjection): string | null | undefined {
   if (value === undefined || value === null) return null;
   return typeof value === "string" && bill.participants.some((participant) => participant.id === value) ? value : undefined;
+}
+
+/**
+ * Which participant of [bill] each claim is, as a settlement says: undefined unless [value] is
+ * null, missing, or an object whose every value is the id of a participant of [bill]; null when it
+ * matches no claim. Several claims may be the same participant. Whether each key is one of the
+ * link's claims is checked against the link itself. The keys are sorted, so that the same matches
+ * are always written the same way.
+ */
+export function matchesOf(value: unknown, bill: BillProjection): ShareMatches | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const participants = new Set(bill.participants.map((participant) => participant.id));
+  const entries: Array<[string, string]> = [];
+  for (const [claimId, participantId] of Object.entries(value)) {
+    if (typeof participantId !== "string" || !participants.has(participantId)) return undefined;
+    entries.push([claimId, participantId]);
+  }
+  if (entries.length === 0) return null;
+  entries.sort(([one], [other]) => (one < other ? -1 : one > other ? 1 : 0));
+  // Built from entries, so that a key such as `__proto__` stays a key.
+  return Object.fromEntries(entries);
 }
