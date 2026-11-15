@@ -15,12 +15,15 @@
     "traces": { "enabled": true }
   },
   // Switches and public settings. GOOGLE_CLIENT_ID is the app's web client ID at Google; sign-in
-  // stays off until it is set. Secrets (ANTHROPIC_API_KEY, HASH_SALT, SESSION_SIGNING_KEY and the
-  // optional FCM_SERVICE_ACCOUNT) are set with `wrangler secret put` and never written here.
+  // stays off until it is set. ANDROID_CERT_SHA256 lists the SHA-256 fingerprints of the keys that
+  // sign the app, comma-separated, for App Links; it is public too. Secrets (ANTHROPIC_API_KEY,
+  // HASH_SALT, SESSION_SIGNING_KEY and the optional FCM_SERVICE_ACCOUNT) are set with
+  // `wrangler secret put` and never written here.
   "vars": {
     "AI_ENABLED": "true",
     "MIN_APP_VERSION": "1",
-    "GOOGLE_CLIENT_ID": ""
+    "GOOGLE_CLIENT_ID": "",
+    "ANDROID_CERT_SHA256": ""
   },
   // The exchange rates are fetched every day at 16:30 UTC, once the European Central Bank has
   // published its rates of the day, and also by the first request that finds them a day old. The

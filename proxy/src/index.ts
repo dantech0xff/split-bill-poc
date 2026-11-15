@@ -7,6 +7,7 @@ import { fxRatesRoute, refreshFxRates } from "./fx-rates";
 import { addMemberRoute, createGroupRoute, leaveGroupRoute, listGroupsRoute, readGroupRoute, renameGroupRoute, renameMemberRoute } from "./groups";
 import { approveClaimRoute, createInviteRoute, joinGroupRoute, readInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
+import { assetLinksRoute, linkPageRoute } from "./links";
 import { QuotaBook } from "./quota-book";
 import { forgetExpired, sendReminders } from "./reminders";
 import {
@@ -49,6 +50,8 @@ export interface Env {
   AI_ENABLED: string;
   /** The oldest version code of the app that may still read bills. */
   MIN_APP_VERSION: string;
+  /** The SHA-256 fingerprints of the keys that sign the app, comma-separated, for App Links. Public; may be empty. */
+  ANDROID_CERT_SHA256: string;
   /** Groups, their bills and settlements, payment requests and devices; the schema is in `migrations/`. */
   DB: D1Database;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
@@ -87,6 +90,9 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/request-links/:token", { GET: readRequestLinkRoute }],
   ["/v1/request-links/:token/accept", { POST: acceptRequestLinkRoute }],
   ["/v1/devices/:device", { PUT: putDeviceRoute, DELETE: deleteDeviceRoute }],
+  ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
+  ["/g/:token", { GET: linkPageRoute }],
+  ["/r/:token", { GET: linkPageRoute }],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */
