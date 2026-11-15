@@ -239,6 +239,24 @@ describe("a claim", () => {
     expect(longest.status).toBe(200);
   });
 
+  it("takes invisible formatting characters out of a name, such as bidi controls and zero-width spaces", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+
+    const made = await newClaim(turnstile, link.token, "\u202eM\u200bi\u2066nh\u2069\ufeff", ["i1"]);
+    const changed = await changeClaim(link.token, made.body.key ?? "", "\u200e Minh N. \u200f", ["i1"]);
+    const nothingLeft = await newClaim(turnstile, link.token, "\u200b\u202e\u2060", ["i2"]);
+    // Counted once they are out: 40 letters with format characters between them fit.
+    const longest = await newClaim(turnstile, link.token, "x\u200b".repeat(40), ["i3"]);
+
+    expect(made.body.share.claims.map((claim) => claim.name)).toEqual(["Minh"]);
+    expect(changed.body.share.claims.map((claim) => claim.name)).toEqual(["Minh N."]);
+    expect(nothingLeft.status).toBe(400);
+    expect(nothingLeft.body).toEqual({ error: "input" });
+    expect(longest.status).toBe(200);
+    expect(await rows("SELECT name FROM share_claims ORDER BY created_at")).toEqual([{ name: "Minh N." }, { name: "x".repeat(40) }]);
+  });
+
   it("is one of 30 a link holds: the 31st is refused, and the 30 can still change", async () => {
     const link = await publish(await person());
     const turnstile = fakeTurnstile();

@@ -147,8 +147,9 @@ by its tests; the app is trusted with nothing.
   that no link has, is 404.
 - Money is a whole number of minor units, from 0 to 10^15 (`BillCurrency.MAX_AMOUNT_MINOR`); more
   is 400 `input`. A currency is `{"code":"VND","fractionDigits":0}`: three capital letters and 0 to
-  3 digits. Names are trimmed and 1 to 60 characters (counted as code points), without control
-  characters.
+  3 digits. Names lose Unicode's invisible formatting characters (category Cf, such as bidi
+  controls and zero-width spaces and joiners), are trimmed, and are 1 to 60 characters (counted as
+  code points), without control characters.
 - Errors are `{"error": code}`: 400 `input`, 401 `session`, 403 `forbidden` (or `pending` for
   someone whose claim waits), 404 `not_found` (also for an id in the path that is not a UUID;
   for a `PUT`, which makes the thing, that is 400), 409 `conflict`, 410 `gone`, 413
@@ -509,7 +510,8 @@ BillProjection, what the page shows of a bill:
 - `merchant` is null or 1 to 80 characters; `date` null or a real `YYYY-MM-DD`.
 - `items` holds 1 to 200 items and `charges` 0 to 20; `participants` holds 1 to 30 people.
 - Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list.
-- Names and labels are trimmed and 1 to 80 characters, without control characters; a
+- Names and labels, the merchant's among them, lose their invisible formatting characters as the
+  Conventions say, are trimmed, and are 1 to 80 characters, without control characters; a
   participant's name is 1 to 60, and may be empty for `me`, which the page then calls the bill's
   owner.
 - `quantity` is null or a decimal written as text, such as `"2"`, `"0.5"` or `"-1"`: no exponent,
@@ -590,10 +592,11 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
     carries a new `key`, the one before no longer working, as only the hash of a key is kept. It
     needs no Turnstile token, takes no other place among the 30, and is no new claim of the IP. An
     `attempt` that is not a UUID is 400.
-- `name` is trimmed and 1 to 40 characters, without control characters; `itemIds` holds unique ids
-  of the bill's items, and may be empty (else 400). A link holds at most 30 claims (409 `full`),
-  and takes them only while `open` (409 `locked` otherwise). A claim is written only while all of
-  that still holds, in the same batch as the check.
+- `name` loses its invisible formatting characters, is trimmed, and is 1 to 40 characters, without
+  control characters; `itemIds` holds unique ids of the bill's items, and may be empty (else 400).
+  A link holds at most 30 claims (409 `full`), and takes them only while `open` (409 `locked`
+  otherwise). A claim is written only while all of that still holds, in the same batch as the
+  check.
 - A claim is judged in this order: 409 `locked`, 400 for an item; then, unless its key or its
   `attempt` is one of the link's, 409 `full`, 503 `not_configured`, 403 for a missing token, 429,
   and Cloudflare's verdict. So Cloudflare is asked only about new claims that can land.

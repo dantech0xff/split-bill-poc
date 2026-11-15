@@ -103,6 +103,31 @@ describe("a bill link", () => {
     expect(JSON.stringify(await rows("SELECT * FROM shares"))).not.toMatch(/secret|page-1|someone@example\.com|unitPrice/);
   });
 
+  it("takes invisible formatting characters out of the bill's names and labels", async () => {
+    const lan = await person();
+    const bill = billProjection();
+    const sent = billProjection({
+      merchant: "\u202ePho 24\u202c",
+      items: bill.items.map((item) => ({ ...item, name: `\u200b${item.name}\u2060` })),
+      charges: [{ id: "c1", label: "Service\u00ad charge\ufeff", amountMinor: 19_500 }],
+      participants: [
+        { id: "me", name: "\u200b" },
+        { id: "p1", name: "Mi\u200dnh" },
+      ],
+    });
+
+    const made = await api<Owned>(lan, "PUT", `/v1/shares/${crypto.randomUUID()}`, { billId: crypto.randomUUID(), billRevision: 1, bill: sent });
+    const empty = await api(lan, "PUT", `/v1/shares/${crypto.randomUUID()}`, {
+      billId: crypto.randomUUID(),
+      billRevision: 1,
+      bill: billProjection({ participants: [{ id: "p1", name: "\u2066\u2069" }] }),
+    });
+
+    expect(made.status).toBe(201);
+    expect(made.body.share.bill).toEqual({ ...bill, participants: [{ id: "me", name: "" }, { id: "p1", name: "Minh" }] });
+    expect(empty.status).toBe(400);
+  });
+
   it("takes a bill that follows the contract to its edges", async () => {
     const lan = await person();
     const edges = billProjection({

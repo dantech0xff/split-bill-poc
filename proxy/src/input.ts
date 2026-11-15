@@ -72,14 +72,21 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+/**
+ * Unicode's invisible formatting characters (category Cf): bidi controls such as U+202E, which
+ * make text read backwards, zero-width spaces and joiners, U+FEFF and the like. In a name they
+ * only serve to make it look like another, or to hide what it says.
+ */
+const FORMAT = /\p{Cf}/gu;
 
 /**
- * [value] trimmed, when it is text of [min] to [max] characters (counted as code points) with no
- * control characters; otherwise null. Names are 1 to 60 characters.
+ * [value] without invisible formatting characters and trimmed, when it is text of [min] to [max]
+ * characters (counted as code points) with no control characters; otherwise null. Names and
+ * labels go through it. Names are 1 to 60 characters.
  */
 export function textOf(value: unknown, min = 1, max = 60): string | null {
   if (typeof value !== "string") return null;
-  const text = value.trim();
+  const text = value.replace(FORMAT, "").trim();
   const length = [...text].length;
   return length >= min && length <= max && !CONTROL.test(text) ? text : null;
 }
