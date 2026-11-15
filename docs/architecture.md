@@ -190,9 +190,10 @@ flowchart LR
   nowhere else: a group's copy of the bill leaves the link out.
 - The page shows a `BillProjection` of the bill: its items, its charges (more than 20 are shown as
   19 and one line for the rest), its total and its participants, the user under their own name, all
-  without control characters. `ShareRepository.fingerprint` hashes it together with the shares that
-  settling would put on the page, so a save that changes neither, such as finishing the split, sends
-  nothing.
+  without control characters or the invisible formatting characters the proxy takes out (it keeps
+  the zero-width joiner and non-joiner). `ShareRepository.fingerprint` hashes it together with the
+  shares that settling would put on the page, so a save that changes neither, such as finishing the
+  split, sends nothing.
 - `SplitBillViewModel` stays the only writer of the bill. The link's screen reads and changes the
   bill through `BillOnScreen`: the bill on screen, its stored copy once the pending save is written,
   its link and its plan. After each save of a bill on a link, `ShareRepository.project` sends the
@@ -211,12 +212,15 @@ flowchart LR
   the bill as a participant who is never suggested for later bills. No more than 30 people end up
   on the bill, as many as its page shows.
 - Sending the amounts finishes the split and puts the shares the phone saved on the page, with who
-  paid (`paidBy`). The page asks people for money only when the user paid the whole bill and it is
-  in no group, by the payment method chosen on the screen; when that method changes later, the
-  screen offers to send the new details. `PaymentPayload` keeps a method's link, QR payload and
-  details within what the proxy accepts, so a request and a link carry the same payment.
+  paid (`paidBy`) and who each claim is on the bill (`matches`), so people find what they owe. The
+  page asks people for money only when the user paid the whole bill and it is in no group, by the
+  payment method chosen on the screen; when that method changes later, the screen offers to send the
+  new details. `PaymentPayload` keeps a method's link, QR payload and details within what the proxy
+  accepts, so a request and a link carry the same payment.
 - The pages in `web/` are built into the Worker's bundle: `npm run build:web` in `proxy/` builds
   them, and `scripts/embed-web.mjs` writes `src/web-assets.generated.ts`, which is not committed.
+  `npm run bundle -- <directory>` then writes the bundle a deploy uploads, and refuses to bundle
+  without the pages.
   Their colours and type come from the design system: `WebTokensTest` writes `web/src/tokens.css`
   when run with `-PwebTokens=write`, and otherwise fails when the file no longer matches the tokens.
   [proxy.md](proxy.md#bill-links-and-the-web-pages) describes the routes, the limits and the pages.

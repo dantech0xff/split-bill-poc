@@ -208,7 +208,7 @@ Chín trên mười tiêu chí đạt và có bằng chứng. Tiêu chí ba thi�
 | Sau khi cron chạy, link hết hạn không còn lượt nhận nào | Đạt | `shares.test.ts`: lượt chạy hằng ngày xóa link hết hạn hay đã thu hồi cùng lượt nhận của chúng, và giữ các link khác |
 | Báo cáo có số đo Lighthouse và kích thước gói so với mục tiêu | Đạt | Lighthouse trên di động với mạng chậm giả lập: `/s/` đang mở đạt 100 hiệu năng và 100 trợ năng, `/s/` đã chốt đạt 99 và 100, so với mục tiêu 90. Tải ban đầu 26,6 KB gzip, so với ngân sách 150 KB |
 
-Kiểm tra chung: 364 unit test Kotlin (app 227, domain 134, hệ thiết kế 3), 260 test proxy, 182 test trang web và 5 test đầu-cuối đều qua; ktlint, lint và `tsc` sạch.
+Kiểm tra chung: 364 unit test Kotlin (app 227, domain 134, hệ thiết kế 3), 268 test proxy, 192 test trang web và 5 test đầu-cuối đều qua; ktlint, lint và `tsc` sạch. CI dựng thử gói triển khai cùng trang web, và lệnh đó đã chạy được trên máy này.
 
 Những gì đã làm:
 - **Proxy:** link chia sẻ trong D1 (`shares`, `share_claims`); các đường của chủ link: tạo, chiếu lại, khóa, mở lại, chốt kèm `paidBy`, gỡ lượt nhận, thu hồi; các đường công khai `open`, `claim` (Turnstile) và `live`; Durable Object `ShareRoom` chỉ giữ WebSocket; dọn link theo lịch; xóa tài khoản xóa cả link. Trang web được nhúng vào Worker. Hợp đồng ở [docs/proxy.md](../../docs/proxy.md).
@@ -227,6 +227,7 @@ Triển khai lên Cloudflare ngày 15/11/2026:
   - Tỷ giá, `assetlinks.json` và `sign_in_off` vẫn như trước.
   - Widget Turnstile thật hiện được trên trang thật, dưới CSP của trang: trình duyệt tự động thấy ô "Verify you are human".
 - Một Worker và một KV namespace tạm dùng để chuyển gói lên đã bị xóa sau khi xong.
+- **Lần triển khai thứ hai, sau bốn quyết định của chủ sản phẩm:** ghi điểm khôi phục `00000006-00000000-00005124-8ff4a43db257c75ed33a9441ab686c6b`, chạy `0003_share_matches.sql` (thêm cột `shares.matches`) cùng dòng ghi vào `d1_migrations`, rồi đưa Worker dựng từ commit `070a912` lên. Bản đang chạy trả trang mới và các đường vẫn như trước; Worker và KV tạm lại bị xóa.
 
 Các mặc định đã chọn, chủ sản phẩm có thể đổi:
 - Mỗi IP được 30 người nhận mới mỗi giờ, thay vì 10, để cả bàn dùng chung Wi-Fi vẫn nhận được. Mỗi IP còn được 300 lần sửa lượt nhận và 600 lần đọc mỗi giờ.
@@ -234,13 +235,16 @@ Các mặc định đã chọn, chủ sản phẩm có thể đổi:
 - Lượt nhận không có món nào không thêm người vào hóa đơn.
 - Khi một lần sửa làm mất số tiền đã chốt trên trang, app báo cho người dùng chứ không tự gửi lại.
 - Tên người nhận mới không được nhớ để gợi ý cho hóa đơn sau.
-- Ký tự định dạng vô hình (nhóm Cf của Unicode) bị bỏ khỏi mọi tên và nhãn, ở proxy và trong bản chiếu của app.
+- Ký tự định dạng vô hình (nhóm Cf của Unicode) bị bỏ khỏi mọi tên và nhãn, ở proxy và trong bản chiếu của app, trừ ZWJ và ZWNJ. Tên chỉ còn ký tự nối và khoảng trắng coi như rỗng.
+- Cách ghép người được gửi lúc chốt, khi nó đã cố định: mỗi lượt nhận ứng với người đã được ghép, hay với người mới thêm lúc khóa. Trang hiện cách ghép cùng số tiền.
+- Lượt nhận không được ghép với ai ghi "Not on the bill".
+- Ký tự nối ở đầu hay cuối tên được giữ như mọi chỗ khác. Tên trên link vốn không duy nhất: hai lượt nhận đều có thể ghi "Minh", và người tạo link phân biệt chúng qua món đã chọn.
 
-Chưa làm, chờ chủ sản phẩm quyết:
-- Giữ ZWJ và ZWNJ, vốn cần cho emoji ghép và cho tên tiếng Ba Tư hay một số chữ Ấn Độ, hay bỏ như mọi ký tự Cf khác. Giữ thì tên giả dạng dễ làm hơn.
-- Trang có tự bỏ ký tự Cf khỏi tên người gõ không, để không gửi lại một tên chưa đổi mỗi lần rời ô.
-- CI có chạy `npm run bundle` không, để chứng minh gói triển khai dựng được.
-- Trang có cho biết lượt nhận nào đã được ghép với người nào trên hóa đơn không.
+Quyết định của chủ sản phẩm ngày 15/11/2026, đã làm:
+- Giữ ZWJ và ZWNJ, vốn cần cho emoji ghép và cho tên tiếng Ba Tư hay một số chữ Ấn Độ.
+- Trang không tự bỏ ký tự Cf khỏi tên người gõ.
+- CI dựng thử gói triển khai (`npm run bundle`) trong bước dựng trang web, thay cho `npm run build:web`.
+- Trang cho người nhận biết lượt nhận của họ là ai trên hóa đơn: phần "Who picked" ghi "On the bill as Minh", và đánh dấu "You" trên lượt nhận của trình duyệt đó và trên số tiền của người được ghép.
 
 Còn lại trước khi đóng phase:
 - Đặt `GOOGLE_CLIENT_ID` để đăng nhập được, rồi thử hai trình duyệt và một máy Android với proxy thật.
