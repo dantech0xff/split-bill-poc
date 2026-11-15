@@ -51,6 +51,9 @@ data class Bill(
     val printedTotalMinor: Long?,
     /** Things the user should double-check, as the model reported them. */
     val warnings: List<String> = emptyList(),
+    /** The highest numbers an item id and a charge id on this bill have had, so a deleted line's id is never given out again. */
+    val lastItemNumber: Int = 0,
+    val lastChargeNumber: Int = 0,
 ) {
     val itemsTotalMinor: Long get() = items.sumOf { it.amountMinor }
     val chargesTotalMinor: Long get() = charges.sumOf { it.amountMinor }

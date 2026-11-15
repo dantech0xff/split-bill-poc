@@ -42,7 +42,7 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
             body.filter(Char::isDigit)
         }
         if (number.isEmpty() || number == ".") return null
-        val minor = runCatching { toMinor(BigDecimal(number)) }.getOrNull() ?: return null
+        val minor = runCatching { toMinor(BigDecimal(number)) }.getOrNull()?.takeIf { it <= MAX_AMOUNT_MINOR } ?: return null
         return if (negative) -minor else minor
     }
 
@@ -77,6 +77,12 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
     companion object {
         /** ISO 4217 code for "no currency". */
         const val NO_CURRENCY = "XXX"
+
+        /**
+         * The largest amount a person can type, in minor units: far beyond any bill, and small
+         * enough that thousands of lines still add up without running out of room.
+         */
+        const val MAX_AMOUNT_MINOR = 1_000_000_000_000_000L
         private const val MAX_FRACTION_DIGITS = 3
 
         /** True for a three-letter currency code the platform knows, such as VND or USD. */

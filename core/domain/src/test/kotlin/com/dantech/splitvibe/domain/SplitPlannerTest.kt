@@ -145,8 +145,26 @@ class SplitPlannerTest {
 
         assertEquals(listOf(ME_ID, "p2"), withoutMinh.participantIds)
         assertEquals(mapOf(hotpot to Division.Equally(among = setOf(ME_ID, "p2"))), withoutMinh.setup.items)
-        assertEquals(listOf(Payment(ME_ID, 400_000)), withoutMinh.payments)
+        // The one payer left paid the whole bill, as a single payer always does.
+        assertEquals(listOf(Payment(ME_ID, bill.totalMinor)), withoutMinh.payments)
         assertEquals(plan, plan.withParticipantRemoved(ME_ID, bill))
+    }
+
+    @Test
+    fun `a bill moved to another currency keeps its exact amounts and payments as written`() {
+        val usd = BillCurrency("USD", 2)
+        val vnd = BillCurrency("VND", 0)
+        val plan = SplitPlan().withParticipantAdded("Minh")
+            .withMode(SplitMode.BY_AMOUNT, bill)
+            .withWholeValue(ME_ID, 3_000)
+            .withWholeValue("p1", 1_550)
+            .withPayments(listOf(Payment(ME_ID, 2_000), Payment("p1", 2_550)))
+
+        val moved = plan.withCurrency(usd, vnd)
+
+        assertEquals(Division.ByAmount(mapOf(ME_ID to 30L, "p1" to 16L)), moved.setup.whole)
+        assertEquals(listOf(Payment(ME_ID, 20), Payment("p1", 26)), moved.payments)
+        assertEquals(plan, plan.withCurrency(usd, usd))
     }
 
     @Test

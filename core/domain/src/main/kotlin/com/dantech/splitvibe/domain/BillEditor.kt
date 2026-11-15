@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
+import java.math.MathContext
 import java.math.RoundingMode
 
 /**
@@ -38,39 +39,46 @@ object BillEditor {
         unitPriceMinor: Long? = null,
         amountMinor: Long? = null,
     ): Bill {
-        val amount = amountMinor ?: unitPriceMinor?.let { lineAmount(quantity, it) } ?: 0L
-        val item = BillItem(nextId("i", bill.items.map { it.id }), name.trim(), quantity, unitPriceMinor, amount.coerceAtLeast(0))
-        return bill.copy(items = bill.items + item)
+        val amount = amountMinor ?: if (unitPriceMinor == null) 0L else lineAmount(quantity, unitPriceMinor) ?: return bill
+        val number = nextNumber(bill.items.map { it.id }, "i", bill.lastItemNumber)
+        val item = BillItem("i$number", name.trim(), quantity, unitPriceMinor, amount.coerceAtLeast(0))
+        return bill.copy(items = bill.items + item, lastItemNumber = number)
     }
 
     fun withItemName(bill: Bill, itemId: String, name: String): Bill = updateItem(bill, itemId) { it.copy(name = name.trim()) }
 
-    /** A new quantity; with a unit price, the line amount follows. */
+    /** A new quantity; with a unit price, the line amount follows. A quantity that makes the line too large to hold changes nothing. */
     fun withItemQuantity(bill: Bill, itemId: String, quantity: BigDecimal): Bill = updateItem(bill, itemId) { item ->
         val positive = quantity.max(BigDecimal.ZERO)
-        val amount = item.unitPriceMinor?.let { lineAmount(positive, it) } ?: item.amountMinor
+        val price = item.unitPriceMinor
+        val amount = if (price == null) item.amountMinor else lineAmount(positive, price) ?: return@updateItem item
         item.copy(quantity = positive, amountMinor = amount)
     }
 
-    /** A new unit price, or none; with one, the line amount is the quantity times it. */
+    /** A new unit price, or none; with one, the line amount is the quantity times it. A price that makes the line too large to hold changes nothing. */
     fun withItemUnitPrice(bill: Bill, itemId: String, unitPriceMinor: Long?): Bill = updateItem(bill, itemId) { item ->
         val price = unitPriceMinor?.coerceAtLeast(0)
-        item.copy(unitPriceMinor = price, amountMinor = price?.let { lineAmount(item.quantity, it) } ?: item.amountMinor)
+        val amount = if (price == null) item.amountMinor else lineAmount(item.quantity, price) ?: return@updateItem item
+        item.copy(unitPriceMinor = price, amountMinor = amount)
     }
 
-    /** A new line amount. A unit price that no longer agrees with it is dropped rather than kept wrong. */
+    /**
+     * A new line amount. The unit price follows it when the amount divides evenly by the quantity,
+     * so "2 × 25,000" stays right when 50,000 is typed again; otherwise there is no unit price
+     * rather than a wrong one.
+     */
     fun withItemAmount(bill: Bill, itemId: String, amountMinor: Long): Bill = updateItem(bill, itemId) { item ->
         val amount = amountMinor.coerceAtLeast(0)
-        val price = item.unitPriceMinor?.takeIf { lineAmount(item.quantity, it) == amount }
-        item.copy(unitPriceMinor = price, amountMinor = amount)
+        item.copy(unitPriceMinor = evenUnitPrice(amount, item.quantity), amountMinor = amount)
     }
 
     fun withoutItem(bill: Bill, itemId: String): Bill = bill.copy(items = bill.items.filter { it.id != itemId })
 
     /** Adds a charge at the end; [amountMinor] is signed, negative for a deduction (see [signedCharge]). */
     fun withChargeAdded(bill: Bill, label: String, kind: ChargeKind, amountMinor: Long): Bill {
-        val charge = BillCharge(nextId("c", bill.charges.map { it.id }), label.trim().ifEmpty { defaultLabel(kind) }, kind, amountMinor)
-        return bill.copy(charges = bill.charges + charge)
+        val number = nextNumber(bill.charges.map { it.id }, "c", bill.lastChargeNumber)
+        val charge = BillCharge("c$number", label.trim().ifEmpty { defaultLabel(kind) }, kind, amountMinor)
+        return bill.copy(charges = bill.charges + charge, lastChargeNumber = number)
     }
 
     fun withCharge(bill: Bill, chargeId: String, label: String, kind: ChargeKind, amountMinor: Long): Bill {
@@ -116,16 +124,28 @@ object BillEditor {
         ChargeKind.OTHER -> "Other"
     }
 
-    /** The quantity times the unit price, to the nearest minor unit. */
-    fun lineAmount(quantity: BigDecimal, unitPriceMinor: Long): Long =
-        BigDecimal.valueOf(unitPriceMinor).multiply(quantity).setScale(0, RoundingMode.HALF_UP).longValueExact()
+    /** The quantity times the unit price, to the nearest minor unit; null when that is more than a bill can hold. */
+    fun lineAmount(quantity: BigDecimal, unitPriceMinor: Long): Long? {
+        val amount = BigDecimal.valueOf(unitPriceMinor).multiply(quantity).setScale(0, RoundingMode.HALF_UP)
+        return amount.takeIf { it.abs() <= BigDecimal.valueOf(BillCurrency.MAX_AMOUNT_MINOR) }?.longValueExact()
+    }
+
+    /** The unit price of [quantity] units costing [amountMinor] together, when it is a whole number of minor units. */
+    private fun evenUnitPrice(amountMinor: Long, quantity: BigDecimal): Long? {
+        if (quantity.signum() <= 0) return null
+        val price = BigDecimal.valueOf(amountMinor).divide(quantity, MathContext.DECIMAL64)
+        return price.takeIf { it.stripTrailingZeros().scale() <= 0 }?.longValueExact()
+    }
 
     private fun updateItem(bill: Bill, itemId: String, change: (BillItem) -> BillItem): Bill =
         bill.copy(items = bill.items.map { if (it.id == itemId) change(it) else it })
 
-    /** The id after the highest one with [prefix], so an id is never handed out twice on one bill. */
-    private fun nextId(prefix: String, ids: List<String>): String {
+    /**
+     * The number of the next id with [prefix]: after the highest one on the bill and after [last],
+     * the highest one handed out before, so the id of a deleted line is never given out again.
+     */
+    private fun nextNumber(ids: List<String>, prefix: String, last: Int): Int {
         val highest = ids.mapNotNull { if (it.startsWith(prefix)) it.drop(prefix.length).toIntOrNull() else null }.maxOrNull() ?: 0
-        return "$prefix${highest + 1}"
+        return maxOf(highest, last) + 1
     }
 }

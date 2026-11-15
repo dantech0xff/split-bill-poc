@@ -39,11 +39,33 @@ class BillEditorTest {
     }
 
     @Test
-    fun `a line amount that no longer agrees with the unit price drops the unit price`() {
-        val edited = BillEditor.withItemAmount(bill, "i2", 520)
+    fun `the unit price follows a line amount that divides evenly, and is dropped otherwise`() {
+        assertEquals(260L, BillEditor.withItemAmount(bill, "i2", 520).items[1].unitPriceMinor)
+        assertNull(BillEditor.withItemAmount(bill, "i2", 501).items[1].unitPriceMinor)
+        // Typed again digit by digit, the price comes back with the amount it belongs to.
+        val retyped = listOf(5L, 50L, 500L).fold(bill) { edited, amount -> BillEditor.withItemAmount(edited, "i2", amount) }
+        assertEquals(250L, retyped.items[1].unitPriceMinor)
+    }
 
-        assertNull(edited.items[1].unitPriceMinor)
-        assertEquals(250L, BillEditor.withItemAmount(bill, "i2", 500).items[1].unitPriceMinor)
+    @Test
+    fun `a quantity or price that makes a line too large to hold changes nothing`() {
+        val huge = BigDecimal("99999999999999999999")
+
+        assertEquals(bill, BillEditor.withItemQuantity(bill, "i2", huge))
+        assertEquals(bill, BillEditor.withItemUnitPrice(bill, "i2", Long.MAX_VALUE))
+        assertNull(BillEditor.lineAmount(huge, 250))
+    }
+
+    @Test
+    fun `the id of a deleted line is never given out again`() {
+        val withSalad = BillEditor.withItemAdded(bill, "Salad", amountMinor = 900)
+        val withoutSalad = BillEditor.withoutItem(withSalad, "i3")
+        val withBread = BillEditor.withItemAdded(withoutSalad, "Bread", amountMinor = 300)
+        val withoutTip = BillEditor.withoutCharge(BillEditor.withChargeAdded(bill, "", ChargeKind.TIP, 400), "c2")
+        val withTip = BillEditor.withChargeAdded(withoutTip, "", ChargeKind.TIP, 500)
+
+        assertEquals(listOf("i1", "i2", "i4"), withBread.items.map { it.id })
+        assertEquals(listOf("c1", "c3"), withTip.charges.map { it.id })
     }
 
     @Test

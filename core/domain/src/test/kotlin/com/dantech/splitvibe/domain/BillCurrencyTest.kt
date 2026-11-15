@@ -80,6 +80,15 @@ class BillCurrencyTest {
     }
 
     @Test
+    fun `an amount far beyond any bill is not an amount`() {
+        val vnd = BillCurrency("VND", 0)
+
+        assertEquals(BillCurrency.MAX_AMOUNT_MINOR, vnd.parse(BillCurrency.MAX_AMOUNT_MINOR.toString()))
+        assertEquals(null, vnd.parse((BillCurrency.MAX_AMOUNT_MINOR + 1).toString()))
+        assertEquals(null, vnd.parse("99999999999999999999"))
+    }
+
+    @Test
     fun `typed amounts are read whichever separator people use`() {
         val usd = BillCurrency("USD", 2)
         val vnd = BillCurrency("VND", 0)

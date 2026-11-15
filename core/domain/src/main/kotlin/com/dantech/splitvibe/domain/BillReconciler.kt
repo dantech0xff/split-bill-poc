@@ -11,9 +11,6 @@ package com.dantech.splitvibe.domain
  */
 object BillReconciler {
 
-    /** What the screen calls the gap between the lines and the printed total. */
-    const val DIFFERENCE_LABEL = "Unallocated difference"
-
     fun reconcile(
         merchant: String?,
         date: String?,

@@ -22,10 +22,17 @@ object Payments {
     fun followTotal(payments: List<Payment>, totalMinor: Long): List<Payment> =
         if (payments.size == 1) single(payments.single().participantId, totalMinor) else payments
 
-    /** The payments of the people who are still on the bill; a single payer left leaves [fallbackPayerId] paying it all. */
+    /**
+     * The payments of the people who are still on the bill. With nobody left, [fallbackPayerId]
+     * paid it all; with one payer left, that payer did, as a single payer always does.
+     */
     fun withoutAbsent(payments: List<Payment>, present: Set<String>, fallbackPayerId: String, totalMinor: Long): List<Payment> {
         val kept = payments.filter { it.participantId in present }
-        return kept.ifEmpty { single(fallbackPayerId, totalMinor) }
+        return when (kept.size) {
+            0 -> single(fallbackPayerId, totalMinor)
+            1 -> single(kept.single().participantId, totalMinor)
+            else -> kept
+        }
     }
 
     /** What is wrong with [payments] for a bill of [totalMinor], or null when they add up. */

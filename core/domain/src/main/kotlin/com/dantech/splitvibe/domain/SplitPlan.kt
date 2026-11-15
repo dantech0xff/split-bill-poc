@@ -137,6 +137,28 @@ data class SplitPlan(
 
     fun withPayments(payments: List<Payment>): SplitPlan = copy(payments = payments)
 
+    /**
+     * Keeps the exact amounts in step when the bill moves from [from] to [to], the way the bill's
+     * own amounts move: as written, so 30.00 dollars become 30.00 of the new currency.
+     */
+    fun withCurrency(from: BillCurrency, to: BillCurrency): SplitPlan {
+        if (from == to) return this
+        fun convert(minor: Long): Long = to.toMinor(from.toMajor(minor))
+        fun Division.converted(): Division = if (this is Division.ByAmount) {
+            copy(
+                amounts = amounts.mapValues { (_, value) ->
+                    convert(value)
+                },
+            )
+        } else {
+            this
+        }
+        return copy(
+            setup = setup.copy(whole = setup.whole?.converted(), items = setup.items.mapValues { (_, division) -> division.converted() }),
+            payments = payments.map { it.copy(amountMinor = convert(it.amountMinor)) },
+        )
+    }
+
     /** Keeps the plan in step after the bill was edited: a single payer pays the new total, and removed items lose their division. */
     fun withBill(bill: Bill): SplitPlan {
         val itemIds = bill.items.map { it.id }.toSet()
