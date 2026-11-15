@@ -560,7 +560,7 @@ describe("what anyone with a link sees", () => {
     });
     const viewed = await fromPage("/v1/request-links/view", { token: linkToken(request.body.url) }, ip);
 
-    expect(Object.keys(opened.body.share).sort()).toEqual(["amounts", "bill", "claims", "expiresAt", "revision", "status"]);
+    expect(Object.keys(opened.body.share).sort()).toEqual(["amounts", "bill", "claims", "expiresAt", "paidBy", "revision", "status"]);
     expect(Object.keys(opened.body.share.claims[0]).sort()).toEqual(["id", "itemIds", "name"]);
     const hashes = [
       ...(await rows<{ token_hash: string }>("SELECT token_hash FROM shares")).map((row) => row.token_hash),

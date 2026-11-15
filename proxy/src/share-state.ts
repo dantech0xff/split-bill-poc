@@ -22,7 +22,11 @@ export type BillProjection = {
 /** What each participant of a bill owes once its owner settled the split, and how to pay it, keyed by participant id. */
 export type ShareAmounts = Record<string, { amountMinor: number; payment: PaymentPayload | null }>;
 
-/** A bill link as its owner sees it. Accounts, hashes and IPs never appear in it. */
+/**
+ * A bill link as its owner sees it. Accounts, hashes and IPs never appear in it. `paidBy` is the
+ * participant who paid the whole bill, when the owner named one in settling the split; it is null
+ * whenever `amounts` is.
+ */
 export type ShareView = {
   id: string;
   billId: string;
@@ -34,6 +38,7 @@ export type ShareView = {
   bill: BillProjection;
   claims: Array<{ id: string; name: string; itemIds: string[]; updatedAt: number }>;
   amounts: ShareAmounts | null;
+  paidBy: string | null;
 };
 
 /** A bill link as anyone with its token sees it: the owner's view without the link's ids, the bill's revision, and when things were made. */
@@ -44,6 +49,7 @@ export type PublicShare = {
   bill: BillProjection;
   claims: Array<{ id: string; name: string; itemIds: string[] }>;
   amounts: ShareAmounts | null;
+  paidBy: string | null;
 };
 
 export type ShareRow = {
@@ -55,6 +61,7 @@ export type ShareRow = {
   bill_revision: number;
   bill: string | null;
   amounts: string | null;
+  paid_by: string | null;
   created_at: number;
   expires_at: number;
   revoked_at: number | null;
@@ -70,7 +77,7 @@ export type ProjectedBill = { bill: BillProjection; json: string; itemIds: strin
 /** How many times a change reads the link again when it changed in a way the change depends on, before it answers 409. */
 export const SHARE_WRITE_ATTEMPTS = 3;
 
-const SHARE_COLUMNS = "id, owner, bill_id, status, revision, bill_revision, bill, amounts, created_at, expires_at, revoked_at";
+const SHARE_COLUMNS = "id, owner, bill_id, status, revision, bill_revision, bill, amounts, paid_by, created_at, expires_at, revoked_at";
 
 /** Statements whose results [shareFrom] reads: the link whose [by] is [value], and its claims. */
 export function shareStatements(db: D1Database, by: "id" | "token_hash", value: string): D1PreparedStatement[] {
@@ -130,6 +137,7 @@ export function ownerView({ row, claims }: Share): ShareView {
     bill: billOf(row),
     claims: claims.map((claim) => ({ id: claim.id, name: claim.name, itemIds: JSON.parse(claim.item_ids) as string[], updatedAt: claim.updated_at })),
     amounts: row.amounts === null ? null : (JSON.parse(row.amounts) as ShareAmounts),
+    paidBy: row.paid_by,
   };
 }
 
@@ -141,6 +149,7 @@ export function publicView({ row, claims }: Share): PublicShare {
     bill: billOf(row),
     claims: claims.map((claim) => ({ id: claim.id, name: claim.name, itemIds: JSON.parse(claim.item_ids) as string[] })),
     amounts: row.amounts === null ? null : (JSON.parse(row.amounts) as ShareAmounts),
+    paidBy: row.paid_by,
   };
 }
 
@@ -325,4 +334,13 @@ export function amountsOf(value: unknown, bill: BillProjection): ShareAmounts | 
   }
   // Built from entries, so that an id such as `__proto__` stays an id.
   return total === BigInt(bill.totalMinor) ? Object.fromEntries(entries) : null;
+}
+
+/**
+ * Who paid the whole bill, as a settlement names them: null for null or a missing value, the id
+ * when [value] is the id of one participant of [bill], undefined for anything else.
+ */
+export function paidByOf(value: unknown, bill: BillProjection): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  return typeof value === "string" && bill.participants.some((participant) => participant.id === value) ? value : undefined;
 }

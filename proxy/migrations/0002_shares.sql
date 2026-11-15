@@ -20,6 +20,9 @@ CREATE TABLE shares (
   bill TEXT,
   -- What each participant owes and how to pay it, as JSON; null until the split is settled.
   amounts TEXT,
+  -- The participant who paid the whole bill, when the owner named one in settling the split. It
+  -- goes with the amounts: whatever drops them drops it.
+  paid_by TEXT CHECK (paid_by IS NULL OR amounts IS NOT NULL),
   created_at INTEGER NOT NULL,
   -- 30 days after it was made; nothing moves it.
   expires_at INTEGER NOT NULL,

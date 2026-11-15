@@ -11,6 +11,7 @@ import {
   isGone,
   keepItemsStatement,
   ownerView,
+  paidByOf,
   type ProjectedBill,
   publicView,
   readShare,
@@ -125,9 +126,9 @@ async function makeShare({ env, account }: Call, shareId: string, wanted: ShareI
  * or shows a changed bill on it, answering 200; both with `{"share","url"}`. The link stays with
  * its bill (another `billId` is 400) and never shows an older copy of it (a lower `billRevision` is
  * 409); the same copy sent again changes nothing. Claims keep only the items the bill still has,
- * and a `locked` link goes back to `locking` without its amounts. Another account's id is 409; a
- * revoked or expired link is 410. An account makes [POLICY.sharesPerHour] links an hour, and
- * every other call counts against [POLICY.shareWritesPerHour].
+ * and the link loses its amounts and who paid, a `locked` link going back to `locking`. Another
+ * account's id is 409; a revoked or expired link is 410. An account makes [POLICY.sharesPerHour]
+ * links an hour, and every other call counts against [POLICY.shareWritesPerHour].
  */
 export const putShareRoute = signedIn(async (call) => {
   const { request, env, params, account } = call;
@@ -165,7 +166,7 @@ export const putShareRoute = signedIn(async (call) => {
           shareId,
           now,
           "owner = ?3 AND bill_revision <= ?4",
-          "bill_revision = ?4, bill = ?5, amounts = NULL, status = CASE status WHEN 'locked' THEN 'locking' ELSE status END",
+          "bill_revision = ?4, bill = ?5, amounts = NULL, paid_by = NULL, status = CASE status WHEN 'locked' THEN 'locking' ELSE status END",
           [account, billRevision, projected.json],
         ),
         keepItemsStatement(db, shareId, projected.itemIds),
@@ -207,54 +208,58 @@ export const lockShareRoute = signedIn(async (call) => {
   );
 });
 
-/** `POST /v1/shares/{id}/reopen`: a `locking` or `locked` link takes claims again, without its amounts; an open one is answered as it is. */
+/** `POST /v1/shares/{id}/reopen`: a `locking` or `locked` link takes claims again, without its amounts and who paid; an open one is answered as it is. */
 export const reopenShareRoute = signedIn(async (call) => {
   const shareId = uuidOf(call.params[0]);
   if (shareId === null) return errorResponse(404, "not_found");
   return countedChange(call, shareId, (share, now) =>
     share.row.status === "open"
       ? KEEP
-      : write(guardStatement(call.env.DB, shareId, now, "owner = ?3 AND status IN ('locking', 'locked')", "status = 'open', amounts = NULL", [call.account])),
+      : write(guardStatement(call.env.DB, shareId, now, "owner = ?3 AND status IN ('locking', 'locked')", "status = 'open', amounts = NULL, paid_by = NULL", [call.account])),
   );
 });
 
-type Settled = { billRevision: number; projected: ProjectedBill; amounts: string };
+type Settled = { billRevision: number; projected: ProjectedBill; amounts: string; paidBy: string | null };
 
 function settledOf(body: Record<string, unknown>): Settled | typeof TOO_LARGE | null {
   const billRevision = countOf(body.billRevision);
   const projected = billProjectionOf(body.bill);
   if (projected === TOO_LARGE) return TOO_LARGE;
-  const amounts = projected === null ? null : amountsOf(body.amounts, projected.bill);
-  return billRevision === null || projected === null || amounts === null ? null : { billRevision, projected, amounts: JSON.stringify(amounts) };
+  if (billRevision === null || projected === null) return null;
+  const amounts = amountsOf(body.amounts, projected.bill);
+  const paidBy = paidByOf(body.paidBy, projected.bill);
+  return amounts === null || paidBy === undefined ? null : { billRevision, projected, amounts: JSON.stringify(amounts), paidBy };
 }
 
 /**
- * `POST /v1/shares/{id}/finalize` with `{"billRevision","bill","amounts"}`: the owner settles the
- * split of a `locking` or `locked` link (409 while it is open), which becomes `locked` with what
- * each participant owes and how to pay it. `amounts` names every participant of `bill` and nobody
- * else, and comes to its total (else 400); `bill` is shown as with `PUT`, and `billRevision`
- * follows the same rule. The same settlement sent again changes nothing.
+ * `POST /v1/shares/{id}/finalize` with `{"billRevision","bill","amounts","paidBy"?}`: the owner
+ * settles the split of a `locking` or `locked` link (409 while it is open), which becomes `locked`
+ * with what each participant owes and how to pay it. `amounts` names every participant of `bill`
+ * and nobody else, and comes to its total (else 400); `paidBy` is null or the participant who paid
+ * the whole bill (else 400), kept with the amounts. `bill` is shown as with `PUT`, and
+ * `billRevision` follows the same rule. The same settlement sent again changes nothing.
  */
 export const finalizeShareRoute = signedIn(async (call) => {
   const shareId = uuidOf(call.params[0]);
   if (shareId === null) return errorResponse(404, "not_found");
   const input = await inputOf(call.request, POLICY.maxShareBodyBytes, settledOf);
   if (!input.ok) return input.response;
-  const { billRevision, projected, amounts } = input.value;
+  const { billRevision, projected, amounts, paidBy } = input.value;
   const db = call.env.DB;
   return countedChange(call, shareId, (share, now) => {
     if (share.row.status === "open") return reply(errorResponse(409, "conflict"));
     if (billRevision < share.row.bill_revision) return reply(errorResponse(409, "conflict"));
-    const same = share.row.bill_revision === billRevision && share.row.bill === projected.json && share.row.amounts === amounts;
-    if (share.row.status === "locked" && same) return KEEP;
+    const { row } = share;
+    const same = row.bill_revision === billRevision && row.bill === projected.json && row.amounts === amounts && row.paid_by === paidBy;
+    if (row.status === "locked" && same) return KEEP;
     return write(
       guardStatement(
         db,
         shareId,
         now,
         "owner = ?3 AND status IN ('locking', 'locked') AND bill_revision <= ?4",
-        "status = 'locked', bill_revision = ?4, bill = ?5, amounts = ?6",
-        [call.account, billRevision, projected.json, amounts],
+        "status = 'locked', bill_revision = ?4, bill = ?5, amounts = ?6, paid_by = ?7",
+        [call.account, billRevision, projected.json, amounts, paidBy],
       ),
       keepItemsStatement(db, shareId, projected.itemIds),
     );
@@ -289,10 +294,11 @@ export const removeClaimRoute = signedIn(async (call) => {
 });
 
 /**
- * `DELETE /v1/shares/{id}`: the owner revokes the link. Its claims are deleted and its bill and
- * amounts emptied at once, and every page that has it open hears that it is gone; its token then
- * answers 410 until the daily run deletes it. Revoking again answers 204 as well; an expired link
- * can be revoked too. It counts against no limit, since it is how an owner stops abuse.
+ * `DELETE /v1/shares/{id}`: the owner revokes the link. Its claims are deleted and its bill,
+ * amounts and who paid emptied at once, and every page that has it open hears that it is gone;
+ * its token then answers 410 until the daily run deletes it. Revoking again answers 204 as well;
+ * an expired link can be revoked too. It counts against no limit, since it is how an owner stops
+ * abuse.
  */
 export const revokeShareRoute = signedIn(async ({ env, ctx, params, account }) => {
   const shareId = uuidOf(params[0]);
@@ -300,7 +306,9 @@ export const revokeShareRoute = signedIn(async ({ env, ctx, params, account }) =
   if (shareId === null || row === null || row.owner !== account) return errorResponse(404, "not_found");
   const db = env.DB;
   await db.batch([
-    db.prepare("UPDATE shares SET revoked_at = coalesce(revoked_at, ?3), bill = NULL, amounts = NULL WHERE id = ?1 AND owner = ?2").bind(shareId, account, Date.now()),
+    db
+      .prepare("UPDATE shares SET revoked_at = coalesce(revoked_at, ?3), bill = NULL, amounts = NULL, paid_by = NULL WHERE id = ?1 AND owner = ?2")
+      .bind(shareId, account, Date.now()),
     db.prepare("DELETE FROM share_claims WHERE share_id = ?1 AND EXISTS (SELECT 1 FROM shares WHERE id = ?1 AND owner = ?2)").bind(shareId, account),
   ]);
   tell(env, ctx, shareId, { type: "gone" });

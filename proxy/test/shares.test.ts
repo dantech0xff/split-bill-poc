@@ -65,6 +65,7 @@ describe("a bill link", () => {
       bill: billProjection(),
       claims: [],
       amounts: null,
+      paidBy: null,
     });
     expect(made.body.share.createdAt).toBeGreaterThanOrEqual(before);
     const token = linkToken(made.body.url);
@@ -408,8 +409,61 @@ describe("settling a split", () => {
     expect(corrected.body.share).toMatchObject({ status: "locked", billRevision: 2, revision: settled.body.share.revision + 1, amounts: amounts(90_000, 124_500) });
     expect(stale.status).toBe(409);
     const opened = await openShare(link.token);
-    expect(opened.body.share).toMatchObject({ status: "locked", amounts: amounts(90_000, 124_500) });
+    expect(opened.body.share).toMatchObject({ status: "locked", amounts: amounts(90_000, 124_500), paidBy: null });
     expect(Object.keys(opened.body.share.amounts ?? {})).toEqual(["me", "p1"]);
+  });
+
+  it("keeps who paid the whole bill with the amounts, shows it to everyone, and drops it with them", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    const settle = (paidBy: unknown) => api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts(), paidBy });
+
+    const byMinh = await settle("p1");
+    const seen = await openShare(link.token);
+    const again = await settle("p1");
+    const byLan = await settle("me");
+    const nobody = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts() });
+
+    expect(byMinh.status).toBe(200);
+    expect(byMinh.body.share).toMatchObject({ status: "locked", amounts: amounts(), paidBy: "p1" });
+    expect(seen.body.share).toMatchObject({ amounts: amounts(), paidBy: "p1" });
+    expect(again.body.share.revision).toBe(byMinh.body.share.revision);
+    expect(byLan.body.share).toMatchObject({ paidBy: "me", revision: byMinh.body.share.revision + 1 });
+    expect(nobody.body.share).toMatchObject({ paidBy: null, revision: byLan.body.share.revision + 1 });
+
+    // Whatever drops the amounts drops who paid: a changed bill, reopening and revoking.
+    await settle("p1");
+    const changed = await api<Owned>(lan, "PUT", `/v1/shares/${link.id}`, { billId: link.billId, billRevision: 2, bill: billProjection({ merchant: "Pho 25" }) });
+    expect(changed.body.share).toMatchObject({ status: "locking", amounts: null, paidBy: null });
+    await api(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 2, bill: billProjection(), amounts: amounts(), paidBy: "p1" });
+    const reopened = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/reopen`);
+    expect(reopened.body.share).toMatchObject({ status: "open", amounts: null, paidBy: null });
+    expect((await openShare(link.token)).body.share).toMatchObject({ amounts: null, paidBy: null });
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    await api(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 2, bill: billProjection(), amounts: amounts(), paidBy: "me" });
+    expect((await api(lan, "DELETE", `/v1/shares/${link.id}`)).status).toBe(204);
+    expect(await rows("SELECT amounts, paid_by FROM shares")).toEqual([{ amounts: null, paid_by: null }]);
+  });
+
+  it("refuses a payer who is not one of the bill's participants", async () => {
+    const lan = await person();
+    const link = await publish(lan);
+    await api(lan, "POST", `/v1/shares/${link.id}/lock`);
+    for (const paidBy of ["p9", "", "ME", 1, {}, ["me"]]) {
+      const refused = await api(lan, "POST", `/v1/shares/${link.id}/finalize`, { billRevision: 1, bill: billProjection(), amounts: amounts(), paidBy });
+      expect(refused.status, JSON.stringify(paidBy)).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
+    // Another bill names other people: who paid must be one of the bill that is sent.
+    const others = billProjection({ participants: [{ id: "me", name: "Lan" }, { id: "p2", name: "An" }] });
+    const settled = await api<Viewed>(lan, "POST", `/v1/shares/${link.id}/finalize`, {
+      billRevision: 1,
+      bill: others,
+      amounts: { me: { amountMinor: 107_250, payment: null }, p2: { amountMinor: 107_250, payment: null } },
+      paidBy: "p2",
+    });
+    expect(settled.body.share).toMatchObject({ status: "locked", paidBy: "p2" });
   });
 
   it("refuses amounts that do not add up to the total, or that leave out or add a participant", async () => {

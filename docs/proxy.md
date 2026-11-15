@@ -452,8 +452,8 @@ The routes of a link's owner need their session; the owner is the account that m
 | `PUT /v1/shares/{id}` `{"billId","billRevision","bill"}` | 201 the first time, then 200: `{"share": ShareView, "url"}`, with `url` `https://<the proxy's host>/s/#<token>` |
 | `GET /v1/shares/{id}` | `{"share": ShareView, "url"}` |
 | `POST /v1/shares/{id}/lock` | `{"share": ShareView}`: `locking`, with every claim written before it |
-| `POST /v1/shares/{id}/reopen` | `{"share": ShareView}`: `open` again, without amounts |
-| `POST /v1/shares/{id}/finalize` `{"billRevision","bill","amounts"}` | `{"share": ShareView}`: `locked`, with the amounts |
+| `POST /v1/shares/{id}/reopen` | `{"share": ShareView}`: `open` again, without amounts or `paidBy` |
+| `POST /v1/shares/{id}/finalize` `{"billRevision","bill","amounts","paidBy"?}` | `{"share": ShareView}`: `locked`, with the amounts and `paidBy` |
 | `DELETE /v1/shares/{id}/claims/{claimId}` | `{"share": ShareView}`, without that claim |
 | `DELETE /v1/shares/{id}` | 204: the link is revoked |
 
@@ -469,26 +469,30 @@ The routes of a link's owner need their session; the owner is the account that m
   link is unknown (404).
 - `PUT` makes the link, or shows a changed bill on it. The `billId` stays the same (else 400). A
   `billRevision` lower than the one kept is 409 `conflict`; the same `billRevision` with the same
-  bill changes nothing. Claims keep only the item ids still in the bill, in their order. A
-  `locked` link goes back to `locking` and loses its amounts, so the split is settled again.
+  bill changes nothing. Claims keep only the item ids still in the bill, in their order. The link
+  loses its amounts and `paidBy`, and a `locked` link goes back to `locking`, so the split is
+  settled again.
 - An account makes at most 30 links an hour, and 300 changes an hour over all its links (429 past
   either). Every call of `PUT` on a link that exists, `lock`, `reopen`, `finalize` and removing a
   claim counts as a change, whatever it then decides; reading and revoking count against nothing.
 - `lock` turns `open` into `locking`, and reads every claim in the same batch: a claim written
   before it is in the answer, and one after it is refused. On a `locking` or `locked` link it
   answers the link as it is.
-- `reopen` turns `locking` or `locked` into `open` and drops the amounts; an open link is answered
-  as it is.
+- `reopen` turns `locking` or `locked` into `open` and drops the amounts and `paidBy`; an open link
+  is answered as it is.
 - `finalize` needs `locking` or `locked` (else 409 `conflict`). `amounts` names every participant
   of `bill` and nobody else; each `amountMinor` is 0 to 10^15, and together they come to
-  `bill.totalMinor` (else 400). `bill` is shown as with `PUT`, and `billRevision` follows the rule
-  of `PUT`. The same settlement sent again to a `locked` link changes nothing.
+  `bill.totalMinor` (else 400). `paidBy` is null, or the id of the one participant of `bill` who
+  paid the whole bill (another id is 400); left out, it is null. It is kept with the amounts and
+  dropped whenever they are: by a `PUT` that changes the bill, by `reopen` and by revoking. `bill`
+  is shown as with `PUT`, and `billRevision` follows the rule of `PUT`. The same settlement sent
+  again to a `locked` link, `paidBy` included, changes nothing.
 - Removing a claim works while the link is `open` or `locking` (409 `locked` once `locked`); a
   claim the link does not have, as when the call is sent again, changes nothing. The browser that
   made it then has no claim, and needs Turnstile again to claim.
-- Revoking deletes every claim, empties the bill and the amounts, and tells every open page that
-  the link is gone. Revoking again answers 204, until the daily run deletes the link; an expired
-  link can be revoked too.
+- Revoking deletes every claim, empties the bill, the amounts and `paidBy`, and tells every open
+  page that the link is gone. Revoking again answers 204, until the daily run deletes the link; an
+  expired link can be revoked too.
 - A body of these routes is at most 512 KB.
 
 BillProjection, what the page shows of a bill:
@@ -519,7 +523,7 @@ ShareView, as its owner sees it:
 {"id": "…", "billId": "…", "billRevision": 3, "status": "open", "revision": 7,
  "createdAt": 1763190000000, "expiresAt": 1765782000000, "bill": {},
  "claims": [{"id": "…", "name": "Minh", "itemIds": ["i1"], "updatedAt": 1763190000000}],
- "amounts": null}
+ "amounts": null, "paidBy": null}
 ```
 
 - `status` is `open`, `locking` or `locked`.
@@ -528,6 +532,8 @@ ShareView, as its owner sees it:
   it, which dropping items the bill no longer has does not change.
 - `amounts` is null until the split is settled, then `{"<participant id>": {"amountMinor", "payment"}}`,
   in the order of the bill's participants.
+- `paidBy` is null until the split is settled, then the participant who paid the whole bill when
+  the owner named one, or null.
 
 `payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
 person and that amount.
