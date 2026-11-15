@@ -1,6 +1,8 @@
 package com.dantech.splitvibe.ui.split
 
+import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Looper
@@ -11,12 +13,15 @@ import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
+import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
@@ -127,6 +132,17 @@ class SplitFlowTest {
         compose.onNodeWithText("Request ${vnd.format(requested)} from 2 people").performClick()
         compose.onNodeWithText("Ask for the money").assertIsDisplayed()
         assertEquals(listOf("p1", "p2"), viewModel.state.value.sentRequests?.map { it.participant.id })
+
+        // Step 4: Minh gets a message of his own through the share sheet, with his share in it.
+        val minh = shares.shares.single { it.personId == "p1" }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Send"))
+        compose.onAllNodesWithText("Send").onFirst().performClick()
+        awaitState { shadowOf(context as Application).peekNextStartedActivity() != null }
+        val chooser = checkNotNull(shadowOf(context as Application).nextStartedActivity)
+        val message = checkNotNull(IntentCompat.getParcelableExtra(chooser, Intent.EXTRA_INTENT, Intent::class.java))
+            .getStringExtra(Intent.EXTRA_TEXT)
+        assertTrue(message, message!!.startsWith("Hi Minh! Your share of QUÁN ỐC BA MIỂN"))
+        assertTrue(message, message.contains(vnd.format(minh.totalMinor)))
 
         // The finished split is kept on the phone with the shares as they were requested.
         val id = checkNotNull(viewModel.state.value.result).saved.id
