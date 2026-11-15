@@ -336,8 +336,8 @@ export function AmountsSection({ share, you }: SettledProps) {
 
 /**
  * Who picked items, once the split is settled, and who each of them is on the bill where the owner
- * matched their claim to a participant; shown when the owner matched any. This browser's own claim
- * is marked as such.
+ * matched their claim to a participant, or that they are not on it; shown when the owner matched
+ * any. This browser's own claim is marked as such.
  */
 export function ClaimersSection({ share, you }: SettledProps) {
   const rows = share.claims.map((claim) => ({ claim, participant: matchOf(share, claim.id) }));
@@ -354,7 +354,9 @@ export function ClaimersSection({ share, you }: SettledProps) {
               {claim.name}
               {claim.id === you && <YouChip />}
             </span>
-            {participant !== null && <span class="type-body-medium supporting">{`On the bill as ${personInSentence(participant)}`}</span>}
+            <span class="type-body-medium supporting">
+              {participant === null ? "Not on the bill" : `On the bill as ${personInSentence(participant)}`}
+            </span>
           </li>
         ))}
       </ul>

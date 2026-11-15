@@ -7,7 +7,8 @@ picks the page from the path:
   they had; everyone sees the picks live. Once the person who made the link settles the split
   in the app, the page shows what each person pays and how. When the app matched the people who
   picked to the bill's participants, the page also lists who picked and says who each of them is
-  on the bill ("On the bill as Minh"), and it marks "You" on the browser's own claim and on the
+  on the bill ("On the bill as Minh", or "Not on the bill" for a claim matched to nobody), and it
+  marks "You" on the browser's own claim and on the
   amount of the participant that claim was matched to, so the person finds what they owe at a
   glance.
 - `/r/#<token>`: a payment request, with how to pay and "Open in Split Vibe".

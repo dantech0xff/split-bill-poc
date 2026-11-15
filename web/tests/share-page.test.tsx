@@ -187,7 +187,7 @@ describe("the bill link's page", () => {
     const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
     answer.share.matches = { "c-minh": "p1" };
     const page = mount(<ShareView state={stateOf(answer, { you: "c-an" })} actions={actions()} />);
-    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Minh On the bill as Minh", "An You"]);
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Minh On the bill as Minh", "An You Not on the bill"]);
     expect(all(page, ".person--you")).toHaveLength(0);
     expect(all(page, ".person .chip--you")).toHaveLength(0);
   });
@@ -224,7 +224,7 @@ describe("the bill link's page", () => {
     ];
     answer.share.matches = JSON.parse('{"__proto__": "p2"}') as unknown;
     const page = mount(<ShareView state={stateOf(answer, { you: "constructor" })} actions={actions()} />);
-    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Proto On the bill as An", "Con You"]);
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Proto On the bill as An", "Con You Not on the bill"]);
     expect(all(page, ".person--you")).toHaveLength(0);
   });
 
