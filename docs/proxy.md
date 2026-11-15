@@ -280,8 +280,11 @@ RequestView:
   nothing. Confirming a request in a group records, in the same batch, one settlement from
   `toMemberId` to the creditor's member, recorded by the creditor's member, with `requestId` set.
   Confirming twice, even at once, records one.
-- A link's token is the first 128 bits of an HMAC-SHA-256 of the request id under `HASH_SALT`, so
-  the proxy can hand its creditor the same link again; only the token's SHA-256 is kept.
+- A link's token is the first 128 bits of an HMAC-SHA-256 of `request-link:<creditor's
+  account>:<request id>` under `HASH_SALT`, so the proxy can hand its creditor the same link
+  again; only the token's SHA-256 is kept. Because the creditor is part of it, an id that is
+  forgotten after a deletion and used again by another account gets another link, and the old
+  link stays dead.
 - A deleted request is emptied at once (method, names, title, debtor and group) and forgotten 30
   days later, after which its link is 404.
 

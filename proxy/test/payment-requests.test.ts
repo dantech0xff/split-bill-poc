@@ -1,10 +1,13 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { POLICY } from "../src/policy";
+import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { addPlaceholder, api, join, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
 
 type Created = { request: RequestView; url: string };
+
+const DAY = 24 * 60 * 60 * 1000;
 
 const METHOD = { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789", accountName: "NGUYEN LAN" };
 
@@ -223,6 +226,30 @@ describe("a request link", () => {
     expect((await api(late, "GET", `/v1/request-links/${token}`)).body).toEqual({ error: "conflict" });
     expect((await api(lan, "POST", `/v1/request-links/${token}/accept`)).body).toEqual({ error: "forbidden" });
     expect((await api<RequestView>(lan, "GET", `/v1/request-links/${token}`)).body).toEqual({ ...made.body.request, debtorBound: true });
+  });
+
+  it("made for one creditor never opens a request another account makes later under the same id", async () => {
+    const lan = await person();
+    const mallory = await person();
+    const minh = await person();
+    const body = requestBody({ method: { kind: "VietQr", accountNumber: "LAN-ACCOUNT" } });
+    const token = tokenOf((await ask(lan, body)).body.url);
+    // Whoever opened the link saw the request's id.
+    expect((await api<RequestView>(mallory, "GET", `/v1/request-links/${token}`)).body.id).toBe(body.id);
+    expect((await api(lan, "DELETE", `/v1/requests/${body.id}`)).status).toBe(204);
+    await forgetExpired(env, Date.now() + POLICY.forgetAfterMs + DAY);
+    expect(await rows("SELECT id FROM requests")).toEqual([]);
+
+    const reused = await ask(mallory, { ...body, method: { kind: "VietQr", accountNumber: "MALLORY-ACCOUNT" } });
+
+    expect(reused.status).toBe(201);
+    expect(tokenOf(reused.body.url)).not.toBe(token);
+    expect((await api(minh, "GET", `/v1/request-links/${token}`)).body).toEqual({ error: "not_found" });
+    expect((await api(minh, "POST", `/v1/request-links/${token}/accept`)).body).toEqual({ error: "not_found" });
+    expect((await api<RequestView>(minh, "GET", `/v1/request-links/${tokenOf(reused.body.url)}`)).body.method).toEqual({
+      kind: "VietQr",
+      accountNumber: "MALLORY-ACCOUNT",
+    });
   });
 
   it("answers 404 for a link never made, and 410 once its request was deleted", async () => {

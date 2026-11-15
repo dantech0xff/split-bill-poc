@@ -136,9 +136,9 @@ function newRequestOf(body: Record<string, unknown>): NewRequest | typeof TOO_LA
   return { id, amountMinor, currency, payerName, creditorName, title: title === "" ? null : title, method, groupId, toMemberId, billId, remindEveryDays };
 }
 
-/** The answer to creating a request: 201 with the request as its creditor sees it, and the link to share. */
+/** The answer to creating a request, whose creditor is the caller: 201 with the request as they see it, and the link to share. */
 async function created(call: Call, row: RequestRow): Promise<Response> {
-  return jsonResponse(201, { request: viewOf(row, "creditor"), url: linkUrl(call.request, "r", await requestToken(call.env, row.id)) });
+  return jsonResponse(201, { request: viewOf(row, "creditor"), url: linkUrl(call.request, "r", await requestToken(call.env, call.account, row.id)) });
 }
 
 /**
@@ -196,7 +196,7 @@ export const createRequestRoute = signedIn(async (call) => {
         wanted.toMemberId,
         creditorMemberId,
         wanted.billId,
-        await tokenHash(await requestToken(env, wanted.id)),
+        await tokenHash(await requestToken(env, account, wanted.id)),
         now,
         wanted.remindEveryDays,
       )

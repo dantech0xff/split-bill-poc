@@ -13,14 +13,16 @@ export function randomToken(): string {
 }
 
 /**
- * The token of the link of request [requestId]: the first 128 bits of an HMAC-SHA-256 of the id
- * under `HASH_SALT`. Only its hash is kept, like an invite's, yet the proxy can hand the same link
- * to its creditor again when the app sends the same request twice. Without the salt, which never
- * leaves the Worker, no one can work out a link from an id.
+ * The token of the link of request [requestId] made by [creditor]: the first 128 bits of an
+ * HMAC-SHA-256 of both under `HASH_SALT`. Only its hash is kept, like an invite's, yet the proxy
+ * can hand the same link to its creditor again when the app sends the same request twice. Without
+ * the salt, which never leaves the Worker, no one can work out a link from an id. Naming the
+ * creditor keeps a link to its own request: an id forgotten after a deletion and used again by
+ * another account gives that request another link, and the old one stays dead.
  */
-export async function requestToken(env: Env, requestId: string): Promise<string> {
+export async function requestToken(env: Env, creditor: string, requestId: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.HASH_SALT), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`request-link\u0000${requestId}`));
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`request-link:${creditor}:${requestId}`));
   return base64url(new Uint8Array(mac).slice(0, 16));
 }
 
