@@ -8,7 +8,7 @@ describe("safePaymentLink", () => {
       href: "https://paypal.me/lan/71500VND",
       host: "paypal.me",
     });
-    expect(safePaymentLink("HTTPS://Example.COM/pay")).toEqual({ kind: "web", href: "https://example.com/pay", host: "example.com" });
+    expect(safePaymentLink("https://Example.COM/pay")).toEqual({ kind: "web", href: "https://example.com/pay", host: "example.com" });
   });
 
   it("takes a UPI payment link", () => {
@@ -26,6 +26,9 @@ describe("safePaymentLink", () => {
     ["https: without a host", "https://"],
     ["https: without slashes or host", "https:"],
     ["https: with an empty authority", "https:///"],
+    ["https: without its slashes", "https:paypal.me/lan"],
+    ["https: in capitals", "HTTPS://paypal.me/lan"],
+    ["a link with a space", "https://paypal.me/lan pay"],
     ["a UPI link that is not a payment", "upi://mandate?pa=lan@okbank"],
     ["a UPI link in capitals", "UPI://pay?pa=lan@okbank"],
     ["a relative path", "/v1/shares/open"],

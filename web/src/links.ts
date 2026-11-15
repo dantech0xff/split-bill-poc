@@ -2,19 +2,21 @@ export const APP_PACKAGE = "com.dantech.splitvibe";
 export const PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=${APP_PACKAGE}`;
 
 const MAX_PAYMENT_LINK = 2048;
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+const SPACE_OR_CONTROL = /[\s\u0000-\u001f\u007f-\u009f]/;
 
 export type SafePaymentLink = { kind: "web"; href: string; host: string } | { kind: "upi"; href: string };
 
 /**
- * The payment link to offer, or null for anything that is not an `https:` URL with a host or a
- * `upi://pay?` link. The proxy refuses other schemes too; the page checks again because it is
- * the page that hands the link to the browser. A web link is passed on as the browser parsed it,
- * so the address it opens is the one checked here.
+ * The payment link to offer, or null for anything but a link that starts `https://` and has a
+ * host, or one that starts `upi://pay?`, without whitespace or control characters. The proxy
+ * refuses others too; the page checks again because it is the page that hands the link to the
+ * browser. A web link is passed on as the browser parsed it, so the address it opens is the one
+ * checked here.
  */
 export function safePaymentLink(link: string | null | undefined): SafePaymentLink | null {
-  if (typeof link !== "string" || link.length === 0 || link.length > MAX_PAYMENT_LINK || CONTROL.test(link)) return null;
+  if (typeof link !== "string" || link.length > MAX_PAYMENT_LINK || SPACE_OR_CONTROL.test(link)) return null;
   if (link.startsWith("upi://pay?")) return { kind: "upi", href: link };
+  if (!link.startsWith("https://")) return null;
   let url: URL;
   try {
     url = new URL(link);
