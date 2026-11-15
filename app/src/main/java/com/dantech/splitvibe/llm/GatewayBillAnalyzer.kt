@@ -41,9 +41,7 @@ class GatewayBillAnalyzer(
         if (!api.isSetUp) throw BillAnalyzerException(Kind.AI_OFF, checkNotNull(AiStatus.NOT_SET_UP.notice))
         val content = listOf(OcrLayoutEncoder.encode(pages), instruction.trim(), localCurrency)
         // The proxy refuses longer text. Saying so here tells the person what to change.
-        if (content[0].length >
-            MAX_DOCUMENT_CHARS
-        ) {
+        if (content[0].length > MAX_DOCUMENT_CHARS) {
             throw BillAnalyzerException(Kind.BAD_REQUEST, if (pages.size > 1) TOO_MANY_PAGES else TOO_LONG)
         }
         val requestId = unfinishedRead?.takeIf { it.first == content }?.second ?: UUID.randomUUID().toString()

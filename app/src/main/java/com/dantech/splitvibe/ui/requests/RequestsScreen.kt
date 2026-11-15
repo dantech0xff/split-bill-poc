@@ -231,13 +231,8 @@ internal fun statusText(request: RequestView): String = when (request.status) {
     }
 }
 
-private fun reminderNote(request: RequestView): String = if (request.remindEveryDays >
-    0
-) {
-    ". ${reminderLabel(request.remindEveryDays)}"
-} else {
-    ""
-}
+private fun reminderNote(request: RequestView): String =
+    if (request.remindEveryDays > 0) ". ${reminderLabel(request.remindEveryDays)}" else ""
 
 private fun reminderLabel(days: Int): String = when (days) {
     0 -> "No reminders"
