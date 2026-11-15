@@ -50,6 +50,8 @@ data class SavedBill(
     val pages: List<String> = emptyList(),
     /** What the bill's currency is worth in the user's own, to show the bill in both; null when they are the same or no rate is known. */
     val exchangeRate: ExchangeRate? = null,
+    /** The group this bill was added to, if any, as the group last accepted it. */
+    val group: GroupLink? = null,
     val schemaVersion: Int = SCHEMA_VERSION,
 ) {
     /**
@@ -71,6 +73,14 @@ data class SavedBill(
         const val SCHEMA_VERSION = 1
     }
 }
+
+/**
+ * Where a bill was added to a group: the group, the revision of the group's copy the proxy last
+ * accepted, and which member each participant is. A change to the bill after that is sent to the
+ * group again as the next revision, and refused when someone else changed the group's copy first.
+ */
+@Serializable
+data class GroupLink(val groupId: String, val groupName: String, val revision: Long, val memberOf: Map<String, String>)
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")

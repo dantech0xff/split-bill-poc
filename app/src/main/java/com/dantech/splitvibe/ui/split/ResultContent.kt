@@ -53,11 +53,13 @@ import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.motion.SvAmount
 import com.dantech.splitvibe.designsystem.motion.bounceOnChange
 import com.dantech.splitvibe.designsystem.motion.popIn
@@ -82,6 +84,9 @@ import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
 import java.math.BigDecimal
+import com.dantech.splitvibe.data.bills.GroupLink
+import com.dantech.splitvibe.ui.groups.AddToGroupSheet
+import org.koin.androidx.compose.koinViewModel
 
 /** What the bill and people step asks the flow to do. */
 class ResultActions(
@@ -101,6 +106,8 @@ class ResultActions(
     val onUseDayRate: () -> Unit,
     val onSendRequests: () -> Unit,
     val onFinish: () -> Unit,
+    /** The bill was added to a group, or sent to it again. */
+    val onLinkedToGroup: (GroupLink) -> Unit = {},
 )
 
 /**
@@ -117,6 +124,7 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
     var changingRate by rememberSaveable { mutableStateOf(false) }
     var showOcrText by rememberSaveable { mutableStateOf(false) }
     var contactsMissing by rememberSaveable { mutableStateOf(false) }
+    var addingToGroup by rememberSaveable { mutableStateOf(false) }
 
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { contact ->
         if (contact != null) actions.onContactPicked(contact)
@@ -145,7 +153,14 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
                 },
             )
         },
-        bottomBar = { FinishBar(result = result, onSendRequests = actions.onSendRequests, onFinish = actions.onFinish) },
+        bottomBar = {
+            FinishBar(
+                result = result,
+                onSendRequests = actions.onSendRequests,
+                onFinish = actions.onFinish,
+                onAddToGroup = { addingToGroup = true },
+            )
+        },
     ) { padding ->
         // Every row has a key of its own and moves with rowMotion, so when the split changes, a row
         // that comes or goes fades and the rows below it slide to their new places.
@@ -408,6 +423,19 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
         )
     }
 
+    if (addingToGroup) {
+        AddToGroupSheet(
+            saved = result.saved,
+            viewModel = koinViewModel(key = "add-to-group-${result.saved.id}"),
+            nameOf = result::nameOf,
+            onLinked = { link ->
+                addingToGroup = false
+                actions.onLinkedToGroup(link)
+            },
+            onDismiss = { addingToGroup = false },
+        )
+    }
+
     if (changingRate && result.needsRate) {
         ExchangeRateSheet(
             from = bill.currency.code,
@@ -606,25 +634,29 @@ private fun PaidRow(result: SplitResultState, onClick: () -> Unit, modifier: Mod
 }
 
 @Composable
-private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFinish: () -> Unit) {
+private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFinish: () -> Unit, onAddToGroup: () -> Unit) {
     val payments = result.plan.payments
     val iPaidItAll = payments.singleOrNull()?.participantId == ME_ID
     val others = result.split.shares.filter { it.personId != ME_ID && it.totalMinor > 0 }
+    // A bill shared in a group is kept there; one already in a group is sent to it again after a change.
+    val toGroup = SvMenuOption(result.saved.group?.let { "Update in ${it.groupName}" } ?: "Add to a group", onAddToGroup)
     SvBottomBar {
         when {
             result.problems.isNotEmpty() -> SvPrimaryButton("Finish the split", onClick = {}, enabled = false)
 
             iPaidItAll && others.isNotEmpty() -> {
                 val people = if (others.size == 1) "1 person" else "${others.size} people"
-                SvPrimaryButton(
-                    "Request ${result.bill.format(others.sumOf { it.totalMinor })} from $people",
+                SvSplitButton(
+                    text = "Request ${result.bill.format(others.sumOf { it.totalMinor })} from $people",
                     onClick = onSendRequests,
+                    moreLabel = "More ways to finish",
+                    options = listOf(toGroup, SvMenuOption("Finish without asking", onFinish)),
                     // The button turns into the mark that confirms the requests on the next step.
                     modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true),
                 )
             }
 
-            else -> SvPrimaryButton("Finish the split", onClick = onFinish)
+            else -> SvSplitButton(text = "Finish the split", onClick = onFinish, moreLabel = "More ways to finish", options = listOf(toGroup))
         }
     }
 }

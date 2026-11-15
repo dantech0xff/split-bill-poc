@@ -90,6 +90,7 @@ fun SplitScreen(
                 viewModel.finish()
                 finish()
             },
+            onLinkedToGroup = viewModel::linkToGroup,
         )
 
     // One surface with the button that opened this screen, so the screen grows out of that button.

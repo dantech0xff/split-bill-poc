@@ -32,6 +32,14 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.history.HistoryViewModel
+import com.dantech.splitvibe.ui.common.ShareEffect
+import com.dantech.splitvibe.ui.groups.GroupActions
+import com.dantech.splitvibe.ui.groups.GroupScreen
+import com.dantech.splitvibe.ui.groups.GroupViewModel
+import com.dantech.splitvibe.ui.groups.GroupsScreen
+import com.dantech.splitvibe.ui.groups.GroupsViewModel
+import com.dantech.splitvibe.ui.groups.JoinGroupScreen
+import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
@@ -43,6 +51,7 @@ import com.dantech.splitvibe.ui.split.SplitScreen
 import kotlinx.serialization.Serializable
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import org.koin.core.parameter.parametersOf
 
 // The screens. They are serializable so the open screens come back after the system ends the process.
 @Serializable
@@ -59,6 +68,16 @@ data object HistoryKey : NavKey
 
 @Serializable
 data object PaymentMethodsKey : NavKey
+
+@Serializable
+data object GroupsKey : NavKey
+
+@Serializable
+data class GroupKey(val id: String) : NavKey
+
+/** An invite link that was opened: `/g/{token}` on the proxy's address. */
+@Serializable
+data class JoinGroupKey(val token: String) : NavKey
 
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
@@ -122,6 +141,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                             onOpenBill = openBill,
                             onSeeAllBills = { backStack.open(HistoryKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            onOpenGroups = { backStack.open(GroupsKey) },
                         )
                     }
                 }
@@ -181,6 +201,82 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList()) {
                             },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onBack = { backStack.remove(SettingsKey) },
+                        )
+                    }
+                }
+                entry<GroupsKey> {
+                    Screen {
+                        val groupsViewModel: GroupsViewModel = koinViewModel()
+                        val groups by groupsViewModel.groups.collectAsStateWithLifecycle()
+                        val signedIn by groupsViewModel.signedIn.collectAsStateWithLifecycle()
+                        val status by groupsViewModel.status.collectAsStateWithLifecycle()
+                        GroupsScreen(
+                            groups = groups,
+                            signedIn = signedIn,
+                            status = status,
+                            myName = groupsViewModel.myName,
+                            localCurrency = groupsViewModel.localCurrency,
+                            onCreate = { name, currency, myName ->
+                                groupsViewModel.create(name, currency, myName) { id -> backStack.open(GroupKey(id)) }
+                            },
+                            onOpen = { id -> backStack.open(GroupKey(id)) },
+                            onOpenSettings = { backStack.open(SettingsKey) },
+                            onDismissMessage = groupsViewModel::dismissMessage,
+                            onBack = { backStack.remove(GroupsKey) },
+                        )
+                    }
+                }
+                entry<GroupKey> { key ->
+                    Screen {
+                        val groupViewModel: GroupViewModel = koinViewModel(key = "group-${key.id}") { parametersOf(key.id) }
+                        val group by groupViewModel.group.collectAsStateWithLifecycle()
+                        val status by groupViewModel.status.collectAsStateWithLifecycle()
+                        val share by groupViewModel.share.collectAsStateWithLifecycle()
+                        val left by groupViewModel.left.collectAsStateWithLifecycle()
+                        LaunchedEffect(left) { if (left) backStack.remove(key) }
+                        ShareEffect(share = share, onShared = groupViewModel::shared)
+                        GroupScreen(
+                            state = group,
+                            status = status,
+                            actions = remember(groupViewModel) {
+                                GroupActions(
+                                    onInvite = groupViewModel::invite,
+                                    onRevokeInvites = groupViewModel::revokeInvites,
+                                    onRename = groupViewModel::rename,
+                                    onAddPlaceholder = groupViewModel::addPlaceholder,
+                                    onApprove = groupViewModel::approve,
+                                    onReject = groupViewModel::reject,
+                                    onDeleteBill = groupViewModel::deleteBill,
+                                    onMarkReceived = groupViewModel::markReceived,
+                                    onAskFor = groupViewModel::askFor,
+                                    onLeave = groupViewModel::leave,
+                                    onRefresh = groupViewModel::refresh,
+                                    onDismissMessage = groupViewModel::dismissMessage,
+                                    onBack = { backStack.remove(key) },
+                                )
+                            },
+                        )
+                    }
+                }
+                entry<JoinGroupKey> { key ->
+                    Screen {
+                        val joinViewModel: JoinGroupViewModel = koinViewModel(key = "join-${key.token}") { parametersOf(key.token) }
+                        val state by joinViewModel.state.collectAsStateWithLifecycle()
+                        // Once in, the invite gives way to the group itself.
+                        LaunchedEffect(state.joinedGroupId) {
+                            state.joinedGroupId?.let { id ->
+                                backStack.remove(key)
+                                backStack.open(GroupKey(id))
+                            }
+                        }
+                        JoinGroupScreen(
+                            state = state,
+                            signedIn = joinViewModel.signedIn,
+                            myName = joinViewModel.myName,
+                            onJoin = joinViewModel::join,
+                            onClaim = joinViewModel::claim,
+                            onOpenSettings = { backStack.open(SettingsKey) },
+                            onBack = { backStack.remove(key) },
                         )
                     }
                 }

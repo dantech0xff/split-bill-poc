@@ -1,0 +1,78 @@
+package com.dantech.splitvibe.ui.groups
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.data.account.Account
+import com.dantech.splitvibe.data.groups.GroupRepository
+import com.dantech.splitvibe.data.groups.GroupSummary
+import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.ui.common.ProxyErrors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/** What a groups screen shows besides its data: whether a call is running, and what went wrong. */
+data class GroupWork(val working: Boolean = false, val message: String? = null)
+
+/** The user's groups, and making a new one. */
+class GroupsViewModel(
+    private val repository: GroupRepository,
+    account: StateFlow<Account>,
+    private val settings: StateFlow<AppSettings>,
+    private val saveName: (String) -> Unit,
+) : ViewModel() {
+
+    val groups: StateFlow<List<GroupSummary>?> = repository.groups.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Groups need a sign-in: they are shared with other people through the proxy. */
+    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(viewModelScope, SharingStarted.Eagerly, account.value.session != null)
+
+    private val work = MutableStateFlow(GroupWork())
+    val status: StateFlow<GroupWork> = work.asStateFlow()
+
+    val myName: String get() = settings.value.myName
+
+    /** The currency a new group counts in unless the user picks another. */
+    val localCurrency: String get() = settings.value.localCurrency
+
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        if (!signedIn.value) return
+        run { repository.refreshGroups() }
+    }
+
+    fun create(name: String, currencyCode: String, myName: String, onCreated: (String) -> Unit) {
+        val currency = BillCurrency.resolve(currencyCode, null, emptyList())
+        run {
+            saveName(myName)
+            val state = repository.create(name, currency, myName)
+            onCreated(state.group.id)
+        }
+    }
+
+    fun dismissMessage() = work.update { it.copy(message = null) }
+
+    private fun run(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            work.update { it.copy(working = true) }
+            try {
+                block()
+                work.update { GroupWork() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                work.update { GroupWork(message = ProxyErrors.messageOf(e)) }
+            }
+        }
+    }
+}

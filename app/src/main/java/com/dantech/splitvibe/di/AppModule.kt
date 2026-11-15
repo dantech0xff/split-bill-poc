@@ -22,6 +22,10 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.MlKitBillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.groups.AddToGroupViewModel
+import com.dantech.splitvibe.ui.groups.GroupViewModel
+import com.dantech.splitvibe.ui.groups.GroupsViewModel
+import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
@@ -70,6 +74,27 @@ val appModule = module {
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }
     viewModel { PaymentMethodsViewModel(repository = get()) }
+    viewModel {
+        GroupsViewModel(
+            repository = get(),
+            account = get<AccountStore>().account,
+            settings = get<SettingsStore>().settings,
+            saveName = get<SettingsStore>()::saveName,
+        )
+    }
+    viewModel { (groupId: String) ->
+        GroupViewModel(groupId, repository = get(), requests = get(), paymentMethods = get(), settings = get<SettingsStore>().settings)
+    }
+    viewModel { (token: String) ->
+        JoinGroupViewModel(
+            token,
+            repository = get(),
+            account = get<AccountStore>().account,
+            settings = get<SettingsStore>().settings,
+            saveName = get<SettingsStore>()::saveName,
+        )
+    }
+    viewModel { AddToGroupViewModel(groups = get(), fx = get()) }
     viewModel {
         RequestMoneyViewModel(
             paymentMethods = get(),

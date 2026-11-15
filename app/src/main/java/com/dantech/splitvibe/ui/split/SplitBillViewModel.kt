@@ -11,6 +11,7 @@ import com.dantech.splitvibe.data.bills.BillConflictException
 import com.dantech.splitvibe.data.bills.BillPages
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.data.people.ContactNames
@@ -471,6 +472,12 @@ class SplitBillViewModel(
         if (requests.isEmpty()) return
         finish()
         mutableState.update { it.copy(sentRequests = requests) }
+    }
+
+    /** Remembers that the bill on screen is now in a group, as [link] says. */
+    fun linkToGroup(link: GroupLink) {
+        if (mutableState.value.result?.saved?.id == null) return
+        change { it.copy(group = link) }
     }
 
     /** Marks the split as finished; it stays in the history and can still be opened and changed. */
