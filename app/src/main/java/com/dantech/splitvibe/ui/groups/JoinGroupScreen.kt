@@ -204,16 +204,11 @@ fun JoinGroupScreen(
                     }
                 }
             }
-            val chosen = claiming
+            // A place someone else took meanwhile is no longer offered once the invite loads again.
+            val chosen = invitation.placeholders.firstOrNull { it.id == claiming }
             SvPrimaryButton(
-                text = if (chosen ==
-                    null
-                ) {
-                    "Join the group"
-                } else {
-                    "Ask to be ${invitation.placeholders.firstOrNull { it.id == chosen }?.name}"
-                },
-                onClick = { if (chosen == null) onJoin(name) else onClaim(chosen, name) },
+                text = if (chosen == null) "Join the group" else "Ask to be ${chosen.name}",
+                onClick = { if (chosen == null) onJoin(name) else onClaim(chosen.id, name) },
                 enabled = name.isNotBlank() && !state.working,
             )
         }
