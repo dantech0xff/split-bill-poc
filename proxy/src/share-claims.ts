@@ -71,17 +71,20 @@ function claimed(share: Share, claimId: string, key?: string): Response {
 }
 
 /**
- * Whether a new claim may be made: the answer to refuse it with, or null. Without the secret
- * `TURNSTILE_SECRET`, 503 `not_configured`; without a Turnstile token, or with one Cloudflare
- * refuses, 403 `turnstile`. The IP's new claims are counted before Cloudflare is asked, so that
- * nobody can make the proxy ask more than [POLICY.newClaimsPerHour] times an hour (429 past it).
+ * Whether a new claim may be made: the answer to refuse it with, or null. Without a secret
+ * `TURNSTILE_SECRET` that can be used on this host, 503 `not_configured`; without a Turnstile
+ * token, or with one Cloudflare refuses, 403 `turnstile`. The IP's new claims are counted before
+ * Cloudflare is asked, so that nobody can make the proxy ask more than [POLICY.newClaimsPerHour]
+ * times an hour (429 past it).
  */
 async function newClaimRefusal(request: Request, env: Env, address: string, turnstile: string | null): Promise<Response | null> {
-  if (!turnstileReady(env)) return errorResponse(503, "not_configured");
+  const hostname = new URL(request.url).hostname;
+  if (!turnstileReady(env, hostname)) return errorResponse(503, "not_configured");
   if (turnstile === null) return errorResponse(403, "turnstile");
   const refused = await hourlyRefusal(env.DB, address, "claim_new", POLICY.newClaimsPerHour);
   if (refused !== null) return refused;
-  return (await turnstilePassed(env, turnstile, new URL(request.url).hostname)) ? null : errorResponse(403, "turnstile");
+  const passed = await turnstilePassed(env, turnstile, hostname, request.headers.get("CF-Connecting-IP"));
+  return passed ? null : errorResponse(403, "turnstile");
 }
 
 /**

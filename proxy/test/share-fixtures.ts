@@ -47,10 +47,15 @@ export async function publish(owner: Person, bill: BillProjection = billProjecti
  * [body] sent to [path] as a web page sends it: JSON, without a session or an install id, from
  * [ip] when one is given (as Cloudflare names it in CF-Connecting-IP).
  */
-export async function fromPage<T = Record<string, unknown>>(path: string, body: unknown, ip?: string, settings: Partial<Env> = {}): Promise<Answer<T>> {
+export function fromPage<T = Record<string, unknown>>(path: string, body: unknown, ip?: string, settings: Partial<Env> = {}): Promise<Answer<T>> {
+  return fromPageAt<T>("https://proxy.test", path, body, ip, settings);
+}
+
+/** [body] sent to [path] as [fromPage] sends it, by a page served at [origin], such as `http://127.0.0.1:8787`. */
+export async function fromPageAt<T = Record<string, unknown>>(origin: string, path: string, body: unknown, ip?: string, settings: Partial<Env> = {}): Promise<Answer<T>> {
   const headers = new Headers({ "content-type": "application/json" });
   if (ip !== undefined) headers.set("CF-Connecting-IP", ip);
-  const sent = await send(new Request(`https://proxy.test${path}`, { method: "POST", headers, body: JSON.stringify(body) }), settings);
+  const sent = await send(new Request(`${origin}${path}`, { method: "POST", headers, body: JSON.stringify(body) }), settings);
   // The tests read answers in the shapes the contract gives them.
   return { status: sent.status, headers: sent.headers, body: (sent.body === "" ? null : JSON.parse(sent.body)) as T };
 }

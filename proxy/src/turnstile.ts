@@ -16,13 +16,31 @@ const TOKEN_FAULTS = new Set(["invalid-input-response", "timeout-or-duplicate"])
 /**
  * Cloudflare's secrets for testing, which pass every token, refuse every token, or find every
  * token spent. Siteverify answers them without an action and with `example.com` as the hostname,
- * so with one of them only its verdict can be checked. None belongs on the deployed Worker.
+ * so with one of them only its verdict can be checked. They are taken only on a computer (see
+ * [LOCAL_HOSTS]); anywhere else a new claim is 503, so that one set on the deployed Worker by
+ * mistake never lets every token pass.
  */
 const TEST_SECRETS = new Set(["1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA", "3x0000000000000000000000000000000AA"]);
+/** The hostnames of a proxy that runs on a computer, as `wrangler dev` serves it; `URL.hostname` writes IPv6 in brackets. */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+/** The most of a value Siteverify answered that a log line repeats. */
+const LOGGED_CHARS = 64;
 
-/** Whether new claims can be checked at all: the secret `TURNSTILE_SECRET` is set. */
-export function turnstileReady(env: Env): boolean {
-  return (env.TURNSTILE_SECRET ?? "").trim() !== "";
+function secretOf(env: Env): string {
+  return (env.TURNSTILE_SECRET ?? "").trim();
+}
+
+/**
+ * Whether new claims can be checked at all on a page served at [hostname]: the secret
+ * `TURNSTILE_SECRET` is set, and is not one of Cloudflare's test secrets unless the proxy runs on
+ * a computer. A test secret anywhere else is logged, never with a token.
+ */
+export function turnstileReady(env: Env, hostname: string): boolean {
+  const secret = secretOf(env);
+  if (secret === "") return false;
+  if (!TEST_SECRETS.has(secret) || LOCAL_HOSTS.has(hostname)) return true;
+  console.error(JSON.stringify({ event: "turnstile_test_secret" }));
+  return false;
 }
 
 /** [value] when it can be a Turnstile token: text of 1 to 2,048 characters. Anything else is no token. */
@@ -30,17 +48,23 @@ export function turnstileTokenOf(value: unknown): string | null {
   return typeof value === "string" && value !== "" && value.length <= MAX_TOKEN_CHARS ? value : null;
 }
 
+/** What Siteverify said of a field, for a log line: its text, cut short, or the kind of value it was. */
+function logged(value: unknown): string {
+  return typeof value === "string" ? value.slice(0, LOGGED_CHARS) : value === undefined ? "missing" : typeof value;
+}
+
 /**
  * Whether Cloudflare's Siteverify says [token] passed the Turnstile widget whose secret is
  * `TURNSTILE_SECRET`, with the action `claim`, on a page served at [hostname], and was not used
- * before: a token is good for one check only. Anything else is false: a refusal, an answer of
- * another shape, or no answer within [TIMEOUT_MS]. Failures that are not a verdict on the token
- * are logged, with Cloudflare's error codes and never the token. Call it only once
- * [turnstileReady].
+ * before: a token is good for one check only. [remoteIp], the caller's CF-Connecting-IP, goes to
+ * Siteverify too when there is one. Anything else is false: a refusal, an answer of another shape,
+ * an action or a hostname that does not match, or no answer within [TIMEOUT_MS]. Failures that are
+ * not a verdict on the token are logged, with Cloudflare's error codes and never the token, and so
+ * are an action or a hostname that does not match. Call it only once [turnstileReady].
  */
-export async function turnstilePassed(env: Env, token: string, hostname: string): Promise<boolean> {
-  const secret = (env.TURNSTILE_SECRET ?? "").trim();
-  const answer = await siteverify(secret, token);
+export async function turnstilePassed(env: Env, token: string, hostname: string, remoteIp: string | null): Promise<boolean> {
+  const secret = secretOf(env);
+  const answer = await siteverify(secret, token, remoteIp);
   if (answer === null) return false;
   if (answer.success !== true) {
     const listed = answer["error-codes"];
@@ -48,17 +72,21 @@ export async function turnstilePassed(env: Env, token: string, hostname: string)
     if (codes.some((code) => !TOKEN_FAULTS.has(code))) console.error(JSON.stringify({ event: "turnstile_failed", codes }));
     return false;
   }
+  // [turnstileReady] took a test secret only on a computer, where only the verdict can be checked.
   if (TEST_SECRETS.has(secret)) return true;
-  return answer.action === CLAIM_ACTION && answer.hostname === hostname;
+  if (answer.action === CLAIM_ACTION && answer.hostname === hostname) return true;
+  console.error(JSON.stringify({ event: "turnstile_mismatch", action: logged(answer.action), hostname: logged(answer.hostname), expectedHostname: hostname }));
+  return false;
 }
 
 /** Siteverify's answer about [token], or null when it gave none that can be read; that is logged. */
-async function siteverify(secret: string, token: string): Promise<Record<string, unknown> | null> {
+async function siteverify(secret: string, token: string, remoteIp: string | null): Promise<Record<string, unknown> | null> {
+  const remote = remoteIp?.trim() ?? "";
   try {
     const response = await fetch(SITEVERIFY_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret, response: token }),
+      body: JSON.stringify({ secret, response: token, ...(remote === "" ? {} : { remoteip: remote }) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const answer = await readJson(response, MAX_ANSWER_BYTES);

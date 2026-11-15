@@ -115,7 +115,9 @@ open connections only.
 The Worker prints one log line per bill read: the outcome, whether the caller is an install or an
 account, the model, the tokens, the cost and the time taken. For notifications it prints their
 type and how many devices got them, never an id, a token or any text. When Turnstile cannot judge
-a claim, it prints Cloudflare's error codes, never the token. Cloudflare's invocation
+a claim, it prints Cloudflare's error codes; when a token was solved for another action or host, the
+action and the hostname Cloudflare gave; and when a test secret is refused, that it was. It never
+prints a token. Cloudflare's invocation
 logs are off in `wrangler.jsonc`, because they record every request's headers, among them the
 session and the IP address. Traces are on: they show how long each request, each call to Claude
 and each Durable Object took, its outcome and its CPU time, with the country and city, the network
@@ -564,10 +566,13 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
     Siteverify. A token passes once.
   - A missing or refused token is 403 `turnstile`, and so is one Cloudflare does not judge within
     5 seconds; a token is text of 1 to 2,048 characters, and anything else counts as missing.
-    Without the `TURNSTILE_SECRET` secret, a new claim is 503 `not_configured`.
-  - With one of Cloudflare's test secrets, whose answers carry no action and `example.com` as the
-    hostname, only whether the token passed is checked. Such a secret never belongs on the
-    deployed Worker.
+    Siteverify also gets the caller's address, CF-Connecting-IP, as `remoteip`. Without the
+    `TURNSTILE_SECRET` secret, a new claim is 503 `not_configured`.
+  - Cloudflare's test secrets, such as `1x0000000000000000000000000000000AA`, answer without an
+    action and with `example.com` as the hostname, so with one of them only whether the token passed
+    is checked. They are taken only where the page's host is `localhost`, `127.0.0.1` or `[::1]`,
+    as on a computer. On any other host, a new claim with one of them is 503 `not_configured`, and
+    the Worker logs `turnstile_test_secret`.
   - The answer then carries `key`, 22 base64url characters that the proxy made, which the browser
     keeps and sends from then on; only its SHA-256 is kept.
   - With a known `key`, the claim's name and items are replaced, without Turnstile; the same name
@@ -684,7 +689,8 @@ SESSION_SIGNING_KEY=<at least 32 random characters>
 `FCM_SERVICE_ACCOUNT` with the service account's key file on one line; without it, nothing is sent.
 To try claims on a bill link, add `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY`, for instance
 Cloudflare's test pair `1x0000000000000000000000000000000AA` and `1x00000000000000000000AA`, which
-pass every claim; without the secret, a new claim answers 503.
+pass every claim while the page is opened at `localhost`, `127.0.0.1` or `[::1]`, as `wrangler dev`
+serves it; on any other host, and without the secret, a new claim answers 503.
 `wrangler dev` keeps the D1 database on the computer, under `proxy/.wrangler/`; give it the schema
 once, and again after a new migration:
 
@@ -800,7 +806,8 @@ These steps need the owner's accounts.
    dashboard under Turnstile, or with the API's `POST /accounts/{account_id}/challenges/widgets`
    and `{"name", "mode": "managed", "domains": ["<the proxy's host>"]}`. Put its site key into
    `TURNSTILE_SITE_KEY` in `wrangler.jsonc`; it is public. Set its secret key, `result.secret` in
-   the API's answer, as a secret; without it the pages show links but take no new claim (503):
+   the API's answer, as a secret; without it, or with one of Cloudflare's test secrets, the pages
+   show links but take no new claim (503):
 
    ```bash
    npx wrangler secret put TURNSTILE_SECRET

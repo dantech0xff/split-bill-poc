@@ -1,13 +1,24 @@
 import { env } from "cloudflare:workers";
 import { HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hashed, ipKey } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import type { ShareView } from "../src/share-state";
 import { FAILING_SECRET, fakeTurnstile, PASSING_SECRET } from "./fake-turnstile";
 import { billRequest, ipName, model, ANSWER, proxyRequest, send } from "./requests";
-import { billProjection, changeClaim, type Claimed, fromPage, newClaim, openShare, payPal, publish, windowOf } from "./share-fixtures";
+import { billProjection, changeClaim, type Claimed, fromPage, fromPageAt, newClaim, openShare, payPal, publish, windowOf } from "./share-fixtures";
 import { type Answer, api, invite, linkToken, newGroup, person, rows, sha256, VND } from "./shared";
+
+/** What the Worker logged while [run] ran, one entry per line. */
+async function logsOf(run: () => Promise<unknown>): Promise<string[]> {
+  const spied = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    await run();
+    return spied.mock.calls.map((call) => call.map(String).join(" "));
+  } finally {
+    spied.mockRestore();
+  }
+}
 
 type Viewed = { share: ShareView };
 
@@ -31,6 +42,11 @@ function racing(matches: (sql: string[]) => boolean, before: () => Promise<void>
       };
     },
   });
+}
+
+/** A new claim on the link [token], with [turnstile] as its Turnstile token. */
+function newClaimWith(token: string, turnstile: string) {
+  return fromPage<Claimed>("/v1/shares/claim", { token, name: "Minh", itemIds: ["i1"], turnstile });
 }
 
 const isLock = (sql: string[]) => sql.some((text) => text.includes("status = 'locking'"));
@@ -96,15 +112,67 @@ describe("a new claim", () => {
     expect(turnstile.checks()).toBe(0);
   });
 
-  it("passes with Cloudflare's passing test secret and fails with its failing one", async () => {
+  it("takes Cloudflare's test secrets on a computer, where only their verdict counts", async () => {
     const link = await publish(await person());
     const turnstile = fakeTurnstile();
-    const claim = (secret: string) =>
-      fromPage<Claimed>("/v1/shares/claim", { token: link.token, name: "Minh", itemIds: [], turnstile: "XXXX.DUMMY.TOKEN.XXXX" }, undefined, { TURNSTILE_SECRET: secret });
+    const claim = (origin: string, secret: string) =>
+      fromPageAt<Claimed>(origin, "/v1/shares/claim", { token: link.token, name: "Minh", itemIds: [], turnstile: "XXXX.DUMMY.TOKEN.XXXX" }, undefined, { TURNSTILE_SECRET: secret });
 
-    expect((await claim(PASSING_SECRET)).status).toBe(200);
-    expect((await claim(FAILING_SECRET)).body).toEqual({ error: "turnstile" });
-    expect(turnstile.checks()).toBe(2);
+    for (const origin of ["http://localhost:8787", "http://127.0.0.1:8797", "http://[::1]:8787"]) {
+      expect((await claim(origin, PASSING_SECRET)).status, origin).toBe(200);
+      expect((await claim(origin, FAILING_SECRET)).body, origin).toEqual({ error: "turnstile" });
+    }
+    expect(turnstile.checks()).toBe(6);
+  });
+
+  it("is 503 with one of Cloudflare's test secrets on any other host, which is logged without the token", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    const dummy = "XXXX.DUMMY.TOKEN.XXXX";
+    const answers: Array<Answer<Claimed>> = [];
+
+    const logs = await logsOf(async () => {
+      for (const origin of ["https://proxy.test", "https://localhost.example", "https://127.0.0.1.example"]) {
+        for (const secret of [PASSING_SECRET, FAILING_SECRET]) {
+          answers.push(await fromPageAt<Claimed>(origin, "/v1/shares/claim", { token: link.token, name: "Minh", itemIds: [], turnstile: dummy }, undefined, { TURNSTILE_SECRET: secret }));
+        }
+      }
+    });
+
+    for (const answer of answers) {
+      expect(answer.status).toBe(503);
+      expect(answer.body).toEqual({ error: "not_configured" });
+    }
+    expect(turnstile.checks()).toBe(0);
+    expect(logs).toEqual(Array.from({ length: answers.length }, () => JSON.stringify({ event: "turnstile_test_secret" })));
+    expect(await rows("SELECT * FROM share_claims")).toEqual([]);
+  });
+
+  it("logs an action or a hostname that is not the claim's on this host, never the token", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    const tokens = [turnstile.token({ action: "login" }), turnstile.token({ hostname: "evil.example" })];
+
+    const logs = await logsOf(async () => {
+      for (const token of tokens) expect((await newClaimWith(link.token, token)).body).toEqual({ error: "turnstile" });
+    });
+
+    expect(logs.map((line) => JSON.parse(line) as unknown)).toEqual([
+      { event: "turnstile_mismatch", action: "login", hostname: "proxy.test", expectedHostname: "proxy.test" },
+      { event: "turnstile_mismatch", action: "claim", hostname: "evil.example", expectedHostname: "proxy.test" },
+    ]);
+    for (const token of tokens) expect(logs.join("\n")).not.toContain(token);
+  });
+
+  it("sends Cloudflare the address the claim came from", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+
+    await newClaim(turnstile, link.token, "Minh", ["i1"], "203.0.113.60");
+    await newClaim(turnstile, link.token, "Hoa", ["i2"], "2001:db8::7");
+    await newClaim(turnstile, link.token, "Tuan", ["i3"]);
+
+    expect(turnstile.remoteIps()).toEqual(["203.0.113.60", "2001:db8::7", undefined]);
   });
 
   it("is refused when Cloudflare cannot say whether the token passed", async () => {

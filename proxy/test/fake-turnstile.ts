@@ -14,6 +14,8 @@ export type FakeTurnstile = {
   token(solved?: { action?: string; hostname?: string }): string;
   /** How many times the proxy asked Siteverify. */
   checks(): number;
+  /** The `remoteip` of each check, in order; undefined for a check that sent none. */
+  remoteIps(): unknown[];
 };
 
 /**
@@ -25,12 +27,14 @@ export type FakeTurnstile = {
 export function fakeTurnstile(answer?: () => Response): FakeTurnstile {
   const issued = new Map<string, { action: string; hostname: string }>();
   const spent = new Set<string>();
+  const remoteIps: unknown[] = [];
   let checks = 0;
   network.use(
     http.post(SITEVERIFY_URL, async ({ request }) => {
       checks += 1;
+      const { secret, response, remoteip } = (await request.json()) as { secret?: unknown; response?: unknown; remoteip?: unknown };
+      remoteIps.push(remoteip);
       if (answer !== undefined) return answer();
-      const { secret, response } = (await request.json()) as { secret?: unknown; response?: unknown };
       const now = new Date().toISOString();
       if (secret === PASSING_SECRET) return HttpResponse.json({ success: true, challenge_ts: now, hostname: "example.com", "error-codes": [] });
       if (secret === FAILING_SECRET) return HttpResponse.json({ success: false, "error-codes": ["invalid-input-response"] });
@@ -50,5 +54,6 @@ export function fakeTurnstile(answer?: () => Response): FakeTurnstile {
       return token;
     },
     checks: () => checks,
+    remoteIps: () => [...remoteIps],
   };
 }
