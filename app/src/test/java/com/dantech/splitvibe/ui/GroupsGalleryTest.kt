@@ -6,6 +6,7 @@ import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.GroupFixtures
 import com.dantech.splitvibe.data.groups.GroupState
@@ -100,6 +101,7 @@ class GroupsGalleryTest {
             onJoin = {},
             onClaim = { _, _ -> },
             onOpenSettings = {},
+            onRetry = {},
             onBack = {},
         )
     }
@@ -114,13 +116,14 @@ class GroupsGalleryTest {
         shot("25-requests-dark") { RequestsScreen(requests, signedIn = true, status = ProxyWork(), actions = NO_REQUEST_ACTIONS) }
 
     @Test
-    fun `a request link with its payment code`() = shot("26-request-link") {
+    fun `a request link with its payment code`() = shot("26-request-link", waitFor = "Payment code for VietQR") {
         RequestLinkScreen(
             state = RequestLinkState(request = requests.first()),
             signedIn = true,
             onAccept = {},
             onReportPaid = {},
             onOpenSettings = {},
+            onRetry = {},
             onBack = {},
         )
     }
@@ -141,11 +144,18 @@ class GroupsGalleryTest {
         )
     }
 
-    private fun shot(name: String, content: @Composable () -> Unit) {
+    private fun shot(name: String, waitFor: String? = null, content: @Composable () -> Unit) {
         compose.setContent {
             SplitVibeTheme {
                 // Rippling is left out, so the pictures do not depend on where a test last touched.
                 CompositionLocalProvider(LocalRippleConfiguration provides null) { content() }
+            }
+        }
+        // Something drawn away from the main thread, such as a payment code, is waited for.
+        waitFor?.let { label ->
+            compose.waitUntil(10_000) {
+                shadowOf(Looper.getMainLooper()).idle()
+                compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
             }
         }
         compose.waitForIdle()
@@ -162,9 +172,10 @@ class GroupsGalleryTest {
             onRename = {},
             onAddPlaceholder = {},
             onApprove = {},
+            onRemoveMember = {},
             onReject = {},
             onDeleteBill = {},
-            onMarkReceived = {},
+            onMarkReceived = { _, _ -> },
             onAskFor = {},
             onLeave = {},
             onRefresh = {},

@@ -7,10 +7,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Where a link or a tapped notice takes the app. */
 sealed interface AppLink {
-    /** An invite link, `/g/{token}` on the proxy's address. */
+    /** An invite link, `/g/#{token}` on the proxy's address. */
     data class JoinGroup(val token: String) : AppLink
 
-    /** A payment request link, `/r/{token}` on the proxy's address. */
+    /** A payment request link, `/r/#{token}` on the proxy's address. */
     data class OpenRequest(val token: String) : AppLink
 
     data class Group(val id: String) : AppLink
@@ -19,6 +19,7 @@ sealed interface AppLink {
 
     companion object {
         private val TOKEN = Regex("[A-Za-z0-9_-]{16,128}")
+        private val UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
         /** What Firebase adds to the intent of a notice the system showed. */
         private const val FIREBASE_MESSAGE_ID = "google.message_id"
@@ -34,21 +35,26 @@ sealed interface AppLink {
             val fromSystem = intent.hasExtra(FIREBASE_MESSAGE_ID)
             val kind = intent.getStringExtra(Notices.EXTRA_KIND) ?: intent.getStringExtra("type").takeIf { fromSystem }
             if (kind != null) {
-                val groupId = intent.getStringExtra(Notices.EXTRA_GROUP_ID) ?: intent.getStringExtra("groupId").takeIf { fromSystem }
+                // Any app can send extras, so a group id must look like one before it goes into a call.
+                val groupId = (intent.getStringExtra(Notices.EXTRA_GROUP_ID) ?: intent.getStringExtra("groupId").takeIf { fromSystem })
+                    ?.takeIf { UUID.matches(it) }
                 return if (kind == "claim" && groupId != null) Group(groupId) else Requests
             }
             if (intent.action != Intent.ACTION_VIEW) return null
             return of(intent.data, proxyUrl)
         }
 
+        /**
+         * The token of a link rides in its fragment, `/g/#{token}`, which the browser never sends to
+         * the server, so no token ends up in a log or a trace on the way.
+         */
         fun of(uri: Uri?, proxyUrl: String): AppLink? {
             val host = proxyUrl.toHttpUrlOrNull()?.host ?: return null
             if (uri == null || uri.scheme != "https" || uri.host != host || uri.userInfo != null) return null
-            val segments = uri.pathSegments
-            if (segments.size != 2 || !TOKEN.matches(segments[1])) return null
-            return when (segments[0]) {
-                "g" -> JoinGroup(segments[1])
-                "r" -> OpenRequest(segments[1])
+            val token = uri.fragment?.takeIf { TOKEN.matches(it) } ?: return null
+            return when (uri.path) {
+                "/g/" -> JoinGroup(token)
+                "/r/" -> OpenRequest(token)
                 else -> null
             }
         }

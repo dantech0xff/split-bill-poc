@@ -40,8 +40,14 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -68,15 +74,20 @@ class JoinGroupViewModel(
     private val mutableState = MutableStateFlow(JoinState())
     val state: StateFlow<JoinState> = mutableState.asStateFlow()
 
-    val signedIn: Boolean get() = account.value.session != null
+    /** Invites need a sign-in; one opened before it loads as soon as someone signs in. */
+    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        account.value.session != null,
+    )
     val myName: String get() = settings.value.myName
 
     init {
-        load()
+        signedIn.filter { it }.onEach { load() }.launchIn(viewModelScope)
     }
 
     fun load() {
-        if (!signedIn) return
+        if (!signedIn.value) return
         run {
             val invitation = repository.invitation(token)
             mutableState.update {
@@ -122,6 +133,7 @@ fun JoinGroupScreen(
     onJoin: (String) -> Unit,
     onClaim: (memberId: String, name: String) -> Unit,
     onOpenSettings: () -> Unit,
+    onRetry: () -> Unit,
     onBack: () -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf(myName) }
@@ -153,7 +165,7 @@ fun JoinGroupScreen(
                 )
                 return@Column
             }
-            state.message?.let { SvMessageCard(text = it, isError = true) }
+            state.message?.let { SvMessageCard(text = it, isError = true, action = "Try again", onAction = onRetry) }
             val invitation = state.invitation
             if (invitation == null) {
                 if (state.working) SvLoadingIndicator()

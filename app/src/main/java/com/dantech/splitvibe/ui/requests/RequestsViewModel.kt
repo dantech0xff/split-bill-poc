@@ -3,6 +3,7 @@ package com.dantech.splitvibe.ui.requests
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.account.Account
+import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestView
@@ -15,7 +16,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -24,9 +28,18 @@ import kotlinx.coroutines.launch
  * The payment requests the user sent and those sent to them. The payer says when they paid; only the
  * requester confirms it, and only then does it count, also in a group.
  */
-class RequestsViewModel(private val repository: RequestRepository, account: StateFlow<Account>) : ViewModel() {
+class RequestsViewModel(private val repository: RequestRepository, private val groups: GroupRepository, account: StateFlow<Account>) :
+    ViewModel() {
 
     val requests: StateFlow<List<RequestView>?> = repository.requests.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * Who asked, by request id, for requests made in a group: the requester's name as the group
+     * knows them, which only they can change, rather than the name they typed on the request.
+     */
+    val creditorNames: StateFlow<Map<String, String>> = repository.requests
+        .map { list -> list.orEmpty().mapNotNull { request -> groups.creditorNameOf(request)?.let { request.id to it } }.toMap() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
         viewModelScope,
@@ -41,7 +54,8 @@ class RequestsViewModel(private val repository: RequestRepository, account: Stat
     val share: StateFlow<ShareText?> = toShare.asStateFlow()
 
     init {
-        refresh()
+        // Also once someone signs in with the screen already open.
+        signedIn.filter { it }.onEach { refresh() }.launchIn(viewModelScope)
     }
 
     fun refresh() {
@@ -94,22 +108,38 @@ class RequestsViewModel(private val repository: RequestRepository, account: Stat
 /** Where opening a request link stands. */
 data class RequestLinkState(
     val request: RequestView? = null,
+    /** Who asked, as their group knows them, for a request made in a group the user has open. */
+    val creditorName: String? = null,
     val accepted: Boolean = false,
     val working: Boolean = false,
     val message: String? = null,
 )
 
 /** Opens a request link: shows what is asked and how to pay, and takes the request on so the payer can say they paid. */
-class RequestLinkViewModel(private val token: String, private val repository: RequestRepository, private val account: StateFlow<Account>) :
-    ViewModel() {
+class RequestLinkViewModel(
+    private val token: String,
+    private val repository: RequestRepository,
+    private val groups: GroupRepository,
+    private val account: StateFlow<Account>,
+) : ViewModel() {
 
     private val mutableState = MutableStateFlow(RequestLinkState())
     val state: StateFlow<RequestLinkState> = mutableState.asStateFlow()
 
-    val signedIn: Boolean get() = account.value.session != null
+    /** Request links need a sign-in; one opened before it loads as soon as someone signs in. */
+    val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        account.value.session != null,
+    )
 
     init {
-        if (signedIn) run { mutableState.update { it.copy(request = repository.preview(token)) } }
+        signedIn.filter { it }.onEach { load() }.launchIn(viewModelScope)
+    }
+
+    fun load() = run {
+        val request = repository.preview(token)
+        mutableState.update { it.copy(request = request, creditorName = groups.creditorNameOf(request)) }
     }
 
     fun accept() = run { mutableState.update { it.copy(request = repository.accept(token), accepted = true) } }
@@ -139,4 +169,11 @@ class RequestLinkViewModel(private val token: String, private val repository: Re
     private companion object {
         const val TAKEN = "Someone else already took this request on. Ask the person who sent it for a new link."
     }
+}
+
+/** The requester's name in the group of a group request, when the group is kept on the phone. */
+private suspend fun GroupRepository.creditorNameOf(request: RequestView): String? {
+    val groupId = request.groupId ?: return null
+    val memberId = request.creditorMemberId ?: return null
+    return cached(groupId)?.member(memberId)?.name
 }

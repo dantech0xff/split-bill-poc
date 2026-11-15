@@ -99,9 +99,9 @@ val appModule = module {
             saveName = get<SettingsStore>()::saveName,
         )
     }
-    viewModel { AddToGroupViewModel(groups = get(), fx = get()) }
-    viewModel { RequestsViewModel(repository = get(), account = get<AccountStore>().account) }
-    viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), account = get<AccountStore>().account) }
+    viewModel { AddToGroupViewModel(groups = get(), requests = get(), fx = get()) }
+    viewModel { RequestsViewModel(repository = get(), groups = get(), account = get<AccountStore>().account) }
+    viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel {
         RequestMoneyViewModel(
             paymentMethods = get(),

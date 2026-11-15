@@ -26,8 +26,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -114,6 +116,37 @@ class RequestMoneyViewModelTest {
         assertEquals("Minh", body["payerName"]!!.jsonPrimitive.content)
         assertEquals("150000", body["amountMinor"]!!.jsonPrimitive.content)
         assertEquals("Dana", settings.value.myName)
+    }
+
+    @Test
+    fun `a corrected account makes a new request in place of the old one, which is withdrawn`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.method == "DELETE") return MockResponse().setResponseCode(204)
+                val sent = Json.parseToJsonElement(request.body.clone().readUtf8()).jsonObject
+                val id = sent["id"]!!.jsonPrimitive.content
+                val view = GroupFixtures.request(id = id, method = sent["method"].toString())
+                return MockResponse().setBody("""{"request":$view,"url":"https://proxy.example/r/#token-$id"}""")
+            }
+        }
+        val viewModel = viewModel()
+        val first = viewModel.prepare(saved, request, name = "Dana")
+
+        // The account number had a typo; the same method is corrected in Settings.
+        val method = methods.all.first().single()
+        methods.replace(method.id, PaymentMethod.VietQr("970416", "257678860", "DANA NGUYEN"))
+        awaitOnMain { (viewModel.method.value?.method as? PaymentMethod.VietQr)?.account == "257678860" }
+        val second = viewModel.prepare(saved, request, name = "Dana")
+
+        val posts = mutableListOf<RecordedRequest>()
+        repeat(server.requestCount) { posts += server.takeRequest() }
+        assertEquals(listOf("POST", "POST", "DELETE"), posts.map { it.method })
+        assertTrue(posts[1].body.readUtf8().contains("257678860"))
+        val firstId = first.text.substringAfter("#token-")
+        assertEquals("/v1/requests/$firstId", posts[2].path)
+        assertTrue(second.text, second.text.contains("Account: 257678860"))
+        assertFalse(second.text.contains(firstId))
     }
 
     @Test

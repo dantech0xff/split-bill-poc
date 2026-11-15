@@ -356,7 +356,7 @@ private fun ErrorText(text: String) {
 }
 
 /** A rate typed with either decimal mark and no grouping, such as "25350" or "0,92": more than zero, without an exponent. */
-private fun positiveRate(text: String): BigDecimal? {
+internal fun positiveRate(text: String): BigDecimal? {
     if (!RATE_TEXT.matches(text.trim())) return null
     // Without trailing zeros, so "25350.0" and "25350" read as the same rate.
     return text.trim().replace(',', '.').toBigDecimal().stripTrailingZeros().takeIf { it.signum() > 0 }

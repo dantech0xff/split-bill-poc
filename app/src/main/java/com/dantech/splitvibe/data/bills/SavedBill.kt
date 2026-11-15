@@ -80,7 +80,14 @@ data class SavedBill(
  * group again as the next revision, and refused when someone else changed the group's copy first.
  */
 @Serializable
-data class GroupLink(val groupId: String, val groupName: String, val revision: Long, val memberOf: Map<String, String>)
+data class GroupLink(
+    val groupId: String,
+    val groupName: String,
+    val revision: Long,
+    val memberOf: Map<String, String>,
+    /** The id of the group's copy, which is the bill's own id unless the group's copy was deleted and the bill added again. */
+    val billId: String? = null,
+)
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")

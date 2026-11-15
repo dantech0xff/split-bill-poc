@@ -14,7 +14,10 @@ import kotlinx.serialization.json.put
 class DeviceRegistrar(
     private val api: ProxyApi,
     private val account: AccountStore,
-    private val token: suspend () -> String? = Push::token,
+    private val token: suspend () -> String? = {
+        Push.enable()
+        Push.token()
+    },
 ) {
 
     /** Sends [newToken], or the current token when it is not given; does nothing without push or a sign-in. */

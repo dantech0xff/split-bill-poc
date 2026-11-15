@@ -8,6 +8,7 @@ import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestStatus
@@ -28,6 +29,7 @@ class RequestsViewModelTest {
     private val storage = TestStorage(context)
     private lateinit var proxy: TestProxy
     private lateinit var repository: RequestRepository
+    private lateinit var groups: GroupRepository
 
     @Before
     fun setUp() {
@@ -35,6 +37,7 @@ class RequestsViewModelTest {
         proxy = TestProxy(server, context)
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
         repository = RequestRepository(proxy.api, ProxyCache(storage.database.proxyCache()), proxy.account)
+        groups = GroupRepository(proxy.api, ProxyCache(storage.database.proxyCache()), proxy.account)
     }
 
     @After
@@ -46,7 +49,7 @@ class RequestsViewModelTest {
     @Test
     fun `a reminder carries the payment details and the request's own link`() {
         server.enqueue(json("""{"requests":[${GroupFixtures.request()}]}"""))
-        val viewModel = RequestsViewModel(repository, proxy.account.account)
+        val viewModel = RequestsViewModel(repository, groups, proxy.account.account)
         awaitOnMain { viewModel.requests.value?.isNotEmpty() == true }
 
         viewModel.remind(viewModel.requests.value!!.single())
@@ -63,14 +66,16 @@ class RequestsViewModelTest {
         server.enqueue(json(GroupFixtures.request(role = "debtor")))
         server.enqueue(json(GroupFixtures.request(role = "debtor")))
         server.enqueue(json(GroupFixtures.request(role = "debtor", reportedPaidAt = 1_763_200_000_000)))
-        val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, proxy.account.account)
+        val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, groups, proxy.account.account)
         awaitOnMain { viewModel.state.value.request != null }
 
         viewModel.reportPaid()
         awaitOnMain { viewModel.state.value.request?.status == RequestStatus.REPORTED_PAID }
 
-        assertEquals("/v1/request-links/token-1234567890abcdef", server.takeRequest().path)
-        assertEquals("/v1/request-links/token-1234567890abcdef/accept", server.takeRequest().path)
+        val open = server.takeRequest()
+        assertEquals("/v1/request-links/open", open.path)
+        assertEquals("""{"token":"token-1234567890abcdef"}""", open.body.readUtf8())
+        assertEquals("/v1/request-links/accept", server.takeRequest().path)
         assertEquals("/v1/requests/r1/reported-paid", server.takeRequest().path)
         assertTrue(viewModel.state.value.accepted)
     }
@@ -79,7 +84,7 @@ class RequestsViewModelTest {
     fun `a link someone else took on says so`() {
         server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"conflict"}"""))
 
-        val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, proxy.account.account)
+        val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, groups, proxy.account.account)
         awaitOnMain { viewModel.state.value.message != null }
 
         assertTrue(viewModel.state.value.message!!.startsWith("Someone else already took this request on."))

@@ -16,8 +16,10 @@ data class RequestView(
     val currency: CurrencyDto,
     /** The name the requester gave the person asked to pay. */
     val payerName: String,
-    /** The name the requester wants the payer to see. */
+    /** The name the requester wants the payer to see, as they typed it. */
     val creditorName: String? = null,
+    /** The requester's member in the group of a group request, whose name in the group is the one to trust. */
+    val creditorMemberId: String? = null,
     /** What the request is for, such as the merchant of the bill. */
     val title: String? = null,
     /** The one payment method the request was sent with; empty once its requester deleted their account. */

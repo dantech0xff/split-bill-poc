@@ -6,6 +6,7 @@ import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.notifications.DeviceRegistrar
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Signing in with Google, signing out, deleting the account and asking for the calls left. The
@@ -17,9 +18,9 @@ class AccountRepository(
     private val store: AccountStore,
     private val google: GoogleAccounts?,
     /** Groups and requests of the account signed in now; another account must never see them. */
-    private val cache: ProxyCache? = null,
+    private val cache: ProxyCache,
     /** Where the account's push notices go; this install stops getting them on signing out. */
-    private val devices: DeviceRegistrar? = null,
+    private val devices: DeviceRegistrar,
 ) {
 
     /** False in a build that has no address for the proxy or no web client ID for Google. */
@@ -31,16 +32,17 @@ class AccountRepository(
         val account = accounts.pick(activity)
         val (session, callsLeft) = api.startSession(account.idToken)
         // Someone else may be signing in after a sign-in ran out.
-        cache?.clear()
+        cache.clear()
         store.saveSession(session, signedInAs = account.email)
         callsLeft?.let(store::onCallsLeft)
     }
 
     /** Also ends a sign-in that has run out: this phone's free reads are used again. */
     suspend fun signOut(context: Context) {
-        devices?.unregister()
+        // Signing out never waits long on the network: without an answer, notices simply stop later.
+        withTimeoutOrNull(UNREGISTER_TIMEOUT_MS) { devices.unregister() }
         store.clearSession()
-        cache?.clear()
+        cache.clear()
         forgetGoogle(context)
     }
 
@@ -54,7 +56,7 @@ class AccountRepository(
             throw e
         }
         store.clearSession()
-        cache?.clear()
+        cache.clear()
         forgetGoogle(context)
     }
 
@@ -83,5 +85,9 @@ class AccountRepository(
         } catch (e: Exception) {
             // The session is gone either way; the picker may just preselect the same account next time.
         }
+    }
+
+    private companion object {
+        const val UNREGISTER_TIMEOUT_MS = 5_000L
     }
 }

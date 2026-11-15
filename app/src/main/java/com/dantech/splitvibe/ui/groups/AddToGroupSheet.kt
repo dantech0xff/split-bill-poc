@@ -76,6 +76,30 @@ fun AddToGroupSheet(
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             state.message?.let { SvMessageCard(text = it, isError = true, action = "OK", onAction = viewModel::dismissMessage) }
+            when (state.conflict) {
+                GroupConflict.DELETED -> SvMessageCard(
+                    text = "This bill was deleted from the group. It can go in again as a new bill.",
+                    isError = true,
+                    action = "Add it again",
+                    onAction = { viewModel.addAgain(saved) },
+                )
+
+                GroupConflict.CHANGED -> SvMessageCard(
+                    text = "Someone changed this bill in the group since you last sent it. Sending yours replaces their change.",
+                    isError = true,
+                    action = "Send mine",
+                    onAction = { viewModel.replaceTheirs(saved) },
+                )
+
+                null -> Unit
+            }
+            if (state.askedPersonally) {
+                SvMessageCard(
+                    text = "You already asked people for this bill one by one. Paying those requests does not count in the group, " +
+                        "so withdraw them in Requests, or record the payments in the group once they arrive.",
+                    isError = false,
+                )
+            }
             if (state.working && group == null) SvLoadingIndicator()
 
             if (group == null) {
@@ -126,7 +150,7 @@ fun AddToGroupSheet(
 }
 
 @Composable
-private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, onRate: (java.math.BigDecimal) -> Unit) {
+private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, onRate: (String) -> Unit) {
     // Shows the rate in use until the user types one of their own.
     var typed by rememberSaveable { mutableStateOf<String?>(null) }
     val from = saved.bill.currency.code
@@ -134,7 +158,7 @@ private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, 
         value = typed ?: rate?.rate?.stripTrailingZeros()?.toPlainString().orEmpty(),
         onValueChange = { text ->
             typed = text.take(RATE_LENGTH)
-            text.trim().replace(',', '.').toBigDecimalOrNull()?.let(onRate)
+            onRate(text)
         },
         label = { Text("$groupCode for 1 $from") },
         singleLine = true,

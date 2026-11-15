@@ -46,6 +46,8 @@ object Notices {
         "confirmed" -> "Payment confirmed" to "A payment you reported was confirmed. Open Split Vibe to see it."
         "reminder" -> "Payment reminder" to "A payment request is still waiting for you. Open Split Vibe to see it."
         "claim" -> "Someone asked to join" to CLAIM_TEXT
+        "unpaid" -> "Payment still open" to "Someone has not paid you back yet. Open Split Vibe to send them a reminder."
+        "unconfirmed" -> "Payment to confirm" to "A payment was reported to you. Open Split Vibe to confirm it once it arrived."
         else -> null
     }
 
@@ -70,7 +72,7 @@ object Notices {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notice = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setAutoCancel(true)

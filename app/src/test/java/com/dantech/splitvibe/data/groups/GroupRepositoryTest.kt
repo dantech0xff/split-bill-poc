@@ -153,14 +153,29 @@ class GroupRepositoryTest {
     fun `paying back is recorded by the member who got the money`() = runBlocking {
         server.enqueue(json(GroupFixtures.groupState()))
 
-        groups.recordPaidBack(GROUP_ID, LAN, 126_250)
+        groups.recordPaidBack(GROUP_ID, LAN, 126_250, "6f1c2d3e-0000-4000-8000-00000000000a")
 
         val request = server.takeRequest()
         assertEquals("/v1/groups/$GROUP_ID/settlements", request.path)
         val body = Json.parseToJsonElement(request.body.readUtf8()) as JsonObject
         assertEquals(LAN, body["fromMemberId"]!!.jsonPrimitive.content)
         assertEquals("126250", body["amountMinor"]!!.jsonPrimitive.content)
-        assertTrue(body.containsKey("id"))
+        // The id the screen made for this payment back, so a retry records it only once.
+        assertEquals("6f1c2d3e-0000-4000-8000-00000000000a", body["id"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the phone keeps a group's bills by name and amounts, not their whole documents`() = runBlocking {
+        val big = "x".repeat(50_000)
+        val bulky = "," + GroupFixtures.bill("b6", MINH, "Big", 1_000, """{"$ME":1000}""", """{"$MINH":1000}""")
+            .replace(""""document":{"merchant":"Big"}""", """"document":{"merchant":"Big","notes":"$big"}""")
+        server.enqueue(json(GroupFixtures.groupState(extraBills = bulky)))
+
+        groups.refresh(GROUP_ID)
+
+        val kept = checkNotNull(groups.group(GROUP_ID).first())
+        assertEquals("Big", kept.bills.single { it.id == "b6" }.title)
+        assertTrue(ProxyCache.json.encodeToString(GroupState.serializer(), kept).length < 10_000)
     }
 
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)

@@ -17,40 +17,52 @@ class AppLinkTest {
 
     @Test
     fun `invite and request links on the proxy's address open their screens`() {
-        assertEquals(AppLink.JoinGroup(token), AppLink.of(view("$proxy/g/$token"), proxy))
-        assertEquals(AppLink.OpenRequest(token), AppLink.of(view("$proxy/r/$token"), proxy))
+        assertEquals(AppLink.JoinGroup(token), AppLink.of(view("$proxy/g/#$token"), proxy))
+        assertEquals(AppLink.OpenRequest(token), AppLink.of(view("$proxy/r/#$token"), proxy))
     }
 
     @Test
     fun `links anywhere else, or of another shape, open nothing`() {
         listOf(
-            "https://evil.example/g/$token",
-            "http://split-vibe-proxy.example.workers.dev/g/$token",
-            "https://someone@split-vibe-proxy.example.workers.dev/g/$token",
-            "$proxy/g/short",
-            "$proxy/g/$token/more",
-            "$proxy/x/$token",
-            "$proxy/g/${token.dropLast(2)}%2F..",
+            "https://evil.example/g/#$token",
+            "http://split-vibe-proxy.example.workers.dev/g/#$token",
+            "https://someone@split-vibe-proxy.example.workers.dev/g/#$token",
+            "$proxy/g/#short",
+            "$proxy/g/more/#$token",
+            "$proxy/x/#$token",
+            "$proxy/g/$token",
+            "$proxy/g/#${token.dropLast(2)}%2F",
         ).forEach { assertNull(it, AppLink.of(view(it), proxy)) }
-        assertNull(AppLink.of(Intent(Intent.ACTION_SEND).setData(Uri.parse("$proxy/g/$token")), proxy))
-        assertNull(AppLink.of(view("$proxy/g/$token"), ""))
+        assertNull(AppLink.of(Intent(Intent.ACTION_SEND).setData(Uri.parse("$proxy/g/#$token")), proxy))
+        assertNull(AppLink.of(view("$proxy/g/#$token"), ""))
     }
 
     @Test
     fun `a tapped notice opens the requests, or the group a claim is about`() {
         assertEquals(AppLink.Requests, AppLink.of(Intent().putExtra(Notices.EXTRA_KIND, "reported"), proxy))
         assertEquals(
-            AppLink.Group("group-1"),
-            AppLink.of(Intent().putExtra(Notices.EXTRA_KIND, "claim").putExtra(Notices.EXTRA_GROUP_ID, "group-1"), proxy),
+            AppLink.Group("8f9a2c1e-0000-4000-8000-000000000001"),
+            AppLink.of(
+                Intent().putExtra(Notices.EXTRA_KIND, "claim").putExtra(Notices.EXTRA_GROUP_ID, "8f9a2c1e-0000-4000-8000-000000000001"),
+                proxy,
+            ),
         )
     }
 
     @Test
     fun `a notice the system showed while the app was away opens the same, and plain extras open nothing`() {
-        val fromSystem = Intent().putExtra("google.message_id", "0:1").putExtra("type", "claim").putExtra("groupId", "group-1")
-        assertEquals(AppLink.Group("group-1"), AppLink.of(fromSystem, proxy))
+        val fromSystem = Intent().putExtra(
+            "google.message_id",
+            "0:1",
+        ).putExtra("type", "claim").putExtra("groupId", "8f9a2c1e-0000-4000-8000-000000000001")
+        assertEquals(AppLink.Group("8f9a2c1e-0000-4000-8000-000000000001"), AppLink.of(fromSystem, proxy))
         assertEquals(AppLink.Requests, AppLink.of(Intent().putExtra("google.message_id", "0:2").putExtra("type", "reminder"), proxy))
-        assertNull(AppLink.of(Intent().putExtra("type", "claim").putExtra("groupId", "group-1"), proxy))
+        assertNull(AppLink.of(Intent().putExtra("type", "claim").putExtra("groupId", "8f9a2c1e-0000-4000-8000-000000000001"), proxy))
+        // A group id that is not one opens the requests, never a call to another address.
+        assertEquals(
+            AppLink.Requests,
+            AppLink.of(Intent().putExtra(Notices.EXTRA_KIND, "claim").putExtra(Notices.EXTRA_GROUP_ID, "../account"), proxy),
+        )
     }
 
     private fun view(link: String) = Intent(Intent.ACTION_VIEW, Uri.parse(link))

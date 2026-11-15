@@ -40,6 +40,14 @@ object Push {
         Notices.createChannel(context)
     }
 
+    /**
+     * Lets Firebase keep this install's token from now on. It is off in the manifest, so an install
+     * nobody signs in on never asks Google for one.
+     */
+    fun enable() {
+        if (isConfigured) FirebaseMessaging.getInstance().isAutoInitEnabled = true
+    }
+
     /** This install's address for push notices, or null when push is off or Firebase gave none. */
     suspend fun token(): String? = if (!isConfigured) null else FirebaseMessaging.getInstance().token.awaitOrNull()
 

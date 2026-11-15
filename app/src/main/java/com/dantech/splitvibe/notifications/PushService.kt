@@ -2,29 +2,26 @@ package com.dantech.splitvibe.notifications
 
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.android.inject
 
 /** Receives the proxy's push notices, and a new token whenever Firebase hands this install one. */
 class PushService : FirebaseMessagingService() {
 
     private val registrar: DeviceRegistrar by inject()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // Firebase calls this on a thread of its own and stops the service once it returns, so the
+    // token is sent before returning, for a short while at most.
     override fun onNewToken(token: String) {
-        scope.launch { registrar.register(token) }
+        runBlocking { withTimeoutOrNull(REGISTER_TIMEOUT_MS) { registrar.register(token) } }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         Notices.show(this, message.data)
     }
 
-    override fun onDestroy() {
-        scope.cancel()
-        super.onDestroy()
+    private companion object {
+        const val REGISTER_TIMEOUT_MS = 10_000L
     }
 }

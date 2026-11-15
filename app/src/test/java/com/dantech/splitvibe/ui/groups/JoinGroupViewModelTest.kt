@@ -65,10 +65,14 @@ class JoinGroupViewModelTest {
         awaitOnMain { viewModel.state.value.joinedGroupId != null }
 
         assertEquals(GROUP_ID, viewModel.state.value.joinedGroupId)
-        assertEquals("/v1/invites/token-7", server.takeRequest().path)
+        val open = server.takeRequest()
+        assertEquals("/v1/invites/open", open.path)
+        assertEquals("token-7", Json.parseToJsonElement(open.body.readUtf8()).jsonObject["token"]!!.jsonPrimitive.content)
         val join = server.takeRequest()
-        assertEquals("/v1/invites/token-7/join", join.path)
-        assertEquals("Dana", Json.parseToJsonElement(join.body.readUtf8()).jsonObject["name"]!!.jsonPrimitive.content)
+        assertEquals("/v1/invites/join", join.path)
+        val joined = Json.parseToJsonElement(join.body.readUtf8()).jsonObject
+        assertEquals("Dana", joined["name"]!!.jsonPrimitive.content)
+        assertEquals("token-7", joined["token"]!!.jsonPrimitive.content)
         assertEquals("Dana", settings.value.myName)
     }
 
@@ -86,6 +90,19 @@ class JoinGroupViewModelTest {
         server.takeRequest()
         val claim = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals(AN, claim["claimMemberId"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `an invite opened before signing in loads once someone signs in`() {
+        proxy.account.clearSession()
+        val viewModel = viewModel()
+        assertEquals(0, server.requestCount)
+
+        server.enqueue(json(invitation))
+        proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
+
+        awaitOnMain { viewModel.state.value.invitation != null }
+        assertEquals("/v1/invites/open", server.takeRequest().path)
     }
 
     @Test

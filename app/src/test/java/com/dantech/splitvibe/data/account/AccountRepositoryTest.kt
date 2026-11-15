@@ -4,11 +4,14 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
-import com.dantech.splitvibe.PlainCipher
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -27,6 +30,8 @@ class AccountRepositoryTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val google = FakeGoogleAccounts()
+    private val storage = TestStorage(context)
+    private val cache = ProxyCache(storage.database.proxyCache())
     private lateinit var proxy: TestProxy
     private lateinit var repository: AccountRepository
 
@@ -34,11 +39,14 @@ class AccountRepositoryTest {
     fun setUp() {
         server.start()
         proxy = TestProxy(server, context)
-        repository = AccountRepository(proxy.api, proxy.account, google)
+        repository = proxy.accountRepository(google, cache)
     }
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        storage.close()
+    }
 
     @Test
     fun `signing in trades Google's ID token for the proxy's session and keeps the account's address`() = runBlocking {
@@ -171,12 +179,44 @@ class AccountRepositoryTest {
 
     @Test
     fun `cannot sign in without the proxy's address or Google's client ID`() {
-        val withoutProxy = AccountRepository(ProxyApi("", proxy.account, appVersion = 1), proxy.account, google)
-        val withoutClientId = AccountRepository(proxy.api, AccountStore(context, proxySetUp = true, cipher = PlainCipher), google = null)
+        val withoutProxy = proxy.accountRepository(google, cache, proxy = ProxyApi("", proxy.account, appVersion = 1))
+        val withoutClientId = proxy.accountRepository(google = null, cache = cache)
 
         assertTrue(repository.canSignIn)
         assertFalse(withoutProxy.canSignIn)
         assertFalse(withoutClientId.canSignIn)
+    }
+
+    @Test
+    fun `groups and requests kept for one account are gone after signing in, signing out and deleting the account`() = runBlocking {
+        suspend fun keepSomething() = cache.put("groups", ListSerializer(String.serializer()), listOf("kept"), cache.generation)
+        suspend fun kept() = cache.get("groups", ListSerializer(String.serializer()))
+
+        keepSomething()
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":${FAR_FUTURE},"usage":$MONTH}"""))
+        repository.signIn(context)
+        assertNull("signing in", kept())
+
+        keepSomething()
+        repository.signOut(context)
+        assertNull("signing out", kept())
+
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":${FAR_FUTURE},"usage":$MONTH}"""))
+        repository.signIn(context)
+        keepSomething()
+        server.enqueue(MockResponse().setResponseCode(204))
+        repository.deleteAccount(context)
+        assertNull("deleting the account", kept())
+    }
+
+    @Test
+    fun `an answer that arrives after signing out is not kept for whoever signs in next`() = runBlocking {
+        val asked = cache.generation
+
+        repository.signOut(context)
+        cache.put("groups", ListSerializer(String.serializer()), listOf("the earlier account's group"), asked)
+
+        assertNull(cache.get("groups", ListSerializer(String.serializer())))
     }
 
     private fun json(status: Int, body: String): MockResponse =

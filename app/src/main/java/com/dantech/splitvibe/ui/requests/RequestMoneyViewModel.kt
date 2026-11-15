@@ -8,11 +8,11 @@ import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.data.requests.NewRequest
 import com.dantech.splitvibe.data.requests.RequestRepository
+import com.dantech.splitvibe.data.requests.requestIdFor
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
 import com.dantech.splitvibe.ui.split.PersonRequest
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -98,21 +98,23 @@ class RequestMoneyViewModel(
     fun markShared(participantId: String) = shared.update { it + participantId }
 
     private suspend fun track(saved: SavedBill, person: PersonRequest, chosen: SavedPaymentMethod, name: String, title: String?): String? {
-        // The same bill, person, amount and method make the same request, so sharing it again does
-        // not ask the proxy for a second one.
-        val key = "${saved.id}/${person.participant.id}/${person.amountMinor}/${chosen.id}"
+        val payer = person.participant.name.trim()
         val request = NewRequest(
-            id = UUID.nameUUIDFromBytes(key.toByteArray()).toString(),
+            // Asking again for the same share with the same method is the same request; a changed
+            // amount or a corrected account is a new one, which takes the old one's place.
+            id = requestIdFor("bill/${saved.id}/${person.participant.id}", person.amountMinor, saved.bill.currency, chosen.method),
             amountMinor = person.amountMinor,
             currency = saved.bill.currency,
-            payerName = person.participant.name,
+            payerName = payer,
             creditorName = name,
             title = title,
             method = chosen.method,
             billId = saved.id,
         )
         return try {
-            requests.create(request).url
+            val created = requests.create(request)
+            requests.withdrawReplaced(created.request) { it.billId == saved.id && it.groupId == null && it.payerName == payer }
+            created.url
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

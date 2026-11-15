@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.data.groups
 
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.domain.Balances
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.DebtSimplifier
@@ -8,6 +9,8 @@ import com.dantech.splitvibe.domain.GroupAmounts
 import com.dantech.splitvibe.domain.Transfer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 // The shapes of the proxy's answers about groups, as `docs/proxy.md` describes them.
 
@@ -70,6 +73,14 @@ data class GroupBillDto(
     val paid: Map<String, Long>,
 ) {
     val amounts: GroupAmounts get() = GroupAmounts(totalMinor, shares, paid)
+
+    /** What the bill is, as its document names it, such as the merchant; null when it names nothing. */
+    val title: String? get() {
+        val written = runCatching {
+            ProxyCache.json.decodeFromJsonElement(GroupBillDocument.serializer(), document).saved.bill.merchant
+        }.getOrNull()
+        return (written ?: (document["merchant"] as? JsonPrimitive)?.contentOrNull)?.takeIf { it.isNotBlank() }
+    }
 }
 
 /** Money one member paid another back, as the member who got it recorded it. */
@@ -124,6 +135,13 @@ data class GroupState(
 
     /** The fewest transfers that settle the group. */
     val suggestedTransfers: List<Transfer> by lazy { balances?.let(DebtSimplifier::transfers).orEmpty() }
+
+    /** This state with each bill's document cut down to its title, which is all the phone keeps of it. */
+    fun withoutDocuments(): GroupState = copy(
+        bills = bills.map { bill ->
+            bill.copy(document = JsonObject(bill.title?.let { mapOf("merchant" to JsonPrimitive(it)) }.orEmpty()))
+        },
+    )
 }
 
 /** What an invite link shows before the person joins. */

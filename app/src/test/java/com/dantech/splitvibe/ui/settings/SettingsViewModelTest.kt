@@ -5,9 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
-import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -28,6 +29,7 @@ class SettingsViewModelTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
+    private val storage = TestStorage(context)
     private lateinit var proxy: TestProxy
 
     /** What the proxy answers on each path; the count it gives is the install's trial. */
@@ -48,7 +50,10 @@ class SettingsViewModelTest {
     }
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() {
+        server.shutdown()
+        storage.close()
+    }
 
     @Test
     fun `signing in while the count is still being asked for is not undone by the count`() {
@@ -108,7 +113,7 @@ class SettingsViewModelTest {
         assertFalse(viewModel.ui.value.working)
     }
 
-    private fun viewModel() = SettingsViewModel(AccountRepository(proxy.api, proxy.account, FakeGoogleAccounts()))
+    private fun viewModel() = SettingsViewModel(proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache())))
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)

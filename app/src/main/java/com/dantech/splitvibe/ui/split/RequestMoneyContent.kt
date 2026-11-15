@@ -60,6 +60,7 @@ import com.dantech.splitvibe.share.ShareCardState
 import com.dantech.splitvibe.share.rememberShareCardState
 import com.dantech.splitvibe.share.shareCard
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,10 +90,12 @@ fun RequestMoneyContent(
 
     fun share(person: PersonRequest) = scope.launch {
         val prepared = viewModel.prepare(result.saved, person, name)
+        // A name of its own for every share; without the picture, for example on a full disk, the text still goes.
         val image = prepared.paying?.qrPayload?.let { payload ->
-            withContext(Dispatchers.Default) { QrCodes.bitmap(payload) }.let { bitmap ->
-                withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "pay-${person.participant.id}") }
-            }
+            runCatching {
+                val bitmap = withContext(Dispatchers.Default) { QrCodes.bitmap(payload) }
+                withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "pay-${UUID.randomUUID()}") }
+            }.getOrNull()
         }
         if (context.open(ShareCardRenderer.shareIntent(prepared.text, image, title = "Payment request"))) {
             viewModel.markShared(person.participant.id)
@@ -280,8 +283,10 @@ private fun MethodSheet(methods: List<SavedPaymentMethod>, chosen: String?, onCh
 
 private suspend fun shareSummary(context: Context, card: ShareCardState, result: SplitResultState) {
     val bill = result.bill
-    val bitmap = card.toBitmap()
-    val image = withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "split-${result.saved.id}") }
+    val image = runCatching {
+        val bitmap = card.toBitmap()
+        withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "split-${UUID.randomUUID()}") }
+    }.getOrNull()
     val text = buildList {
         add("${bill.merchant?.takeIf { it.isNotBlank() } ?: "The bill"}: ${bill.format(bill.totalMinor)}")
         result.split.shares.forEach { add("${result.nameOf(it.personId)}: ${bill.format(it.totalMinor)}") }

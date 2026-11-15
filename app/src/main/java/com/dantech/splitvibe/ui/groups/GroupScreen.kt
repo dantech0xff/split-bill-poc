@@ -38,11 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import com.dantech.splitvibe.data.groups.GroupBillDocument
 import com.dantech.splitvibe.data.groups.GroupBillDto
 import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.groups.LogEntryDto
-import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvListRow
@@ -58,8 +57,7 @@ import com.dantech.splitvibe.domain.Transfer
 import com.dantech.splitvibe.ui.common.ProxyWork
 import java.text.DateFormat
 import java.util.Date
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
+import java.util.UUID
 
 /** What the group screen can ask for. */
 class GroupActions(
@@ -68,9 +66,10 @@ class GroupActions(
     val onRename: (String) -> Unit,
     val onAddPlaceholder: (String) -> Unit,
     val onApprove: (String) -> Unit,
+    val onRemoveMember: (String) -> Unit,
     val onReject: (String) -> Unit,
     val onDeleteBill: (String) -> Unit,
-    val onMarkReceived: (Transfer) -> Unit,
+    val onMarkReceived: (Transfer, settlementId: String) -> Unit,
     val onAskFor: (Transfer) -> Unit,
     val onLeave: () -> Unit,
     val onRefresh: () -> Unit,
@@ -84,7 +83,13 @@ class GroupActions(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
+fun GroupScreen(
+    state: GroupState?,
+    status: ProxyWork,
+    actions: GroupActions,
+    /** The user's open requests in the group, by the member they ask. */
+    openRequests: Map<String, RequestView> = emptyMap(),
+) {
     var dialog by rememberSaveable { mutableStateOf<GroupDialog?>(null) }
     Scaffold(
         topBar = {
@@ -127,10 +132,17 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
             }
             balances(
                 state,
-                onMarkReceived = { dialog = GroupDialog.Received(it.fromMemberId, it.amountMinor) },
+                working = status.working,
+                // The id of the payment back is made once, when the user chooses to record it.
+                onMarkReceived = { dialog = GroupDialog.Received(it.fromMemberId, it.amountMinor, UUID.randomUUID().toString()) },
                 onAskFor = actions.onAskFor,
             )
-            members(state, actions, onAddPlaceholder = { dialog = GroupDialog.Placeholder })
+            members(
+                state,
+                actions,
+                onAddPlaceholder = { dialog = GroupDialog.Placeholder },
+                onRemove = { dialog = GroupDialog.Remove(it) },
+            )
             bills(state, onDelete = actions.onDeleteBill)
             activity(state)
             item { Spacer(Modifier.height(SvSpacing.xxl)) }
@@ -161,6 +173,27 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
             onDismiss = { dialog = null },
         )
 
+        is GroupDialog.Remove -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text("Take ${state?.nameOf(shown.memberId)} out of the group?") },
+            text = {
+                Text(
+                    "They will no longer see the group. What they paid and owe stays under their name, so nobody's " +
+                        "balance changes, and their place can be given back through an invite.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        dialog = null
+                        actions.onRemoveMember(shown.memberId)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Take out") }
+            },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+        )
+
         GroupDialog.Leave -> AlertDialog(
             onDismissRequest = { dialog = null },
             title = { Text("Leave the group?") },
@@ -179,15 +212,28 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
 
         is GroupDialog.Received -> {
             val transfer = Transfer(shown.fromMemberId, state?.myMemberId.orEmpty(), shown.amountMinor)
+            // Money asked for with a request is recorded by confirming that request, for its amount.
+            val asked = openRequests[shown.fromMemberId]
+            val amount = asked?.amountMinor ?: shown.amountMinor
             AlertDialog(
                 onDismissRequest = { dialog = null },
-                title = { Text("Did you get ${state?.currency?.format(shown.amountMinor)}?") },
-                text = { Text("This records that ${state?.nameOf(shown.fromMemberId)} paid you back. It cannot be undone.") },
+                title = { Text("Did you get ${state?.currency?.format(amount)}?") },
+                text = {
+                    Text(
+                        if (asked != null) {
+                            "This confirms the request you sent ${state?.nameOf(
+                                shown.fromMemberId,
+                            )}, which records the payment. It cannot be undone."
+                        } else {
+                            "This records that ${state?.nameOf(shown.fromMemberId)} paid you back. It cannot be undone."
+                        },
+                    )
+                },
                 confirmButton = {
                     TextButton(
                         onClick = {
                             dialog = null
-                            actions.onMarkReceived(transfer)
+                            actions.onMarkReceived(transfer, shown.settlementId)
                         },
                     ) { Text("I got it") }
                 },
@@ -199,7 +245,7 @@ fun GroupScreen(state: GroupState?, status: ProxyWork, actions: GroupActions) {
     }
 }
 
-private fun LazyListScope.balances(state: GroupState, onMarkReceived: (Transfer) -> Unit, onAskFor: (Transfer) -> Unit) {
+private fun LazyListScope.balances(state: GroupState, working: Boolean, onMarkReceived: (Transfer) -> Unit, onAskFor: (Transfer) -> Unit) {
     item {
         SvSectionHeader("Balances", hint = "In ${state.currency.code}, across every bill and payment back.")
         val balances = state.balances
@@ -253,15 +299,16 @@ private fun LazyListScope.balances(state: GroupState, onMarkReceived: (Transfer)
             }
             if (transfer.toMemberId == state.myMemberId) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                    OutlinedButton(onClick = { onAskFor(transfer) }) { Text("Ask") }
-                    FilledTonalButton(onClick = { onMarkReceived(transfer) }) { Text("Got it") }
+                    // Off while a call runs, so a second tap cannot ask or record twice.
+                    OutlinedButton(onClick = { onAskFor(transfer) }, enabled = !working) { Text("Ask") }
+                    FilledTonalButton(onClick = { onMarkReceived(transfer) }, enabled = !working) { Text("Got it") }
                 }
             }
         }
     }
 }
 
-private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAddPlaceholder: () -> Unit) {
+private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAddPlaceholder: () -> Unit, onRemove: (String) -> Unit) {
     item { SvSectionHeader("People", hint = "${state.members.size} in the group") }
     itemsIndexed(state.members, key = { _, member -> member.id }) { index, member ->
         val detail = listOfNotNull(
@@ -274,6 +321,13 @@ private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAd
             Column(modifier = Modifier.weight(1f)) {
                 Text(state.nameOf(member.id), style = MaterialTheme.typography.bodyLarge)
                 detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            // The owner can take anyone else with the app out of the group.
+            if (state.isOwner && member.hasAccount && member.id != state.myMemberId) {
+                SvOverflowMenu(
+                    label = "More for ${member.name}",
+                    options = listOf(SvMenuOption("Take out of the group") { onRemove(member.id) }),
+                )
             }
         }
     }
@@ -364,6 +418,7 @@ internal fun describe(entry: LogEntryDto, state: GroupState): String {
         "member_added" -> "$who kept a place for ${subject ?: "someone"}"
         "member_joined" -> "$who joined"
         "member_left" -> "$who left"
+        "member_removed" -> "$who took ${subject ?: "someone"} out of the group"
         "member_renamed" -> "$who changed a name to ${subject ?: "another one"}"
         "claim_requested" -> "Someone asked to be ${subject ?: "a member"}"
         "claim_approved" -> "$who let ${subject ?: "someone"} in"
@@ -377,14 +432,7 @@ internal fun describe(entry: LogEntryDto, state: GroupState): String {
 }
 
 /** The bill's merchant as its document gives it, else a plain name. */
-internal fun titleOf(bill: GroupBillDto): String {
-    val fromDocument = runCatching {
-        ProxyCache.json.decodeFromJsonElement(GroupBillDocument.serializer(), bill.document).saved.bill.merchant
-    }
-        .getOrNull()
-    val plain = (bill.document["merchant"] as? JsonPrimitive)?.contentOrNull
-    return (fromDocument ?: plain)?.takeIf { it.isNotBlank() } ?: "A bill"
-}
+internal fun titleOf(bill: GroupBillDto): String = bill.title ?: "A bill"
 
 @Composable
 private fun NameDialog(
@@ -430,7 +478,9 @@ private sealed interface GroupDialog : java.io.Serializable {
         private fun readResolve(): Any = Leave
     }
 
-    data class Received(val fromMemberId: String, val amountMinor: Long) : GroupDialog
+    data class Received(val fromMemberId: String, val amountMinor: Long, val settlementId: String) : GroupDialog
+
+    data class Remove(val memberId: String) : GroupDialog
 }
 
 private const val LOG_SHOWN = 20

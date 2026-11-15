@@ -36,6 +36,7 @@ fun RequestLinkScreen(
     onAccept: () -> Unit,
     onReportPaid: () -> Unit,
     onOpenSettings: () -> Unit,
+    onRetry: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -65,7 +66,7 @@ fun RequestLinkScreen(
                 )
                 return@Column
             }
-            state.message?.let { SvMessageCard(text = it, isError = true) }
+            state.message?.let { SvMessageCard(text = it, isError = true, action = "Try again", onAction = onRetry) }
             val request = state.request
             if (request == null) {
                 if (state.working) SvLoadingIndicator()
@@ -74,7 +75,7 @@ fun RequestLinkScreen(
             SvCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
                     Text(
-                        listOfNotNull(request.creditorName ?: "Someone", request.title).joinToString(" · "),
+                        listOfNotNull(state.creditorName ?: request.creditorName ?: "Someone", request.title).joinToString(" · "),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountLarge)

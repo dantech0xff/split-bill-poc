@@ -639,10 +639,19 @@ private fun FinishBar(result: SplitResultState, onSendRequests: () -> Unit, onFi
     val iPaidItAll = payments.singleOrNull()?.participantId == ME_ID
     val others = result.split.shares.filter { it.personId != ME_ID && it.totalMinor > 0 }
     // A bill shared in a group is kept there; one already in a group is sent to it again after a change.
-    val toGroup = SvMenuOption(result.saved.group?.let { "Update in ${it.groupName}" } ?: "Add to a group", onAddToGroup)
+    val inGroup = result.saved.group
+    val toGroup = SvMenuOption(inGroup?.let { "Update in ${it.groupName}" } ?: "Add to a group", onAddToGroup)
     SvBottomBar {
         when {
             result.problems.isNotEmpty() -> SvPrimaryButton("Finish the split", onClick = {}, enabled = false)
+
+            // In a group, people settle up across all its bills, so this bill is not asked for person by person.
+            inGroup != null -> SvSplitButton(
+                text = "Update in ${inGroup.groupName}",
+                onClick = onAddToGroup,
+                moreLabel = "More ways to finish",
+                options = listOf(SvMenuOption("Finish the split", onFinish)),
+            )
 
             iPaidItAll && others.isNotEmpty() -> {
                 val people = if (others.size == 1) "1 person" else "${others.size} people"

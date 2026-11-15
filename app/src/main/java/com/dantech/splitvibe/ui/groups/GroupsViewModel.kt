@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -44,8 +47,13 @@ class GroupsViewModel(
     /** The currency a new group counts in unless the user picks another. */
     val localCurrency: String get() = settings.value.localCurrency
 
+    /** The group just made, which the screen opens once. */
+    private val made = MutableStateFlow<String?>(null)
+    val created: StateFlow<String?> = made.asStateFlow()
+
     init {
-        refresh()
+        // Also once someone signs in with the screen already open.
+        signedIn.filter { it }.onEach { refresh() }.launchIn(viewModelScope)
     }
 
     fun refresh() {
@@ -53,13 +61,16 @@ class GroupsViewModel(
         run { repository.refreshGroups() }
     }
 
-    fun create(name: String, currencyCode: String, myName: String, onCreated: (String) -> Unit) {
+    fun create(name: String, currencyCode: String, myName: String) {
         val currency = BillCurrency.resolve(currencyCode, null, emptyList())
         run {
             saveName(myName)
-            val state = repository.create(name, currency, myName)
-            onCreated(state.group.id)
+            made.value = repository.create(name, currency, myName).group.id
         }
+    }
+
+    fun openedCreated() {
+        made.value = null
     }
 
     fun dismissMessage() = work.update { it.copy(message = null) }

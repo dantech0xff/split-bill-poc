@@ -31,10 +31,13 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     fun group(id: String): Flow<GroupState?> = cache.watch(groupKey(id), GroupState.serializer())
 
+    /** The group [id] as it was last fetched, or null when it never was. */
+    suspend fun cached(id: String): GroupState? = cache.get(groupKey(id), GroupState.serializer())
+
     suspend fun refreshGroups() {
-        val body = call("GET", "v1/groups") ?: return
-        val groups = ProxyCache.json.decodeFromJsonElement(GroupList.serializer(), body).groups
-        cache.put(GROUPS, GROUP_LIST, groups)
+        val answer = call("GET", "v1/groups")
+        val groups = ProxyCache.json.decodeFromJsonElement(GroupList.serializer(), checkNotNull(answer.body)).groups
+        cache.put(GROUPS, GROUP_LIST, groups, answer.since)
     }
 
     /** Fetches [id] again. A group the caller can no longer read is forgotten. */
@@ -86,34 +89,45 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
     }
 
     suspend fun invite(id: String): Invite =
-        ProxyCache.json.decodeFromJsonElement(Invite.serializer(), checkNotNull(call("POST", "v1/groups/$id/invites")))
+        ProxyCache.json.decodeFromJsonElement(Invite.serializer(), checkNotNull(call("POST", "v1/groups/$id/invites").body))
 
     /** Takes back every invite link of [id], so nobody else can use one to join. */
     suspend fun revokeInvites(id: String) {
         call("DELETE", "v1/groups/$id/invites")
     }
 
-    suspend fun invitation(token: String): Invitation =
-        ProxyCache.json.decodeFromJsonElement(Invitation.serializer(), checkNotNull(call("GET", "v1/invites/$token")))
+    /** What the invite [token] shows. Tokens travel in the body, never in an address, so none is ever logged. */
+    suspend fun invitation(token: String): Invitation = ProxyCache.json.decodeFromJsonElement(
+        Invitation.serializer(),
+        checkNotNull(call("POST", "v1/invites/open", buildJsonObject { put("token", token) }).body),
+    )
 
     /** Joins the group of [token] as a new member called [name]. */
     suspend fun join(token: String, name: String): GroupState {
         val body = buildJsonObject {
+            put("token", token)
             put("memberId", UUID.randomUUID().toString())
             put("name", name.trim())
         }
-        return state(call("POST", "v1/invites/$token/join", body)).also { refreshGroups() }
+        return state(call("POST", "v1/invites/join", body)).also { refreshGroups() }
     }
 
     /** Asks to be [memberId], a place kept under a name. The group's owner decides; until then the group only shows as waiting. */
     suspend fun claim(token: String, memberId: String, name: String) {
         val body = buildJsonObject {
+            put("token", token)
             put("claimMemberId", memberId)
             put("name", name.trim())
         }
-        call("POST", "v1/invites/$token/join", body)
+        call("POST", "v1/invites/join", body)
         refreshGroups()
     }
+
+    /**
+     * Takes [memberId]'s account out of the group: the owner's way to remove someone. They stay as a
+     * place kept under their name, with everything they paid and owe, so nobody's balance changes.
+     */
+    suspend fun removeMember(id: String, memberId: String) = state(call("POST", "v1/groups/$id/members/$memberId/remove"))
 
     suspend fun approveClaim(id: String, memberId: String) = state(call("POST", "v1/groups/$id/claims/$memberId/approve"))
 
@@ -148,30 +162,46 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     suspend fun deleteBill(groupId: String, billId: String) = state(call("DELETE", "v1/groups/$groupId/bills/$billId"))
 
-    /** Records that [fromMemberId] paid the user [amountMinor] back. Only the member who got the money records it, and it cannot be undone. */
-    suspend fun recordPaidBack(groupId: String, fromMemberId: String, amountMinor: Long): GroupState {
+    /**
+     * Records that [fromMemberId] paid the user [amountMinor] back. Only the member who got the money
+     * records it, and it cannot be undone, so one intent keeps one [settlementId]: sent again, after
+     * a lost answer or a second tap, it records nothing more.
+     */
+    suspend fun recordPaidBack(groupId: String, fromMemberId: String, amountMinor: Long, settlementId: String): GroupState {
         val body = buildJsonObject {
-            put("id", UUID.randomUUID().toString())
+            put("id", settlementId)
             put("fromMemberId", fromMemberId)
             put("amountMinor", amountMinor)
         }
         return state(call("POST", "v1/groups/$groupId/settlements", body))
     }
 
-    /** Keeps the group state a change answered with, so the screen shows it at once. */
-    private suspend fun state(body: JsonObject?): GroupState {
-        val state = ProxyCache.json.decodeFromJsonElement(GroupState.serializer(), checkNotNull(body) { "The proxy sent no group" })
-        cache.put(groupKey(state.group.id), GroupState.serializer(), state)
+    /**
+     * Keeps the group state a change answered with, so the screen shows it at once. The phone keeps
+     * each bill's name and amounts but not its whole document, so a group of any size stays small.
+     */
+    private suspend fun state(answer: Answer): GroupState {
+        val state = ProxyCache.json.decodeFromJsonElement(GroupState.serializer(), checkNotNull(answer.body) { "The proxy sent no group" })
+        cache.put(groupKey(state.group.id), GroupState.serializer(), state.withoutDocuments(), answer.since)
         return state
     }
 
-    /** A sign-in the proxy no longer accepts shows in Settings as one to renew. */
-    private suspend fun call(method: String, path: String, body: JsonElement? = null): JsonObject? = try {
-        api.signedIn(method, path, body)
-    } catch (e: ProxyException) {
-        if (e.code == ProxyApi.SESSION_REFUSED) account.expireSession()
-        throw e
+    /**
+     * Calls the proxy, noting the cache's generation first, so an answer that arrives after a sign-out
+     * or a sign-in is not kept for whoever is signed in now. A sign-in the proxy no longer accepts
+     * shows in Settings as one to renew.
+     */
+    private suspend fun call(method: String, path: String, body: JsonElement? = null): Answer {
+        val since = cache.generation
+        return try {
+            Answer(api.signedIn(method, path, body), since)
+        } catch (e: ProxyException) {
+            if (e.code == ProxyApi.SESSION_REFUSED) account.expireSession()
+            throw e
+        }
     }
+
+    private class Answer(val body: JsonObject?, val since: Long)
 
     @Serializable
     private data class GroupList(val groups: List<GroupSummary>)

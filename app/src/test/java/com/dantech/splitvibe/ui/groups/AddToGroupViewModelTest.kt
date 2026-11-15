@@ -17,6 +17,7 @@ import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ME_ID
@@ -36,6 +37,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,6 +49,10 @@ class AddToGroupViewModelTest {
     private val server = MockWebServer()
     private val storage = TestStorage(context)
     private val received = mutableListOf<RecordedRequest>()
+
+    /** The group refuses the next bill, as when its copy was deleted. */
+    @Volatile
+    private var conflictOnPut = false
     private lateinit var viewModel: AddToGroupViewModel
 
     private val usd = BillCurrency("USD", 2)
@@ -71,6 +77,7 @@ class AddToGroupViewModelTest {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 received += request
+                if (request.method == "PUT" && conflictOnPut) return MockResponse().setResponseCode(409).setBody("""{"error":"conflict"}""")
                 val body = when {
                     request.path == "/v1/groups" -> GroupFixtures.groupList()
 
@@ -91,8 +98,10 @@ class AddToGroupViewModelTest {
         server.start()
         val proxy = TestProxy(server, context)
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
-        val groups = GroupRepository(proxy.api, ProxyCache(storage.database.proxyCache()), proxy.account)
-        viewModel = AddToGroupViewModel(groups, FxRepository(proxy.api, File(context.cacheDir, "fx-add-to-group.json")))
+        val cache = ProxyCache(storage.database.proxyCache())
+        val groups = GroupRepository(proxy.api, cache, proxy.account)
+        val requests = RequestRepository(proxy.api, cache, proxy.account)
+        viewModel = AddToGroupViewModel(groups, requests, FxRepository(proxy.api, File(context.cacheDir, "fx-add-to-group.json")))
     }
 
     @After
@@ -145,6 +154,39 @@ class AddToGroupViewModelTest {
 
         val body = Json.parseToJsonElement(received.single { it.method == "PUT" }.body.readUtf8()).jsonObject
         assertEquals("4", body["expectedRevision"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a bill deleted from the group can go in again as a new bill`() {
+        conflictOnPut = true
+        viewModel.choose(dinner, GROUP_ID)
+        awaitOnMain { viewModel.state.value.group != null && !viewModel.state.value.working }
+
+        viewModel.submit(dinner)
+        awaitOnMain { viewModel.state.value.conflict != null }
+        assertEquals(GroupConflict.DELETED, viewModel.state.value.conflict)
+
+        conflictOnPut = false
+        viewModel.addAgain(dinner)
+        awaitOnMain { viewModel.state.value.done != null }
+
+        val again = received.last { it.method == "PUT" }
+        assertTrue(again.path!!.startsWith("/v1/groups/$GROUP_ID/bills/"))
+        assertFalse(again.path!!.endsWith("/bill-9"))
+        assertEquals(again.path!!.substringAfterLast('/'), viewModel.state.value.done?.billId)
+    }
+
+    @Test
+    fun `turning the phone keeps the members the user matched`() {
+        viewModel.start(dinner)
+        viewModel.choose(dinner, GROUP_ID)
+        awaitOnMain { viewModel.state.value.group != null && !viewModel.state.value.working }
+        viewModel.match("p1", LAN)
+
+        // The sheet starts again after the phone turns; the choices stay.
+        viewModel.start(dinner)
+
+        assertEquals(LAN, viewModel.state.value.memberOf["p1"])
     }
 
     @Test

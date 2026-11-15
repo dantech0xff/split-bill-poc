@@ -2,15 +2,18 @@ package com.dantech.splitvibe
 
 import android.content.Context
 import android.os.Looper
+import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.GoogleAccount
 import com.dantech.splitvibe.data.account.GoogleAccounts
 import com.dantech.splitvibe.data.account.GoogleSignInException
 import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.settings.TextCipher
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.GatewayBillAnalyzer
+import com.dantech.splitvibe.notifications.DeviceRegistrar
 import com.dantech.splitvibe.ocr.OcrResult
 import okhttp3.mockwebserver.MockWebServer
 import org.robolectric.Shadows.shadowOf
@@ -23,6 +26,10 @@ class TestProxy(server: MockWebServer, context: Context, clock: () -> Long = Sys
     val account = AccountStore(context, proxySetUp = true, cipher = PlainCipher, clock = clock)
     val api = ProxyApi(server.url("/").toString(), account, appVersion = APP_VERSION)
     val analyzer = GatewayBillAnalyzer(api, account, canSignIn = true)
+
+    /** The account's actions as the app wires them, with [cache] for groups and requests and no push. */
+    fun accountRepository(google: GoogleAccounts?, cache: ProxyCache, proxy: ProxyApi = api) =
+        AccountRepository(proxy, account, google, cache, DeviceRegistrar(proxy, account) { null })
 
     companion object {
         const val APP_VERSION = 7

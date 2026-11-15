@@ -245,15 +245,20 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         val groups by groupsViewModel.groups.collectAsStateWithLifecycle()
                         val signedIn by groupsViewModel.signedIn.collectAsStateWithLifecycle()
                         val status by groupsViewModel.status.collectAsStateWithLifecycle()
+                        val created by groupsViewModel.created.collectAsStateWithLifecycle()
+                        LaunchedEffect(created) {
+                            created?.let { id ->
+                                groupsViewModel.openedCreated()
+                                backStack.open(GroupKey(id))
+                            }
+                        }
                         GroupsScreen(
                             groups = groups,
                             signedIn = signedIn,
                             status = status,
                             myName = groupsViewModel.myName,
                             localCurrency = groupsViewModel.localCurrency,
-                            onCreate = { name, currency, myName ->
-                                groupsViewModel.create(name, currency, myName) { id -> backStack.open(GroupKey(id)) }
-                            },
+                            onCreate = groupsViewModel::create,
                             onOpen = { id -> backStack.open(GroupKey(id)) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onDismissMessage = groupsViewModel::dismissMessage,
@@ -268,11 +273,13 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         val status by groupViewModel.status.collectAsStateWithLifecycle()
                         val share by groupViewModel.share.collectAsStateWithLifecycle()
                         val left by groupViewModel.left.collectAsStateWithLifecycle()
+                        val openRequests by groupViewModel.openRequests.collectAsStateWithLifecycle()
                         LaunchedEffect(left) { if (left) backStack.remove(key) }
                         ShareEffect(share = share, onShared = groupViewModel::shared)
                         GroupScreen(
                             state = group,
                             status = status,
+                            openRequests = openRequests,
                             actions = remember(groupViewModel) {
                                 GroupActions(
                                     onInvite = groupViewModel::invite,
@@ -280,6 +287,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                     onRename = groupViewModel::rename,
                                     onAddPlaceholder = groupViewModel::addPlaceholder,
                                     onApprove = groupViewModel::approve,
+                                    onRemoveMember = groupViewModel::removeMember,
                                     onReject = groupViewModel::reject,
                                     onDeleteBill = groupViewModel::deleteBill,
                                     onMarkReceived = groupViewModel::markReceived,
@@ -297,6 +305,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                     Screen {
                         val joinViewModel: JoinGroupViewModel = koinViewModel(key = "join-${key.token}") { parametersOf(key.token) }
                         val state by joinViewModel.state.collectAsStateWithLifecycle()
+                        val joinSignedIn by joinViewModel.signedIn.collectAsStateWithLifecycle()
                         // Once in, the invite gives way to the group itself.
                         LaunchedEffect(state.joinedGroupId) {
                             state.joinedGroupId?.let { id ->
@@ -306,11 +315,12 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         }
                         JoinGroupScreen(
                             state = state,
-                            signedIn = joinViewModel.signedIn,
+                            signedIn = joinSignedIn,
                             myName = joinViewModel.myName,
                             onJoin = joinViewModel::join,
                             onClaim = joinViewModel::claim,
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            onRetry = joinViewModel::load,
                             onBack = { backStack.remove(key) },
                         )
                     }
@@ -322,11 +332,13 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         val signedIn by requestsViewModel.signedIn.collectAsStateWithLifecycle()
                         val status by requestsViewModel.status.collectAsStateWithLifecycle()
                         val share by requestsViewModel.share.collectAsStateWithLifecycle()
+                        val creditorNames by requestsViewModel.creditorNames.collectAsStateWithLifecycle()
                         ShareEffect(share = share, onShared = requestsViewModel::shared)
                         RequestsScreen(
                             requests = requests,
                             signedIn = signedIn,
                             status = status,
+                            creditorNames = creditorNames,
                             actions = remember(requestsViewModel) {
                                 RequestActions(
                                     onReportPaid = requestsViewModel::reportPaid,
@@ -347,12 +359,14 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                     Screen {
                         val linkViewModel: RequestLinkViewModel = koinViewModel(key = "request-${key.token}") { parametersOf(key.token) }
                         val state by linkViewModel.state.collectAsStateWithLifecycle()
+                        val linkSignedIn by linkViewModel.signedIn.collectAsStateWithLifecycle()
                         RequestLinkScreen(
                             state = state,
-                            signedIn = linkViewModel.signedIn,
+                            signedIn = linkSignedIn,
                             onAccept = linkViewModel::accept,
                             onReportPaid = linkViewModel::reportPaid,
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            onRetry = linkViewModel::load,
                             onBack = { backStack.remove(key) },
                         )
                     }

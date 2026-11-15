@@ -16,7 +16,7 @@ object ProxyErrors {
             error.code == "pending" -> "The group's owner has not let you in yet."
             error.status == 403 -> "You cannot do that in this group."
             error.status == 404 -> "That is not there any more."
-            error.status == 409 -> "Someone changed this at the same moment, so nothing was changed. Have a look and try again."
+            error.status == 409 -> "This was changed elsewhere, or is no longer open, so nothing was changed. Reload it to see it."
             error.status == 410 -> "This link has run out or was taken back. Ask for a new one."
             error.status == 413 -> "This is too large to share."
             error.status == 429 -> "That was a lot at once. Please try again in a while."

@@ -35,11 +35,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +67,8 @@ import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
 import com.dantech.splitvibe.share.QrCodes
 import com.dantech.splitvibe.ui.common.ProxyWork
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** What the requests screen can ask for. */
 class RequestActions(
@@ -82,7 +86,14 @@ class RequestActions(
 /** The requests sent to the user, to pay, and those the user sent, to confirm. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RequestsScreen(requests: List<RequestView>?, signedIn: Boolean, status: ProxyWork, actions: RequestActions) {
+fun RequestsScreen(
+    requests: List<RequestView>?,
+    signedIn: Boolean,
+    status: ProxyWork,
+    actions: RequestActions,
+    /** Who asked, by request id, as their group knows them; see [RequestsViewModel.creditorNames]. */
+    creditorNames: Map<String, String> = emptyMap(),
+) {
     var paying by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
@@ -129,14 +140,14 @@ fun RequestsScreen(requests: List<RequestView>?, signedIn: Boolean, status: Prox
                 }
             }
             section("To pay", all.filter { !it.isMine }) { request, position ->
-                RequestRow(request, position) {
+                RequestRow(request, position, creditorNames[request.id]) {
                     if (request.status == RequestStatus.WAITING) {
                         FilledTonalButton(onClick = { paying = request.id }) { Text("Pay") }
                     }
                 }
             }
             section("You asked for", all.filter { it.isMine }) { request, position ->
-                RequestRow(request, position) {
+                RequestRow(request, position, null) {
                     if (request.status != RequestStatus.PAID) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
                             if (request.status == RequestStatus.REPORTED_PAID) {
@@ -189,8 +200,8 @@ private fun LazyListScope.section(title: String, requests: List<RequestView>, ro
 }
 
 @Composable
-private fun RequestRow(request: RequestView, position: SvRowPosition, trailing: @Composable () -> Unit) {
-    val who = if (request.isMine) request.payerName else request.creditorName ?: "Someone"
+private fun RequestRow(request: RequestView, position: SvRowPosition, groupName: String?, trailing: @Composable () -> Unit) {
+    val who = if (request.isMine) request.payerName else groupName ?: request.creditorName ?: "Someone"
     SvListRow(position = position) {
         Column(modifier = Modifier.weight(1f)) {
             Text(listOfNotNull(who, request.title).joinToString(" · "), style = MaterialTheme.typography.bodyLarge)
@@ -269,13 +280,21 @@ fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
             return@Column
         }
         paying.qrPayload?.let { payload ->
-            val code = remember(payload) { QrCodes.bitmap(payload, CODE_PX).asImageBitmap() }
+            // Drawn away from the main thread, then shown.
+            val code by produceState<ImageBitmap?>(null, payload) {
+                value = withContext(Dispatchers.Default) { runCatching { QrCodes.bitmap(payload, CODE_PX).asImageBitmap() }.getOrNull() }
+            }
             SvCard(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Image(
-                    code,
-                    contentDescription = "Payment code for ${method.title}",
-                    modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm),
-                )
+                val drawn = code
+                if (drawn == null) {
+                    Spacer(Modifier.size(CODE_SIZE))
+                } else {
+                    Image(
+                        drawn,
+                        contentDescription = "Payment code for ${method.title}",
+                        modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm),
+                    )
+                }
             }
             Text(
                 "Scan it in your banking app.",
