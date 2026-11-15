@@ -559,7 +559,7 @@ expired is 410 `gone` until the daily run deletes the link, and 404 after that.
 | Route | Answer |
 |---|---|
 | `POST /v1/shares/open` `{"token","key"?}` | `{"share": PublicShare, "you": claimId or null}` |
-| `POST /v1/shares/claim` `{"token","key"?,"name","itemIds","turnstile"?}` | `{"share": PublicShare, "you": claimId, "key"?}` |
+| `POST /v1/shares/claim` `{"token","key"?,"attempt"?,"name","itemIds","turnstile"?}` | `{"share": PublicShare, "you": claimId, "key"?}` |
 | `GET /v1/shares/live`, with `Sec-WebSocket-Protocol: splitvibe.v1, <token>` | a WebSocket |
 
 PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt` and the claims'
@@ -583,13 +583,20 @@ PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt`
     keeps and sends from then on; only its SHA-256 is kept.
   - With a known `key`, the claim's name and items are replaced, without Turnstile; the same name
     and items again change nothing.
+  - A new claim may carry `attempt`, a random UUID the page makes for its first claim and sends
+    with every try of it until it holds a key; only its SHA-256 is kept with the claim. A claim with
+    the `attempt` of one of the link's claims, and no key the link knows, is that claim sent again,
+    as when the answer to the first try was lost: its name and items are replaced, and the answer
+    carries a new `key`, the one before no longer working, as only the hash of a key is kept. It
+    needs no Turnstile token, takes no other place among the 30, and is no new claim of the IP. An
+    `attempt` that is not a UUID is 400.
 - `name` is trimmed and 1 to 40 characters, without control characters; `itemIds` holds unique ids
   of the bill's items, and may be empty (else 400). A link holds at most 30 claims (409 `full`),
   and takes them only while `open` (409 `locked` otherwise). A claim is written only while all of
   that still holds, in the same batch as the check.
-- A new claim is judged in this order: 409 `locked`, 400 for an item, 409 `full`, 503
-  `not_configured`, 403 for a missing token, 429, then Cloudflare's verdict. So Cloudflare is
-  asked only about claims that can land.
+- A claim is judged in this order: 409 `locked`, 400 for an item; then, unless its key or its
+  `attempt` is one of the link's, 409 `full`, 503 `not_configured`, 403 for a missing token, 429,
+  and Cloudflare's verdict. So Cloudflare is asked only about new claims that can land.
 - Limits per hashed IP: 30 new claims an hour, as many as a link holds, so a whole table can claim
   from one Wi-Fi; they are counted before Cloudflare is asked. Also 300 claim writes an hour, new or
   not, about ten for each claim a link holds; 600 reads an hour over `open`, `live`,

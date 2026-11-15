@@ -60,9 +60,9 @@ export async function fromPageAt<T = Record<string, unknown>>(origin: string, pa
   return { status: sent.status, headers: sent.headers, body: (sent.body === "" ? null : JSON.parse(sent.body)) as T };
 }
 
-/** A new claim on the link [token], with a token of [turnstile]'s widget. */
-export function newClaim(turnstile: FakeTurnstile, token: string, name: string, itemIds: string[], ip?: string) {
-  return fromPage<Claimed>("/v1/shares/claim", { token, name, itemIds, turnstile: turnstile.token() }, ip);
+/** A new claim on the link [token], with a token of [turnstile]'s widget, and the [attempt] of the browser when one is given. */
+export function newClaim(turnstile: FakeTurnstile, token: string, name: string, itemIds: string[], ip?: string, attempt?: string) {
+  return fromPage<Claimed>("/v1/shares/claim", { token, name, itemIds, turnstile: turnstile.token(), ...(attempt === undefined ? {} : { attempt }) }, ip);
 }
 
 /** What the IP [ip] has counted of [kind] this hour, straight from the database; undefined before its first. */

@@ -66,7 +66,7 @@ export type ShareRow = {
   expires_at: number;
   revoked_at: number | null;
 };
-export type ClaimRow = { id: string; key_hash: string; name: string; item_ids: string; updated_at: number };
+export type ClaimRow = { id: string; key_hash: string; attempt_hash: string | null; name: string; item_ids: string; updated_at: number };
 
 /** A link with its claims, in the order they were made. */
 export type Share = { row: ShareRow; claims: ClaimRow[] };
@@ -84,7 +84,10 @@ export function shareStatements(db: D1Database, by: "id" | "token_hash", value: 
   return [
     db.prepare(`SELECT ${SHARE_COLUMNS} FROM shares WHERE ${by} = ?1`).bind(value),
     db
-      .prepare(`SELECT id, key_hash, name, item_ids, updated_at FROM share_claims WHERE share_id = (SELECT id FROM shares WHERE ${by} = ?1) ORDER BY created_at, id`)
+      .prepare(
+        `SELECT id, key_hash, attempt_hash, name, item_ids, updated_at FROM share_claims
+         WHERE share_id = (SELECT id FROM shares WHERE ${by} = ?1) ORDER BY created_at, id`,
+      )
       .bind(value),
   ];
 }
@@ -195,11 +198,14 @@ export function itemsInBill(parameter: string): string {
 
 /**
  * Whether a batch was refused because the link changed after it was read: the update of its
- * revision found it no longer allowed the change, or it was deleted, so that a claim made under it
- * no longer has a link.
+ * revision found it no longer allowed the change; or it was deleted, so that a claim made under it
+ * no longer has a link; or a claim sent twice at once with the same attempt landed first.
  */
 function refused(error: unknown): boolean {
-  return error instanceof Error && (error.message.includes("share_refused") || error.message.includes("FOREIGN KEY constraint failed"));
+  return (
+    error instanceof Error &&
+    ["share_refused", "FOREIGN KEY constraint failed", "UNIQUE constraint failed"].some((reason) => error.message.includes(reason))
+  );
 }
 
 /**

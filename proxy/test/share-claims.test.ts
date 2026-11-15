@@ -282,6 +282,92 @@ describe("a claim", () => {
   });
 });
 
+describe("a new claim sent again with the same attempt", () => {
+  it("is the claim it made, with a new key, and needs neither Turnstile nor another place on the link", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    const attempt = crypto.randomUUID();
+    const ip = "203.0.113.80";
+
+    const first = await newClaim(turnstile, link.token, "Minh", ["i1"], ip, attempt);
+    const lost = first.body.key ?? "";
+    const again = await fromPage<Claimed>("/v1/shares/claim", { token: link.token, attempt, name: "Minh", itemIds: ["i1", "i2"] }, ip);
+    const withToken = await newClaim(turnstile, link.token, "Minh N.", ["i2"], ip, attempt.toUpperCase());
+
+    expect(first.status).toBe(200);
+    for (const answer of [again, withToken]) {
+      expect(answer.status).toBe(200);
+      expect(answer.body.you).toBe(first.body.you);
+      expect(answer.body.key).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    }
+    expect(new Set([lost, again.body.key, withToken.body.key]).size).toBe(3);
+    expect(withToken.body.share.claims).toEqual([{ id: first.body.you, name: "Minh N.", itemIds: ["i2"] }]);
+    expect(turnstile.checks()).toBe(1);
+    expect((await windowOf(ip, "claim_new"))?.used).toBe(1);
+    // Only the latest key opens the claim; only hashes are kept.
+    expect((await openShare(link.token, lost)).body.you).toBeNull();
+    expect((await openShare(link.token, again.body.key)).body.you).toBeNull();
+    expect((await openShare(link.token, withToken.body.key)).body.you).toBe(first.body.you);
+    const kept = await rows<{ key_hash: string; attempt_hash: string }>("SELECT key_hash, attempt_hash FROM share_claims");
+    expect(kept).toEqual([{ key_hash: await sha256(withToken.body.key ?? ""), attempt_hash: await sha256(attempt) }]);
+    expect(JSON.stringify(kept)).not.toContain(attempt);
+  });
+
+  it("finds its claim on a full link, and on that link only", async () => {
+    const owner = await person();
+    const link = await publish(owner);
+    const other = await publish(owner);
+    const turnstile = fakeTurnstile();
+    const attempt = crypto.randomUUID();
+    const first = await newClaim(turnstile, link.token, "Guest 0", ["i1"], "198.51.100.1", attempt);
+    for (let count = 1; count < POLICY.maxClaims; count++) {
+      expect((await newClaim(turnstile, link.token, `Guest ${count}`, ["i1"], `198.51.100.${Math.floor(count / POLICY.newClaimsPerHour) + 1}`)).status).toBe(200);
+    }
+
+    const again = await newClaim(turnstile, link.token, "Guest 0", ["i2"], "198.51.100.99", attempt);
+    const elsewhere = await newClaim(turnstile, other.token, "Guest 0", ["i2"], "198.51.100.99", attempt);
+
+    expect(again.status).toBe(200);
+    expect(again.body.you).toBe(first.body.you);
+    expect(again.body.share.claims).toHaveLength(POLICY.maxClaims);
+    expect(elsewhere.status).toBe(200);
+    expect(elsewhere.body.you).not.toBe(first.body.you);
+    expect(elsewhere.body.share.claims).toHaveLength(1);
+  });
+
+  it("sent twice at once makes one claim", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    const attempt = crypto.randomUUID();
+    const raced: { second?: Answer<Claimed> } = {};
+    const db = racing(isNewClaim, async () => {
+      raced.second = await newClaim(turnstile, link.token, "Minh", ["i1"], undefined, attempt);
+    });
+
+    const first = await fromPage<Claimed>("/v1/shares/claim", { token: link.token, attempt, name: "Minh", itemIds: ["i1"], turnstile: turnstile.token() }, undefined, { DB: db });
+
+    expect(first.status).toBe(200);
+    expect(raced.second?.status).toBe(200);
+    expect(first.body.you).toBe(raced.second?.body.you);
+    expect(await rows("SELECT count(*) AS claims FROM share_claims")).toEqual([{ claims: 1 }]);
+    // The claim that landed second took the claim over with a key of its own.
+    expect((await openShare(link.token, first.body.key)).body.you).toBe(first.body.you);
+    expect((await openShare(link.token, raced.second?.body.key)).body.you).toBeNull();
+  });
+
+  it("is refused with an attempt that is not a UUID", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    for (const attempt of ["not-a-uuid", 42, "", {}]) {
+      const refused = await fromPage("/v1/shares/claim", { token: link.token, attempt, name: "Minh", itemIds: ["i1"], turnstile: turnstile.token() });
+      expect(refused.status, JSON.stringify(attempt)).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
+    expect((await fromPage("/v1/shares/claim", { token: link.token, attempt: null, name: "Minh", itemIds: ["i1"], turnstile: turnstile.token() })).status).toBe(200);
+    expect(turnstile.checks()).toBe(1);
+  });
+});
+
 describe("a claim and a lock that come together", () => {
   it("land in order: a claim written just before the lock is in the lock's answer", async () => {
     const owner = await person();

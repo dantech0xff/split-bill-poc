@@ -1,5 +1,5 @@
 import type { Env } from "./index";
-import { inputOf, textOf } from "./input";
+import { idOf, inputOf, textOf } from "./input";
 import { bodyTokenOf, randomToken, tokenHash, tokenOf } from "./links";
 import { POLICY } from "./policy";
 import { addressOf, hourlyRefusal } from "./rate-limit";
@@ -53,16 +53,21 @@ export async function openShareRoute(request: Request, env: Env): Promise<Respon
   return jsonResponse(200, { share: publicView(found.share), you: mine?.id ?? null });
 }
 
-type Claiming = { token: string | null; key: string | null; name: string; itemIds: string[]; turnstile: string | null };
+type Claiming = { token: string | null; key: string | null; attempt: string | null; name: string; itemIds: string[]; turnstile: string | null };
 
-/** A claim's body: `name` of 1 to [POLICY.maxClaimNameChars] characters, and `itemIds` with no id twice. */
+/**
+ * A claim's body: `name` of 1 to [POLICY.maxClaimNameChars] characters, `itemIds` with no id twice,
+ * and `attempt`, when there is one, a UUID.
+ */
 function claimingOf(body: Record<string, unknown>): Claiming | null {
   const token = bodyTokenOf(body);
   const name = textOf(body.name, 1, POLICY.maxClaimNameChars);
   const itemIds = body.itemIds;
+  const attempt = body.attempt === undefined || body.attempt === null ? null : idOf(body.attempt);
   if (token === null || name === null || !Array.isArray(itemIds) || itemIds.length > MAX_ITEMS) return null;
   if (!itemIds.every((id): id is string => typeof id === "string") || new Set(itemIds).size !== itemIds.length) return null;
-  return { token: token.token, key: tokenOf(body.key), name, itemIds, turnstile: turnstileTokenOf(body.turnstile) };
+  if (attempt === null && body.attempt !== undefined && body.attempt !== null) return null;
+  return { token: token.token, key: tokenOf(body.key), attempt, name, itemIds, turnstile: turnstileTokenOf(body.turnstile) };
 }
 
 /** The answer to a claim: the link as it is now, the claim's id, and its key when the claim is new. */
@@ -88,16 +93,19 @@ async function newClaimRefusal(request: Request, env: Env, address: string, turn
 }
 
 /**
- * `POST /v1/shares/claim` with `{"token","key"?,"name","itemIds","turnstile"?}`: the items one
- * browser takes on an open link, under the name its user typed.
+ * `POST /v1/shares/claim` with `{"token","key"?,"attempt"?,"name","itemIds","turnstile"?}`: the
+ * items one browser takes on an open link, under the name its user typed.
  *
- * With the key of one of the link's claims, that claim's name and items are replaced. Otherwise
- * it is a new claim, which needs a Turnstile token (see [newClaimRefusal]); its answer carries the
- * key the browser keeps from then on, of which only the hash is stored. `itemIds` must be items
- * of the bill (400), a link holds [POLICY.maxClaims] claims (409 `full`), and takes them only while
- * open (409 `locked`). A claim lands only while all of that still holds, in the same statement, so
- * one written before a lock is in the lock's answer and one after it is refused. Every claim on a
- * link that works counts against the IP's [POLICY.claimWritesPerHour].
+ * With the key of one of the link's claims, that claim's name and items are replaced. With the
+ * `attempt` of one of its claims, the browser sent its first claim again, not knowing whether it
+ * landed: that claim's name and items are replaced and it gets a new key, as only the hash of the
+ * old one is kept, without Turnstile and without taking another place on the link. Otherwise it
+ * is a new claim, which needs a Turnstile token (see [newClaimRefusal]); its answer carries the key
+ * the browser keeps from then on, of which only the hash is stored, as of its attempt. `itemIds`
+ * must be items of the bill (400), a link holds [POLICY.maxClaims] claims (409 `full`), and takes
+ * them only while open (409 `locked`). A claim lands only while all of that still holds, in the
+ * same statement, so one written before a lock is in the lock's answer and one after it is
+ * refused. Every claim on a link that works counts against the IP's [POLICY.claimWritesPerHour].
  */
 export async function claimRoute(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const input = await inputOf(request, POLICY.maxClaimBodyBytes, claimingOf);
@@ -107,6 +115,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
   if (!address.ok) return address.response;
   const db = env.DB;
   const keyHash = wanted.key === null ? null : await tokenHash(wanted.key);
+  const attemptHash = wanted.attempt === null ? null : await tokenHash(wanted.attempt);
   const itemIds = JSON.stringify(wanted.itemIds);
   let counted = false;
   // A Turnstile token is good for one check: once it passed, a claim that has to be decided again does not ask again.
@@ -139,6 +148,22 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
       tell(env, ctx, written.row, { type: "share", share: publicView(written) });
       return claimed(written, mine.id);
     }
+    const retried = attemptHash === null ? undefined : share.claims.find((claim) => claim.attempt_hash === attemptHash);
+    if (retried !== undefined) {
+      const key = randomToken();
+      const written = await writeShare(db, shareId, [
+        guardStatement(db, shareId, now, `status = 'open' AND EXISTS (SELECT 1 FROM share_claims WHERE share_id = ?1 AND attempt_hash = ?3) AND ${itemsInBill("?4")}`, "", [
+          attemptHash,
+          itemIds,
+        ]),
+        db
+          .prepare("UPDATE share_claims SET key_hash = ?3, name = ?4, item_ids = ?5, updated_at = ?6 WHERE share_id = ?1 AND attempt_hash = ?2")
+          .bind(shareId, attemptHash, await tokenHash(key), wanted.name, itemIds, now),
+      ]);
+      if (written === null) continue;
+      tell(env, ctx, written.row, { type: "share", share: publicView(written) });
+      return claimed(written, retried.id, key);
+    }
     if (share.claims.length >= POLICY.maxClaims) return errorResponse(409, "full");
     if (!passed) {
       const notNow = await newClaimRefusal(request, env, address.name, wanted.turnstile);
@@ -153,9 +178,13 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
         itemIds,
       ]),
       db
-        .prepare("INSERT INTO share_claims (share_id, id, key_hash, name, item_ids, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)")
-        .bind(shareId, claimId, await tokenHash(key), wanted.name, itemIds, now),
+        .prepare(
+          `INSERT INTO share_claims (share_id, id, key_hash, attempt_hash, name, item_ids, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`,
+        )
+        .bind(shareId, claimId, await tokenHash(key), attemptHash, wanted.name, itemIds, now),
     ]);
+    // Refused, or the same attempt landed just now from another request: the next read says which.
     if (written === null) continue;
     tell(env, ctx, written.row, { type: "share", share: publicView(written) });
     return claimed(written, claimId, key);

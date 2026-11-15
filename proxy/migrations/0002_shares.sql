@@ -52,6 +52,9 @@ CREATE TABLE share_claims (
   share_id TEXT NOT NULL REFERENCES shares (id) ON DELETE CASCADE,
   id TEXT NOT NULL,
   key_hash TEXT NOT NULL,
+  -- The SHA-256 of the random id the browser sent with its first claim, so that the same claim sent
+  -- again, when its answer was lost, finds this claim instead of making another; null without one.
+  attempt_hash TEXT,
   name TEXT NOT NULL,
   -- A JSON array of ids of the bill's items; ids the bill no longer has are dropped from it.
   item_ids TEXT NOT NULL,
@@ -61,6 +64,7 @@ CREATE TABLE share_claims (
   PRIMARY KEY (share_id, id)
 );
 CREATE UNIQUE INDEX share_claims_by_key ON share_claims (share_id, key_hash);
+CREATE UNIQUE INDEX share_claims_by_attempt ON share_claims (share_id, attempt_hash) WHERE attempt_hash IS NOT NULL;
 
 -- How the payer of a payment request pays it, as the creditor's app built it for the request's web
 -- page, as JSON; null when the app sent none. Emptied when the request is deleted, and on every
