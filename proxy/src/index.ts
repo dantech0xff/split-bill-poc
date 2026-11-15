@@ -1,10 +1,12 @@
 import { accountRoute, sessionRoute, usageRoute } from "./account";
 import { billAnalysis } from "./bill-analysis";
+import { FxBook } from "./fx-book";
+import { fxRatesRoute, refreshFxRates } from "./fx-rates";
 import { AbuseLedger } from "./ledger";
 import { QuotaBook } from "./quota-book";
 import { errorResponse } from "./respond";
 
-export { AbuseLedger, QuotaBook };
+export { AbuseLedger, FxBook, QuotaBook };
 
 // Secrets are set apart from a deploy, so a Worker can run before they exist: those that may be
 // missing are optional, and the code that reads them says what happens without them.
@@ -29,6 +31,7 @@ export interface Env {
   MIN_APP_VERSION: string;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
   ABUSE_LEDGER: DurableObjectNamespace<AbuseLedger>;
+  FX_BOOK: DurableObjectNamespace<FxBook>;
 }
 
 type Route = (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
@@ -41,6 +44,7 @@ const ROUTES: Record<string, Record<string, Route>> = {
   "/v1/session": { POST: sessionRoute },
   "/v1/usage": { GET: usageRoute },
   "/v1/account": { DELETE: accountRoute },
+  "/v1/fx-rates": { GET: fxRatesRoute },
 };
 
 export default {
@@ -59,5 +63,10 @@ export default {
       console.error(JSON.stringify({ event: "request_failed", error: error instanceof Error ? error.name : "unknown" }));
       return errorResponse(500, "internal");
     }
+  },
+
+  /** The daily cron of `wrangler.jsonc`, which fetches the exchange rates. */
+  async scheduled(_controller, env): Promise<void> {
+    await refreshFxRates(env);
   },
 } satisfies ExportedHandler<Env>;

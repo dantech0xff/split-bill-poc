@@ -22,13 +22,20 @@
     "MIN_APP_VERSION": "1",
     "GOOGLE_CLIENT_ID": ""
   },
+  // The exchange rates are fetched every day at 16:30 UTC, once the European Central Bank has
+  // published its rates of the day, and also by the first request that finds them a day old.
+  "triggers": {
+    "crons": ["30 16 * * *"]
+  },
   "durable_objects": {
     "bindings": [
       { "name": "QUOTA_BOOK", "class_name": "QuotaBook" },
-      { "name": "ABUSE_LEDGER", "class_name": "AbuseLedger" }
+      { "name": "ABUSE_LEDGER", "class_name": "AbuseLedger" },
+      { "name": "FX_BOOK", "class_name": "FxBook" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["QuotaBook", "AbuseLedger"] }
+    { "tag": "v1", "new_sqlite_classes": ["QuotaBook", "AbuseLedger"] },
+    { "tag": "v2", "new_sqlite_classes": ["FxBook"] }
   ]
 }

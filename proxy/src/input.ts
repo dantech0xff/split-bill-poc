@@ -21,12 +21,13 @@ export function uuidOf(value: string | null | undefined): string | null {
 }
 
 /**
- * The body as JSON, read up to [maxBytes]. A body that is longer, or that is not JSON, reads as
- * null. The length is counted while reading, because a declared length can be missing or wrong.
+ * The body of a request, or of an answer the proxy fetched, as JSON, read up to [maxBytes]. A
+ * body that is longer, or that is not JSON, reads as null. The length is counted while reading,
+ * because a declared length can be missing or wrong.
  */
-export async function readJson(request: Request, maxBytes: number): Promise<unknown> {
-  if (request.body === null) return null;
-  const reader = request.body.getReader();
+export async function readJson(message: Body, maxBytes: number): Promise<unknown> {
+  if (message.body === null) return null;
+  const reader = message.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
