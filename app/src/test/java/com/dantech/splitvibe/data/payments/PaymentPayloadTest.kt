@@ -47,6 +47,48 @@ class PaymentPayloadTest {
     }
 
     @Test
+    fun `control characters other than line breaks leave the details, as the proxy refuses them`() {
+        val payload = PaymentPayload.of(
+            PaymentRequest(
+                link = null,
+                qrPayload = null,
+                details = "Amount: ₫71,500\nNote: Pho\t24\u0007\u0085\r\nThanks",
+                amountFilledIn = false,
+            ),
+        )
+
+        assertEquals("Amount: ₫71,500\nNote: Pho 24  \r\nThanks", payload.details)
+    }
+
+    @Test
+    fun `a code with a control character other than a line break is left out`() {
+        assertNull(
+            PaymentPayload.of(PaymentRequest(link = null, qrPayload = "0002\t01", details = "Bank", amountFilledIn = true)).qrPayload,
+        )
+        // The SEPA code breaks its lines, which the proxy takes.
+        assertEquals(
+            "BCD\n002",
+            PaymentPayload.of(PaymentRequest(link = null, qrPayload = "BCD\n002", details = "Bank", amountFilledIn = true)).qrPayload,
+        )
+    }
+
+    @Test
+    fun `a link with whitespace in it, or longer than the proxy keeps, is left out`() {
+        assertFalse(PaymentPayload.opensOnTheWeb("upi://pay?pa=dana@upi&pn=Dana Nguyen"))
+        assertFalse(PaymentPayload.opensOnTheWeb("https://paypal.me/dana\u00a0x"))
+        assertFalse(PaymentPayload.opensOnTheWeb("https://paypal.me/" + "d".repeat(2_031)))
+        assertTrue(PaymentPayload.opensOnTheWeb("https://paypal.me/" + "d".repeat(2_030)))
+        assertFalse("Upper case is not the scheme the page opens", PaymentPayload.opensOnTheWeb("HTTPS://paypal.me/dana"))
+    }
+
+    @Test
+    fun `details are cut by code points, never in the middle of one`() {
+        val payload = PaymentPayload.of(PaymentRequest(link = null, qrPayload = null, details = "😀".repeat(1_200), amountFilledIn = false))
+
+        assertEquals(1_000, payload.details.codePointCount(0, payload.details.length))
+    }
+
+    @Test
     fun `a payment code is kept with the amount it carries`() {
         val payload = PaymentPayload.of(
             PaymentRequest(link = null, qrPayload = "00020101021238", details = "Bank: ACB", amountFilledIn = true),
