@@ -102,11 +102,25 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: proxy/package-lock.json
+          cache-dependency-path: |
+            proxy/package-lock.json
+            web/package-lock.json
 
       # Exactly the versions in the lock file, so a test run cannot pick up a new release.
       - name: Packages
         run: npm ci
+
+      # The web app the Worker serves, from exactly the versions in web/'s own lock file. The
+      # typecheck and the tests put it into the Worker; without a lock file in web/ they use the
+      # placeholder page the proxy makes instead.
+      - name: Web app
+        run: |
+          if [ ! -f ../web/package-lock.json ]; then
+            echo "web/ has no package-lock.json: the proxy is checked with its placeholder page."
+            exit 0
+          fi
+          npm ci --prefix ../web
+          npm run build:web
 
       # Generates the binding types from wrangler.jsonc, then checks every file.
       - name: Types
