@@ -19,6 +19,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests.all { test ->
+            // WebTokensTest checks web/src/tokens.css against the tokens; -PwebTokens=write writes it again.
+            test.systemProperty("sv.webTokens", providers.gradleProperty("webTokens").getOrElse("check"))
+        }
+    }
 }
 
 dependencies {
