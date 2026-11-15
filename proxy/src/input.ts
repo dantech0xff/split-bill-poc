@@ -73,20 +73,28 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 /**
- * Unicode's invisible formatting characters (category Cf): bidi controls such as U+202E, which
- * make text read backwards, zero-width spaces and joiners, U+FEFF and the like. In a name they
- * only serve to make it look like another, or to hide what it says.
+ * Unicode's invisible formatting characters (category Cf) but the two joiners: bidi controls such
+ * as U+202E, which make text read backwards, zero-width spaces, U+FEFF and the like. In a name
+ * they only serve to make it look like another, or to hide what it says.
  */
-const FORMAT = /\p{Cf}/gu;
+const FORMAT = /(?![‌‍])\p{Cf}/gu;
+/**
+ * The zero-width non-joiner and joiner, U+200C and U+200D, which stay: emoji sequences such as a
+ * family are joined by U+200D, and Persian and some Indic names need them to be written right.
+ */
+const JOINERS = /[‌‍]/gu;
 
 /**
- * [value] without invisible formatting characters and trimmed, when it is text of [min] to [max]
- * characters (counted as code points) with no control characters; otherwise null. Names and
- * labels go through it. Names are 1 to 60 characters.
+ * [value] without invisible formatting characters, the joiners aside, and trimmed, when it is text
+ * of [min] to [max] characters (counted as code points) with no control characters; otherwise
+ * null. Text with no character to show, only joiners and spaces, counts as empty. Names and labels
+ * go through it. Names are 1 to 60 characters.
  */
 export function textOf(value: unknown, min = 1, max = 60): string | null {
   if (typeof value !== "string") return null;
-  const text = value.replace(FORMAT, "").trim();
+  const kept = value.replace(FORMAT, "").trim();
+  // A joiner joins the characters around it, and shows nothing of itself.
+  const text = kept.replace(JOINERS, "").trim() === "" ? "" : kept;
   const length = [...text].length;
   return length >= min && length <= max && !CONTROL.test(text) ? text : null;
 }

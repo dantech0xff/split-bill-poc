@@ -257,6 +257,29 @@ describe("a claim", () => {
     expect(await rows("SELECT name FROM share_claims ORDER BY created_at")).toEqual([{ name: "Minh N." }, { name: "x".repeat(40) }]);
   });
 
+  it("keeps the zero-width joiner and non-joiner of a name, and refuses one with nothing else to show", async () => {
+    const link = await publish(await person());
+    const turnstile = fakeTurnstile();
+    // A family, three emoji joined by U+200D; and Alireza in Persian, written with U+200C.
+    const family = "\u{1F468}‍\u{1F469}‍\u{1F467}";
+    const alireza = "علی‌رضا";
+
+    const persian = await newClaim(turnstile, link.token, alireza, ["i1"]);
+    const emoji = await newClaim(turnstile, link.token, `‮Minh ${family}​`, ["i2"]);
+    const joinersOnly = await newClaim(turnstile, link.token, "‍‌", ["i3"]);
+    const withOthers = await newClaim(turnstile, link.token, " ‍ ​‮‌ ", ["i3"]);
+    const renamed = await changeClaim(link.token, persian.body.key ?? "", "‌", ["i1"]);
+
+    const names = new Map(emoji.body.share.claims.map((claim) => [claim.id, claim.name]));
+    expect(names.get(persian.body.you)).toBe(alireza);
+    expect(names.get(emoji.body.you)).toBe(`Minh ${family}`);
+    for (const refused of [joinersOnly, withOthers, renamed]) {
+      expect(refused.status).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
+    expect((await rows<{ name: string }>("SELECT name FROM share_claims")).map((row) => row.name).sort()).toEqual([alireza, `Minh ${family}`].sort());
+  });
+
   it("is one of 30 a link holds: the 31st is refused, and the 30 can still change", async () => {
     const link = await publish(await person());
     const turnstile = fakeTurnstile();

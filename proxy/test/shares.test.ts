@@ -112,7 +112,7 @@ describe("a bill link", () => {
       charges: [{ id: "c1", label: "Service\u00ad charge\ufeff", amountMinor: 19_500 }],
       participants: [
         { id: "me", name: "\u200b" },
-        { id: "p1", name: "Mi\u200dnh" },
+        { id: "p1", name: "Mi\u2060nh" },
       ],
     });
 
@@ -126,6 +126,46 @@ describe("a bill link", () => {
     expect(made.status).toBe(201);
     expect(made.body.share.bill).toEqual({ ...bill, participants: [{ id: "me", name: "" }, { id: "p1", name: "Minh" }] });
     expect(empty.status).toBe(400);
+  });
+
+  it("keeps the zero-width joiner and non-joiner, which emoji sequences and some scripts need, in the bill's names and labels", async () => {
+    const lan = await person();
+    const bill = billProjection();
+    // A family, three emoji joined by U+200D; and Alireza in Persian, written with U+200C.
+    const family = "\u{1F468}\u200d\u{1F469}\u200d\u{1F467}";
+    const alireza = "\u0639\u0644\u06cc\u200c\u0631\u0636\u0627";
+    const sent = billProjection({
+      merchant: `Pho 24 ${family}`,
+      items: [{ ...bill.items[0], name: `\u202e${family}\u2069 menu` }, ...bill.items.slice(1)],
+      participants: [
+        { id: "me", name: "\u200d\u200c" },
+        { id: "p1", name: `\u200b${alireza}` },
+      ],
+    });
+
+    const made = await api<Owned>(lan, "PUT", `/v1/shares/${crypto.randomUUID()}`, { billId: crypto.randomUUID(), billRevision: 1, bill: sent });
+
+    expect(made.status).toBe(201);
+    // Only the other formatting characters go; the owner's name of joiners alone shows nothing, so it is empty.
+    expect(made.body.share.bill).toEqual({
+      ...bill,
+      merchant: `Pho 24 ${family}`,
+      items: [{ ...bill.items[0], name: `${family} menu` }, ...bill.items.slice(1)],
+      participants: [
+        { id: "me", name: "" },
+        { id: "p1", name: alireza },
+      ],
+    });
+    for (const change of [
+      { merchant: "\u200d" },
+      { items: [{ ...bill.items[0], name: " \u200c\u200b\u200d " }] },
+      { charges: [{ id: "c1", label: "\u200d\u202e\u200c", amountMinor: 19_500 }] },
+      { participants: [{ id: "p1", name: "\u200d \u200c" }] },
+    ]) {
+      const refused = await api(lan, "PUT", `/v1/shares/${crypto.randomUUID()}`, { billId: crypto.randomUUID(), billRevision: 1, bill: billProjection(change) });
+      expect(refused.status, JSON.stringify(change)).toBe(400);
+      expect(refused.body).toEqual({ error: "input" });
+    }
   });
 
   it("takes a bill that follows the contract to its edges", async () => {
