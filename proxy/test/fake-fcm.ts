@@ -21,6 +21,8 @@ export type FakeFcm = {
   messages: FcmMessage[];
   /** How many access tokens the token endpoint handed out. */
   tokensIssued: () => number;
+  /** How many times the token endpoint was asked, whatever it answered. */
+  tokenRequests: () => number;
 };
 
 type FakeOptions = {
@@ -49,8 +51,10 @@ export async function fakeFcm(options: FakeOptions = {}): Promise<FakeFcm> {
   });
   const issued: string[] = [];
   const messages: FcmMessage[] = [];
+  let asked = 0;
   network.use(
     http.post(TOKEN_URL, async ({ request }) => {
+      asked += 1;
       if (options.refuseToken) return options.refuseToken();
       const form = await request.formData();
       if (form.get("grant_type") !== "urn:ietf:params:oauth:grant-type:jwt-bearer") {
@@ -80,7 +84,7 @@ export async function fakeFcm(options: FakeOptions = {}): Promise<FakeFcm> {
       return options.answer?.(message.token) ?? HttpResponse.json({ name: `projects/${PROJECT}/messages/${messages.length}` });
     }),
   );
-  return { serviceAccount, messages, tokensIssued: () => issued.length };
+  return { serviceAccount, messages, tokensIssued: () => issued.length, tokenRequests: () => asked };
 }
 
 /** FCM's answer for a token that is no longer registered. */

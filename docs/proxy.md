@@ -339,6 +339,8 @@ about the registration token.
 | `reported` | the creditor | Payment reported | `requestId` |
 | `confirmed` | the debtor | Payment confirmed | `requestId` |
 | `reminder` | the debtor | Payment reminder | `requestId` |
+| `unpaid` | the creditor, instead of a reminder the debtor cannot get | Payment still open | `requestId` |
+| `unconfirmed` | the creditor, of a payment reported to them two days ago | Payment to confirm | `requestId` |
 | `claim` | the group's owner | Someone asked to join | `groupId` |
 
 The texts are fixed English strings in [`push.ts`](../proxy/src/push.ts), and the data is
@@ -350,12 +352,18 @@ channel; the app shows the same words when it is open.
 
 The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongside:
 
-- A request is due a reminder when it is neither confirmed nor reported paid, has a debtor and a
-  creditor, reminds every N days, and had no reminder (nor was made) in the last N days, less an
-  hour so that a run a little earlier than the day before still counts. Its debtor is notified
-  and the request records when. One run sends at most 40 notifications, oldest due first, which
-  keeps it under the free plan's 50 subrequests; the rest go the next day. Without push set up,
-  nothing is sent or recorded.
+- A request is due a reminder when it is neither confirmed nor reported paid, has a creditor,
+  reminds every N days, and had no reminder (nor was made) in the last N days, less an hour so
+  that a run a little earlier than the day before still counts. When its debtor is bound and has
+  a device, they get `reminder`. Otherwise the creditor gets `unpaid`, if they have a device, so
+  they can nudge the payer themself. Either way the request records when, so the next one comes
+  N days later.
+- A request reported paid two days ago (less the same hour) and not confirmed gets its creditor
+  `unconfirmed`, and again every two days until they confirm it, whatever its N.
+- Only people with at least one device are counted in. One run sends at most 40 notifications,
+  oldest due first, counted by the devices they go to; with the token fetch it stays under the
+  free plan's 50 subrequests, and the rest go the next day. The run fetches FCM's access token
+  once: without push set up, or without a token, nothing is sent and nothing is recorded.
 - Invites and deleted requests are forgotten 30 days after they stopped working, and the hourly
   counters once their hour is over.
 

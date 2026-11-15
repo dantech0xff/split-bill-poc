@@ -254,12 +254,11 @@ describe("a device", () => {
 });
 
 describe("the daily run", () => {
-  /** Requests from Lan to Minh, accepted, then moved to the state each case needs. */
+  /** Requests from Lan to Minh, accepted, then moved to the state each case needs. Lan, the creditor, has no device. */
   async function requests() {
     const lan = await person();
     const minh = await person();
     await device(minh, "token-minh");
-    await device(lan, "token-lan");
     const now = Date.now();
     const cases: Record<string, { set: string; values: unknown[] }> = {
       dueDaily: { set: "remind_every_days = 1, created_at = ?2", values: [now - 2 * DAY] },
@@ -300,6 +299,132 @@ describe("the daily run", () => {
 
     await dailyRun(settings);
     expect(fcm.messages).toHaveLength(3);
+  });
+
+  /** A request from [creditor], bound to [debtor] unless null, made [age] ago and reminding every [days] days. */
+  async function waiting(creditor: Person, debtor: Person | null, age: number, days = 1, change = ""): Promise<string> {
+    const id = await acceptedRequest(creditor, debtor ?? (await person()));
+    const unbind = debtor === null ? ", debtor = NULL, debtor_bound_at = NULL" : "";
+    await env.DB.prepare(`UPDATE requests SET created_at = ?2, remind_every_days = ?3${unbind}${change} WHERE id = ?1`)
+      .bind(id, Date.now() - age, days)
+      .run();
+    return id;
+  }
+
+  it("tells the creditor of a due request whose debtor cannot get a reminder, on the same days", async () => {
+    const fcm = await fakeFcm();
+    frankfurter();
+    const settings = { FCM_SERVICE_ACCOUNT: fcm.serviceAccount };
+    const lan = await person();
+    await device(lan, "token-lan");
+    const minh = await person();
+    await device(minh, "token-minh");
+    const unbound = await waiting(lan, null, 2 * DAY);
+    const deviceless = await waiting(lan, await person(), 2 * DAY);
+    const reachable = await waiting(lan, minh, 2 * DAY);
+    const before = Date.now();
+
+    await dailyRun(settings);
+
+    const sent = fcm.messages.map((message) => [message.token, message.data.type, message.data.requestId]);
+    expect(sent).toHaveLength(3);
+    expect(sent).toEqual(
+      expect.arrayContaining([
+        ["token-lan", "unpaid", unbound],
+        ["token-lan", "unpaid", deviceless],
+        ["token-minh", "reminder", reachable],
+      ]),
+    );
+    const unpaid = fcm.messages.find((message) => message.data.type === "unpaid");
+    expect(unpaid?.notification).toEqual({ title: "Payment still open", body: "Someone has not paid you back yet. Open Split Vibe to send them a reminder." });
+    expect(Object.keys(unpaid?.data ?? {}).sort()).toEqual(["requestId", "type"]);
+    expect(await rows("SELECT id FROM requests WHERE last_reminded_at >= ?1 ORDER BY id", before)).toEqual(
+      [unbound, deviceless, reachable].sort().map((id) => ({ id })),
+    );
+
+    await dailyRun(settings);
+    expect(fcm.messages).toHaveLength(3);
+  });
+
+  it("tells the creditor of a payment reported two days ago, every two days, until they confirm it", async () => {
+    const fcm = await fakeFcm();
+    frankfurter();
+    const settings = { FCM_SERVICE_ACCOUNT: fcm.serviceAccount };
+    const lan = await person();
+    await device(lan, "token-lan");
+    const now = Date.now();
+    const reported = await waiting(lan, await person(), 5 * DAY, 0, `, reported_paid_at = ${now - 3 * DAY}`);
+    const remindedToo = await waiting(lan, await person(), 5 * DAY, 3, `, reported_paid_at = ${now - 2 * DAY + 30 * 60 * 1000}`);
+    await waiting(lan, await person(), 5 * DAY, 1, `, reported_paid_at = ${now - DAY}`);
+    await waiting(lan, await person(), 5 * DAY, 1, `, reported_paid_at = ${now - 3 * DAY}, confirmed_paid_at = ${now - DAY}`);
+
+    await dailyRun(settings);
+
+    expect(fcm.messages.map((message) => [message.token, message.data.type, message.data.requestId])).toEqual(
+      expect.arrayContaining([
+        ["token-lan", "unconfirmed", reported],
+        ["token-lan", "unconfirmed", remindedToo],
+      ]),
+    );
+    expect(fcm.messages).toHaveLength(2);
+    expect(fcm.messages[0].notification).toEqual({
+      title: "Payment to confirm",
+      body: "A payment was reported to you. Open Split Vibe to confirm it once it arrived.",
+    });
+
+    await dailyRun(settings);
+    expect(fcm.messages).toHaveLength(2);
+
+    await env.DB.prepare("UPDATE requests SET confirm_reminded_at = ?2 WHERE id = ?1").bind(reported, Date.now() - 2 * DAY + 30 * 60 * 1000).run();
+    await dailyRun(settings);
+    expect(fcm.messages.map((message) => message.data.requestId).slice(2)).toEqual([reported]);
+  });
+
+  it("spends its notifications only on people who can get one", async () => {
+    const fcm = await fakeFcm();
+    frankfurter();
+    const lan = await person();
+    const minh = await person();
+    await device(minh, "token-minh");
+    // Older due requests whose debtors and creditor have no device, enough to fill a run.
+    await env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?1)
+       INSERT INTO requests (id, creditor, debtor, debtor_bound_at, amount_minor, currency_code, currency_digits,
+         payer_name, creditor_name, method, link_hash, created_at, remind_every_days)
+       SELECT lower(hex(randomblob(16))), ?2, 'no-device-' || i, 1, 100, 'VND', 0, 'Minh', 'Lan', '{}', lower(hex(randomblob(32))), ?3 - i, 1 FROM n`,
+    )
+      .bind(POLICY.remindersPerRun, lan.account, Date.now() - 10 * DAY)
+      .run();
+    const reachable = await waiting(lan, minh, 2 * DAY);
+
+    await dailyRun({ FCM_SERVICE_ACCOUNT: fcm.serviceAccount });
+
+    expect(fcm.messages.map((message) => [message.token, message.data.requestId])).toEqual([["token-minh", reachable]]);
+    expect(await rows("SELECT id FROM requests WHERE last_reminded_at IS NOT NULL")).toEqual([{ id: reachable }]);
+  });
+
+  it("asks Google for one access token a run, and without one sends and records nothing", async () => {
+    const refusing = await fakeFcm({ refuseToken: () => HttpResponse.json({ error: "invalid_grant" }, { status: 400 }) });
+    frankfurter();
+    const lan = await person();
+    await device(lan, "token-lan");
+    const minh = await person();
+    await device(minh, "token-minh");
+    await waiting(lan, minh, 2 * DAY);
+    await waiting(lan, null, 2 * DAY);
+
+    await dailyRun({ FCM_SERVICE_ACCOUNT: refusing.serviceAccount });
+
+    expect(refusing.tokenRequests()).toBe(1);
+    expect(refusing.messages).toEqual([]);
+    expect(await rows("SELECT id FROM requests WHERE last_reminded_at IS NOT NULL OR confirm_reminded_at IS NOT NULL")).toEqual([]);
+
+    network.resetHandlers();
+    frankfurter();
+    const working = await fakeFcm();
+    await dailyRun({ FCM_SERVICE_ACCOUNT: working.serviceAccount });
+    expect(working.tokenRequests()).toBe(1);
+    expect(working.messages).toHaveLength(2);
   });
 
   it("sends at most its share of notifications, and the reminders left over go the next day", async () => {

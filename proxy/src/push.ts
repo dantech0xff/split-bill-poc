@@ -7,7 +7,9 @@ import { errorName } from "./spend";
  * A push notification. It names only what it is about, by id: the app reads the rest with the
  * person's own session once it opens.
  */
-export type Push = { type: "request" | "reported" | "confirmed" | "reminder"; requestId: string } | { type: "claim"; groupId: string };
+export type Push =
+  | { type: "request" | "reported" | "confirmed" | "reminder" | "unpaid" | "unconfirmed"; requestId: string }
+  | { type: "claim"; groupId: string };
 
 /**
  * The fixed English text of each notification. None holds anything a person typed (no name,
@@ -18,6 +20,8 @@ export const PUSH_TEXT: Record<Push["type"], { title: string; body: string }> = 
   reported: { title: "Payment reported", body: "A payment you asked for was reported as paid. Open Split Vibe to confirm it." },
   confirmed: { title: "Payment confirmed", body: "A payment you reported was confirmed. Open Split Vibe to see it." },
   reminder: { title: "Payment reminder", body: "A payment request is still waiting for you. Open Split Vibe to see it." },
+  unpaid: { title: "Payment still open", body: "Someone has not paid you back yet. Open Split Vibe to send them a reminder." },
+  unconfirmed: { title: "Payment to confirm", body: "A payment was reported to you. Open Split Vibe to confirm it once it arrived." },
   claim: { title: "Someone asked to join", body: "A person asked to take a place in one of your groups. Open Split Vibe to approve or reject it." },
 };
 
@@ -87,29 +91,42 @@ export async function devicesOf(db: D1Database, accounts: string[]): Promise<Dev
 export async function notify(env: Env, account: string | null, push: Push): Promise<void> {
   if (account === null || !pushReady(env)) return;
   try {
-    await sendTo(env, await devicesOf(env.DB, [account]), push);
+    const devices = await devicesOf(env.DB, [account]);
+    if (devices.length === 0) return;
+    await (await pushSender(env))?.send(devices, push);
   } catch (error) {
     console.error(JSON.stringify({ event: "push_failed", type: push.type, error: errorName(error) }));
   }
 }
 
+/** What sends notifications with one access token, as a whole run of the daily cron does. */
+export type PushSender = {
+  /** Sends [push] to [devices], and forgets each device whose token FCM says is no longer registered. It never throws. */
+  send(devices: Device[], push: Push): Promise<void>;
+};
+
 /**
- * Sends [push] to [devices] through FCM HTTP v1, and forgets each device whose token FCM says is
- * no longer registered. It never throws.
+ * A sender with an access token for FCM, or null when push is not set up or Google gives no
+ * token just now; that is logged, and nothing can be sent.
  */
-export async function sendTo(env: Env, devices: Device[], push: Push): Promise<void> {
+export async function pushSender(env: Env): Promise<PushSender | null> {
   const account = serviceAccountOf(env);
-  if (account === null || devices.length === 0) return;
-  try {
-    const token = await accessToken(account, Date.now());
-    if (token === null) return;
-    const outcomes = await Promise.all(devices.map((device) => sendOne(env.DB, account, token, device, push)));
-    const count = (outcome: Outcome) => outcomes.filter((each) => each === outcome).length;
-    const outcome = { sent: count("sent"), removed: count("removed"), failed: count("failed") };
-    console.log(JSON.stringify({ event: "push", type: push.type, devices: devices.length, ...outcome }));
-  } catch (error) {
-    console.error(JSON.stringify({ event: "push_failed", type: push.type, error: errorName(error) }));
-  }
+  if (account === null) return null;
+  const token = await accessToken(account, Date.now());
+  if (token === null) return null;
+  return {
+    async send(devices, push) {
+      if (devices.length === 0) return;
+      try {
+        const outcomes = await Promise.all(devices.map((device) => sendOne(env.DB, account, token, device, push)));
+        const count = (outcome: Outcome) => outcomes.filter((each) => each === outcome).length;
+        const outcome = { sent: count("sent"), removed: count("removed"), failed: count("failed") };
+        console.log(JSON.stringify({ event: "push", type: push.type, devices: devices.length, ...outcome }));
+      } catch (error) {
+        console.error(JSON.stringify({ event: "push_failed", type: push.type, error: errorName(error) }));
+      }
+    },
+  };
 }
 
 type Outcome = "sent" | "removed" | "failed";

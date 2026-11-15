@@ -1,55 +1,89 @@
 import type { Env } from "./index";
 import { POLICY } from "./policy";
-import { devicesOf, pushReady, sendTo } from "./push";
+import { type Device, devicesOf, pushReady, pushSender } from "./push";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** A payment reported to a creditor waits this long before they are told to confirm it, and as long again between notices. */
+const CONFIRM_AFTER_MS = 2 * DAY_MS;
 /**
- * A reminder may go out this much before its days are quite up, so that a daily run that starts
- * a few seconds earlier than the one before still sends it.
+ * A notice may go out this much before its days are quite up, so that a daily run that starts a
+ * few seconds earlier than the one before still sends it.
  */
 const EARLY_MS = 60 * 60 * 1000;
 
+type Notice = "reminder" | "unpaid" | "unconfirmed";
+/** A request that waits, the account to tell, and what to tell them. */
+type Due = { id: string; recipient: string; type: Notice };
+
 /**
- * The reminders of the daily cron. A request is due when it is neither confirmed nor reported
- * paid, has a debtor and a creditor, reminds every N days, and has had no reminder (nor been
- * made) in the last N days. Each due request's debtor is notified and the request records when.
- * The oldest due go first, within [POLICY.remindersPerRun] notifications; the rest go the next
- * day. Without push set up, nothing is sent and nothing recorded.
+ * The requests that wait, oldest first, each with the one account to tell and only when that
+ * account has a device, so that nobody who cannot get a notice takes a place in the run:
+ *
+ * - due a reminder (neither confirmed nor reported paid, a creditor, reminding every N days, and no
+ *   reminder, nor its making, in the last N days): to the debtor, when bound and with a device; or
+ *   else, as `unpaid`, to the creditor, who can then nudge the payer themself;
+ * - reported paid two days ago and not confirmed, and not told so in the last two days: to the
+ *   creditor, as `unconfirmed`.
+ */
+const DUE = `
+  SELECT id, recipient, type FROM (
+    SELECT r.id AS id,
+      CASE WHEN EXISTS (SELECT 1 FROM devices d WHERE d.account = r.debtor) THEN r.debtor ELSE r.creditor END AS recipient,
+      CASE WHEN EXISTS (SELECT 1 FROM devices d WHERE d.account = r.debtor) THEN 'reminder' ELSE 'unpaid' END AS type,
+      coalesce(r.last_reminded_at, r.created_at) + r.remind_every_days * ?2 AS due_at
+    FROM requests r
+    WHERE r.remind_every_days > 0 AND r.confirmed_paid_at IS NULL AND r.deleted_at IS NULL
+      AND r.reported_paid_at IS NULL AND r.creditor IS NOT NULL
+      AND coalesce(r.last_reminded_at, r.created_at) <= ?1 - r.remind_every_days * ?2
+      AND (EXISTS (SELECT 1 FROM devices d WHERE d.account = r.debtor) OR EXISTS (SELECT 1 FROM devices d WHERE d.account = r.creditor))
+    UNION ALL
+    SELECT r.id, r.creditor, 'unconfirmed', coalesce(r.confirm_reminded_at, r.reported_paid_at) + ?3
+    FROM requests r
+    WHERE r.reported_paid_at IS NOT NULL AND r.confirmed_paid_at IS NULL AND r.deleted_at IS NULL AND r.creditor IS NOT NULL
+      AND coalesce(r.confirm_reminded_at, r.reported_paid_at) <= ?1 - ?3
+      AND EXISTS (SELECT 1 FROM devices d WHERE d.account = r.creditor)
+  )
+  ORDER BY due_at, id
+  LIMIT ?4`;
+
+/**
+ * The notices of the daily cron about requests that wait (see [DUE]). The oldest go first,
+ * within [POLICY.remindersPerRun] notifications, counted by the devices they go to; the rest go
+ * the next day. A reminder or an `unpaid` notice records `last_reminded_at`, so both follow the
+ * request's own days; an `unconfirmed` one records `confirm_reminded_at`. The access token is
+ * fetched once for the run: without push set up, or without a token, nothing is sent and nothing
+ * recorded.
  */
 export async function sendReminders(env: Env, now: number): Promise<void> {
   if (!pushReady(env)) return;
   const db = env.DB;
-  const { results: due } = await db
-    .prepare(
-      `SELECT id, debtor FROM requests
-       WHERE remind_every_days > 0 AND confirmed_paid_at IS NULL AND deleted_at IS NULL
-         AND reported_paid_at IS NULL AND debtor IS NOT NULL AND creditor IS NOT NULL
-         AND coalesce(last_reminded_at, created_at) <= ?1 - remind_every_days * ?2
-       ORDER BY coalesce(last_reminded_at, created_at), id
-       LIMIT ?3`,
-    )
-    .bind(now + EARLY_MS, DAY_MS, POLICY.remindersPerRun)
-    .all<{ id: string; debtor: string }>();
+  // The query names the notice type itself, from its CASE and its constants.
+  const { results: due } = await db.prepare(DUE).bind(now + EARLY_MS, DAY_MS, CONFIRM_AFTER_MS, POLICY.remindersPerRun).all<Due>();
   if (due.length === 0) return;
-  const devices = await devicesOf(db, [...new Set(due.map((request) => request.debtor))]);
-  const reminders: Array<{ id: string; devices: typeof devices }> = [];
+  const sender = await pushSender(env);
+  if (sender === null) return;
+  const devices = await devicesOf(db, [...new Set(due.map((notice) => notice.recipient))]);
+  const chosen: Array<Due & { devices: Device[] }> = [];
   let sends = 0;
-  for (const request of due) {
-    const own = devices.filter((device) => device.account === request.debtor);
+  for (const notice of due) {
+    const own = devices.filter((device) => device.account === notice.recipient);
+    // Its last device went after the query.
+    if (own.length === 0) continue;
     if (sends + own.length > POLICY.remindersPerRun) break;
     sends += own.length;
-    reminders.push({ id: request.id, devices: own });
+    chosen.push({ ...notice, devices: own });
   }
-  if (reminders.length === 0) return;
-  // Recorded before sending, so that a run started again does not remind twice.
-  await db
-    .prepare("UPDATE requests SET last_reminded_at = ?1 WHERE id IN (SELECT value FROM json_each(?2))")
-    .bind(now, JSON.stringify(reminders.map((reminder) => reminder.id)))
-    .run();
-  for (const reminder of reminders) {
-    await sendTo(env, reminder.devices, { type: "reminder", requestId: reminder.id });
+  if (chosen.length === 0) return;
+  const idsOf = (types: Notice[]) => JSON.stringify(chosen.filter((notice) => types.includes(notice.type)).map((notice) => notice.id));
+  // Recorded before sending, so that a run started again does not send twice.
+  await db.batch([
+    db.prepare("UPDATE requests SET last_reminded_at = ?1 WHERE id IN (SELECT value FROM json_each(?2))").bind(now, idsOf(["reminder", "unpaid"])),
+    db.prepare("UPDATE requests SET confirm_reminded_at = ?1 WHERE id IN (SELECT value FROM json_each(?2))").bind(now, idsOf(["unconfirmed"])),
+  ]);
+  for (const notice of chosen) {
+    await sender.send(notice.devices, { type: notice.type, requestId: notice.id });
   }
-  console.log(JSON.stringify({ event: "reminders", due: due.length, reminded: reminders.length, notifications: sends }));
+  console.log(JSON.stringify({ event: "reminders", due: due.length, sent: chosen.length, notifications: sends }));
 }
 
 /**

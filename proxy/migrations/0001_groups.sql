@@ -158,7 +158,10 @@ CREATE TABLE requests (
   reported_paid_at INTEGER,
   confirmed_paid_at INTEGER,
   remind_every_days INTEGER NOT NULL CHECK (remind_every_days IN (0, 1, 3, 7)),
+  -- When the last reminder about it went out, to the debtor or, when they cannot get one, to the creditor.
   last_reminded_at INTEGER,
+  -- When the creditor was last told that a payment reported to them waits for their confirmation.
+  confirm_reminded_at INTEGER,
   -- A deleted request keeps an emptied row for a while, so that its link answers "gone".
   deleted_at INTEGER
 );
@@ -167,6 +170,8 @@ CREATE INDEX requests_by_debtor ON requests (debtor, created_at);
 CREATE INDEX requests_by_group ON requests (group_id);
 CREATE INDEX requests_open_reminders ON requests (created_at)
   WHERE remind_every_days > 0 AND confirmed_paid_at IS NULL AND deleted_at IS NULL;
+CREATE INDEX requests_waiting_confirmation ON requests (reported_paid_at)
+  WHERE reported_paid_at IS NOT NULL AND confirmed_paid_at IS NULL AND deleted_at IS NULL;
 CREATE INDEX requests_deleted ON requests (deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- The FCM token of each install of the app that a signed-in account registered.
