@@ -45,5 +45,13 @@ class AppLinkTest {
         )
     }
 
+    @Test
+    fun `a notice the system showed while the app was away opens the same, and plain extras open nothing`() {
+        val fromSystem = Intent().putExtra("google.message_id", "0:1").putExtra("type", "claim").putExtra("groupId", "group-1")
+        assertEquals(AppLink.Group("group-1"), AppLink.of(fromSystem, proxy))
+        assertEquals(AppLink.Requests, AppLink.of(Intent().putExtra("google.message_id", "0:2").putExtra("type", "reminder"), proxy))
+        assertNull(AppLink.of(Intent().putExtra("type", "claim").putExtra("groupId", "group-1"), proxy))
+    }
+
     private fun view(link: String) = Intent(Intent.ACTION_VIEW, Uri.parse(link))
 }

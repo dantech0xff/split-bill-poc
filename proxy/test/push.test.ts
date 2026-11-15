@@ -98,7 +98,8 @@ describe("push notifications", () => {
       ["token-owner", { type: "claim", groupId: group.id }],
     ]);
     for (const message of fcm.messages) {
-      expect(Object.keys(message).sort()).toEqual(["data", "notification", "token"]);
+      expect(Object.keys(message).sort()).toEqual(["android", "data", "notification", "token"]);
+      expect(message.android).toEqual({ notification: { channel_id: "requests" } });
       expect(message.notification).toEqual(PUSH_TEXT[message.data.type as Push["type"]]);
       expect(JSON.stringify(message)).not.toMatch(/Secret|SECRET|970436|0123456789|garden|hot pot|https?:/i);
     }

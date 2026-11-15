@@ -22,6 +22,8 @@ object Notices {
 
     const val CHANNEL = "requests"
 
+    private const val CLAIM_TEXT = "A person asked to take a place in one of your groups. Open Split Vibe to approve or reject it."
+
     /** Extras that tell the app what a tapped notice is about. */
     const val EXTRA_KIND = "com.dantech.splitvibe.notice.kind"
     const val EXTRA_GROUP_ID = "com.dantech.splitvibe.notice.group"
@@ -33,13 +35,17 @@ object Notices {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    /** The words of a notice of [kind], or null for a kind this version of the app does not know. */
+    /**
+     * The words of a notice of [kind], or null for a kind this version of the app does not know.
+     * They are the proxy's own words (`proxy/src/push.ts`), which the system shows while the app is
+     * in the background, so a notice reads the same either way.
+     */
     fun textOf(kind: String?): Pair<String, String>? = when (kind) {
-        "request" -> "New payment request" to "Someone asked you to pay them back. Open Split Vibe to see how."
-        "reported" -> "Someone says they paid" to "Check that the money arrived, then confirm it in Split Vibe."
-        "confirmed" -> "Payment confirmed" to "A payment you made was confirmed."
-        "reminder" -> "A payment is still open" to "A request you have not paid yet is waiting in Split Vibe."
-        "claim" -> "Someone wants to join" to "Someone asked for a place kept in one of your groups."
+        "request" -> "New payment request" to "Someone asked you to pay them back. Open Split Vibe to see the request."
+        "reported" -> "Payment reported" to "A payment you asked for was reported as paid. Open Split Vibe to confirm it."
+        "confirmed" -> "Payment confirmed" to "A payment you reported was confirmed. Open Split Vibe to see it."
+        "reminder" -> "Payment reminder" to "A payment request is still waiting for you. Open Split Vibe to see it."
+        "claim" -> "Someone asked to join" to CLAIM_TEXT
         else -> null
     }
 

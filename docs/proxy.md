@@ -312,7 +312,9 @@ about the registration token.
 | `claim` | the group's owner | Someone asked to join | `groupId` |
 
 The texts are fixed English strings in [`push.ts`](../proxy/src/push.ts), and the data is
-`{"type", "requestId"}` or `{"type", "groupId"}`: no name, merchant, note, amount or link.
+`{"type", "requestId"}` or `{"type", "groupId"}`: no name, merchant, note, amount or link. While
+the app is in the background, Android shows the notification itself, in the app's `requests`
+channel; the app shows the same words when it is open.
 
 ### The daily run
 

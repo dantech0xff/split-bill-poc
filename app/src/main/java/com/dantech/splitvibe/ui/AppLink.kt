@@ -20,14 +20,21 @@ sealed interface AppLink {
     companion object {
         private val TOKEN = Regex("[A-Za-z0-9_-]{16,128}")
 
+        /** What Firebase adds to the intent of a notice the system showed. */
+        private const val FIREBASE_MESSAGE_ID = "google.message_id"
+
         /**
          * What [intent] asks to open: a link on [proxyUrl]'s own address, or a notice of the app's
          * own. Anything else, such as a link to another address, opens nothing.
          */
         fun of(intent: Intent?, proxyUrl: String): AppLink? {
             if (intent == null) return null
-            intent.getStringExtra(Notices.EXTRA_KIND)?.let { kind ->
-                val groupId = intent.getStringExtra(Notices.EXTRA_GROUP_ID)
+            // A notice the app showed itself, or one the system showed while the app was in the
+            // background, whose data Firebase puts in the intent as it came.
+            val fromSystem = intent.hasExtra(FIREBASE_MESSAGE_ID)
+            val kind = intent.getStringExtra(Notices.EXTRA_KIND) ?: intent.getStringExtra("type").takeIf { fromSystem }
+            if (kind != null) {
+                val groupId = intent.getStringExtra(Notices.EXTRA_GROUP_ID) ?: intent.getStringExtra("groupId").takeIf { fromSystem }
                 return if (kind == "claim" && groupId != null) Group(groupId) else Requests
             }
             if (intent.action != Intent.ACTION_VIEW) return null

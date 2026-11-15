@@ -7,7 +7,12 @@ const SEND_URL = /^https:\/\/fcm\.googleapis\.com\/v1\/projects\/([^/]+)\/messag
 const PROJECT = "split-vibe-test";
 
 /** A message as FCM got it. */
-export type FcmMessage = { token: string; notification: { title: string; body: string }; data: Record<string, string> };
+export type FcmMessage = {
+  token: string;
+  notification: { title: string; body: string };
+  data: Record<string, string>;
+  android: { notification: { channel_id: string } };
+};
 
 export type FakeFcm = {
   /** The value of `FCM_SERVICE_ACCOUNT` for this fake: a key file with a service account of its own. */

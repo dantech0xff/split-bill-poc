@@ -137,11 +137,18 @@ async function sendOne(db: D1Database, account: ServiceAccount, token: string, d
   }
 }
 
-/** The message FCM sends to one device: the fixed text of [push], and data that names only what it is about. */
+/**
+ * The message FCM sends to one device: the fixed text of [push], and data that names only what it
+ * is about. While the app is in the background Android shows it itself, in the app's own channel
+ * for requests and groups (`Notices.CHANNEL` in the app).
+ */
 function messageOf(token: string, push: Push) {
   const data: Record<string, string> = push.type === "claim" ? { type: push.type, groupId: push.groupId } : { type: push.type, requestId: push.requestId };
-  return { token, notification: PUSH_TEXT[push.type], data };
+  return { token, notification: PUSH_TEXT[push.type], data, android: { notification: { channel_id: ANDROID_CHANNEL } } };
 }
+
+/** The app's notification channel for requests and groups. */
+const ANDROID_CHANNEL = "requests";
 
 /**
  * Whether FCM refused a message because its device token is dead: 404 with the error code
