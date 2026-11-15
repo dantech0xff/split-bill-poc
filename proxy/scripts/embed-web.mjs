@@ -9,14 +9,18 @@
 //
 // The page's two meta tags that the Worker fills, `sv-turnstile-site-key` and `sv-abuse-email`,
 // are written as `<meta name="…" content="">`, and added before `</head>` when the page lacks
-// them. A page the Worker could not serve whole stops the build: a script or style it refers to
-// that is not in `assets/`, or not under `/assets/`; any other kind of file in `assets/`; or an
-// inline script or style, which the page's Content-Security-Policy would block.
+// them. A page the Worker could not serve whole stops the build: anything the checks of
+// `web/scripts/page-checks.mjs` find, the same that `npm run build` in `web/` makes (a script or
+// style not under `/assets/`, a reference with a scheme or to another origin, an inline script or
+// style, a `style` attribute or an inline event handler, which the page's Content-Security-Policy
+// would block, or a missing meta tag); a script or style it refers to that is not in `assets/`; or
+// any other kind of file in `assets/`.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { pageProblems } from "../../web/scripts/page-checks.mjs";
 
 const DIST = fileURLToPath(new URL("../../web/dist/", import.meta.url));
 const OUT = fileURLToPath(new URL("../src/web-assets.generated.ts", import.meta.url));
@@ -29,6 +33,8 @@ const PLACEHOLDER_PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
 <meta name="sv-turnstile-site-key" content="">
 <meta name="sv-abuse-email" content="">
 <title>Split Vibe</title>
@@ -64,15 +70,16 @@ export function withFilledTags(page) {
   return html;
 }
 
-/** Stops on what the page's Content-Security-Policy would block, and on scripts and styles the Worker does not serve. */
+/**
+ * Stops on what the page's Content-Security-Policy would block, by the checks `npm run build` in
+ * `web/` makes, and on scripts and styles the Worker does not serve.
+ */
 export function checkPage(page, assets) {
-  for (const script of page.match(/<script\b[^>]*>/gi) ?? []) {
-    if (!/\bsrc\s*=/i.test(script)) throw new EmbedError(`index.html has an inline script, which the page's Content-Security-Policy blocks: ${script}`);
-  }
-  if (/<style\b/i.test(page)) throw new EmbedError("index.html has an inline style, which the page's Content-Security-Policy blocks.");
+  const problems = pageProblems(page);
+  if (problems.length > 0) throw new EmbedError(`index.html does not fit the page's Content-Security-Policy:\n- ${problems.join("\n- ")}`);
   for (const [, , reference] of page.matchAll(/\b(?:src|href)\s*=\s*(["'])(.*?)\1/gi)) {
     const path = reference.split(/[?#]/)[0];
-    if (/^[a-z][a-z0-9+.-]*:/i.test(reference) || !/\.(?:js|css)$/i.test(path)) continue;
+    if (reference === "data:," || !/\.(?:js|css)$/i.test(path)) continue;
     const name = /^\/assets\/([^/]+)$/.exec(path)?.[1];
     if (name === undefined || !assets.has(name)) {
       throw new EmbedError(`index.html refers to ${reference}, which the Worker does not serve: scripts and styles must be in /assets/ (Vite's base must be "/").`);

@@ -681,9 +681,12 @@ The live connection:
   Git ignores the module. `npm run build:web` in `proxy/` builds `web/` and writes the module; the
   proxy's typecheck, tests and `npm run dev` write it too, from `web/dist` as it is, or as a
   placeholder page while `web/` is not built. Writing it stops on a page the Worker could not serve
-  whole: a script or a style that is not under `/assets/`, any other kind of file in `assets/`, or
-  an inline script or style, which the page's policy would block. Workers Static Assets are not
-  used, since the Worker is deployed through the Cloudflare API.
+  whole, by the checks of [`web/scripts/page-checks.mjs`](../web/scripts/page-checks.mjs), which
+  `npm run build` in `web/` makes too: a script or a style that is not under `/assets/`, a
+  reference with a scheme or to another origin, an inline script or style, a `style` attribute or
+  an inline event handler, which the page's policy would block, or a page without the meta tags
+  above; and on any other kind of file in `assets/`. Workers Static Assets are not used, since the
+  Worker is deployed through the Cloudflare API.
 - `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
   app where it is installed, and the page elsewhere.
 
