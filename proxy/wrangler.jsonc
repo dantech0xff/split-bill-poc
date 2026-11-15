@@ -27,6 +27,16 @@
   "triggers": {
     "crons": ["30 16 * * *"]
   },
+  // Groups, their members, bills and settlements. Apply the migrations in
+  // migrations_dir before a deploy that needs them: `wrangler d1 migrations apply split-vibe --remote`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "split-vibe",
+      "database_id": "aa4b8b73-86ad-410d-8205-fd7640808b56",
+      "migrations_dir": "migrations"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       { "name": "QUOTA_BOOK", "class_name": "QuotaBook" },

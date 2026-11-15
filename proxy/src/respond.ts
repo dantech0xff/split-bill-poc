@@ -5,6 +5,11 @@ export function jsonResponse(status: number, body: Record<string, unknown>, retr
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+/** A reply without a body, such as 204, that is never cached. */
+export function emptyResponse(status: number): Response {
+  return new Response(null, { status, headers: { "cache-control": "no-store" } });
+}
+
 /** A refusal before any answer starts: `{"error": code}`, plus whatever else helps the app explain it. */
 export function errorResponse(
   status: number,
@@ -12,6 +17,11 @@ export function errorResponse(
   options: { retryAfter?: number | null; extra?: Record<string, unknown> } = {},
 ): Response {
   return jsonResponse(status, { error: code, ...options.extra }, options.retryAfter ?? null);
+}
+
+/** The refusal of a body that could not be read: 413 `too_large` past its limit, 400 `input` otherwise. */
+export function bodyRefusal(code: "too_large" | "input"): Response {
+  return errorResponse(code === "too_large" ? 413 : 400, code);
 }
 
 export type Line =

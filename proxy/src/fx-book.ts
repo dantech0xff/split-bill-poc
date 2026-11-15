@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { readJson } from "./input";
+import { isRecord, readJson } from "./input";
 import { errorName } from "./spend";
 
 /** How many units of a currency one euro buys, and the day the source gives that rate for. */
@@ -151,8 +151,4 @@ function snapshotOf(rates: unknown, currencies: unknown, now: number): FxSnapsho
   // One euro is one euro, on the newest day of any rate.
   const newest = days.reduce((latest, day) => (day > latest ? day : latest));
   return { base: "EUR", source: "Frankfurter", fetchedAt: now, rates: { EUR: { rate: 1, date: newest }, ...kept } };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

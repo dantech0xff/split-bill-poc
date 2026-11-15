@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { callerOf, ledger, quotaBook } from "./identity";
 import type { Env } from "./index";
-import { billRequestOf, readJson } from "./input";
+import { billRequestOf, byteLength, readJson } from "./input";
 import { clientIp, hashed, ipKey } from "./ledger";
 import { POLICY } from "./policy";
 import { SYSTEM_PROMPT, userMessage } from "./prompt";
@@ -216,10 +216,6 @@ function failureCode(error: unknown): string {
   // An overload reported in the middle of the answer comes as an error event, without a status.
   if (error instanceof Anthropic.APIError && (error.type === "overloaded_error" || error.type === "rate_limit_error")) return "busy";
   return "upstream";
-}
-
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).byteLength;
 }
 
 function refused(started: number, outcome: string, response: Response): Response {

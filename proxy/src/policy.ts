@@ -59,6 +59,25 @@ export const POLICY = {
   maxBodyBytes: 256 * 1024,
   maxDocumentChars: 20_000,
   maxInstructionChars: 1_000,
+
+  // Groups, their bills and settlements.
+  hourMs: 60 * 60 * 1000,
+  /** The largest body of a route on shared data, a bill's aside, which may be [maxBodyBytes]. */
+  maxSharedBodyBytes: 16 * 1024,
+  /** How long an invite link works after it was made. */
+  inviteMs: 14 * 24 * 60 * 60 * 1000,
+  /** Invites one account may make in an hour, over every group. */
+  invitesPerHour: 20,
+  /** The largest amount of money the proxy takes, in minor units: the app's `BillCurrency.MAX_AMOUNT_MINOR`. */
+  maxAmountMinor: 1_000_000_000_000_000,
+  /** A bill's document, serialized as JSON, in bytes. */
+  maxBillDocumentBytes: 64 * 1024,
+  /** A group's state is always sent whole, and an account's groups are listed whole; these keep both small. */
+  maxMembers: 100,
+  maxBills: 1_000,
+  maxGroupsPerAccount: 100,
+  /** The newest log entries a group's state carries. */
+  logEntries: 100,
 } as const;
 
 export type RateLimit = { perMinute: number; perDay: number };
