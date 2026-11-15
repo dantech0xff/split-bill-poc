@@ -4,7 +4,7 @@ import { POLICY } from "../src/policy";
 import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { fakeFcm } from "./fake-fcm";
-import { addPlaceholder, api, join, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
+import { addPlaceholder, api, join, linkToken, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
 
 type Created = { request: RequestView; url: string };
 
@@ -30,7 +30,7 @@ async function ask(creditor: Person, overrides: Record<string, unknown> = {}) {
 }
 
 function tokenOf(url: string): string {
-  return url.slice(url.lastIndexOf("/") + 1);
+  return linkToken(url);
 }
 
 /** A group in VND with its owner, a member with an account and a placeholder. */
@@ -72,7 +72,7 @@ describe("a payment request", () => {
       debtorBound: false,
     });
     expect(made.body.request.createdAt).toBeGreaterThanOrEqual(before);
-    expect(made.body.url).toMatch(/^https:\/\/proxy\.test\/r\/[A-Za-z0-9_-]{22}$/);
+    expect(made.body.url).toMatch(/^https:\/\/proxy\.test\/r\/#[A-Za-z0-9_-]{22}$/);
     const token = tokenOf(made.body.url);
     expect(await rows("SELECT link_hash FROM requests")).toEqual([{ link_hash: await sha256(token) }]);
     expect(JSON.stringify(await rows("SELECT * FROM requests"))).not.toContain(token);
@@ -183,7 +183,7 @@ describe("a payment request", () => {
     const minh = await person();
     const first = await ask(lan);
     const second = await ask(lan);
-    await api(minh, "POST", `/v1/request-links/${tokenOf(second.body.url)}/accept`);
+    await api(minh, "POST", "/v1/request-links/accept", { token: tokenOf(second.body.url) });
 
     const lans = await api<{ requests: RequestView[] }>(lan, "GET", "/v1/requests");
     const minhs = await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests");
@@ -203,9 +203,9 @@ describe("a request link", () => {
     const token = tokenOf(made.body.url);
     const minh = await person();
 
-    const seen = await api<RequestView>(minh, "GET", `/v1/request-links/${token}`);
-    const accepted = await api<RequestView>(minh, "POST", `/v1/request-links/${token}/accept`);
-    const again = await api<RequestView>(minh, "POST", `/v1/request-links/${token}/accept`);
+    const seen = await api<RequestView>(minh, "POST", "/v1/request-links/open", { token });
+    const accepted = await api<RequestView>(minh, "POST", "/v1/request-links/accept", { token });
+    const again = await api<RequestView>(minh, "POST", "/v1/request-links/accept", { token });
 
     const asDebtor = { ...made.body.request, role: "debtor", debtorBound: true };
     expect(seen.status).toBe(200);
@@ -220,13 +220,13 @@ describe("a request link", () => {
     const lan = await person();
     const made = await ask(lan);
     const token = tokenOf(made.body.url);
-    await api(await person(), "POST", `/v1/request-links/${token}/accept`);
+    await api(await person(), "POST", "/v1/request-links/accept", { token });
     const late = await person();
 
-    expect((await api(late, "POST", `/v1/request-links/${token}/accept`)).body).toEqual({ error: "conflict" });
-    expect((await api(late, "GET", `/v1/request-links/${token}`)).body).toEqual({ error: "conflict" });
-    expect((await api(lan, "POST", `/v1/request-links/${token}/accept`)).body).toEqual({ error: "forbidden" });
-    expect((await api<RequestView>(lan, "GET", `/v1/request-links/${token}`)).body).toEqual({ ...made.body.request, debtorBound: true });
+    expect((await api(late, "POST", "/v1/request-links/accept", { token })).body).toEqual({ error: "conflict" });
+    expect((await api(late, "POST", "/v1/request-links/open", { token })).body).toEqual({ error: "conflict" });
+    expect((await api(lan, "POST", "/v1/request-links/accept", { token })).body).toEqual({ error: "forbidden" });
+    expect((await api<RequestView>(lan, "POST", "/v1/request-links/open", { token })).body).toEqual({ ...made.body.request, debtorBound: true });
   });
 
   it("made for one creditor never opens a request another account makes later under the same id", async () => {
@@ -236,7 +236,7 @@ describe("a request link", () => {
     const body = requestBody({ method: { kind: "VietQr", accountNumber: "LAN-ACCOUNT" } });
     const token = tokenOf((await ask(lan, body)).body.url);
     // Whoever opened the link saw the request's id.
-    expect((await api<RequestView>(mallory, "GET", `/v1/request-links/${token}`)).body.id).toBe(body.id);
+    expect((await api<RequestView>(mallory, "POST", "/v1/request-links/open", { token })).body.id).toBe(body.id);
     expect((await api(lan, "DELETE", `/v1/requests/${body.id}`)).status).toBe(204);
     await forgetExpired(env, Date.now() + POLICY.forgetAfterMs + DAY);
     expect(await rows("SELECT id FROM requests")).toEqual([]);
@@ -245,9 +245,9 @@ describe("a request link", () => {
 
     expect(reused.status).toBe(201);
     expect(tokenOf(reused.body.url)).not.toBe(token);
-    expect((await api(minh, "GET", `/v1/request-links/${token}`)).body).toEqual({ error: "not_found" });
-    expect((await api(minh, "POST", `/v1/request-links/${token}/accept`)).body).toEqual({ error: "not_found" });
-    expect((await api<RequestView>(minh, "GET", `/v1/request-links/${tokenOf(reused.body.url)}`)).body.method).toEqual({
+    expect((await api(minh, "POST", "/v1/request-links/open", { token })).body).toEqual({ error: "not_found" });
+    expect((await api(minh, "POST", "/v1/request-links/accept", { token })).body).toEqual({ error: "not_found" });
+    expect((await api<RequestView>(minh, "POST", "/v1/request-links/open", { token: tokenOf(reused.body.url) })).body.method).toEqual({
       kind: "VietQr",
       accountNumber: "MALLORY-ACCOUNT",
     });
@@ -259,11 +259,17 @@ describe("a request link", () => {
     const token = tokenOf(made.body.url);
     const minh = await person();
 
-    expect((await api(minh, "GET", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA")).body).toEqual({ error: "not_found" });
-    expect((await api(minh, "POST", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA/accept")).status).toBe(404);
+    for (const token of ["AAAAAAAAAAAAAAAAAAAAAA", "too-short", "with+plus=equals______"]) {
+      expect((await api(minh, "POST", "/v1/request-links/open", { token })).body).toEqual({ error: "not_found" });
+      expect((await api(minh, "POST", "/v1/request-links/accept", { token })).status).toBe(404);
+    }
+    for (const body of [{}, { token: 42 }, { token: null }]) {
+      expect((await api(minh, "POST", "/v1/request-links/open", body)).body).toEqual({ error: "input" });
+      expect((await api(minh, "POST", "/v1/request-links/accept", body)).status).toBe(400);
+    }
     expect((await api(lan, "DELETE", `/v1/requests/${made.body.request.id}`)).status).toBe(204);
-    expect((await api(minh, "GET", `/v1/request-links/${token}`)).body).toEqual({ error: "gone" });
-    expect((await api(minh, "POST", `/v1/request-links/${token}/accept`)).status).toBe(410);
+    expect((await api(minh, "POST", "/v1/request-links/open", { token })).body).toEqual({ error: "gone" });
+    expect((await api(minh, "POST", "/v1/request-links/accept", { token })).status).toBe(410);
   });
 });
 
@@ -272,7 +278,7 @@ describe("paying", () => {
     const lan = await person();
     const made = await ask(lan);
     const minh = await person();
-    await api(minh, "POST", `/v1/request-links/${tokenOf(made.body.url)}/accept`);
+    await api(minh, "POST", "/v1/request-links/accept", { token: tokenOf(made.body.url) });
     return { lan, minh, id: made.body.request.id };
   }
 

@@ -2,7 +2,7 @@ import { changeGroup, type Group, isMember, outsider, type Plan, readGroup, repl
 import { type Call, signedIn } from "./identity";
 import type { Env } from "./index";
 import { byteLength, type Currency, currencyOf, idOf, inputOf, isRecord, moneyOf, optionalUuidOf, textOf, TOO_LARGE, uuidOf } from "./input";
-import { linkUrl, requestToken, tokenHash, tokenOf } from "./links";
+import { bodyTokenOf, linkUrl, requestToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
 import { admitHourly } from "./rate-limit";
@@ -222,9 +222,11 @@ export const listRequestsRoute = signedIn(async ({ env, account }) => {
   return jsonResponse(200, { requests: results.map((row) => viewOf(row, row.creditor === account ? "creditor" : "debtor")) });
 });
 
-/** The request a link's token leads to, or the answer: 404 for a link never made, 410 for one whose request was deleted. */
-async function linkedRequest(db: D1Database, segment: string | undefined): Promise<{ ok: true; row: RequestRow } | { ok: false; response: Response }> {
-  const token = tokenOf(segment);
+/**
+ * The request a link's token leads to, or the answer: 404 for a link never made (or that no link
+ * could have), 410 for one whose request was deleted.
+ */
+async function linkedRequest(db: D1Database, token: string | null): Promise<{ ok: true; row: RequestRow } | { ok: false; response: Response }> {
   const row = token === null ? null : await db.prepare(`SELECT ${COLUMNS} FROM requests WHERE link_hash = ?1`).bind(await tokenHash(token)).first<RequestRow>();
   if (row === null) return { ok: false, response: errorResponse(404, "not_found") };
   if (row.deleted_at !== null) return { ok: false, response: errorResponse(410, "gone") };
@@ -232,12 +234,15 @@ async function linkedRequest(db: D1Database, segment: string | undefined): Promi
 }
 
 /**
- * `GET /v1/request-links/{token}`: the request a link carries, as the caller will see it once
- * they accept it: as its debtor, bound. Its creditor sees it as theirs. When another account
- * already accepted it, the answer is 409, and nothing of the request is shown.
+ * `POST /v1/request-links/open` with `{"token"}`: the request a link carries, as the caller will
+ * see it once they accept it: as its debtor, bound. Its creditor sees it as theirs. When another
+ * account already accepted it, the answer is 409, and nothing of the request is shown. The token
+ * comes in the body so that no URL, and so no trace, ever holds it.
  */
-export const readRequestLinkRoute = signedIn(async ({ env, params, account }) => {
-  const linked = await linkedRequest(env.DB, params[0]);
+export const openRequestLinkRoute = signedIn(async ({ request, env, account }) => {
+  const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
+  if (!input.ok) return input.response;
+  const linked = await linkedRequest(env.DB, input.value.token);
   if (!linked.ok) return linked.response;
   const row = linked.row;
   if (row.creditor === account) return viewResponse(row, "creditor");
@@ -246,13 +251,15 @@ export const readRequestLinkRoute = signedIn(async ({ env, params, account }) =>
 });
 
 /**
- * `POST /v1/request-links/{token}/accept`: the caller becomes the request's debtor, when nobody
- * is yet; accepting again changes nothing. 409 when another account is the debtor, 403 for the
- * creditor, who cannot owe themself.
+ * `POST /v1/request-links/accept` with `{"token"}`: the caller becomes the request's debtor, when
+ * nobody is yet; accepting again changes nothing. 409 when another account is the debtor, 403 for
+ * the creditor, who cannot owe themself.
  */
-export const acceptRequestLinkRoute = signedIn(async ({ env, params, account }) => {
+export const acceptRequestLinkRoute = signedIn(async ({ request, env, account }) => {
+  const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
+  if (!input.ok) return input.response;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const linked = await linkedRequest(env.DB, params[0]);
+    const linked = await linkedRequest(env.DB, input.value.token);
     if (!linked.ok) return linked.response;
     const row = linked.row;
     if (row.creditor === account) return errorResponse(403, "forbidden");

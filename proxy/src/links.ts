@@ -1,5 +1,4 @@
 import type { Env } from "./index";
-import { errorResponse } from "./respond";
 
 /** A link's token: 128 bits in base64url, without padding. */
 const TOKEN = /^[A-Za-z0-9_-]{22}$/;
@@ -32,14 +31,27 @@ export async function tokenHash(token: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** [segment] when it has the shape of a token, else null. */
-export function tokenOf(segment: string | undefined): string | null {
-  return segment !== undefined && TOKEN.test(segment) ? segment : null;
+/** [value] when it has the shape of a link's token, else null. */
+export function tokenOf(value: unknown): string | null {
+  return typeof value === "string" && TOKEN.test(value) ? value : null;
 }
 
-/** The link to share: `https://<the host [request] came to>/g/<token>` for an invite, `/r/<token>` for a payment request. */
+/**
+ * The `token` of a body: null when the body has no text there, which is bad input; otherwise the
+ * token, or a null token for text that no link could hold, which leads nowhere.
+ */
+export function bodyTokenOf(body: Record<string, unknown>): { token: string | null } | null {
+  return typeof body.token === "string" ? { token: tokenOf(body.token) } : null;
+}
+
+/**
+ * The link to share: `https://<the host [request] came to>/g/#<token>` for an invite, `/r/#<token>`
+ * for a payment request. The token is in the fragment, which a browser never sends: no request
+ * to the proxy, nor its traces, ever holds it. The app reads it from the link and sends it in a
+ * body.
+ */
 export function linkUrl(request: Request, kind: "g" | "r", token: string): string {
-  return `https://${new URL(request.url).host}/${kind}/${token}`;
+  return `https://${new URL(request.url).host}/${kind}/#${token}`;
 }
 
 function base64url(bytes: Uint8Array): string {
@@ -94,12 +106,11 @@ const LINK_PAGE = `<!doctype html>
 `;
 
 /**
- * `GET /g/{token}` and `GET /r/{token}`: the page a link opens where the app does not. It never
- * looks the token up, so it says nothing about whether a link is real, and it neither caches nor
- * passes the address on.
+ * `GET /g/` and `GET /r/`: the page a link opens where the app does not. The link's token is in
+ * its fragment, which never reaches the proxy, so the page cannot tell one link from another and
+ * says nothing about any; it neither caches nor passes the address on.
  */
-export async function linkPageRoute(_request: Request, _env: Env, _ctx: ExecutionContext, params: string[]): Promise<Response> {
-  if (tokenOf(params[0]) === null) return errorResponse(404, "path");
+export async function linkPageRoute(): Promise<Response> {
   return new Response(LINK_PAGE, {
     headers: {
       "content-type": "text/html; charset=utf-8",

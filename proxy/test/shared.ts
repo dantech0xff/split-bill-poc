@@ -54,6 +54,11 @@ export async function newGroup(owner: Person, name = "Chiang Mai trip", currency
   return { id, owner, ownerMemberId };
 }
 
+/** The token of a shared link, which travels in its fragment: `https://<host>/g/#<token>`. */
+export function linkToken(url: string): string {
+  return new URL(url).hash.slice(1);
+}
+
 /** An invite to [group] that [by] makes, and its token. */
 export async function invite(group: TestGroup, by: Person = group.owner): Promise<string> {
   const made = await api<{ token: string }>(by, "POST", `/v1/groups/${group.id}/invites`);
@@ -64,7 +69,7 @@ export async function invite(group: TestGroup, by: Person = group.owner): Promis
 /** [joiner] joins [group] through an invite as a new member named [name]; the member's id. */
 export async function join(group: TestGroup, joiner: Person, name = "Joiner"): Promise<string> {
   const memberId = crypto.randomUUID();
-  const joined = await api(joiner, "POST", `/v1/invites/${await invite(group)}/join`, { memberId, name });
+  const joined = await api(joiner, "POST", "/v1/invites/join", { token: await invite(group), memberId, name });
   if (joined.status !== 200) throw new Error(`The member did not join: ${joined.status}`);
   return memberId;
 }

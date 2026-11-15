@@ -29,7 +29,7 @@ flowchart LR
 | `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's counters, and its part in the shared data, are gone |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
-| `GET /.well-known/assetlinks.json`, `GET /g/{token}`, `GET /r/{token}` | Android, a browser | App Links, and a page for a link opened without the app |
+| `GET /.well-known/assetlinks.json`, `GET /g/`, `GET /r/` | Android, a browser | App Links, and a page for a link opened without the app |
 
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
 its version with `X-SplitVibe-Version`; the exchange rates, the shared data and the links need
@@ -101,8 +101,9 @@ type and how many devices got them, never an id, a token or any text. Cloudflare
 logs are off in `wrangler.jsonc`, because they record every request's headers, among them the
 session and the IP address. Traces are on: they show how long each request, each call to Claude
 and each Durable Object took, its outcome and its CPU time, with the country and city, the network
-and the user agent, but no header values, no IP address and no body. Those CPU times tell whether
-the free plan's limit is enough.
+and the user agent, but no header values, no IP address and no body. They do show each request's
+URL, so no path holds anything secret: paths hold ids only, and link tokens travel in a link's
+fragment and in request bodies. Those CPU times tell whether the free plan's limit is enough.
 
 ## Shared data: groups, payment requests and push
 
@@ -118,6 +119,10 @@ by its tests; the app is trusted with nothing.
 - Bodies are JSON objects; fields the contract does not name are ignored. Ids are UUIDs the app
   makes. Making something again under an id that already exists for the same caller answers as
   the first time did and changes nothing, so a lost answer can be retried.
+- A shared link carries its token in the fragment, `https://<the proxy's host>/g/#<token>` or
+  `/r/#<token>`, which no browser sends, and the app sends it in a body as `"token"`. No URL path
+  or query ever holds one. A body without a `token` text is 400; a token no link could hold, or
+  that no link has, is 404.
 - Money is a whole number of minor units, from 0 to 10^15 (`BillCurrency.MAX_AMOUNT_MINOR`); more
   is 400 `input`. A currency is `{"code":"VND","fractionDigits":0}`: three capital letters and 0 to
   3 digits. Names are trimmed and 1 to 60 characters (counted as code points), without control
@@ -193,11 +198,11 @@ account is in, or waits to join, at most 100 groups. Past these, 413 `too_large`
 
 | Route | Who may | Answer |
 |---|---|---|
-| `POST /v1/groups/{gid}/invites` | members | 201 `{"token","url","expiresAt"}`, with `url` `https://<the proxy's host>/g/{token}` |
+| `POST /v1/groups/{gid}/invites` | members | 201 `{"token","url","expiresAt"}`, with `url` `https://<the proxy's host>/g/#<token>` |
 | `DELETE /v1/groups/{gid}/invites` | the owner | 204; every invite of the group stops working |
-| `GET /v1/invites/{token}` | anyone | `{"group":{"id","name","currency"},"placeholders":[{"id","name"}],"alreadyMember":bool}` |
-| `POST /v1/invites/{token}/join` `{"memberId","name"}` | anyone | the state, with the caller as a new member |
-| `POST /v1/invites/{token}/join` `{"claimMemberId","name"}` | anyone | 202 `{"status":"pending"}`; the owner is notified |
+| `POST /v1/invites/open` `{"token"}` | anyone | `{"group":{"id","name","currency"},"placeholders":[{"id","name"}],"alreadyMember":bool}` |
+| `POST /v1/invites/join` `{"token","memberId","name"}` | anyone | the state, with the caller as a new member |
+| `POST /v1/invites/join` `{"token","claimMemberId","name"}` | anyone | 202 `{"status":"pending"}`; the owner is notified |
 | `POST /v1/groups/{gid}/claims/{mid}/approve` | the owner | the state; the placeholder now has the claimant's account |
 | `POST /v1/groups/{gid}/claims/{mid}/reject` | the owner | the state, without the claim |
 
@@ -243,10 +248,10 @@ The change is then read and decided again, up to 10 times, and only then answers
 
 | Route | Who may | Answer |
 |---|---|---|
-| `POST /v1/requests` | anyone, as the creditor | 201 `{"request": RequestView, "url"}`, with `url` `https://<the proxy's host>/r/{token}` |
+| `POST /v1/requests` | anyone, as the creditor | 201 `{"request": RequestView, "url"}`, with `url` `https://<the proxy's host>/r/#<token>` |
 | `GET /v1/requests` | anyone | `{"requests":[RequestView]}`: those the caller made or is the debtor of, newest first, at most 200 |
-| `GET /v1/request-links/{token}` | anyone | the request as the caller will see it once they accept: `role` `"debtor"`, `debtorBound` true; for its creditor, as theirs |
-| `POST /v1/request-links/{token}/accept` | anyone but the creditor | the request, with the caller as its debtor |
+| `POST /v1/request-links/open` `{"token"}` | anyone | the request as the caller will see it once they accept: `role` `"debtor"`, `debtorBound` true; for its creditor, as theirs |
+| `POST /v1/request-links/accept` `{"token"}` | anyone but the creditor | the request, with the caller as its debtor |
 | `POST /v1/requests/{id}/reported-paid` | the debtor | the request; the creditor is notified |
 | `POST /v1/requests/{id}/confirmed-paid` | the creditor | the request; the debtor is notified |
 | `PATCH /v1/requests/{id}` `{"remindEveryDays"}` | the creditor | the request |
@@ -340,10 +345,11 @@ The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongsi
 `GET /.well-known/assetlinks.json` lets Android open the proxy's `/g/` and `/r/` links in the app.
 It lists `com.dantech.splitvibe` and `com.dantech.splitvibe.dev`, each with every fingerprint in the
 variable `ANDROID_CERT_SHA256` (comma-separated SHA-256 fingerprints, `AB:CD:…`, upper-cased by the
-Worker; one that is not one is left out and logged). Without any, it is `[]`. `GET /g/{token}` and
-`GET /r/{token}` answer, where the app does not open, the same short page for every link, saying to
-open it on a phone with Split Vibe installed; it never looks the token up, so it shows nothing of
-the group or the request. These three need no session and no install id.
+Worker; one that is not one is left out and logged). Without any, it is `[]`. Where the app does
+not open a link, a browser asks for `GET /g/` or `GET /r/`, without the fragment that holds the
+token, and gets the same short page for every link, saying to open it on a phone with Split Vibe
+installed; the proxy never sees the token, so the page shows nothing of the group or the request.
+A token in the path, as in `/g/<token>`, is 404. These three need no session and no install id.
 
 ### Deleting an account
 

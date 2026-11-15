@@ -82,7 +82,7 @@ describe("a group", () => {
     const group = await newGroup(owner, "Flat 4B", VND);
     const placeholder = await addPlaceholder(group, "Minh");
     const claimant = await person();
-    await api(claimant, "POST", `/v1/invites/${await invite(group)}/join`, { claimMemberId: placeholder, name: "Minh N." });
+    await api(claimant, "POST", "/v1/invites/join", { token: await invite(group), claimMemberId: placeholder, name: "Minh N." });
 
     const mine = await api<{ groups: unknown[] }>(owner, "GET", "/v1/groups");
     const waiting = await api<{ groups: unknown[] }>(claimant, "GET", "/v1/groups");
@@ -116,7 +116,7 @@ describe("a group", () => {
     const placeholder = await addPlaceholder(group, "Minh");
     const billId = await addBill(group, owner, { [group.ownerMemberId]: 100 }, { [group.ownerMemberId]: 100 });
     const claimant = await person();
-    await api(claimant, "POST", `/v1/invites/${await invite(group)}/join`, { claimMemberId: placeholder, name: "Minh" });
+    await api(claimant, "POST", "/v1/invites/join", { token: await invite(group), claimMemberId: placeholder, name: "Minh" });
     const before = await stateOf(group);
     const path = `/v1/groups/${group.id}`;
     const attempts: Array<[string, string, unknown?]> = [
@@ -165,16 +165,16 @@ describe("a group", () => {
       ["PUT", `/v1/groups/${group.id}/bills/${id}`],
       ["DELETE", `/v1/groups/${group.id}/bills/${id}`],
       ["POST", `/v1/groups/${group.id}/settlements`],
-      ["GET", "/v1/invites/AAAAAAAAAAAAAAAAAAAAAA"],
-      ["POST", "/v1/invites/AAAAAAAAAAAAAAAAAAAAAA/join"],
+      ["POST", "/v1/invites/open"],
+      ["POST", "/v1/invites/join"],
       ["GET", "/v1/requests"],
       ["POST", "/v1/requests"],
       ["PATCH", `/v1/requests/${id}`],
       ["DELETE", `/v1/requests/${id}`],
       ["POST", `/v1/requests/${id}/reported-paid`],
       ["POST", `/v1/requests/${id}/confirmed-paid`],
-      ["GET", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA"],
-      ["POST", "/v1/request-links/AAAAAAAAAAAAAAAAAAAAAA/accept"],
+      ["POST", "/v1/request-links/open"],
+      ["POST", "/v1/request-links/accept"],
       ["PUT", `/v1/devices/${id}`],
       ["DELETE", `/v1/devices/${id}`],
     ];
@@ -279,7 +279,7 @@ describe("a member", () => {
     await addBill(group, owner, { [placeholder]: 500 }, { [group.ownerMemberId]: 500 });
     await api(owner, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: placeholder, amountMinor: 500 });
     const token = await invite(group);
-    await api(await person(), "POST", `/v1/invites/${token}/join`, { claimMemberId: placeholder, name: "Minh" });
+    await api(await person(), "POST", "/v1/invites/join", { token, claimMemberId: placeholder, name: "Minh" });
 
     expect((await api(owner, "POST", `/v1/groups/${group.id}/leave`)).status).toBe(204);
 
@@ -287,7 +287,7 @@ describe("a member", () => {
     for (const table of ["groups", "members", "claims", "invites", "group_bills", "settlements", "group_log"]) {
       expect(await rows(`SELECT * FROM ${table}`), table).toEqual([]);
     }
-    expect((await api(await person(), "GET", `/v1/invites/${token}`)).status).toBe(404);
+    expect((await api(await person(), "POST", "/v1/invites/open", { token })).status).toBe(404);
   });
 });
 
@@ -303,7 +303,7 @@ describe("the size of a group", () => {
       .run();
 
     const added = await api(owner, "POST", `/v1/groups/${group.id}/members`, { id: crypto.randomUUID(), name: "One too many" });
-    const joined = await api(await person(), "POST", `/v1/invites/${await invite(group)}/join`, { memberId: crypto.randomUUID(), name: "Late" });
+    const joined = await api(await person(), "POST", "/v1/invites/join", { token: await invite(group), memberId: crypto.randomUUID(), name: "Late" });
 
     expect(added.status).toBe(413);
     expect(added.body).toEqual({ error: "too_large" });

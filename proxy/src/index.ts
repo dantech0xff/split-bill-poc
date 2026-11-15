@@ -5,7 +5,7 @@ import { deleteDeviceRoute, putDeviceRoute } from "./devices";
 import { FxBook } from "./fx-book";
 import { fxRatesRoute, refreshFxRates } from "./fx-rates";
 import { addMemberRoute, createGroupRoute, leaveGroupRoute, listGroupsRoute, readGroupRoute, renameGroupRoute, renameMemberRoute } from "./groups";
-import { approveClaimRoute, createInviteRoute, joinGroupRoute, readInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
+import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
 import { assetLinksRoute, linkPageRoute } from "./links";
 import { QuotaBook } from "./quota-book";
@@ -17,7 +17,7 @@ import {
   createRequestRoute,
   deleteRequestRoute,
   listRequestsRoute,
-  readRequestLinkRoute,
+  openRequestLinkRoute,
   reportPaidRoute,
 } from "./requests";
 import { errorResponse } from "./respond";
@@ -59,7 +59,10 @@ export interface Env {
   FX_BOOK: DurableObjectNamespace<FxBook>;
 }
 
-/** A route gets the parameters of its path, the `:name` segments of its pattern, in order. */
+/**
+ * A route gets the parameters of its path, the `:name` segments of its pattern, in order. Paths
+ * hold ids only, never a token or anything secret: they appear in the Worker's traces.
+ */
 type Route = (request: Request, env: Env, ctx: ExecutionContext, params: string[]) => Promise<Response>;
 
 /** The salt keeps the names of IPs and accounts from being worked back; without one, nothing may run. */
@@ -81,18 +84,18 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/groups/:group/claims/:member/reject", { POST: rejectClaimRoute }],
   ["/v1/groups/:group/bills/:bill", { PUT: putBillRoute, DELETE: deleteBillRoute }],
   ["/v1/groups/:group/settlements", { POST: recordSettlementRoute }],
-  ["/v1/invites/:token", { GET: readInviteRoute }],
-  ["/v1/invites/:token/join", { POST: joinGroupRoute }],
+  ["/v1/invites/open", { POST: openInviteRoute }],
+  ["/v1/invites/join", { POST: joinGroupRoute }],
   ["/v1/requests", { GET: listRequestsRoute, POST: createRequestRoute }],
   ["/v1/requests/:request", { PATCH: changeRequestRoute, DELETE: deleteRequestRoute }],
   ["/v1/requests/:request/reported-paid", { POST: reportPaidRoute }],
   ["/v1/requests/:request/confirmed-paid", { POST: confirmPaidRoute }],
-  ["/v1/request-links/:token", { GET: readRequestLinkRoute }],
-  ["/v1/request-links/:token/accept", { POST: acceptRequestLinkRoute }],
+  ["/v1/request-links/open", { POST: openRequestLinkRoute }],
+  ["/v1/request-links/accept", { POST: acceptRequestLinkRoute }],
   ["/v1/devices/:device", { PUT: putDeviceRoute, DELETE: deleteDeviceRoute }],
   ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
-  ["/g/:token", { GET: linkPageRoute }],
-  ["/r/:token", { GET: linkPageRoute }],
+  ["/g/", { GET: linkPageRoute }],
+  ["/r/", { GET: linkPageRoute }],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */

@@ -19,7 +19,7 @@ describe("an invite", () => {
 
     expect(made.status).toBe(201);
     expect(made.body.token).toMatch(/^[A-Za-z0-9_-]{22}$/);
-    expect(made.body.url).toBe(`https://proxy.test/g/${made.body.token}`);
+    expect(made.body.url).toBe(`https://proxy.test/g/#${made.body.token}`);
     expect(made.body.expiresAt).toBeGreaterThanOrEqual(before + POLICY.inviteMs);
     expect(made.body.expiresAt).toBeLessThanOrEqual(Date.now() + POLICY.inviteMs);
     const kept = await rows<{ token_hash: string }>("SELECT token_hash FROM invites WHERE group_id = ?1 ORDER BY created_at DESC LIMIT 1", group.id);
@@ -35,8 +35,8 @@ describe("an invite", () => {
     const joiner = await person();
     const memberId = crypto.randomUUID();
 
-    const seen = await api<InviteView>(joiner, "GET", `/v1/invites/${token}`);
-    const joined = await api<GroupState>(joiner, "POST", `/v1/invites/${token}/join`, { memberId, name: " Lan " });
+    const seen = await api<InviteView>(joiner, "POST", "/v1/invites/open", { token });
+    const joined = await api<GroupState>(joiner, "POST", "/v1/invites/join", { token, memberId, name: " Lan " });
 
     expect(seen.status).toBe(200);
     expect(seen.body).toEqual({
@@ -48,7 +48,7 @@ describe("an invite", () => {
     expect(joined.body.myMemberId).toBe(memberId);
     expect(joined.body.members.find((member) => member.id === memberId)).toEqual(memberView(memberId, "Lan", true));
     expect(joined.body.log[0]).toEqual({ at: expect.any(Number), kind: "member_joined", memberId, subjectId: memberId });
-    expect((await api<InviteView>(joiner, "GET", `/v1/invites/${token}`)).body.alreadyMember).toBe(true);
+    expect((await api<InviteView>(joiner, "POST", "/v1/invites/open", { token })).body.alreadyMember).toBe(true);
   });
 
   it("taken again by a member gives the group as it is, whatever they ask for", async () => {
@@ -60,8 +60,8 @@ describe("an invite", () => {
     const token = await invite(group);
     const before = await stateOf(group, member);
 
-    const asNew = await api<GroupState>(member, "POST", `/v1/invites/${token}/join`, { memberId: crypto.randomUUID(), name: "Again" });
-    const asClaim = await api<GroupState>(member, "POST", `/v1/invites/${token}/join`, { claimMemberId: placeholder, name: "Minh" });
+    const asNew = await api<GroupState>(member, "POST", "/v1/invites/join", { token, memberId: crypto.randomUUID(), name: "Again" });
+    const asClaim = await api<GroupState>(member, "POST", "/v1/invites/join", { token, claimMemberId: placeholder, name: "Minh" });
 
     expect(asNew.status).toBe(200);
     expect(asNew.body).toEqual(before);
@@ -77,7 +77,7 @@ describe("an invite", () => {
     const token = await invite(group);
     const joiner = await person();
 
-    const taken = await api(joiner, "POST", `/v1/invites/${token}/join`, { memberId: placeholder, name: "Minh" });
+    const taken = await api(joiner, "POST", "/v1/invites/join", { token, memberId: placeholder, name: "Minh" });
 
     expect(taken.status).toBe(409);
     for (const body of [
@@ -86,7 +86,7 @@ describe("an invite", () => {
       { memberId: crypto.randomUUID() },
       { memberId: "not-a-uuid", name: "Bad" },
     ]) {
-      expect((await api(joiner, "POST", `/v1/invites/${token}/join`, body)).status, JSON.stringify(body)).toBe(400);
+      expect((await api(joiner, "POST", "/v1/invites/join", { token, ...body })).status, JSON.stringify(body)).toBe(400);
     }
   });
 
@@ -94,15 +94,20 @@ describe("an invite", () => {
     const owner = await person();
     const group = await newGroup(owner);
     const joiner = await person();
-    const join = (token: string) => api(joiner, "POST", `/v1/invites/${token}/join`, { memberId: crypto.randomUUID(), name: "Late" });
+    const join = (token: string) => api(joiner, "POST", "/v1/invites/join", { token, memberId: crypto.randomUUID(), name: "Late" });
 
     for (const token of ["AAAAAAAAAAAAAAAAAAAAAA", "too-short", "with+plus=equals______"]) {
-      expect((await api(joiner, "GET", `/v1/invites/${token}`)).body).toEqual({ error: "not_found" });
+      expect((await api(joiner, "POST", "/v1/invites/open", { token })).body).toEqual({ error: "not_found" });
+      expect((await join(token)).body).toEqual({ error: "not_found" });
+    }
+    for (const body of [{}, { token: 42 }]) {
+      expect((await api(joiner, "POST", "/v1/invites/open", body)).body).toEqual({ error: "input" });
+      expect((await api(joiner, "POST", "/v1/invites/join", { ...body, memberId: crypto.randomUUID(), name: "Late" })).status).toBe(400);
     }
 
     const expiring = await invite(group);
     await env.DB.prepare("UPDATE invites SET expires_at = ?2 WHERE token_hash = ?1").bind(await sha256(expiring), Date.now() - 1).run();
-    expect((await api(joiner, "GET", `/v1/invites/${expiring}`)).body).toEqual({ error: "gone" });
+    expect((await api(joiner, "POST", "/v1/invites/open", { token: expiring })).body).toEqual({ error: "gone" });
     expect((await join(expiring)).status).toBe(410);
 
     const first = await invite(group);
@@ -110,7 +115,7 @@ describe("an invite", () => {
     const revoked = await api(owner, "DELETE", `/v1/groups/${group.id}/invites`);
     expect(revoked.status).toBe(204);
     for (const token of [first, second]) {
-      expect((await api(joiner, "GET", `/v1/invites/${token}`)).status).toBe(410);
+      expect((await api(joiner, "POST", "/v1/invites/open", { token })).status).toBe(410);
       expect((await join(token)).status).toBe(410);
     }
 
@@ -126,7 +131,7 @@ describe("an invite", () => {
 
     expect((await api(member, "DELETE", `/v1/groups/${group.id}/invites`)).body).toEqual({ error: "forbidden" });
     expect((await api(await person(), "DELETE", `/v1/groups/${group.id}/invites`)).status).toBe(403);
-    expect((await api(await person(), "GET", `/v1/invites/${token}`)).status).toBe(200);
+    expect((await api(await person(), "POST", "/v1/invites/open", { token })).status).toBe(200);
   });
 
   it("is made at most 20 times an hour by one account, over all its groups", async () => {
@@ -167,7 +172,7 @@ describe("a claim", () => {
     await addBill(group, owner, { [placeholder]: 700, [group.ownerMemberId]: 300 }, { [group.ownerMemberId]: 1000 });
     const token = await invite(group);
     const claimant = await person();
-    const asked = await api(claimant, "POST", `/v1/invites/${token}/join`, { claimMemberId: placeholder, name: "Minh N." });
+    const asked = await api(claimant, "POST", "/v1/invites/join", { token, claimMemberId: placeholder, name: "Minh N." });
     return { owner, group, member, memberId, placeholder, token, claimant, asked };
   }
 
@@ -211,7 +216,7 @@ describe("a claim", () => {
     expect(rejected.body.log[0]).toEqual({ at: expect.any(Number), kind: "claim_rejected", memberId: group.ownerMemberId, subjectId: placeholder });
     expect((await api(claimant, "GET", `/v1/groups/${group.id}`)).body).toEqual({ error: "forbidden" });
     expect((await api<{ groups: unknown[] }>(claimant, "GET", "/v1/groups")).body.groups).toEqual([]);
-    expect((await api(claimant, "POST", `/v1/invites/${token}/join`, { claimMemberId: placeholder, name: "Minh" })).status).toBe(202);
+    expect((await api(claimant, "POST", "/v1/invites/join", { token, claimMemberId: placeholder, name: "Minh" })).status).toBe(202);
   });
 
   it("is decided by the owner only", async () => {
@@ -230,7 +235,7 @@ describe("a claim", () => {
   it("waits one at a time on a placeholder, one per account in a group, and never on a member with an account", async () => {
     const { group, memberId, placeholder, token, claimant } = await claimed();
     const second = await addPlaceholder(group, "Hoa");
-    const ask = (who: typeof claimant, claimMemberId: string) => api(who, "POST", `/v1/invites/${token}/join`, { claimMemberId, name: "Someone" });
+    const ask = (who: typeof claimant, claimMemberId: string) => api(who, "POST", "/v1/invites/join", { token, claimMemberId, name: "Someone" });
     const other = await person();
 
     expect((await ask(other, placeholder)).status).toBe(409);
@@ -250,7 +255,7 @@ describe("a claim", () => {
     const { group, token, claimant } = await claimed();
     const memberId = crypto.randomUUID();
 
-    const joined = await api<GroupState>(claimant, "POST", `/v1/invites/${token}/join`, { memberId, name: "Minh" });
+    const joined = await api<GroupState>(claimant, "POST", "/v1/invites/join", { token, memberId, name: "Minh" });
 
     expect(joined.status).toBe(200);
     expect(joined.body.myMemberId).toBe(memberId);

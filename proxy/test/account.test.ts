@@ -11,7 +11,22 @@ import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
 import { network } from "./network";
 import { ANSWER, billRequest, last, model, proxyRequest, send } from "./requests";
-import { addBill, addPlaceholder, api, invite, join, memberView, newGroup, type Person, person, rows, signedInAgain, stateOf, VND } from "./shared";
+import {
+  addBill,
+  addPlaceholder,
+  api,
+  invite,
+  join,
+  linkToken,
+  memberView,
+  newGroup,
+  type Person,
+  person,
+  rows,
+  signedInAgain,
+  stateOf,
+  VND,
+} from "./shared";
 
 const CLIENT_ID = "test-web-client.apps.googleusercontent.com";
 const GOOGLE_SUB = "109876543210987654321";
@@ -259,10 +274,10 @@ describe("deleting an account, in the shared data", () => {
     await api(lan, "PUT", `/v1/devices/${crypto.randomUUID()}`, { token: "token-lan" });
     const other = await newGroup(await person());
     const otherPlaceholder = await addPlaceholder(other, "Lan?");
-    await api(lan, "POST", `/v1/invites/${await invite(other)}/join`, { claimMemberId: otherPlaceholder, name: "Lan" });
+    await api(lan, "POST", "/v1/invites/join", { token: await invite(other), claimMemberId: otherPlaceholder, name: "Lan" });
     const open = (await newRequest(lan, { groupId: group.id, toMemberId: minhId })).body.request;
     const paid = await newRequest(lan);
-    await api(minh, "POST", `/v1/request-links/${paid.body.url.split("/").pop()}/accept`);
+    await api(minh, "POST", "/v1/request-links/accept", { token: linkToken(paid.body.url) });
     await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
     const owed = (await newRequest(owner, { groupId: group.id, toMemberId: lanId, creditorName: "Owner" })).body.request;
 

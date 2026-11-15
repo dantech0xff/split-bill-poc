@@ -1,7 +1,7 @@
 import { changeGroup, groupCountOf, isMember, keep, logStatement, outsider, readGroup, reply, stateAnswer, write } from "./group-state";
 import { signedIn } from "./identity";
 import { idOf, inputOf, textOf, uuidOf } from "./input";
-import { linkUrl, randomToken, tokenHash, tokenOf } from "./links";
+import { bodyTokenOf, linkUrl, randomToken, tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { notify } from "./push";
 import { admitHourly } from "./rate-limit";
@@ -44,9 +44,11 @@ export const revokeInvitesRoute = signedIn(async ({ env, params, account }) => {
   return emptyResponse(204);
 });
 
-/** The group an invite token leads to, or the answer: 404 for a token never made, 410 for one expired or revoked. */
-async function invitedGroup(db: D1Database, segment: string | undefined): Promise<{ ok: true; groupId: string } | { ok: false; response: Response }> {
-  const token = tokenOf(segment);
+/**
+ * The group an invite token leads to, or the answer: 404 for a token never made (or that no
+ * invite could have), 410 for one expired or revoked.
+ */
+async function invitedGroup(db: D1Database, token: string | null): Promise<{ ok: true; groupId: string } | { ok: false; response: Response }> {
   const invite =
     token === null
       ? null
@@ -60,11 +62,14 @@ async function invitedGroup(db: D1Database, segment: string | undefined): Promis
 }
 
 /**
- * `GET /v1/invites/{token}`: what an invite leads to, for someone deciding to join: the group's
- * name and currency, its placeholders, and whether the caller is already a member.
+ * `POST /v1/invites/open` with `{"token"}`: what an invite leads to, for someone deciding to join:
+ * the group's name and currency, its placeholders, and whether the caller is already a member.
+ * The token comes in the body so that no URL, and so no trace, ever holds it.
  */
-export const readInviteRoute = signedIn(async ({ env, params, account }) => {
-  const invited = await invitedGroup(env.DB, params[0]);
+export const openInviteRoute = signedIn(async ({ request, env, account }) => {
+  const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
+  if (!input.ok) return input.response;
+  const invited = await invitedGroup(env.DB, input.value.token);
   if (!invited.ok) return invited.response;
   const group = await readGroup(env.DB, invited.groupId, account);
   if (group === null) return errorResponse(404, "not_found");
@@ -75,34 +80,38 @@ export const readInviteRoute = signedIn(async ({ env, params, account }) => {
   });
 });
 
-type Joining = { kind: "join" | "claim"; memberId: string; name: string };
+type Joining = { token: string | null; kind: "join" | "claim"; memberId: string; name: string };
 
-/** `{"memberId","name"}` to join as a new member, or `{"claimMemberId","name"}` to ask for a placeholder; never both. */
+/**
+ * `{"token","memberId","name"}` to join as a new member, or `{"token","claimMemberId","name"}` to
+ * ask for a placeholder; never both.
+ */
 function joiningOf(body: Record<string, unknown>): Joining | null {
+  const token = bodyTokenOf(body);
   const name = textOf(body.name);
   const joinAs = body.memberId ?? null;
   const claim = body.claimMemberId ?? null;
-  if (name === null || (joinAs === null) === (claim === null)) return null;
+  if (token === null || name === null || (joinAs === null) === (claim === null)) return null;
   const memberId = idOf(joinAs ?? claim);
-  return memberId === null ? null : { kind: joinAs !== null ? "join" : "claim", memberId, name };
+  return memberId === null ? null : { token: token.token, kind: joinAs !== null ? "join" : "claim", memberId, name };
 }
 
 const waiting = () => jsonResponse(202, { status: "pending" });
 
 /**
- * `POST /v1/invites/{token}/join`. With `{"memberId","name"}` the caller joins as a new member
- * and gets the group's state. With `{"claimMemberId","name"}` they ask to become that
- * placeholder: the claim waits for the owner, who is notified, and the answer is 202
+ * `POST /v1/invites/join` with the invite's `token`. With `"memberId"` and `"name"` the caller
+ * joins as a new member and gets the group's state. With `"claimMemberId"` and `"name"` they ask
+ * to become that placeholder: the claim waits for the owner, who is notified, and the answer is 202
  * `{"status":"pending"}`. A member gets the group's state whatever they send, and so never
  * claims. A placeholder can have one claim waiting, and an account one claim per group; a claim
  * on a member with an account, or on a placeholder someone else claimed, is 409.
  */
-export const joinGroupRoute = signedIn(async ({ request, env, ctx, params, account }) => {
-  const invited = await invitedGroup(env.DB, params[0]);
-  if (!invited.ok) return invited.response;
+export const joinGroupRoute = signedIn(async ({ request, env, ctx, account }) => {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, joiningOf);
   if (!input.ok) return input.response;
-  const { kind, memberId, name } = input.value;
+  const { token, kind, memberId, name } = input.value;
+  const invited = await invitedGroup(env.DB, token);
+  if (!invited.ok) return invited.response;
   const groupId = invited.groupId;
   const db = env.DB;
   return changeGroup(env, groupId, account, async (group) => {

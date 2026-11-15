@@ -6,8 +6,9 @@
   "upload_source_maps": true,
   // Logs hold only what the Worker prints, which is never a bill, a name, an install id or an IP.
   // Invocation logs are off because they record every request's headers, the session and the IP
-  // among them. Traces record timings, the outcome, CPU time, rough location and the user agent,
-  // but no header values, no IP and no body, so they stay on.
+  // among them. Traces record timings, the outcome, CPU time, rough location, the user agent and
+  // the URL, but no header values, no IP and no body, so they stay on: URLs hold ids only, never
+  // a link's token, which travels in the link's fragment and in request bodies.
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

@@ -8,7 +8,7 @@ import { PUSH_TEXT, type Push } from "../src/push";
 import type { RequestView } from "../src/requests";
 import { fakeFcm, invalidRegistration, unregistered } from "./fake-fcm";
 import { network } from "./network";
-import { addPlaceholder, api, invite, join, newGroup, type Person, person, rows, sha256, VND } from "./shared";
+import { addPlaceholder, api, invite, join, linkToken, newGroup, type Person, person, rows, sha256, VND } from "./shared";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -31,7 +31,7 @@ async function acceptedRequest(creditor: Person, debtor: Person, settings: Parti
     { id: crypto.randomUUID(), amountMinor: 50_000, currency: VND, payerName: "Minh", creditorName: "Lan", method: { kind: "PlainDetails", text: "Pay me" } },
     settings,
   );
-  await api(debtor, "POST", `/v1/request-links/${made.body.url.split("/").pop()}/accept`, undefined, settings);
+  await api(debtor, "POST", "/v1/request-links/accept", { token: linkToken(made.body.url) }, settings);
   return made.body.request.id;
 }
 
@@ -88,7 +88,7 @@ describe("push notifications", () => {
     const id = made.body.request.id;
     await api(minh, "POST", `/v1/requests/${id}/reported-paid`, undefined, settings);
     await api(owner, "POST", `/v1/requests/${id}/confirmed-paid`, undefined, settings);
-    await api(stranger, "POST", `/v1/invites/${await invite(group)}/join`, { claimMemberId: hoaId, name: "Stranger Secretname" }, settings);
+    await api(stranger, "POST", "/v1/invites/join", { token: await invite(group), claimMemberId: hoaId, name: "Stranger Secretname" }, settings);
     await api(owner, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor: 1 }, settings);
 
     expect(fcm.messages.map((message) => [message.token, message.data])).toEqual([
@@ -355,8 +355,8 @@ describe("the daily run", () => {
 
     await dailyRun();
 
-    expect((await api(owner, "GET", `/v1/invites/${longGone}`)).status).toBe(404);
-    expect((await api(owner, "GET", `/v1/invites/${recentlyGone}`)).status).toBe(410);
+    expect((await api(owner, "POST", "/v1/invites/open", { token: longGone })).status).toBe(404);
+    expect((await api(owner, "POST", "/v1/invites/open", { token: recentlyGone })).status).toBe(410);
     expect((await rows<{ id: string }>("SELECT id FROM requests WHERE deleted_at IS NOT NULL")).map((row) => row.id)).toEqual([newRequest]);
     expect(await rows("SELECT account FROM rate_windows")).toEqual([{ account: other.account }]);
   });
