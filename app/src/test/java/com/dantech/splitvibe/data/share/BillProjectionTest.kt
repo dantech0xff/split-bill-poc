@@ -39,6 +39,33 @@ class BillProjectionTest {
     }
 
     @Test
+    fun `invisible formatting characters are taken out as the proxy does, and a long name is cut between characters`() {
+        val saved = ShareFixtures.saved
+        val items = saved.bill.items.map {
+            when (it.id) {
+                "i1" -> it.copy(name = "\u200B\u2060")
+                "i2" -> it.copy(name = "Bun\u200B cha\uDB40\uDC01")
+                else -> it
+            }
+        }
+        val smile = "\uD83D\uDE00"
+        val people = saved.plan.participants.map {
+            when (it.id) {
+                "p1" -> it.copy(name = "\uFEFF")
+                "p2" -> it.copy(name = smile.repeat(61))
+                else -> it
+            }
+        }
+
+        val read = saved.copy(bill = saved.bill.copy(items = items), plan = saved.plan.copy(participants = people))
+
+        val projection = BillProjection.of(read, myName = "Dana")
+
+        assertEquals(listOf("Item", "Bun cha", "Tea"), projection.items.map { it.name })
+        assertEquals(listOf("Dana", "Someone", smile.repeat(60)), projection.participants.map { it.name })
+    }
+
+    @Test
     fun `a date that is not a day and a blank merchant are left out`() {
         val bill = ShareFixtures.saved.bill.copy(merchant = "  ", date = "14/11/2026")
 

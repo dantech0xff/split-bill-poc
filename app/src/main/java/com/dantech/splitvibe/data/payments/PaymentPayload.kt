@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.data.payments
 
+import com.dantech.splitvibe.data.proxy.codePointLength
+import com.dantech.splitvibe.data.proxy.takeCodePoints
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import java.net.URI
 import kotlinx.serialization.Serializable
@@ -54,13 +56,7 @@ data class PaymentPayload(val link: String?, val qrPayload: String?, val details
         /** Every control character but the two that break lines, which payment details and codes may hold. */
         private fun breaksText(char: Char): Boolean = char.isISOControl() && char != '\n' && char != '\r'
 
-        private fun String.codePointLength(): Int = codePointCount(0, length)
-
         /** Taken by a browser for whitespace, though Unicode does not class it as such. */
         private const val BYTE_ORDER_MARK = '\uFEFF'
-
-        /** The first [count] code points, never cutting one in two. */
-        private fun String.takeCodePoints(count: Int): String =
-            if (codePointLength() <= count) this else substring(0, offsetByCodePoints(0, count))
     }
 }

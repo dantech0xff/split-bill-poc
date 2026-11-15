@@ -3,6 +3,8 @@ package com.dantech.splitvibe.data.share
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.groups.CurrencyDto
 import com.dantech.splitvibe.data.payments.PaymentPayload
+import com.dantech.splitvibe.data.proxy.takeCodePoints
+import com.dantech.splitvibe.data.proxy.withoutFormatting
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.Serializable
@@ -66,9 +68,17 @@ data class BillProjection(
         /** Whether [saved] fits on a link: it has lines, and not more lines or people than a page holds. */
         fun canShare(saved: SavedBill): Boolean = saved.bill.items.size in 1..MAX_ITEMS && saved.plan.participants.size <= MAX_PEOPLE
 
-        /** [text] on one line without control characters, which the proxy refuses, and at most [max] long. */
-        private fun clean(text: String, max: Int): String =
-            text.map { if (it.isISOControl()) ' ' else it }.joinToString("").replace(Regex(" {2,}"), " ").trim().take(max).trim()
+        /**
+         * [text] on one line, without the control characters the proxy refuses or the formatting
+         * characters it takes out, and at most [max] characters long as the proxy counts them.
+         */
+        private fun clean(text: String, max: Int): String = text.withoutFormatting()
+            .map { if (it.isISOControl()) ' ' else it }
+            .joinToString("")
+            .replace(Regex(" {2,}"), " ")
+            .trim()
+            .takeCodePoints(max)
+            .trim()
 
         private fun isDay(text: String): Boolean = try {
             LocalDate.parse(text)
