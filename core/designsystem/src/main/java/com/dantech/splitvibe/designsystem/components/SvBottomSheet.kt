@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -15,7 +16,9 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -43,7 +46,12 @@ fun SvBottomSheet(
     supportingText: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
+    // Opened all the way, as tall as what it holds: a sheet stopped halfway would hide its actions.
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = modifier,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         // The sheet lies in a window of its own, outside every transition between screens or
         // steps, so nothing in it may take part in one.
         CompositionLocalProvider(LocalSvSharedTransition provides null) {
@@ -100,6 +108,26 @@ fun SvPersonPickRow(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = modifier
             .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange)
+            .semantics { contentDescription = listOfNotNull(name, detail).joinToString(", ") }
+            .padding(horizontal = SvSpacing.sm),
+    )
+}
+
+/**
+ * A person who can be chosen as the one out of a list, such as the one who paid: the person's
+ * colour, name and an optional [detail], and a radio button. The whole row is one radio button
+ * for a screen reader.
+ */
+@Composable
+fun SvPersonChoiceRow(name: String, selected: Boolean, onSelect: () -> Unit, modifier: Modifier = Modifier, detail: String? = null) {
+    ListItem(
+        headlineContent = { Text(name) },
+        supportingContent = detail?.let { { Text(it) } },
+        leadingContent = { SvAvatar(name) },
+        trailingContent = { RadioButton(selected = selected, onClick = null) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = modifier
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
             .semantics { contentDescription = listOfNotNull(name, detail).joinToString(", ") }
             .padding(horizontal = SvSpacing.sm),
     )

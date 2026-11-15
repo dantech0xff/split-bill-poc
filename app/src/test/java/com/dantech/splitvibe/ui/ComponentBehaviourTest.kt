@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Text
@@ -8,21 +9,26 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvFabMenu
 import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
+import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
@@ -55,6 +61,77 @@ class ComponentBehaviourTest {
         compose.onNodeWithText("By item")
             .assertIsOn()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+    }
+
+    @Test
+    fun `choice chips select the tapped option and read as radio buttons`() {
+        var selected by mutableIntStateOf(0)
+        compose.setContent {
+            SplitVibeTheme {
+                SvChoiceChips(
+                    options = listOf(
+                        "Equally",
+                        "By item",
+                        "By shares",
+                        "By percent",
+                        "By amount",
+                    ),
+                    selected = selected,
+                    onSelect = {
+                        selected =
+                            it
+                    },
+                )
+            }
+        }
+
+        compose.onNodeWithText("By percent").performClick()
+
+        assertEquals(3, selected)
+        compose.onNodeWithText("By percent")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+    }
+
+    @Test
+    fun `a person choice row is one radio button that chooses the person`() {
+        var chosen by mutableStateOf("Minh")
+        compose.setContent {
+            SplitVibeTheme {
+                Column {
+                    listOf("Minh", "Lan").forEach { name ->
+                        SvPersonChoiceRow(name = name, selected = name == chosen, onSelect = {
+                            chosen =
+                                name
+                        })
+                    }
+                }
+            }
+        }
+
+        compose.onNodeWithContentDescription("Lan").performClick()
+
+        assertEquals("Lan", chosen)
+        compose.onNodeWithContentDescription("Lan")
+            .assertIsSelected()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+    }
+
+    @Test
+    fun `a person chip that opens what can be done reads as one button with its action`() {
+        var opened = false
+        compose.setContent { SplitVibeTheme { SvPersonChip(name = "Minh", onClick = { opened = true }, onClickLabel = "Change Minh") } }
+
+        compose.onNodeWithContentDescription("Minh")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(
+                SemanticsMatcher("its action says what it does") {
+                    it.config.getOrNull(SemanticsActions.OnClick)?.label == "Change Minh"
+                },
+            )
+            .performClick()
+
+        assertTrue(opened)
     }
 
     @Test

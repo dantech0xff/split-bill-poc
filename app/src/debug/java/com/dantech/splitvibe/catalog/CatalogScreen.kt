@@ -53,6 +53,7 @@ import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvFabMenu
@@ -64,6 +65,7 @@ import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
+import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
@@ -203,7 +205,7 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("People", hint = "SvPersonChip, switched on, off and added, and SvPersonPickRow.")
+                SvSectionHeader("People", hint = "SvPersonChip, switched on, off, opened and added, SvPersonPickRow and SvPersonChoiceRow.")
                 var meIncluded by remember { mutableStateOf(true) }
                 FlowRow(
                     modifier = Modifier.padding(horizontal = SvSpacing.lg),
@@ -212,6 +214,7 @@ fun CatalogScreen() {
                     SvPersonChip(name = "Me", selected = meIncluded, onClick = { meIncluded = !meIncluded })
                     SvPersonChip(name = SAMPLE_PEOPLE[2], selected = false, onClick = {})
                     SvPersonChip(name = SAMPLE_PEOPLE[0], removeLabel = "Remove ${SAMPLE_PEOPLE[0]}", onRemove = {})
+                    SvPersonChip(name = SAMPLE_PEOPLE[1], onClick = {}, onClickLabel = "Change ${SAMPLE_PEOPLE[1]}")
                 }
                 var picked by remember { mutableStateOf(setOf(SAMPLE_PEOPLE[1])) }
                 SAMPLE_PEOPLE.take(2).forEach { name ->
@@ -222,6 +225,10 @@ fun CatalogScreen() {
                         onCheckedChange = { picked = if (it) picked + name else picked - name },
                     )
                 }
+                var payer by remember { mutableStateOf(SAMPLE_PEOPLE[0]) }
+                SAMPLE_PEOPLE.take(2).forEach { name ->
+                    SvPersonChoiceRow(name = name, selected = name == payer, onSelect = { payer = name })
+                }
             }
 
             item {
@@ -230,13 +237,19 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Choices", hint = "SvChoiceGroup and SvSplitButton.")
+                SvSectionHeader("Choices", hint = "SvChoiceGroup, SvChoiceChips and SvSplitButton.")
                 var mode by remember { mutableIntStateOf(0) }
+                var way by remember { mutableIntStateOf(1) }
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
                 ) {
                     SvChoiceGroup(options = listOf("Equally", "By item", "By amount"), selected = mode, onSelect = { mode = it })
+                    SvChoiceChips(
+                        options = listOf("Equally", "By item", "By shares", "By percent", "By amount"),
+                        selected = way,
+                        onSelect = { way = it },
+                    )
                     SvSplitButton(
                         text = "Request all",
                         onClick = {},
