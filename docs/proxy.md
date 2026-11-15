@@ -405,6 +405,176 @@ calls, and make groups, requests and devices again, which a later sign-in would 
 app forgets its session when the account is deleted, so only a copy kept elsewhere, such as on a
 second phone signed in to the same account, could still be used.
 
+## Bill links and the web pages
+
+A bill link lets everyone at the table open a bill in a browser, without the app or an account,
+and tap the items they had. Everyone with the page open sees the others' picks as they happen. The
+bill's owner then settles the split in the app, and the page shows what each person owes and how
+to pay. The same web app shows a payment request (`/r/`) and a group invite (`/g/`) to someone
+without the app. The Conventions above hold here too, except where this section says otherwise.
+
+### Bill links
+
+The routes of a link's owner need their session; the owner is the account that made the link.
+
+| Route | Answer |
+|---|---|
+| `PUT /v1/shares/{id}` `{"billId","billRevision","bill"}` | 201 the first time, then 200: `{"share": ShareView, "url"}`, with `url` `https://<the proxy's host>/s/#<token>` |
+| `GET /v1/shares/{id}` | `{"share": ShareView, "url"}` |
+| `POST /v1/shares/{id}/lock` | `{"share": ShareView}`: `locking`, with every claim written before it |
+| `POST /v1/shares/{id}/reopen` | `{"share": ShareView}`: `open` again, without amounts |
+| `POST /v1/shares/{id}/finalize` `{"billRevision","bill","amounts"}` | `{"share": ShareView}`: `locked`, with the amounts |
+| `DELETE /v1/shares/{id}/claims/{claimId}` | `{"share": ShareView}`, without that claim |
+| `DELETE /v1/shares/{id}` | 204: the link is revoked |
+
+- A link lasts 30 days from when it was made; nothing extends it. Its token is the first 128 bits
+  of an HMAC-SHA-256 under `HASH_SALT` of `share-link:<owner's account>:<link id>`, so the owner
+  gets the same link every time, and only its SHA-256 is kept.
+- `PUT` makes the link, or shows a changed bill on it. The `billId` stays the same (else 400). A
+  `billRevision` lower than the one kept is 409 `conflict`; another account's id is 409; a revoked
+  link is 410 `gone`. Claims keep only the item ids still in the bill. A `locked` link goes back to
+  `locking` and loses its amounts, so the split is settled again. An account makes at most 30
+  links an hour, and 300 changes an hour over all its links (429 past either).
+- `lock` turns `open` into `locking`, and reads every claim in the same batch: a claim written
+  before it is in the answer, and one after it is refused. On a `locking` or `locked` link it
+  answers the link as it is.
+- `reopen` turns `locking` or `locked` into `open` and drops the amounts.
+- `finalize` needs `locking` or `locked` (else 409). `amounts` names every participant of `bill`
+  and nobody else; each `amountMinor` is 0 to 10^15, and together they come to `bill.totalMinor`
+  (else 400). `billRevision` follows the rule of `PUT`.
+- Removing a claim works while the link is `open` or `locking` (409 once `locked`); the browser
+  that made it then has no claim, and needs Turnstile again to claim.
+- Revoking deletes every claim, empties the bill and the amounts, and tells every open page that
+  the link is gone. Revoking again answers 204.
+
+BillProjection, what the page shows of a bill:
+
+```json
+{"merchant": "Pho 24", "date": "2026-11-14", "currency": {"code": "VND", "fractionDigits": 0},
+ "items": [{"id": "i1", "name": "Pho bo", "quantity": "2", "amountMinor": 130000}],
+ "charges": [{"id": "c1", "label": "Service charge", "amountMinor": 13000}],
+ "totalMinor": 143000,
+ "participants": [{"id": "me", "name": "Lan"}, {"id": "p1", "name": "Minh"}]}
+```
+
+- `merchant` is null or 1 to 80 characters; `date` null or a real `YYYY-MM-DD`.
+- `items` holds 1 to 200 items and `charges` 0 to 20; `participants` holds 1 to 30 people.
+- Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list.
+- Names and labels are 1 to 80 characters; a participant's name is 1 to 60, and may be empty for
+  `me`, which the page then calls the bill's owner.
+- `quantity` is null or a decimal such as `"2"` or `"0.5"`.
+- An item's `amountMinor` is 0 to 10^15, a charge's -10^15 to 10^15, and `totalMinor` 0 to 10^15.
+- The whole bill is at most 64 KB (413 past that).
+
+ShareView, as its owner sees it:
+
+```json
+{"id": "…", "billId": "…", "billRevision": 3, "status": "open", "revision": 7,
+ "createdAt": 1763190000000, "expiresAt": 1765782000000, "bill": {},
+ "claims": [{"id": "…", "name": "Minh", "itemIds": ["i1"], "updatedAt": 1763190000000}],
+ "amounts": null}
+```
+
+- `status` is `open`, `locking` or `locked`.
+- `revision` moves on by one at every change of the link or its claims.
+- `amounts` is null until the split is settled, then `{"<participant id>": {"amountMinor", "payment"}}`.
+
+`payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
+person and that amount.
+
+```json
+{"link": "https://paypal.me/lan/71500VND", "qrPayload": null, "details": "PayPal: paypal.me/lan\nAmount: ₫71,500", "amountFilledIn": true}
+```
+
+- `link` is null, an `https:` URL with a host, or a `upi://pay?` link, at most 2,048 characters.
+  The proxy refuses any other scheme (400), and the page shows nothing else.
+- `qrPayload` is null or at most 512 characters, with no control characters but line breaks.
+- `details` is 1 to 1,000 characters, with line breaks allowed.
+
+### Claiming items
+
+These routes need no session. The token is in the body; a link that does not exist is 404, and one
+that was revoked or has expired is 410 `gone`, however long ago.
+
+| Route | Answer |
+|---|---|
+| `POST /v1/shares/open` `{"token","key"?}` | `{"share": PublicShare, "you": claimId or null}` |
+| `POST /v1/shares/claim` `{"token","key"?,"name","itemIds","turnstile"?}` | `{"share": PublicShare, "you": claimId, "key"?}` |
+| `GET /v1/shares/live`, with `Sec-WebSocket-Protocol: splitvibe.v1, <token>` | a WebSocket |
+
+PublicShare is the ShareView without `id`, `billId`, `billRevision`, `createdAt` and the claims'
+`updatedAt`. It names no account and holds no hash and no IP.
+
+- A claim is the items one browser took, under a name its user typed:
+  - Without `key`, or with a key the link does not know, it is a new claim. It needs `turnstile`,
+    a token of the Turnstile widget with the action `claim`, which the proxy checks with
+    Cloudflare.
+  - A missing or refused token is 403 `turnstile`; without the `TURNSTILE_SECRET` secret, a new
+    claim is 503 `not_configured`.
+  - The answer then carries `key`, 22 base64url characters, which the browser keeps and sends
+    from then on; only its SHA-256 is kept.
+  - With a known `key`, the claim's name and items are replaced, without Turnstile.
+- `name` is trimmed and 1 to 40 characters; `itemIds` holds unique ids of the bill's items, and may
+  be empty (else 400). A link holds at most 30 claims (409 `full`), and takes them only while
+  `open` (409 `locked` otherwise).
+- Limits per hashed IP: 10 new claims an hour and 120 claim writes an hour; 600 reads an hour over
+  `open`, `live`, `/v1/request-links/view` and `/v1/invites/preview`. Past any of them, 429.
+- The Turnstile token and the key open nothing else: every other route ignores them.
+
+The live connection:
+
+- The browser sends the two protocols; the proxy picks `splitvibe.v1`. The token travels in that
+  header because traces keep URLs and not header values.
+- After every change of the link or its claims, every page gets `{"type": "share", "share":
+  PublicShare}`. Once the link is revoked, they get `{"type": "gone"}` and the connection closes.
+  An expired link, or one whose owner deleted their account, sends nothing more; the page learns
+  it at its next request.
+- A link holds at most 50 connections (429 past that). A page may send `ping` and gets `pong`; it
+  sends nothing else.
+- A page should connect first, then call `open`, and keep whichever view has the higher
+  `revision`.
+- Each link has a Durable Object, `ShareRoom` (binding `SHARE_ROOM`), that holds only its
+  connections and passes on what the Worker gives it after each change. D1 holds the data, so a
+  lost connection loses nothing.
+
+### Payment requests and invites on the web
+
+| Route | Answer |
+|---|---|
+| `POST /v1/request-links/view` `{"token"}` | `{"request": {"creditorName","payerName","amountMinor","currency","title","status","payment","createdAt"}}` |
+| `POST /v1/invites/preview` `{"token"}` | `{"group": {"name","currency"}}` |
+
+- Neither needs a session. An unknown token is 404; a deleted request, or an expired or revoked
+  invite, is 410.
+- `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
+  app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
+  null.
+- Deleting an account empties `payment` along with `method` on the requests it made.
+
+### The pages
+
+- `GET /s/`, `GET /r/` and `GET /g/` answer the web app's page. Its script reads the token from the
+  fragment and calls the routes above; a token in the path, as in `/s/<token>`, is 404.
+- The Worker fills two tags of the page from its variables:
+  - `<meta name="sv-turnstile-site-key">` from `TURNSTILE_SITE_KEY`;
+  - `<meta name="sv-abuse-email">` from `ABUSE_EMAIL`, the address of the "Report abuse" link,
+    which the page leaves out while it is empty.
+- The page's headers:
+  - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
+  - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`
+  - `cache-control: no-store`
+- `GET /assets/<name>` serves the page's scripts and styles with `cache-control: public,
+  max-age=31536000, immutable`; any other name is 404.
+- The web app is built from [`web/`](../web) and put into the Worker's bundle when the Worker is
+  built.
+- `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
+  app where it is installed, and the page elsewhere.
+
+### Cleaning up
+
+- The daily run deletes links whose `expiresAt` has passed, with their claims, and revoked links.
+- Deleting an account deletes every link it made, with their claims.
+
 ## Run it on a computer
 
 Node 22 and npm. From `proxy/`:

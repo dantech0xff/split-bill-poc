@@ -1,6 +1,6 @@
 ---
 title: "Phase 6: Trang web cho người nhận và tự nhận món trực tiếp"
-status: todo
+status: in-progress
 phase: 6
 priority: P1
 effort: "10d"
@@ -11,129 +11,201 @@ dependencies: [5]
 
 ## Overview
 
-<!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
-> Backend cho dữ liệu dùng chung chưa chốt: Phase 3 đã bỏ Firebase. Khi bắt đầu phase này, chọn backend (ví dụ Durable Objects hoặc D1 trên Cloudflare, hoặc Firebase) rồi sửa các mục bên dưới còn ghi Firebase, Firestore hay `functions/`.
+<!-- Updated: 15/11/2026 - chủ sản phẩm chọn backend khi bắt đầu phase -->
+> **Đã chốt ngày 15/11/2026:**
+> - Dữ liệu của trang web nằm trong D1 của proxy Cloudflare đang chạy. Mỗi link chia sẻ hóa đơn có một Durable Object giữ các kết nối WebSocket để đẩy cập nhật trực tiếp.
+> - Trang web do chính Worker phục vụ, ở địa chỉ workers.dev của proxy như link mời và link yêu cầu của Phase 5.
+> - Người nhận món trên web không cần tài khoản. Bot bị chặn bằng Cloudflare Turnstile ở lần nhận đầu tiên, cùng giới hạn 30 người mỗi link và giới hạn tần suất theo IP.
+> - Link chia sẻ hóa đơn hết hạn sau 30 ngày; người tạo thu hồi được sớm hơn.
 
-Người nhận yêu cầu mở một link và thấy phần của mình cùng cách trả, không cần cài app. Cả bàn có thể mở cùng một link (hoặc app) và mỗi người tự chạm vào món mình ăn; mọi người thấy cập nhật trực tiếp, rồi người trả tiền chốt cách chia.
+Người nhận yêu cầu mở một link và thấy phần của mình cùng cách trả, không cần cài app. Cả bàn có thể mở cùng một link và mỗi người tự chạm vào món mình ăn; mọi người thấy cập nhật trực tiếp, rồi người trả tiền chốt cách chia trong app.
+
+Phase này cũng làm trang đầy đủ cho link yêu cầu (`/r/`) và link mời (`/g/`) mà Phase 5 đã hẹn. Người chưa cài app thấy yêu cầu cùng cách trả, hay tên nhóm mời họ vào.
 
 Tính năng v1.0 thuộc giai đoạn này: trang web trong "thẻ chia sẻ và trang web"; mỗi người tự nhận món.
 
 ## Context
 
-- Đây là bề mặt mới hoàn toàn: repo chưa có mã web nào và chưa có dữ liệu công khai nào.
-- Đây cũng là bề mặt đầu tiên mà người **chưa đăng nhập bằng tài khoản thật** được đọc và ghi dữ liệu, nên phần bảo mật là trọng tâm của giai đoạn.
-- Phase 4 đã cho mỗi món một `itemId` ổn định; Phase 5 đã có yêu cầu trả tiền mang bản chụp của một cách nhận tiền.
-- Dữ kiện: [báo cáo backend](../reports/researcher-261114-0209-product-backend-and-payment-links.md), mục 4.2 (App Check) và 4.5 (rules).
+<!-- Updated: 15/11/2026 - viết lại theo mã sau Phase 5 -->
+- Repo chưa có mã web nào. Proxy đã có `GET /g/` và `GET /r/` trả một trang tĩnh "mở trong app" (`proxy/src/links.ts`); token của link nằm sau dấu `#`.
+- Đây là bề mặt đầu tiên mà người không có tài khoản ghi được dữ liệu, nên bảo mật là trọng tâm của giai đoạn.
+- Phase 4 đã cho mỗi món một `itemId` ổn định; hóa đơn nằm trên máy (`SavedBill` trong Room).
+- Phase 5 đã có yêu cầu trả tiền mang bản chụp của một cách nhận tiền. Nội dung link và mã QR do `PaymentRequestBuilder` dựng, mà hàm này chỉ có trong Kotlin.
+- Dữ kiện cũ về Firebase nằm ở [báo cáo backend](../reports/researcher-261114-0209-product-backend-and-payment-links.md), mục 4.2 và 4.5; Turnstile thay App Check, và kiểm quyền trong Worker thay rules.
 
 ## Key Insights
 
-- Rules của Firestore không lọc được theo tham số trên URL, nên dùng mẫu "đường dẫn là chìa khóa": tài liệu công khai nằm ở `publicSplits/{token}`, cho phép đọc **một** tài liệu theo đúng đường dẫn và cấm liệt kê.
-- Rules không đếm được số tài liệu trong một collection con và không bảo đảm được token do server sinh nếu client được tạo tài liệu. Vì vậy **mọi lần ghi** vào bản chiếu và vào danh sách nhận món đều đi qua hàm trên server; client chỉ đọc.
-- Chính sách TTL của Firestore xóa trễ (có thể hơn một ngày) và không xóa collection con. Vì vậy hạn dùng phải được kiểm ngay trong rules, và việc dọn dẹp do một hàm theo lịch làm.
-- Tài liệu công khai chỉ là một **bản chiếu** của hóa đơn: đúng những gì người nhận cần thấy. Hóa đơn gốc trong `bills` không bao giờ mở cho người lạ.
-- Trang web không có mã tính tiền của Kotlin, nên phần mỗi người do app của người chốt tính rồi gửi lên. Trang web chỉ hiển thị.
+- D1 là nguồn sự thật, như Phase 5. Durable Object chỉ giữ kết nối và phát lại bản chiếu công khai mà Worker đưa cho nó sau mỗi lần ghi. Không dữ liệu nào chỉ nằm trong Durable Object, nên mất kết nối không mất gì: trình duyệt nối lại rồi đọc lại.
+- Token đi trong phần sau dấu `#` và trong thân request. Với WebSocket, token đi trong header `Sec-WebSocket-Protocol`, vì URL nằm trong trace của Cloudflare còn giá trị header thì không.
+- Chốt hai bước dựa vào việc D1 ghi tuần tự:
+  - một lượt nhận chỉ được ghi khi link còn `open`, trong cùng câu lệnh;
+  - khóa đổi `open` thành `locking` rồi đọc mọi lượt nhận trong cùng một lô.
+  
+  Vì vậy lượt nhận ghi trước khóa có trong kết quả, còn lượt ghi sau thì bị từ chối.
+- Token của link chia sẻ là HMAC của chủ và mã link, như link yêu cầu ở Phase 5. Chủ lấy lại được link bất cứ lúc nào, còn link của một người không bao giờ trùng link của người khác.
+- Trang web không chạy được mã tính tiền của Kotlin. App của người chốt tính phần mỗi người và dựng sẵn nội dung cách trả; trang chỉ hiển thị.
+- Không dùng Workers Static Assets: deploy đi qua Cloudflare API vì không có wrangler đăng nhập, mà API tải tài sản tĩnh cần header riêng. Trang web nhỏ (mục tiêu dưới 150 KB nén) nên được nhúng vào bundle của Worker lúc dựng.
 
 ## Requirements
 
 Chức năng:
-- **Xem:** trang `…/s/{token}` hiện hóa đơn, phần của từng người, cách trả của người đòi (link, QR hoặc thông tin), bằng ngôn ngữ của trình duyệt nếu có, mặc định tiếng Anh.
-- **Tự nhận món:** người mở link nhập tên, chạm vào các món của mình; một món có thể có nhiều người nhận; danh sách cập nhật trực tiếp cho mọi người đang mở, trên web lẫn trong app.
-- **Chốt:** người trả tiền xem ai đã nhận gì, ghép từng người nhận với một người tham gia của hóa đơn, sửa nếu cần, rồi chốt. Việc nhận món khóa lại và trang hiện phần phải trả của từng người.
-- **Thu hồi:** người tạo link tắt được link bất cứ lúc nào; link hết hiệu lực đúng thời điểm hết hạn.
+- **Xem hóa đơn:** trang `/s/#token` hiện:
+  - hóa đơn: quán, ngày, các món, phụ phí và tổng;
+  - ai đã nhận món gì;
+  - sau khi chốt, phần của từng người cùng cách trả (link, mã QR hay thông tin để chép).
+  
+  Giao diện tiếng Anh như app.
+- **Tự nhận món:** người mở link nhập tên rồi chạm vào các món của mình; một món có thể có nhiều người nhận. Mọi trình duyệt đang mở, và màn hình theo dõi trong app của người tạo, thấy cập nhật trực tiếp.
+- **Chốt:** trong app, người tạo:
+  - xem ai nhận gì;
+  - ghép mỗi người nhận với một người tham gia, hoặc thêm họ thành người mới;
+  - xóa người lạ;
+  - sửa cách chia nếu cần, rồi chốt.
+  
+  Từ lúc khóa, trang không nhận thêm lượt nhận nào; sau khi chốt, trang hiện phần phải trả của từng người.
+- **Thu hồi và hết hạn:** người tạo thu hồi link bất cứ lúc nào; link hết hiệu lực đúng 30 ngày sau khi tạo.
+- **Link yêu cầu trên web:** `/r/#token` hiện ai đòi, đòi bao nhiêu và cho việc gì, trạng thái, cùng cách trả do app của người đòi dựng sẵn; có nút mở trong app.
+- **Link mời trên web:** `/g/#token` hiện tên nhóm và cách cài app để vào nhóm.
 
 Phi chức năng:
-- Trang dùng cùng token màu, chữ và hình khối với app.
-- Công cụ tìm kiếm không lập chỉ mục các trang chia sẻ.
+- Trang dùng token màu, chữ và hình khối xuất từ hệ thiết kế của app, sáng và tối theo cài đặt của máy.
+- Công cụ tìm kiếm không lập chỉ mục các trang này.
 - <!-- Red Team: cổng phát hành vượt yêu cầu — 2026-11-14 --> Mục tiêu (đo và báo cáo, không chặn phát hành): điểm hiệu năng và tiếp cận của Lighthouse ở chế độ di động từ 90 trở lên; gói tải ban đầu dưới 150 KB đã nén.
 
 ## Architecture
 
+<!-- Updated: 15/11/2026 - thay Firebase bằng D1, Durable Objects và Turnstile trên proxy -->
 ```
-web/  (ứng dụng một trang tĩnh, TypeScript, Firebase JS SDK)
-  /s/{token}        xem bản chiếu, tự nhận món, xem phần phải trả
-Firebase Hosting ── phục vụ web/ với tiêu đề bảo mật, kèm tệp xác minh App Links cho link mời nhóm
-Hàm trên server (callable)
-  createShare, revokeShare      chủ hóa đơn gọi từ app
-  claimItems                    người mở link gọi từ web hoặc app
-  lockShare, finalizeShare      chủ hóa đơn gọi từ app khi chốt
-Firestore
-  publicSplits/{token}                 bản chiếu, chỉ server ghi, ai có đường dẫn và còn hạn thì đọc được
-  publicSplits/{token}/claims/{cid}    món đã nhận của một người, chỉ server ghi
-  shareTokens/{token}                  ánh xạ riêng tư sang chủ và hóa đơn, chỉ server đọc và ghi
+web/    Vite + TypeScript + Preact; một ứng dụng cho /s/, /r/ và /g/; dựng ra web/dist
+proxy/  nhúng web/dist vào bundle lúc dựng (module sinh ra, không commit) và phục vụ:
+  GET /s/  /r/  /g/              trang, kèm CSP, noindex và no-referrer
+  GET /assets/*                  JS và CSS, cache lâu
+  Đường của chủ link (cần phiên đăng nhập):
+    PUT    /v1/shares/{id}               tạo, hoặc chiếu lại hóa đơn
+    GET    /v1/shares/{id}               trạng thái, lượt nhận và link
+    POST   /v1/shares/{id}/lock          open thành locking, trả mọi lượt nhận
+    POST   /v1/shares/{id}/reopen        locking hay locked thành open
+    POST   /v1/shares/{id}/finalize      ghi phần và cách trả của từng người, thành locked
+    DELETE /v1/shares/{id}/claims/{cid}  xóa một người nhận
+    DELETE /v1/shares/{id}               thu hồi
+  Đường công khai (token trong thân, không cần phiên):
+    POST /v1/shares/open                 bản chiếu công khai
+    POST /v1/shares/claim                tạo hay sửa lượt nhận của trình duyệt này; Turnstile ở lần đầu
+    GET  /v1/shares/live                 WebSocket; token trong Sec-WebSocket-Protocol
+    POST /v1/request-links/view          yêu cầu trả tiền, cho trang /r/
+    POST /v1/invites/preview             tên nhóm, cho trang /g/
+D1, migration 0002: bảng shares và share_claims; bảng requests thêm cột payment
+Durable Object ShareRoom, một cho mỗi link: giữ WebSocket, phát bản chiếu sau mỗi thay đổi
 ```
 
-<!-- Red Team: bản chiếu công khai không thực thi được các cam kết của chính nó — 2026-11-14 -->
-Bản chiếu `publicSplits/{token}` gồm: tên quán, ngày, tiền tệ, các món (kèm `itemId`) và giá, phụ phí, tổng, tên người tham gia như đã nhập, phần mỗi người (sau khi chốt), bản chụp cách trả của người đòi, `billRevision`, `status` (`open`, `locking`, `locked`, `revoked`), `expiresAt`. Bản chiếu **không** chứa `uid` nào; ai là chủ nằm trong `shareTokens/{token}`.
+Hợp đồng đầy đủ nằm ở [docs/proxy.md](../../docs/proxy.md), mục "Bill links and the web pages".
 
-Luật truy cập:
-- `get` được phép khi `expiresAt` còn sau thời điểm yêu cầu và `status` khác `revoked`. `list` bị cấm. Client không tạo, sửa hay xóa được gì dưới `publicSplits`.
-- `claimItems` kiểm: link đang `open`, tên dài tối đa 40 ký tự, `itemId` có trong bản chiếu, mỗi link tối đa 30 người nhận, mỗi tài khoản một tài liệu nhận món, có giới hạn tần suất.
-- App Check bắt buộc cho các hàm này; token của trang web (reCAPTCHA Enterprise) chỉ được nhận ở các hàm của giai đoạn này, không gọi được hàm AI của Phase 3.
+Bản chiếu công khai gồm:
+- hóa đơn: quán, ngày, tiền tệ, các món (`itemId`, tên, số lượng, tiền), phụ phí, tổng;
+- người tham gia, mỗi người có mã và tên như người tạo đã nhập;
+- lượt nhận: mã người nhận, tên tự nhập và các `itemId`;
+- sau khi chốt, phần và cách trả của từng người tham gia;
+- `status` (`open`, `locking`, `locked`), `revision` và `expiresAt`.
 
-Giữ bản chiếu khớp với hóa đơn:
-- Món được tham chiếu bằng `itemId`, không bằng thứ tự.
-- Khi chủ sửa hóa đơn lúc link đang `open`, app gọi `createShare` lại để server chiếu lại với `billRevision` mới; các lượt nhận trỏ tới món đã bị xóa thì bị bỏ, và trang báo "hóa đơn vừa được cập nhật".
+Bản chiếu không có tài khoản, mã băm hay IP nào.
 
-Chốt hai bước, để không lượt nhận nào bị sót:
-1. `lockShare` đặt `status` thành `locking` (từ lúc này `claimItems` bị từ chối) rồi trả về toàn bộ lượt nhận đọc từ server.
-2. App ghép người nhận với người tham gia, tính phần mỗi người bằng `:core:domain`, rồi gọi `finalizeShare`. Hàm này ghi phần mỗi người vào bản chiếu, đặt `locked`, và ghi cách chia cuối cùng vào hóa đơn gốc, để hai nơi không lệch nhau.
+Người nhận món trên web:
+- Ở lần nhận đầu, trình duyệt gửi token Turnstile. Proxy kiểm token với Cloudflare, tạo người nhận, và trả một khóa bí mật 128 bit mà trình duyệt giữ trong localStorage. Các lần sau chỉ cần khóa.
+- Proxy kiểm:
+  - link đang `open`;
+  - tên dài 1 đến 40 ký tự;
+  - mọi `itemId` có trong bản chiếu;
+  - mỗi link tối đa 30 người nhận;
+  - giới hạn theo giờ cho mỗi IP đã băm.
+- Token Turnstile và khóa người nhận không mở được đường nào khác, kể cả đọc hóa đơn bằng AI.
 
-Dọn dẹp: một hàm theo lịch xóa bản chiếu đã hết hạn hoặc bị thu hồi cùng toàn bộ `claims` của nó và mục tương ứng trong `shareTokens`.
+Giữ bản chiếu khớp với hóa đơn: app gửi lại bản chiếu mỗi khi hóa đơn đổi lúc link còn mở. Proxy bỏ khỏi các lượt nhận những món không còn trong hóa đơn, và trang báo hóa đơn vừa được cập nhật.
 
-Khung web: ứng dụng một trang tĩnh bằng TypeScript với một thư viện giao diện nhỏ, chốt cụ thể ở bước rà lại đầu giai đoạn. Điều kiện chọn: không cần server dựng trang.
+Chốt hai bước:
+1. `lock` đổi `open` thành `locking` và trả mọi lượt nhận trong cùng một lô.
+2. App lần lượt:
+   - ghép người nhận với người tham gia;
+   - dựng cách chia theo món bằng `:core:domain` và cho người dùng sửa;
+   - tính phần của từng người, và dựng nội dung cách trả bằng `PaymentRequestBuilder`;
+   - ghi hóa đơn trên máy;
+   - gọi `finalize`.
+   
+   Proxy kiểm rằng các phần cộng lại bằng tổng.
+
+Dọn dẹp: cron hằng ngày xóa link đã hết hạn cùng mọi lượt nhận của nó. Thu hồi xóa lượt nhận ngay lập tức. Xóa tài khoản xóa mọi link của tài khoản đó.
 
 ## Files
 
 Tạo mới:
-- `web/` (`package.json`, `index.html`, `src/main.ts`, `src/split-view.ts`, `src/claim.ts`, `src/tokens.css`, `tests/`)
-- `functions/src/share.ts` (`createShare`, `revokeShare`, `claimItems`, `lockShare`, `finalizeShare`), `functions/src/share-cleanup.ts`
-- `app/src/main/java/com/dantech/splitvibe/data/share/PublicSplitRepository.kt`
-- `app/src/main/java/com/dantech/splitvibe/ui/claim/` (màn hình theo dõi nhận món và chốt)
-- `firestore-tests/public-splits.test.ts`
+- `web/`: `package.json`, `index.html`, `src/`, `tests/`, `e2e/`
+- `web/src/tokens.css`, do một test của `core/designsystem` sinh ra và giữ cho khớp
+- `proxy/migrations/0002_shares.sql`; `proxy/src/shares.ts`, `share-room.ts`, `turnstile.ts`, `web.ts`, cùng test
+- `core/domain/src/main/kotlin/com/dantech/splitvibe/domain/ClaimSplit.kt`, cùng test
+- `app/src/main/java/com/dantech/splitvibe/data/share/`, `app/src/main/java/com/dantech/splitvibe/ui/claim/`
 
 Sửa:
-- `firebase.json` (Hosting, đường dẫn `/s/**`, tiêu đề cấm lập chỉ mục, `Referrer-Policy: no-referrer`, Content-Security-Policy chặt), `firestore.rules`
-- `functions/src/analyze-bill.ts` và `quota.ts` (danh sách app được phép gọi hàm AI không gồm app web)
-- `functions/src/delete-account.ts` (thu hồi mọi link của người đó, xóa lượt nhận món của họ)
-- `core/designsystem` (xuất token ra `web/src/tokens.css`)
-- `app/src/main/java/com/dantech/splitvibe/ui/settle/` (thêm link web vào yêu cầu trả tiền)
+- Proxy:
+  - `proxy/src/index.ts` và `links.ts`;
+  - `requests.ts` (cột `payment`) và `invites.ts` (xem trước lời mời);
+  - `reminders.ts` (dọn link hết hạn) và `account-data.ts`;
+  - `wrangler.jsonc` (Durable Object, migration `v3`, biến của Turnstile và địa chỉ báo lạm dụng);
+  - `docs/proxy.md`.
+- App:
+  - `SavedBill.kt` (link chia sẻ của hóa đơn);
+  - màn hình kết quả (mời cả bàn tự nhận món);
+  - `RequestMoneyViewModel` (gửi nội dung cách trả cho trang `/r/`).
+- `.github/workflows/ci.yml`: dựng web trước khi kiểm proxy.
 
 ## Implementation Steps
 
-1. Viết test rules và test hàm trước: đọc theo đường dẫn, cấm liệt kê, hết hạn, thu hồi, client không ghi được, giới hạn của `claimItems`, khóa hai bước.
-2. Viết `createShare` (token 128 bit ngẫu nhiên do server sinh) và `revokeShare`; `PublicSplitRepository` trong app.
-3. Dựng trang xem trên `web/` với token thiết kế xuất từ app và các tiêu đề bảo mật; triển khai lên Hosting của project dev.
-4. Thêm đăng nhập ẩn danh và App Check trên web; viết `claimItems`; dựng chế độ tự nhận món với trình nghe trực tiếp.
-5. Màn hình trong app: theo dõi ai nhận gì, ghép người, sửa, chốt bằng `lockShare` rồi `finalizeShare`.
-6. Chiếu lại khi hóa đơn bị sửa; hàm dọn dẹp theo lịch; trang báo cho link không còn hiệu lực.
-7. Mở rộng `delete-account.ts`.
-8. Test đầu-cuối bằng trình duyệt tự động ở khung nhìn điện thoại; đo Lighthouse và kích thước gói.
+1. Hợp đồng API trong `docs/proxy.md`, rồi migration `0002_shares.sql`. Viết test của proxy cho quyền, giới hạn, hết hạn, thu hồi và khóa hai bước, rồi cài đặt.
+2. `ShareRoom` và WebSocket, với test phát cập nhật.
+3. Turnstile: kiểm token ở lần nhận đầu. Widget được tạo qua Cloudflare API, và secret được đặt thẳng vào Worker.
+4. `web/`, gồm:
+   - trang xem, tự nhận món và cập nhật trực tiếp;
+   - trang đã chốt;
+   - `/r/` và `/g/`;
+   - các trạng thái hết hạn và thu hồi;
+   - token thiết kế và tiêu đề bảo mật.
+5. App, gồm:
+   - `ClaimSplit`;
+   - kho dữ liệu của link, với WebSocket;
+   - màn hình theo dõi và chốt;
+   - chiếu lại khi hóa đơn đổi;
+   - nội dung cách trả cho `/r/`.
+6. Dọn dẹp theo lịch và xóa tài khoản.
+7. Test đầu-cuối bằng Playwright trên `wrangler dev` ở khung nhìn điện thoại; đo Lighthouse và kích thước gói.
+8. Review độc lập, deploy (sao lưu D1 trước migration) và tài liệu.
 
 ## Todo
 
-- [ ] Test rules và test hàm cho `publicSplits` và `claims`
-- [ ] `createShare`, `revokeShare`, ánh xạ riêng tư `shareTokens`
-- [ ] Trang xem trên Hosting với token thiết kế và tiêu đề bảo mật
-- [ ] Đăng nhập ẩn danh và App Check trên web; `claimItems` có giới hạn
-- [ ] Tự nhận món trực tiếp trên web và trong app
-- [ ] Chốt hai bước, ghi cách chia cuối vào hóa đơn gốc
+- [ ] Hợp đồng API, migration và test quyền của proxy
+- [ ] Link chia sẻ: tạo, chiếu lại, khóa, mở lại, chốt, xóa người nhận, thu hồi
+- [ ] Nhận món công khai với Turnstile và giới hạn
+- [ ] Cập nhật trực tiếp qua Durable Object
+- [ ] Trang web `/s/`, `/r/`, `/g/` với token thiết kế và tiêu đề bảo mật
+- [ ] App: tạo link, theo dõi trực tiếp, ghép người, chốt hai bước, ghi cách chia vào hóa đơn
 - [ ] Chiếu lại khi hóa đơn bị sửa
 - [ ] Dọn dẹp theo lịch; trang link hết hiệu lực
-- [ ] Xóa tài khoản thu hồi link và xóa lượt nhận
-- [ ] Test đầu-cuối trên trình duyệt; số đo Lighthouse và kích thước gói
+- [ ] Xóa tài khoản xóa link và lượt nhận
+- [ ] Test đầu-cuối; số đo Lighthouse và kích thước gói
 
 ## Success Criteria
 
-- Test rules qua: liệt kê `publicSplits` bị từ chối; đọc đúng đường dẫn được phép khi còn hạn; link **đã hết hạn** và link đã thu hồi đều không đọc được, dù tài liệu chưa bị xóa; client không tạo, sửa, xóa được bản chiếu hay lượt nhận.
-- Test hàm qua: `claimItems` từ chối tên quá dài, `itemId` lạ, người nhận thứ 31, và mọi yêu cầu sau `lockShare`.
-- Một lượt nhận gửi ngay trước `lockShare` có mặt trong kết quả `lockShare` trả về; một lượt gửi ngay sau bị từ chối (test chạy hai việc song song).
+<!-- Updated: 15/11/2026 - đổi sang các khái niệm của Cloudflare -->
+- Test của proxy qua:
+  - không có đường nào liệt kê link;
+  - đọc bằng đúng token thì được khi link còn hạn;
+  - link đã hết hạn và link đã thu hồi đều không đọc được, kể cả khi dòng của nó chưa bị xóa;
+  - không đường công khai nào tạo, sửa hay xóa được bản chiếu.
+- `claim` từ chối tên quá dài, `itemId` lạ, người nhận thứ 31, và mọi lượt sau khi khóa. Người nhận mới không có token Turnstile hợp lệ cũng bị từ chối.
+- Một lượt nhận gửi ngay trước `lock` có trong kết quả của `lock`; một lượt gửi ngay sau bị từ chối (test chạy hai việc song song).
 - Hai trình duyệt và một máy Android mở cùng link: một bên chạm nhận món thì hai bên kia thấy trong vòng 2 giây.
-- Sau khi chốt, phần mỗi người trên trang web, trong hóa đơn gốc và kết quả của `SplitCalculator` trên cùng fixture bằng nhau (test đối chiếu tự động).
-- Chủ xóa một món khi link đang mở: các lượt nhận món đó biến mất, các lượt nhận món khác vẫn trỏ đúng món.
-- Bản chiếu không chứa trường `uid` nào; hóa đơn gốc trong `bills` không đọc được bằng tài khoản ẩn danh của trang web.
-- Token App Check của trang web gọi `analyzeBill` thì bị từ chối.
-- Trang trả tiêu đề cấm lập chỉ mục, `Referrer-Policy: no-referrer` và Content-Security-Policy; link thanh toán mở trong thẻ mới không kèm nguồn giới thiệu.
-- Sau khi hàm dọn dẹp chạy, bản chiếu hết hạn không còn tài liệu `claims` nào.
+- Sau khi chốt, phần mỗi người trên trang web, trong hóa đơn trên máy và trong kết quả của `SplitCalculator` trên cùng fixture bằng nhau (test đối chiếu tự động).
+- Chủ xóa một món khi link đang mở: các lượt nhận món đó mất món đó, còn các lượt nhận món khác vẫn trỏ đúng món.
+- Bản chiếu không chứa tài khoản, mã băm hay IP. Khóa người nhận và token Turnstile không gọi được `/v1/bill-analysis` hay đường nào cần phiên.
+- Trang trả tiêu đề cấm lập chỉ mục, `Referrer-Policy: no-referrer` và Content-Security-Policy. Link thanh toán mở trong thẻ mới không kèm nguồn giới thiệu, và chỉ là `https:` hay `upi:`.
+- Sau khi cron chạy, link đã hết hạn không còn lượt nhận nào.
 - Báo cáo có số đo Lighthouse và kích thước gói so với mục tiêu.
 
 ## Risks
@@ -141,18 +213,19 @@ Sửa:
 | Rủi ro | Dấu hiệu nhận biết | Phản ứng đã định |
 |---|---|---|
 | Link bị chuyển tiếp cho người ngoài | Xuất hiện người nhận món lạ | Người trả thấy danh sách, xóa được từng người và thu hồi link; tên người nhận được ghi rõ là tự nhập |
-| Phá hoại bằng cách gửi nhiều lượt nhận | Số lần `claimItems` bị từ chối tăng vọt | Giới hạn 30 người mỗi link, giới hạn tần suất, App Check, thu hồi |
-| Trình duyệt trong app chat chặn lưu trữ | Đăng nhập ẩn danh lỗi trong trình duyệt nhúng | Chế độ chỉ xem không cần đăng nhập; mời mở bằng trình duyệt ngoài để nhận món |
-| Chi phí do nhiều người nghe trực tiếp và nhiều lần gọi hàm | Số lượt đọc và số lần gọi mỗi ngày tăng vọt | Ngừng nghe khi tab ẩn; khóa link sau khi chốt; `maxInstances` |
+| Phá hoại bằng cách gửi nhiều lượt nhận | Số lượt nhận bị từ chối tăng vọt | Giới hạn 30 người mỗi link, giới hạn tần suất theo IP, Turnstile, thu hồi |
+| Trình duyệt trong app chat chặn lưu trữ | Trình duyệt quên khóa người nhận sau khi tải lại | Chế độ xem không cần gì; trang mời mở bằng trình duyệt ngoài để giữ lượt nhận |
+| Gói miễn phí của Cloudflare không đủ | Số request mỗi ngày hay thời gian chạy của Durable Object chạm hạn mức | Đóng kết nối khi tab ẩn; khóa link sau khi chốt; giới hạn 50 kết nối mỗi link |
 | Mạo danh bằng cách nhập tên người khác | Phản hồi của người dùng | Lượt nhận không tự thành cách chia; người trả ghép và duyệt khi chốt |
 
 ## Security
 
-- Token do server sinh, 128 bit, không đoán được; không có đường nào liệt kê token.
-- Bản chiếu không chứa `uid`, email hay số điện thoại; chỉ có tên như người trả đã nhập và bản chụp của một cách trả mà người đó chọn công khai.
-- Trang web không dùng dữ liệu người nhập để dựng HTML thô; mọi chuỗi đi qua cơ chế chèn văn bản an toàn. Link thanh toán chỉ là `https:` đã qua kiểm tra ở Phase 5.
-- Đường dẫn có token không lọt sang trang thanh toán nhờ `Referrer-Policy: no-referrer`.
-- Có link báo lạm dụng ở chân trang.
+<!-- Updated: 15/11/2026 - đổi sang Cloudflare -->
+- Token do server sinh (HMAC, 128 bit), không đoán được; không có đường nào liệt kê token.
+- Bản chiếu không chứa tài khoản, email hay số điện thoại; chỉ có tên như người dùng đã nhập, và cách trả mà người tạo đã chọn.
+- Trang không dựng HTML từ dữ liệu của người dùng; mọi chuỗi đi qua cơ chế chèn văn bản an toàn của Preact. Link thanh toán chỉ là `https:` hay `upi:`, và được kiểm ở cả proxy lẫn trang.
+- `Referrer-Policy: no-referrer` giữ đường dẫn có token khỏi trang thanh toán. CSP chỉ cho chạy script của chính trang và của Turnstile.
+- Chân trang có link báo lạm dụng, tới địa chỉ do chủ sản phẩm đặt (`ABUSE_EMAIL`).
 
 ## Next
 
