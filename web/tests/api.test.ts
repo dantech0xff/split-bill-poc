@@ -37,14 +37,15 @@ describe("the proxy's routes", () => {
     expect(JSON.parse(String(seen?.body))).toEqual({ token: TOKEN, key: "KkKkKkKkKkKkKkKkKkKkKk" });
   });
 
-  it("send a claim's Turnstile token only when there is one", async () => {
+  it("send a claim's Turnstile token and attempt only when there are some", async () => {
     const fetch = new FakeFetch().answer("/v1/shares/claim", { status: 409, body: { error: "full" } }, { status: 409, body: { error: "locked" } });
-    const first = await claimShare({ token: TOKEN, key: null, name: "Bao", itemIds: ["i1"], turnstile: "t" }, fetch.fetch);
-    const later = await claimShare({ token: TOKEN, key: "KkKkKkKkKkKkKkKkKkKkKk", name: "Bao", itemIds: [], turnstile: null }, fetch.fetch);
+    const attempt = "0b5c6c1e-58f2-4d39-9a5e-4cf1d2a7e9b1";
+    const first = await claimShare({ token: TOKEN, key: null, attempt, name: "Bao", itemIds: ["i1"], turnstile: "t" }, fetch.fetch);
+    const later = await claimShare({ token: TOKEN, key: "KkKkKkKkKkKkKkKkKkKkKk", attempt: null, name: "Bao", itemIds: [], turnstile: null }, fetch.fetch);
     expect(first).toEqual({ ok: false, error: { kind: "full" } });
     expect(later).toEqual({ ok: false, error: { kind: "locked" } });
     expect(fetch.calls.map((call) => call.body)).toEqual([
-      { token: TOKEN, name: "Bao", itemIds: ["i1"], turnstile: "t" },
+      { token: TOKEN, attempt, name: "Bao", itemIds: ["i1"], turnstile: "t" },
       { token: TOKEN, key: "KkKkKkKkKkKkKkKkKkKkKk", name: "Bao", itemIds: [] },
     ]);
   });

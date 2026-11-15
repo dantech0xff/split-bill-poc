@@ -77,6 +77,8 @@ function claimProblemOf(error: ApiError): ClaimProblem {
 
 export interface ShareControllerOptions {
   token: string;
+  /** Makes the random id of a first claim; null where the browser cannot, and the claim goes without one. */
+  newAttempt?: () => string | null;
   /** Turnstile for the first claim; null when the page has no site key. */
   human: HumanCheck | null;
   /** Where and how to hold the live connection; null to go without one. */
@@ -94,6 +96,11 @@ export const READ_WHILE_DISCONNECTED_MS = 3 * 60_000;
 interface Write {
   name: string;
   itemIds: string[];
+}
+
+/** A random UUID, where the browser can make one. */
+function randomAttempt(): string | null {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : null;
 }
 
 /**
@@ -138,6 +145,11 @@ export class ShareController {
   /** No read and no live connection before this time, nor any claim before [claimsNotBefore]. */
   private readsNotBefore = Number.NEGATIVE_INFINITY;
   private claimsNotBefore = Number.NEGATIVE_INFINITY;
+  /**
+   * The random id of this browser's first claim, sent with every try of it until a key comes back,
+   * so that a try whose answer was lost and is sent again finds the claim it made.
+   */
+  private attempt: string | null = null;
   private announcements = 0;
   private readonly now: () => number;
 
@@ -461,7 +473,11 @@ export class ShareController {
     }
     const record = this.store.load();
     let turnstile: string | null = null;
+    let attempt: string | null = null;
     if (record === null) {
+      // The same id goes with every try of this browser's first claim, until a key comes back.
+      this.attempt ??= (this.options.newAttempt ?? randomAttempt)();
+      attempt = this.attempt;
       const human = this.options.human;
       if (human === null) {
         this.update({ claimProblem: { kind: "not_configured" } });
@@ -479,7 +495,7 @@ export class ShareController {
       if (this.finished || this.stopped) return false;
     }
     const result = await claimShare(
-      { token: this.options.token, key: record?.key ?? null, name: write.name, itemIds: write.itemIds, turnstile },
+      { token: this.options.token, key: record?.key ?? null, attempt, name: write.name, itemIds: write.itemIds, turnstile },
       this.options.fetch,
     );
     if (turnstile !== null) this.options.human?.consumed();
@@ -487,7 +503,11 @@ export class ShareController {
     if (result.ok) {
       const { share, you, key } = result.value;
       const savedKey = key ?? record?.key ?? null;
-      if (savedKey !== null) this.store.save({ key: savedKey, claimId: you, name: write.name });
+      if (savedKey !== null) {
+        this.store.save({ key: savedKey, claimId: you, name: write.name });
+        // The first claim landed: a claim made afresh later is another one, with an id of its own.
+        this.attempt = null;
+      }
       this.update({ you, persistent: this.store.persistent, removedByOwner: false });
       this.accept(share);
       return true;

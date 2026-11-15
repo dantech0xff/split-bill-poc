@@ -46,6 +46,11 @@ class FakeHumanCheck implements HumanCheck {
   }
 }
 
+/** The [n]th id of a first claim the page makes in a test. */
+function attemptOf(n: number): string {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+}
+
 /** A store whose record the test can see and set. */
 function memoryStore(record: ClaimRecord | null = null): ClaimStore {
   return new MemoryClaimStore(record);
@@ -57,6 +62,7 @@ describe("ShareController", () => {
   let human: FakeHumanCheck;
   let store: ClaimStore;
   let controller: ShareController;
+  let attempts: number;
 
   function make(options: { human?: HumanCheck | null; store?: ClaimStore; now?: () => number } = {}): ShareController {
     store = options.store ?? memoryStore();
@@ -66,6 +72,7 @@ describe("ShareController", () => {
       live: { url: "wss://proxy.example.workers.dev/v1/shares/live", env },
       fetch: fetch.fetch,
       store: Promise.resolve(store),
+      newAttempt: () => attemptOf(++attempts),
       ...(options.now === undefined ? {} : { now: options.now }),
     });
     return controller;
@@ -93,6 +100,7 @@ describe("ShareController", () => {
     fetch = new FakeFetch();
     env = new FakeLiveEnvironment();
     human = new FakeHumanCheck();
+    attempts = 0;
   });
 
   afterEach(() => {
@@ -132,7 +140,7 @@ describe("ShareController", () => {
     controller.toggle("i2");
     expect(controller.state.picks).toEqual(["i2"]);
     await vi.waitFor(() => expect(controller.state.saving).toBe(false));
-    expect(fetch.callsTo(CLAIM)[0]?.body).toEqual({ token: TOKEN, name: "Bao", itemIds: ["i2"], turnstile: "turnstile-1" });
+    expect(fetch.callsTo(CLAIM)[0]?.body).toEqual({ token: TOKEN, attempt: attemptOf(1), name: "Bao", itemIds: ["i2"], turnstile: "turnstile-1" });
     expect(human.consumed).toHaveBeenCalledOnce();
     expect(store.load()).toEqual({ key: KEY, claimId: "c-me", name: "Bao" });
     expect(controller.state.you).toBe("c-me");
@@ -143,6 +151,56 @@ describe("ShareController", () => {
     await vi.waitFor(() => expect(controller.state.saving).toBe(false));
     expect(fetch.callsTo(CLAIM)[1]?.body).toEqual({ token: TOKEN, key: KEY, name: "Bao", itemIds: ["i2", "i3"] });
     expect(store.load()?.key).toBe(KEY);
+  });
+
+  it("sends the same attempt with every try of the first claim, and none once it holds a key", async () => {
+    make();
+    await startWith(share(7));
+    controller.setName("Bao");
+    fetch.answer(
+      CLAIM,
+      new TypeError("Failed to fetch"),
+      { status: 200, body: { share: withMyClaim(8, ["i1"]), you: "c-me", key: KEY } },
+      { status: 200, body: { share: withMyClaim(9, ["i1", "i2"]), you: "c-me" } },
+    );
+
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.claimProblem).toEqual({ kind: "network" }));
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.you).toBe("c-me"));
+    controller.toggle("i2");
+    await vi.waitFor(() => expect(fetch.callsTo(CLAIM)).toHaveLength(3));
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+
+    expect(fetch.callsTo(CLAIM).map((call) => call.body)).toEqual([
+      { token: TOKEN, attempt: attemptOf(1), name: "Bao", itemIds: ["i1"], turnstile: "turnstile-1" },
+      { token: TOKEN, attempt: attemptOf(1), name: "Bao", itemIds: ["i1"], turnstile: "turnstile-2" },
+      { token: TOKEN, key: KEY, name: "Bao", itemIds: ["i1", "i2"] },
+    ]);
+    expect(attempts).toBe(1);
+  });
+
+  it("makes a new attempt for a claim made afresh once its first claim landed", async () => {
+    make();
+    await startWith(share(7));
+    controller.setName("Bao");
+    fetch.answer(
+      CLAIM,
+      { status: 200, body: { share: withMyClaim(8, ["i1"]), you: "c-me", key: KEY } },
+      { status: 200, body: { share: withMyClaim(10, ["i2"]), you: "c-me", key: "NnNnNnNnNnNnNnNnNnNnNn" } },
+    );
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.you).toBe("c-me"));
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+
+    // The owner takes the claim off; the next pick is a new first claim.
+    env.last.receive({ type: "share", share: share(9) });
+    expect(controller.state.you).toBeNull();
+    controller.toggle("i2");
+    await vi.waitFor(() => expect(controller.state.you).toBe("c-me"));
+
+    expect(fetch.callsTo(CLAIM).map((call) => call.body.attempt)).toEqual([attemptOf(1), attemptOf(2)]);
+    expect(fetch.callsTo(CLAIM).map((call) => call.body.turnstile)).toEqual(["turnstile-1", "turnstile-2"]);
   });
 
   it("sends one claim at a time, the latest picks last", async () => {
@@ -233,7 +291,7 @@ describe("ShareController", () => {
     await vi.waitFor(() => expect(controller.state.saving).toBe(false));
     const bodies = fetch.callsTo(CLAIM).map((call) => call.body);
     expect(bodies[0]).toEqual({ token: TOKEN, key: KEY, name: "Bao", itemIds: ["i1"] });
-    expect(bodies[1]).toEqual({ token: TOKEN, name: "Bao", itemIds: ["i1"], turnstile: "turnstile-1" });
+    expect(bodies[1]).toEqual({ token: TOKEN, attempt: attemptOf(1), name: "Bao", itemIds: ["i1"], turnstile: "turnstile-1" });
     expect(store.load()).toEqual({ key: "NnNnNnNnNnNnNnNnNnNnNn", claimId: "c-me", name: "Bao" });
     expect(controller.state.claimProblem).toBeNull();
   });

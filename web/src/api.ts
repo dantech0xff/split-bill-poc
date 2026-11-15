@@ -119,6 +119,8 @@ export function openShare(token: string, key: string | null, fetchImpl?: Fetch):
 export interface ClaimBody {
   token: string;
   key: string | null;
+  /** The random id of this browser's first claim, sent with every try of it until the browser holds a key. */
+  attempt: string | null;
   name: string;
   itemIds: readonly string[];
   turnstile: string | null;
@@ -127,6 +129,7 @@ export interface ClaimBody {
 export function claimShare(claim: ClaimBody, fetchImpl?: Fetch): Promise<ApiResult<ClaimAnswer>> {
   const body: Record<string, unknown> = { token: claim.token, name: claim.name, itemIds: [...claim.itemIds] };
   if (claim.key !== null) body.key = claim.key;
+  if (claim.attempt !== null) body.attempt = claim.attempt;
   if (claim.turnstile !== null) body.turnstile = claim.turnstile;
   return postJson("/v1/shares/claim", body, parseClaimAnswer, fetchImpl);
 }

@@ -5,6 +5,8 @@ import { Account, expectPageHeaders, watchForCspViolations } from "./local-proxy
 const ORIGIN = "http://127.0.0.1:8797";
 const HOST = "127.0.0.1:8797";
 const LIVE_BUDGET_MS = 2_000;
+/** The random id the page sends with every try of its first claim. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The bill of the unit tests' fixture: Pho 24, three items, a service charge, three people. */
 const BILL: unknown = JSON.parse(readFileSync(new URL("../tests/fixtures/share-open.json", import.meta.url), "utf8")).share.bill;
@@ -84,7 +86,7 @@ async function firstClaim(page: Page, token: string, item: string): Promise<{ an
   const answeredAt = Date.now();
   expect(claim.status()).toBe(200);
   const body: unknown = claim.request().postDataJSON();
-  expect(body).toMatchObject({ token, name: expect.any(String), itemIds: expect.any(Array), turnstile: expect.any(String) });
+  expect(body).toMatchObject({ token, name: expect.any(String), itemIds: expect.any(Array), turnstile: expect.any(String), attempt: expect.stringMatching(UUID) });
   expect(body).not.toHaveProperty("key");
   return { answeredAt, tookMs: answeredAt - tappedAt };
 }
@@ -123,6 +125,7 @@ test("everyone at the table picks live, then sees what to pay and how, until the
   const keyedBody: unknown = (await keyed).postDataJSON();
   expect(keyedBody).toMatchObject({ token: link.token, key: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/), name: "Minh", itemIds: ["i2", "i3"] });
   expect(keyedBody).not.toHaveProperty("turnstile");
+  expect(keyedBody).not.toHaveProperty("attempt");
   const secondDelay = await msUntilPicked(an.page, "Iced coffee", "Minh", tappedAt);
 
   // An picks too, and Minh sees it.
