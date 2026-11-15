@@ -25,7 +25,8 @@
       { "id": "c-an", "name": "An", "itemIds": ["i1", "i2"] }
     ],
     "amounts": null,
-    "paidBy": null
+    "paidBy": null,
+    "matches": null
   },
   "you": "c-minh"
 }

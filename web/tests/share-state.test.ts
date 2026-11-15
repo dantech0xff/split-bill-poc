@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type PublicShare, parseShare } from "../src/contract";
-import { describeChanges, isNewer, participantLabel, statusSentence } from "../src/share-state";
+import { describeChanges, isNewer, matchOf, participantLabel, statusSentence } from "../src/share-state";
 import shareOpen from "./fixtures/share-open.json";
 
 function share(patch: Partial<PublicShare> = {}): PublicShare {
@@ -8,6 +8,25 @@ function share(patch: Partial<PublicShare> = {}): PublicShare {
   if (parsed === null) throw new Error("The fixture does not parse");
   return { ...parsed, ...patch };
 }
+
+describe("matchOf", () => {
+  it("finds the participant a claim is on the bill as, and nobody for a claim the owner matched to nobody", () => {
+    const settled = share({ status: "locked", matches: { "c-minh": "p1" } });
+    expect(matchOf(settled, "c-minh")).toEqual({ id: "p1", name: "Minh" });
+    expect(matchOf(settled, "c-an")).toBeNull();
+    expect(matchOf(settled, null)).toBeNull();
+    expect(matchOf(share(), "c-minh")).toBeNull();
+    // Only a participant of the bill: an id the bill does not have names nobody.
+    expect(matchOf(share({ matches: { "c-minh": "p9" } }), "c-minh")).toBeNull();
+  });
+
+  it("finds claims whose ids are __proto__ and constructor like any other", () => {
+    const parsed = parseShare({ ...shareOpen.share, matches: JSON.parse('{"__proto__": "p2"}') as unknown });
+    if (parsed === null) throw new Error("The share does not parse");
+    expect(matchOf(parsed, "__proto__")).toEqual({ id: "p2", name: "An" });
+    expect(matchOf(parsed, "constructor")).toBeNull();
+  });
+});
 
 describe("isNewer", () => {
   it("keeps whichever view has the higher revision", () => {

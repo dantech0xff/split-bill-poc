@@ -4,7 +4,18 @@ import { type BillItem, type BillProjection, type Currency, OWNER_PARTICIPANT_ID
 import { formatBillDate } from "../dates";
 import { formatMoney } from "../money";
 import { type ClaimProblem, MAX_NAME_LENGTH, type ShareState, isNameProblem } from "../share-controller";
-import { capitalized, claimersOf, listOf, ownerInSentence, participantLabel, payerOf, personInSentence, statusSentence, UNNAMED_OWNER } from "../share-state";
+import {
+  capitalized,
+  claimersOf,
+  listOf,
+  matchOf,
+  ownerInSentence,
+  participantLabel,
+  payerOf,
+  personInSentence,
+  statusSentence,
+  UNNAMED_OWNER,
+} from "../share-state";
 import { CheckIcon, ExpandIcon } from "../ui/icons";
 import { PaymentBlock } from "../ui/payment-block";
 import { waitText } from "../ui/problem-view";
@@ -136,6 +147,11 @@ function quantityPrefix(quantity: string | null): string {
   return quantity === null || quantity === "1" ? "" : `${quantity} × `;
 }
 
+/** The chip that marks what is this browser's own: it says so in words, not by its colour alone. */
+function YouChip() {
+  return <span class="chip chip--you type-label-medium">You</span>;
+}
+
 interface ItemContentProps {
   item: BillItem;
   currency: Currency;
@@ -156,7 +172,7 @@ function ItemContent({ item, currency, mine, others }: ItemContentProps) {
         <span class="item__claimers">
           <span class="visually-hidden">{`, picked by ${listOf(spoken)}`}</span>
           <span class="chips" aria-hidden="true">
-            {mine && <span class="chip chip--you type-label-medium">You</span>}
+            {mine && <YouChip />}
             {others.map((name, index) => (
               <span key={index} class="chip type-label-medium">
                 {name}
@@ -247,10 +263,21 @@ export function noteWithoutPayment(participant: Participant, amountMinor: number
   return `No way to pay was added. ${capitalized(personInSentence(payer))} paid the bill: settle up with them directly.`;
 }
 
-export function AmountsSection({ share }: { share: PublicShare }) {
+interface SettledProps {
+  share: PublicShare;
+  /** The id of this browser's claim on the link, when it has one. */
+  you: string | null;
+}
+
+/**
+ * What each participant pays, and how. The amount of the participant whom the owner matched this
+ * browser's claim to is marked as this person's own.
+ */
+export function AmountsSection({ share, you }: SettledProps) {
   const { bill, amounts } = share;
   if (amounts === null) return null;
   const payer = payerOf(share);
+  const yours = matchOf(share, you);
   const rows = bill.participants.flatMap((participant) => {
     const amount = amounts[participant.id];
     return amount === undefined ? [] : [{ participant, amount }];
@@ -264,11 +291,18 @@ export function AmountsSection({ share }: { share: PublicShare }) {
       {payable > 1 && <p class="type-body-medium supporting">Tap your name to see how to pay.</p>}
       <ul class="group">
         {rows.map(({ participant, amount }) => {
-          const name = participantLabel(participant);
+          const mine = participant.id === yours?.id;
+          const name = (
+            <span class="person__label">
+              {participantLabel(participant)}
+              {mine && <YouChip />}
+            </span>
+          );
           const money = formatMoney(amount.amountMinor, bill.currency);
+          const row = mine ? "group__item person person--you" : "group__item person";
           if (amount.payment !== null) {
             return (
-              <li key={participant.id} class="group__item person">
+              <li key={participant.id} class={row}>
                 <details class="person__details" open={payable === 1}>
                   <summary class="person__row">
                     <span class="person__name type-body-large">{name}</span>
@@ -284,7 +318,7 @@ export function AmountsSection({ share }: { share: PublicShare }) {
           }
           const note = noteWithoutPayment(participant, amount.amountMinor, payer);
           return (
-            <li key={participant.id} class="group__item person">
+            <li key={participant.id} class={row}>
               <div class="person__row">
                 <span class="person__name type-body-large">
                   {name}
@@ -295,6 +329,34 @@ export function AmountsSection({ share }: { share: PublicShare }) {
             </li>
           );
         })}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Who picked items, once the split is settled, and who each of them is on the bill where the owner
+ * matched their claim to a participant; shown when the owner matched any. This browser's own claim
+ * is marked as such.
+ */
+export function ClaimersSection({ share, you }: SettledProps) {
+  const rows = share.claims.map((claim) => ({ claim, participant: matchOf(share, claim.id) }));
+  if (rows.every((row) => row.participant === null)) return null;
+  return (
+    <section class="section" aria-labelledby="claimers-title">
+      <h2 id="claimers-title" class="type-title-medium">
+        Who picked
+      </h2>
+      <ul class="group">
+        {rows.map(({ claim, participant }) => (
+          <li key={claim.id} class="group__item claimer">
+            <span class="claimer__name type-body-large">
+              {claim.name}
+              {claim.id === you && <YouChip />}
+            </span>
+            {participant !== null && <span class="type-body-medium supporting">{`On the bill as ${personInSentence(participant)}`}</span>}
+          </li>
+        ))}
       </ul>
     </section>
   );

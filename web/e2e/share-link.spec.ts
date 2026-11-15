@@ -145,18 +145,39 @@ test("everyone at the table picks live, then sees what to pay and how, until the
   expect(JSON.stringify(stored)).not.toContain(link.token);
 
   // The owner locks: picks freeze on both pages.
-  await lan.lockShare(link.id);
+  const claims = await lan.lockShare(link.id);
   for (const { page } of [minh, an]) {
     await expect(page.locator(".banner")).toHaveText("Picks are closed: Lan is settling the split.");
     await expect(page.locator("button[aria-pressed]")).toHaveCount(0);
     await expect(page.getByLabel("Your name")).toHaveCount(0);
   }
 
-  // The owner, who paid the bill, settles the split: both pages show each amount, the QR codes and the link.
-  await lan.finalizeShare(link.id, BILL, AMOUNTS, "me");
-  for (const { page } of [minh, an]) {
+  // The owner, who paid the bill, settles the split and matches each claim to the person it is on
+  // the bill: both pages show each amount, the QR codes and the link, say who each claim is, and
+  // mark the amount of their own.
+  const claimIdOf = (name: string): string => claims.find((claim) => claim.name === name)?.id ?? "";
+  await lan.finalizeShare(link.id, BILL, AMOUNTS, "me", { [claimIdOf("Minh")]: "p1", [claimIdOf("An")]: "p2" });
+  const seen = [
+    {
+      phoneAtTable: minh,
+      own: /^Minh\s*You$/,
+      amounts: [/Lan\s*Paid the bill\s*₫77,000/, /Minh\s*You\s*₫86,500/, /An\s*₫67,500/],
+      claimers: [/^Minh\s*You\s*On the bill as Minh$/, /^An\s*On the bill as An$/],
+    },
+    {
+      phoneAtTable: an,
+      own: /^An\s*You$/,
+      amounts: [/Lan\s*Paid the bill\s*₫77,000/, /Minh\s*₫86,500/, /An\s*You\s*₫67,500/],
+      claimers: [/^Minh\s*On the bill as Minh$/, /^An\s*You\s*On the bill as An$/],
+    },
+  ];
+  for (const { phoneAtTable, own, amounts, claimers } of seen) {
+    const { page } = phoneAtTable;
     await expect(page.getByRole("heading", { name: "What each person pays" })).toBeVisible();
-    await expect(page.locator(".person__row")).toHaveText([/Lan\s*Paid the bill\s*₫77,000/, /Minh\s*₫86,500/, /An\s*₫67,500/]);
+    await expect(page.locator(".person__row")).toHaveText(amounts);
+    await expect(page.locator(".person--you .person__label")).toHaveText(own);
+    await expect(page.getByRole("heading", { name: "Who picked" })).toBeVisible();
+    await expect(page.locator(".claimer")).toHaveText(claimers);
     await page.locator("summary", { hasText: "Minh" }).click();
     await page.locator("summary", { hasText: "An" }).click();
     const pay = page.getByRole("link", { name: "Pay on paypal.me" });

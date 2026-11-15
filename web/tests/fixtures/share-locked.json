@@ -45,7 +45,8 @@
         }
       }
     },
-    "paidBy": null
+    "paidBy": null,
+    "matches": { "c-an": "p2", "c-minh": "p1" }
   },
   "you": null
 }

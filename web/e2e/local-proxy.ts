@@ -67,14 +67,19 @@ export class Account {
     return { id, billId, token: tokenOf(String(answer.url)) };
   }
 
-  async lockShare(id: string): Promise<void> {
+  /** Locks the link, and answers the claims the lock's answer holds, every one written before it. */
+  async lockShare(id: string): Promise<Array<{ id: string; name: string }>> {
     const answer = await json(await this.request.post(`/v1/shares/${id}/lock`, { headers: this.headers }), 200);
-    expect((answer.share as { status: string }).status).toBe("locking");
+    const share = answer.share as { status: string; claims: Array<{ id: string; name: string }> };
+    expect(share.status).toBe("locking");
+    return share.claims;
   }
 
-  async finalizeShare(id: string, bill: unknown, amounts: unknown, paidBy: string | null = null): Promise<void> {
-    const answer = await json(await this.request.post(`/v1/shares/${id}/finalize`, { headers: this.headers, data: { billRevision: 1, bill, amounts, paidBy } }), 200);
-    expect(answer.share as { status: string; paidBy: string | null }).toMatchObject({ status: "locked", paidBy });
+  async finalizeShare(id: string, bill: unknown, amounts: unknown, paidBy: string | null = null, matches: Record<string, string> | null = null): Promise<void> {
+    const answer = await json(await this.request.post(`/v1/shares/${id}/finalize`, { headers: this.headers, data: { billRevision: 1, bill, amounts, paidBy, matches } }), 200);
+    const share = answer.share as { status: string; paidBy: string | null; matches: Record<string, string> | null };
+    expect(share).toMatchObject({ status: "locked", paidBy });
+    expect(share.matches).toEqual(matches);
   }
 
   async revokeShare(id: string): Promise<void> {

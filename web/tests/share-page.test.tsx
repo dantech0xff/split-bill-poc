@@ -167,6 +167,67 @@ describe("the bill link's page", () => {
     expect(textOf(people[2] ?? null)).toBe("An No way to pay was added. The person who made this link paid the bill: settle up with them directly. ₫67,500");
   });
 
+  it("says who each claim is on the bill once the split is settled, and marks the amount of this browser's own", () => {
+    const page = mount(<ShareView state={stateOf(shareLocked, { you: "c-minh" })} actions={actions()} />);
+    expect(textOf(page.querySelector("#claimers-title"))).toBe("Who picked");
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Minh You On the bill as Minh", "An On the bill as An"]);
+    expect(all(page, ".person").map((person) => textOf(person.querySelector(".person__row")))).toEqual([
+      "The bill's owner Shared this bill ₫77,000",
+      "Minh You ₫86,500",
+      "An ₫67,500",
+    ]);
+    const marked = all(page, ".person--you");
+    expect(marked).toHaveLength(1);
+    // Words say whose amount it is, not a colour alone.
+    expect(textOf(marked[0]?.querySelector(".person__name .chip--you") ?? null)).toBe("You");
+    expect(marked[0]?.querySelector("summary")?.textContent).toContain("Minh");
+  });
+
+  it("marks no amount when this browser's claim was matched to nobody, and still marks its claim", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
+    answer.share.matches = { "c-minh": "p1" };
+    const page = mount(<ShareView state={stateOf(answer, { you: "c-an" })} actions={actions()} />);
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Minh On the bill as Minh", "An You"]);
+    expect(all(page, ".person--you")).toHaveLength(0);
+    expect(all(page, ".person .chip--you")).toHaveLength(0);
+  });
+
+  it("lists who picked only once the owner matched a claim to someone on the bill", () => {
+    for (const matches of [null, { "c-minh": "p9" }]) {
+      const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
+      answer.share.matches = matches;
+      const page = mount(<ShareView state={stateOf(answer, { you: "c-minh" })} actions={actions()} />);
+      expect(page.querySelector("#claimers-title"), JSON.stringify(matches)).toBeNull();
+      expect(all(page, ".claimer")).toHaveLength(0);
+      expect(all(page, ".person--you")).toHaveLength(0);
+    }
+    const locking = mount(<ShareView state={stateOf(shareLocking)} actions={actions()} />);
+    expect(locking.querySelector("#claimers-title")).toBeNull();
+  });
+
+  it("says a claim is on the bill as the person who made this link when it is the owner's, who left their name empty", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
+    answer.share.matches = { "c-an": "p2", "c-minh": "me" };
+    const page = mount(<ShareView state={stateOf(answer, { you: "c-minh" })} actions={actions()} />);
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual([
+      "Minh You On the bill as the person who made this link",
+      "An On the bill as An",
+    ]);
+    expect(textOf(page.querySelector(".person--you .person__row"))).toBe("The bill's owner You Shared this bill ₫77,000");
+  });
+
+  it("finds claims whose ids are __proto__ and constructor like any other", () => {
+    const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
+    answer.share.claims = [
+      { id: "__proto__", name: "Proto", itemIds: ["i1"] },
+      { id: "constructor", name: "Con", itemIds: ["i2"] },
+    ];
+    answer.share.matches = JSON.parse('{"__proto__": "p2"}') as unknown;
+    const page = mount(<ShareView state={stateOf(answer, { you: "constructor" })} actions={actions()} />);
+    expect(all(page, ".claimer").map((claimer) => textOf(claimer))).toEqual(["Proto On the bill as An", "Con You"]);
+    expect(all(page, ".person--you")).toHaveLength(0);
+  });
+
   it("lists people whose ids are __proto__ and constructor like anyone else", () => {
     const answer = structuredClone(shareLocked) as { share: Record<string, unknown> };
     answer.share.bill = { ...shareLocked.share.bill, participants: [{ id: "__proto__", name: "Proto" }, { id: "constructor", name: "Con" }], totalMinor: 3000 };

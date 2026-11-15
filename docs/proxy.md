@@ -550,7 +550,9 @@ ShareView, as its owner sees it:
   person paid the bill and to settle up with them; when it is null, only to settle up with whoever
   paid.
 - `matches` is null until the split is settled, and when the owner matched no claim; then
-  `{"<claim id>": "<participant id>"}`, its keys sorted.
+  `{"<claim id>": "<participant id>"}`, its keys sorted. The web page then lists who picked items
+  and says who each matched claim is on the bill, and marks "You" on the browser's own claim and
+  on the amount of the participant it is matched to.
 
 `payment` is null, or a PaymentPayload: what `PaymentRequestBuilder` made in the app for that
 person and that amount.

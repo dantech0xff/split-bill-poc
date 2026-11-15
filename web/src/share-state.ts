@@ -49,6 +49,13 @@ export function payerOf(share: PublicShare): Participant | null {
   return share.bill.participants.find((participant) => participant.id === share.paidBy) ?? null;
 }
 
+/** The participant of the bill whom the owner matched the claim [claimId] to in settling the split; null when they matched it to nobody. */
+export function matchOf(share: PublicShare, claimId: string | null): Participant | null {
+  const participantId = claimId === null || share.matches === null ? undefined : share.matches[claimId];
+  if (participantId === undefined) return null;
+  return share.bill.participants.find((participant) => participant.id === participantId) ?? null;
+}
+
 /** A participant's name as the page shows it; the owner's empty name reads as the bill's owner. */
 export function participantLabel(participant: { id: string; name: string }): string {
   const name = participant.name.trim();

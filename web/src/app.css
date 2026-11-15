@@ -564,6 +564,21 @@ a {
   flex-direction: column;
 }
 
+/* The amount of the participant this browser's claim was matched to; its "You" chip says so in words. */
+.person--you {
+  background: var(--sv-secondary-container);
+  color: var(--sv-on-secondary-container);
+}
+
+/* A name and the chip that may mark it as this browser's own, wrapping under it on a narrow screen. */
+.person__label,
+.claimer__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sv-space-sm);
+}
+
 .person__amount {
   white-space: nowrap;
 }
@@ -632,6 +647,17 @@ a {
   flex-direction: column;
   gap: var(--sv-space-sm);
   padding-inline-start: var(--sv-space-xl);
+}
+
+/* Who picked, and who each of them is on the bill */
+
+.claimer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sv-space-xs);
+  min-height: 64px;
+  padding: var(--sv-space-md) var(--sv-space-xl);
 }
 
 @media (prefers-reduced-motion: reduce) {

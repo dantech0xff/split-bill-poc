@@ -8,6 +8,7 @@ import { Loading, ProblemView } from "../ui/problem-view";
 import {
   AmountsSection,
   BillHeader,
+  ClaimersSection,
   ClaimForm,
   ItemsSection,
   LiveRegion,
@@ -44,7 +45,12 @@ export function ShareView({ state, actions, humanCheckSlot }: ShareViewProps) {
             </button>
           </div>
         )}
-        {share.status === "locked" && <AmountsSection share={share} />}
+        {share.status === "locked" && (
+          <>
+            <AmountsSection share={share} you={state.you} />
+            <ClaimersSection share={share} you={state.you} />
+          </>
+        )}
         {share.status === "open" && <ClaimForm state={state} actions={actions} humanCheckSlot={humanCheckSlot ?? null} />}
         <ItemsSection share={share} picks={picks} you={state.you} onToggle={(itemId) => actions.toggle(itemId)} />
         <TotalsSection bill={share.bill} />

@@ -66,6 +66,8 @@ export interface PublicShare {
   amounts: Record<string, ShareAmount> | null;
   /** The participant who paid the whole bill, when the owner named one in settling the split; null otherwise. */
   paidBy: string | null;
+  /** Which participant of the bill each claim is, keyed by claim id, when the owner matched any in settling the split; null otherwise. */
+  matches: Record<string, string> | null;
 }
 
 export type RequestStatus = "open" | "reported" | "confirmed";
@@ -218,6 +220,18 @@ function parseAmounts(value: unknown): Record<string, ShareAmount> | null | unde
   return amounts;
 }
 
+function parseMatches(value: unknown): Record<string, string> | null | undefined {
+  if (value === null || value === undefined) return null;
+  if (!isObject(value)) return undefined;
+  // Without a prototype, as the amounts: a claim id such as `__proto__` is a key like any other.
+  const matches: Record<string, string> = Object.create(null);
+  for (const [claimId, participantId] of Object.entries(value)) {
+    if (!isString(participantId)) return undefined;
+    matches[claimId] = participantId;
+  }
+  return matches;
+}
+
 function isShareStatus(value: unknown): value is ShareStatus {
   return value === "open" || value === "locking" || value === "locked";
 }
@@ -235,8 +249,9 @@ export function parseShare(value: unknown): PublicShare | null {
   const claims = arrayOf(value.claims, parseClaim);
   const amounts = parseAmounts(value.amounts);
   const paidBy = value.paidBy ?? null;
-  if (bill === null || claims === null || amounts === undefined || !isNullableString(paidBy)) return null;
-  return { status, revision, expiresAt, bill, claims, amounts, paidBy };
+  const matches = parseMatches(value.matches);
+  if (bill === null || claims === null || amounts === undefined || !isNullableString(paidBy) || matches === undefined) return null;
+  return { status, revision, expiresAt, bill, claims, amounts, paidBy, matches };
 }
 
 export interface OpenAnswer {

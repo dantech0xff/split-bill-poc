@@ -33,6 +33,32 @@ describe("the parsers of the proxy's answers", () => {
     expect(parseShare({ ...shareLocked.share, paidBy: 5 })).toBeNull();
   });
 
+  it("keep which participant each claim is, null before the split is settled or when the proxy says nothing of it", () => {
+    expect(parseShare(shareLocked.share)?.matches).toEqual({ "c-minh": "p1", "c-an": "p2" });
+    expect(parseShare(shareOpen.share)?.matches).toBeNull();
+    expect(parseShare(shareLocking.share)?.matches).toBeNull();
+    const { matches: _left, ...without } = shareLocked.share;
+    expect(parseShare(without)?.matches).toBeNull();
+  });
+
+  it("refuse matches of the wrong shape", () => {
+    for (const matches of [5, "p1", ["p1"], { "c-minh": 1 }, { "c-minh": null }, { "c-minh": { id: "p1" } }, { "c-minh": ["p1"] }]) {
+      expect(parseShare({ ...shareLocked.share, matches }), JSON.stringify(matches)).toBeNull();
+    }
+  });
+
+  it("keep claim ids such as __proto__ and constructor as plain keys of the matches", () => {
+    const matches = JSON.parse('{"__proto__": "p1", "constructor": "p2"}') as unknown;
+    const share = parseShare({ ...shareLocked.share, matches });
+
+    expect(share).not.toBeNull();
+    expect(Object.keys(share?.matches ?? {})).toEqual(["__proto__", "constructor"]);
+    expect(share?.matches?.["__proto__"]).toBe("p1");
+    expect(share?.matches?.["constructor"]).toBe("p2");
+    expect(share?.matches?.["toString"]).toBeUndefined();
+    expect(parseShare({ ...shareLocked.share, matches: JSON.parse('{"__proto__": 5}') as unknown })).toBeNull();
+  });
+
   it("keep participant ids such as __proto__ and constructor as plain keys of the amounts", () => {
     const bill = { ...shareLocked.share.bill, participants: [{ id: "__proto__", name: "Proto" }, { id: "constructor", name: "Con" }], totalMinor: 3000 };
     const amounts = JSON.parse('{"__proto__": {"amountMinor": 1000, "payment": null}, "constructor": {"amountMinor": 2000, "payment": null}}') as unknown;
