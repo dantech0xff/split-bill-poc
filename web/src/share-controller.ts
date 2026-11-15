@@ -1,7 +1,7 @@
-import { type ApiError, type Fetch, claimShare, openShare } from "./api";
+import { type ApiError, type Fetch, claimShare, openShare, retryTimeOf } from "./api";
 import { type ClaimStore, MemoryClaimStore, openClaimStore } from "./claim-store";
 import type { PublicShare } from "./contract";
-import { LiveConnection, type LiveEnvironment } from "./live";
+import { LiveConnection, type LiveEnvironment, MAX_LIVE_FAILURES } from "./live";
 import { type PageProblem, pageProblemOf } from "./page-problem";
 import { billChanged, claimOf, describeChanges, isNewer } from "./share-state";
 import type { HumanCheck } from "./turnstile";
@@ -88,8 +88,8 @@ export interface ShareControllerOptions {
 
 /** How long the page waits for the live connection before it reads the link anyway. */
 export const OPEN_FALLBACK_MS = 3_000;
-/** How often the page reads the link while the live connection keeps failing. */
-export const READ_WHILE_DISCONNECTED_MS = 60_000;
+/** How often the page reads the link once the live connection has stopped trying. */
+export const READ_WHILE_DISCONNECTED_MS = 3 * 60_000;
 
 interface Write {
   name: string;
@@ -99,7 +99,10 @@ interface Write {
 /**
  * Everything the bill link's page does with the proxy: it connects live, reads the link with
  * `open`, keeps the view with the highest revision, and saves this browser's picks one claim at
- * a time, the latest picks winning.
+ * a time, the latest picks winning. Once the live connection has stopped trying, it reads the
+ * link every [READ_WHILE_DISCONNECTED_MS] instead, and tries the connection once more after each
+ * read that worked. After a 429 it sends nothing of the same kind, reads and live connections or
+ * claims, before the time the proxy asked it to wait.
  */
 export class ShareController {
   private current: ShareState = {
@@ -125,10 +128,16 @@ export class ShareController {
   private finished = false;
   private refreshing: Promise<void> | null = null;
   private refreshAgain = false;
-  private lastReadAt = Number.NEGATIVE_INFINITY;
   private queued: Write | null = null;
   private writing = false;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The next read while the live connection has stopped trying. */
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  /** A read asked for while reads had to wait, made once they may go again. */
+  private waitingReadTimer: ReturnType<typeof setTimeout> | null = null;
+  /** No read and no live connection before this time, nor any claim before [claimsNotBefore]. */
+  private readsNotBefore = Number.NEGATIVE_INFINITY;
+  private claimsNotBefore = Number.NEGATIVE_INFINITY;
   private announcements = 0;
   private readonly now: () => number;
 
@@ -163,7 +172,10 @@ export class ShareController {
       this.options.token,
       live.url,
       {
-        onConnected: () => void this.refresh(),
+        onConnected: () => {
+          this.clearPoll();
+          void this.refresh();
+        },
         onDisconnected: (failures) => this.disconnected(failures),
         onShare: (share) => this.accept(share),
         onGone: () => this.finish({ kind: "gone" }),
@@ -180,7 +192,7 @@ export class ShareController {
   stop(): void {
     this.stopped = true;
     this.live?.stop();
-    this.clearFallback();
+    this.clearTimers();
     this.options.human?.dispose();
   }
 
@@ -248,28 +260,74 @@ export class ShareController {
     this.fallbackTimer = null;
   }
 
+  private clearPoll(): void {
+    if (this.pollTimer !== null) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
+  }
+
+  private clearTimers(): void {
+    this.clearFallback();
+    this.clearPoll();
+    if (this.waitingReadTimer !== null) clearTimeout(this.waitingReadTimer);
+    this.waitingReadTimer = null;
+  }
+
   private prepareHumanCheck(): void {
     if (this.current.share?.status === "open" && this.store.load() === null) this.options.human?.prepare();
   }
 
   private disconnected(failures: number): void {
-    // The first failure reads the link at once, to learn whether it is gone; then once a minute.
-    if (failures === 1 || this.now() - this.lastReadAt >= READ_WHILE_DISCONNECTED_MS) void this.refresh();
+    // The first failure reads the link at once, to learn whether it is gone. Once the connection
+    // stops trying, the page reads the link every few minutes instead.
+    if (failures === 1) void this.refresh();
+    if (failures >= MAX_LIVE_FAILURES) this.pollLater();
   }
 
-  /** Reads the link with `open`. A read asked for while one is on its way runs again after it. */
+  /** Reads the link in [READ_WHILE_DISCONNECTED_MS], unless the live connection is back by then or the page is hidden. */
+  private pollLater(): void {
+    if (this.pollTimer !== null || this.finished || this.stopped) return;
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      const live = this.live;
+      // A hidden page reads nothing: the connection starts afresh once the page is shown.
+      if (live === null || live.connected || this.options.live?.env.isVisible() === false) return;
+      void this.refresh();
+    }, READ_WHILE_DISCONNECTED_MS);
+  }
+
+  /** After a read, while the live connection is down: try it once more if the read worked, and read again later while it has stopped trying. */
+  private afterRead(worked: boolean): void {
+    const live = this.live;
+    if (live === null || live.connected || this.finished || this.stopped) return;
+    if (worked) live.tryAgain();
+    if (live.stalled) this.pollLater();
+  }
+
+
+  /**
+   * Reads the link with `open`. A read asked for while one is on its way runs again after it; one
+   * asked for while the proxy asked reads to wait runs once they may go again.
+   */
   refresh(): Promise<void> {
     if (this.finished || this.stopped) return Promise.resolve();
     if (this.refreshing !== null) {
       this.refreshAgain = true;
       return this.refreshing;
     }
+    if (this.readsNotBefore > this.now()) {
+      this.readWhenAllowed();
+      return Promise.resolve();
+    }
     this.clearFallback();
     const run = async (): Promise<void> => {
       do {
         this.refreshAgain = false;
         await this.readOnce();
-      } while (this.refreshAgain && !this.finished && !this.stopped);
+      } while (this.refreshAgain && !this.finished && !this.stopped && this.readsNotBefore <= this.now());
+      if (this.refreshAgain) {
+        this.refreshAgain = false;
+        this.readWhenAllowed();
+      }
     };
     this.refreshing = run().finally(() => {
       this.refreshing = null;
@@ -277,15 +335,32 @@ export class ShareController {
     return this.refreshing;
   }
 
+  /** Reads the link once the proxy lets reads go again. */
+  private readWhenAllowed(): void {
+    if (this.waitingReadTimer !== null || this.finished || this.stopped) return;
+    this.waitingReadTimer = setTimeout(
+      () => {
+        this.waitingReadTimer = null;
+        void this.refresh();
+      },
+      Math.max(0, this.readsNotBefore - this.now()),
+    );
+  }
+
   private async readOnce(): Promise<void> {
     const sent = this.store.load();
-    this.lastReadAt = this.now();
     const result = await openShare(this.options.token, sent?.key ?? null, this.options.fetch);
     if (this.finished || this.stopped) return;
     if (!result.ok) {
+      if (result.error.kind === "rate_limited") {
+        // Reads and live connections count together on the proxy: neither goes before the time it asked for.
+        this.readsNotBefore = retryTimeOf(result.error.retryAfterSeconds, this.now());
+        this.live?.waitUntil(this.readsNotBefore);
+      }
       const problem = pageProblemOf(result.error);
       if (problem.kind === "gone" || problem.kind === "not_found") this.finish(problem);
       else if (this.current.share === null) this.update({ phase: "failed", problem });
+      this.afterRead(false);
       return;
     }
     const { share, you } = result.value;
@@ -301,6 +376,7 @@ export class ShareController {
     this.accept(share);
     const mine = this.current.share === null ? null : claimOf(this.current.share, this.current.you);
     if (mine !== null && this.current.name.trim() === "") this.update({ name: mine.name });
+    this.afterRead(true);
   }
 
   /** Shows [share] if it is later than the view on screen, and says what others changed. */
@@ -336,7 +412,7 @@ export class ShareController {
     this.finished = true;
     this.queued = null;
     this.live?.stop();
-    this.clearFallback();
+    this.clearTimers();
     this.options.human?.dispose();
     this.announcements += 1;
     const text = problem.kind === "gone" ? "This link no longer works." : "This link does not exist.";
@@ -376,8 +452,13 @@ export class ShareController {
     }
   }
 
-  /** Sends one claim; true once the proxy holds it. */
+  /** Sends one claim; true once the proxy holds it. Before the time a 429 asked to wait for, it sends nothing. */
   private async send(write: Write, mayClaimAfresh: boolean): Promise<boolean> {
+    const wait = this.claimsNotBefore - this.now();
+    if (wait > 0) {
+      this.update({ claimProblem: { kind: "rate_limited", retryAfterSeconds: Math.ceil(wait / 1000) } });
+      return false;
+    }
     const record = this.store.load();
     let turnstile: string | null = null;
     if (record === null) {
@@ -422,6 +503,7 @@ export class ShareController {
       this.finish(error);
       return false;
     }
+    if (error.kind === "rate_limited") this.claimsNotBefore = retryTimeOf(error.retryAfterSeconds, this.now());
     this.update({ claimProblem: claimProblemOf(error) });
     if (error.kind === "locked") void this.refresh();
     return false;

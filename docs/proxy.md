@@ -631,6 +631,11 @@ The live connection:
   else, and a connection that does is closed with the code 1008.
 - A page should connect first, then call `open`, and keep whichever view has the higher
   `revision`.
+- The web page stops trying to connect after five failures in a row. It then reads the link with
+  `open` every 3 minutes while its tab is shown, tries one connection after each read that works,
+  and starts afresh when the tab is shown again. After a 429 it sends nothing of the same kind
+  (reads and connections, or claims) before the time of its `Retry-After`, or for a minute when the
+  answer gave none; the pages of requests and invites wait the same before they ask again.
 - Each link has a Durable Object, `ShareRoom` (binding `SHARE_ROOM`), that holds only its
   connections, through the WebSocket Hibernation API, and passes on what the Worker gives it after
   each change. D1 holds the data, so a lost connection loses nothing. The object is named by the

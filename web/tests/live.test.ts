@@ -1,5 +1,5 @@
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LiveConnection, type LiveHandlers, PING_INTERVAL_MS, liveUrl, parseLiveMessage, retryDelay } from "../src/live";
+import { LiveConnection, type LiveHandlers, MAX_LIVE_FAILURES, PING_INTERVAL_MS, liveUrl, parseLiveMessage, retryDelay } from "../src/live";
 import { FakeLiveEnvironment } from "./fakes";
 import shareOpen from "./fixtures/share-open.json";
 
@@ -111,6 +111,66 @@ describe("LiveConnection", () => {
     expect(on.onConnected).toHaveBeenCalledTimes(2);
     env.last.drop();
     expect(on.onDisconnected).toHaveBeenLastCalledWith(1);
+  });
+
+  it("stops after five failures in a row, and tries once more only when asked, or afresh once shown again", () => {
+    const on = handlers();
+    const live = connection(on);
+    live.start();
+    for (let failure = 1; failure <= MAX_LIVE_FAILURES; failure++) {
+      expect(env.sockets).toHaveLength(failure);
+      env.last.drop();
+      expect(on.onDisconnected).toHaveBeenLastCalledWith(failure);
+      vi.advanceTimersByTime(30_000);
+    }
+    expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES);
+    expect(live.stalled).toBe(true);
+    vi.advanceTimersByTime(60 * 60_000);
+    expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES);
+
+    // A read that worked asks for one more attempt; its failure stops it again.
+    live.tryAgain();
+    expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + 1);
+    env.last.drop();
+    expect(on.onDisconnected).toHaveBeenLastCalledWith(MAX_LIVE_FAILURES + 1);
+    vi.advanceTimersByTime(60 * 60_000);
+    expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + 1);
+
+    // Shown again, it starts the count afresh, and so it does once the browser is back online.
+    env.setVisible(false);
+    env.setVisible(true);
+    expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + 2);
+    env.last.drop();
+    expect(on.onDisconnected).toHaveBeenLastCalledWith(1);
+    expect(live.stalled).toBe(false);
+  });
+
+  it("tries once more only while no attempt is due or open", () => {
+    const live = connection(handlers());
+    live.start();
+    live.tryAgain();
+    expect(env.sockets).toHaveLength(1);
+    env.last.drop();
+    live.tryAgain();
+    expect(env.sockets).toHaveLength(1);
+    vi.advanceTimersByTime(1_000);
+    expect(env.sockets).toHaveLength(2);
+  });
+
+  it("connects no sooner than the proxy asked, whatever asks it to", () => {
+    const live = connection(handlers());
+    live.start();
+    live.waitUntil(Date.now() + 120_000);
+    env.last.drop();
+    vi.advanceTimersByTime(60_000);
+    env.goOnline();
+    env.setVisible(false);
+    env.setVisible(true);
+    live.tryAgain();
+    vi.advanceTimersByTime(59_999);
+    expect(env.sockets).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(env.sockets).toHaveLength(2);
   });
 
   it("closes while the page is hidden and connects again once it is shown", () => {

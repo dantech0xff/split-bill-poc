@@ -33,6 +33,17 @@ export function retryAfterSeconds(header: string | null): number | null {
   return Math.min(Math.max(seconds, 1), 24 * 60 * 60);
 }
 
+/** How long to wait after a 429 that does not say how long to wait, in seconds. */
+export const DEFAULT_RETRY_AFTER_SECONDS = 60;
+
+/**
+ * When a call the proxy refused with 429 may go again: [retryAfterSeconds] after [now], as its
+ * `Retry-After` asked, or [DEFAULT_RETRY_AFTER_SECONDS] after it when the answer said nothing.
+ */
+export function retryTimeOf(retryAfterSeconds: number | null, now: number): number {
+  return now + (retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS) * 1000;
+}
+
 async function errorCodeOf(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json();

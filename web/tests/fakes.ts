@@ -46,13 +46,20 @@ export class FakeSocket implements SocketLike {
 export class FakeLiveEnvironment implements LiveEnvironment {
   readonly sockets: FakeSocket[] = [];
   visible = true;
+  /** When set, every new socket fails before it opens, as where the network blocks WebSockets. */
+  failing = false;
   private readonly visibilityListeners = new Set<() => void>();
   private readonly onlineListeners = new Set<() => void>();
 
   createSocket(url: string, protocols: string[]): FakeSocket {
     const socket = new FakeSocket(url, protocols);
     this.sockets.push(socket);
+    if (this.failing) setTimeout(() => socket.drop(), 0);
     return socket;
+  }
+
+  now(): number {
+    return Date.now();
   }
 
   get last(): FakeSocket {

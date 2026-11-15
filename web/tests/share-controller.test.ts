@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ClaimRecord, type ClaimStore, MemoryClaimStore } from "../src/claim-store";
 import { type PublicShare, parseShare } from "../src/contract";
-import { OPEN_FALLBACK_MS, ShareController } from "../src/share-controller";
+import { MAX_LIVE_FAILURES } from "../src/live";
+import { OPEN_FALLBACK_MS, READ_WHILE_DISCONNECTED_MS, ShareController } from "../src/share-controller";
 import type { HumanCheck } from "../src/turnstile";
 import { FakeFetch, FakeLiveEnvironment, held } from "./fakes";
 import shareOpen from "./fixtures/share-open.json";
@@ -57,7 +58,7 @@ describe("ShareController", () => {
   let store: ClaimStore;
   let controller: ShareController;
 
-  function make(options: { human?: HumanCheck | null; store?: ClaimStore } = {}): ShareController {
+  function make(options: { human?: HumanCheck | null; store?: ClaimStore; now?: () => number } = {}): ShareController {
     store = options.store ?? memoryStore();
     controller = new ShareController({
       token: TOKEN,
@@ -65,8 +66,19 @@ describe("ShareController", () => {
       live: { url: "wss://proxy.example.workers.dev/v1/shares/live", env },
       fetch: fetch.fetch,
       store: Promise.resolve(store),
+      ...(options.now === undefined ? {} : { now: options.now }),
     });
     return controller;
+  }
+
+  /** [count] answers of `open` with the link at revision 7. */
+  function opens(count: number) {
+    return Array.from({ length: count }, () => ({ status: 200, body: { share: share(7), you: null } }));
+  }
+
+  /** Everything the page sent: live connections and reads of the link. */
+  function sent(): number {
+    return env.sockets.length + fetch.callsTo(OPEN).length;
   }
 
   /** Starts the page, opens its live connection, and waits for the first view. */
@@ -305,6 +317,142 @@ describe("ShareController", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe("while the live connection keeps failing", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      env.failing = true;
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("reads the link every three minutes once the connection stops trying, and tries it once after each read", async () => {
+      make();
+      fetch.answer(OPEN, ...opens(10));
+      await controller.start();
+      // Five attempts, 1, 2, 4 and 8 seconds apart: the fifth fails 15 seconds in.
+      await vi.advanceTimersByTimeAsync(16_000);
+      expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES);
+      expect(fetch.callsTo(OPEN)).toHaveLength(1);
+      expect(controller.state.share?.revision).toBe(7);
+
+      for (let poll = 1; poll <= 3; poll++) {
+        await vi.advanceTimersByTimeAsync(READ_WHILE_DISCONNECTED_MS - 2_000);
+        expect(fetch.callsTo(OPEN), `poll ${poll}`).toHaveLength(poll);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(fetch.callsTo(OPEN), `poll ${poll}`).toHaveLength(poll + 1);
+        expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + poll);
+      }
+    });
+
+    it("sends at most a read and a connection every three minutes, about 45 requests in its first hour", async () => {
+      make();
+      fetch.answer(OPEN, ...opens(60));
+      await controller.start();
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+      const firstHour = sent();
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+
+      expect(firstHour).toBeLessThanOrEqual(45);
+      expect(sent() - firstHour).toBeLessThanOrEqual((2 * 60) / 3);
+    });
+
+    it("reads nothing while hidden, and starts the connection afresh once shown, reading no more once it opens", async () => {
+      make();
+      fetch.answer(OPEN, ...opens(10));
+      await controller.start();
+      await vi.advanceTimersByTimeAsync(60_000);
+      env.setVisible(false);
+      await vi.advanceTimersByTimeAsync(30 * 60_000);
+      expect(fetch.callsTo(OPEN)).toHaveLength(1);
+      expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES);
+
+      env.failing = false;
+      env.setVisible(true);
+      expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + 1);
+      env.last.open();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(fetch.callsTo(OPEN)).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(30 * 60_000);
+      expect(fetch.callsTo(OPEN)).toHaveLength(2);
+      expect(env.sockets).toHaveLength(MAX_LIVE_FAILURES + 1);
+    });
+  });
+
+  it("neither reads nor connects before the time a 429 on a read asked for, whatever asks it to", async () => {
+    vi.useFakeTimers();
+    try {
+      make();
+      fetch.answer(OPEN, { status: 429, body: { error: "rate_limited" }, headers: { "retry-after": "120" } }, ...opens(2));
+      await controller.start();
+      env.last.drop();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(controller.state.problem).toEqual({ kind: "rate_limited", retryAfterSeconds: 120 });
+
+      controller.retry();
+      env.setVisible(false);
+      env.setVisible(true);
+      env.goOnline();
+      await vi.advanceTimersByTimeAsync(119_000);
+      expect(fetch.callsTo(OPEN)).toHaveLength(1);
+      expect(env.sockets).toHaveLength(1);
+      expect(controller.state.phase).toBe("loading");
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(fetch.callsTo(OPEN)).toHaveLength(2);
+      expect(env.sockets).toHaveLength(2);
+      expect(controller.state.phase).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sends no claim before the time a 429 asked for, and asks for no person check meanwhile", async () => {
+    let clock = 1_000_000;
+    make({ now: () => clock });
+    await startWith(share(7));
+    controller.setName("Bao");
+    fetch.answer(
+      CLAIM,
+      { status: 429, body: { error: "rate_limited" }, headers: { "retry-after": "30" } },
+      { status: 200, body: { share: withMyClaim(8, ["i1"]), you: "c-me", key: KEY } },
+    );
+
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+    expect(controller.state.claimProblem).toEqual({ kind: "rate_limited", retryAfterSeconds: 30 });
+    clock += 10_000;
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+    expect(controller.state.claimProblem).toEqual({ kind: "rate_limited", retryAfterSeconds: 20 });
+    expect(fetch.callsTo(CLAIM)).toHaveLength(1);
+    expect(human.consumed).toHaveBeenCalledOnce();
+
+    clock += 20_000;
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.you).toBe("c-me"));
+    expect(fetch.callsTo(CLAIM)).toHaveLength(2);
+    expect(controller.state.claimProblem).toBeNull();
+  });
+
+  it("waits a minute after a 429 that does not say how long", async () => {
+    let clock = 1_000_000;
+    make({ now: () => clock });
+    await startWith(share(7));
+    controller.setName("Bao");
+    fetch.answer(CLAIM, { status: 429, body: { error: "rate_limited" } });
+
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+    clock += 15_000;
+    controller.toggle("i1");
+    await vi.waitFor(() => expect(controller.state.saving).toBe(false));
+
+    expect(controller.state.claimProblem).toEqual({ kind: "rate_limited", retryAfterSeconds: 45 });
+    expect(fetch.callsTo(CLAIM)).toHaveLength(1);
   });
 
   it("saves a changed name on an existing claim when the field is left", async () => {

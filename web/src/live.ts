@@ -31,6 +31,8 @@ export interface SocketLike {
 
 export interface LiveEnvironment {
   createSocket(url: string, protocols: string[]): SocketLike;
+  /** The time now, in milliseconds since the epoch. */
+  now(): number;
   isVisible(): boolean;
   /** Calls [listener] whenever the page is shown or hidden; returns what stops it. */
   onVisibilityChange(listener: () => void): () => void;
@@ -42,7 +44,11 @@ export interface LiveEnvironment {
 export interface LiveHandlers {
   /** The connection is open: read the link now, so that nothing from before is missed. */
   onConnected(): void;
-  /** An attempt failed or the connection dropped; [failures] counts them since the last open. */
+  /**
+   * An attempt failed or the connection dropped; [failures] counts them since the last open. From
+   * [MAX_LIVE_FAILURES] on, the connection tries again only when asked (see [LiveConnection.tryAgain])
+   * or when the page is shown again.
+   */
   onDisconnected(failures: number): void;
   onShare(share: PublicShare): void;
   onGone(): void;
@@ -50,6 +56,8 @@ export interface LiveHandlers {
 
 export const LIVE_PROTOCOL = "splitvibe.v1";
 export const PING_INTERVAL_MS = 30_000;
+/** The failures in a row after which the connection stops trying by itself. */
+export const MAX_LIVE_FAILURES = 5;
 const FIRST_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
 const OPEN = 1;
@@ -72,6 +80,7 @@ export function retryDelay(failures: number, random: () => number): number {
 export function browserLiveEnvironment(): LiveEnvironment {
   return {
     createSocket: (url, protocols) => new WebSocket(url, protocols),
+    now: () => Date.now(),
     isVisible: () => document.visibilityState !== "hidden",
     onVisibilityChange(listener) {
       document.addEventListener("visibilitychange", listener);
@@ -88,13 +97,17 @@ export function browserLiveEnvironment(): LiveEnvironment {
 /**
  * The page's live connection to one link. It connects while the page is visible, closes while it
  * is hidden, reconnects with backoff after a drop, pings every 30 seconds, and stops for good
- * once the link is gone.
+ * once the link is gone. After [MAX_LIVE_FAILURES] failures in a row it stops trying, until the
+ * page is shown again or the browser comes back online, which start the count afresh, or until
+ * [tryAgain] asks for one more attempt. It never connects before the time [waitUntil] was given.
  */
 export class LiveConnection {
   private socket: SocketLike | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private failures = 0;
+  /** No attempt before this time: the proxy asked the page to wait. */
+  private notBefore = Number.NEGATIVE_INFINITY;
   private running = false;
   private gone = false;
   private stops: Array<() => void> = [];
@@ -108,6 +121,11 @@ export class LiveConnection {
 
   get connected(): boolean {
     return this.socket !== null && this.socket.readyState === OPEN;
+  }
+
+  /** Whether it stopped trying after [MAX_LIVE_FAILURES] failures in a row, and waits to be asked. */
+  get stalled(): boolean {
+    return this.failures >= MAX_LIVE_FAILURES && this.socket === null && this.retryTimer === null;
   }
 
   start(): void {
@@ -126,6 +144,24 @@ export class LiveConnection {
     this.closeSocket();
   }
 
+  /**
+   * One more attempt when the connection is down and none is due, as after a read of the link
+   * that worked, which says the proxy can be reached. The failures in a row still count, so that
+   * one more failure stops it again.
+   */
+  tryAgain(): void {
+    if (!this.running || this.gone || this.socket !== null || this.retryTimer !== null || !this.env.isVisible()) return;
+    this.connectWhenAllowed(0);
+  }
+
+  /** Makes no attempt before [time], as the proxy asked; an attempt already due waits until then. */
+  waitUntil(time: number): void {
+    this.notBefore = Math.max(this.notBefore, time);
+    if (this.retryTimer === null) return;
+    this.clearRetry();
+    this.connectWhenAllowed(0);
+  }
+
   private visibilityChanged(): void {
     if (!this.running) return;
     if (this.env.isVisible()) {
@@ -139,7 +175,21 @@ export class LiveConnection {
   private reconnectNow(): void {
     if (!this.running || this.gone || this.socket !== null || !this.env.isVisible()) return;
     this.failures = 0;
-    this.connect();
+    this.clearRetry();
+    this.connectWhenAllowed(0);
+  }
+
+  /** Connects after [delay], and not before the time the proxy asked to wait for. */
+  private connectWhenAllowed(delay: number): void {
+    const wait = Math.max(delay, this.notBefore - this.env.now());
+    if (wait <= 0) {
+      this.connect();
+      return;
+    }
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect();
+    }, wait);
   }
 
   private connect(): void {
@@ -188,11 +238,8 @@ export class LiveConnection {
   private failed(): void {
     this.failures += 1;
     this.handlers.onDisconnected(this.failures);
-    if (!this.running || this.gone || !this.env.isVisible()) return;
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      this.connect();
-    }, retryDelay(this.failures, this.env.random));
+    if (!this.running || this.gone || !this.env.isVisible() || this.failures >= MAX_LIVE_FAILURES) return;
+    this.connectWhenAllowed(retryDelay(this.failures, this.env.random));
   }
 
   private startPing(socket: SocketLike): void {
