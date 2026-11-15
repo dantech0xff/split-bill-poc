@@ -3,7 +3,8 @@
 The app never holds an Anthropic key. It sends the text it read from a bill to a small Cloudflare
 Worker in [`proxy/`](../proxy), and the Worker asks Claude. The Worker holds the key, builds the
 prompt and the answer schema, counts each person's calls, limits each network address, caps what
-the whole service may spend in a day, and keeps nothing of the bill.
+the whole service may spend in a day, and keeps nothing of the bill. It also hands the app the
+day's exchange rates.
 
 ```mermaid
 flowchart LR
@@ -12,6 +13,7 @@ flowchart LR
     worker -->|prompt + schema| claude[Claude]
     claude --> worker
     worker -->|streamed answer| app
+    worker -->|once a day| rates[Frankfurter:<br/>exchange rates]
 ```
 
 ## What it does
@@ -22,12 +24,16 @@ flowchart LR
 | `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage}`: a session the proxy signs, for 30 days |
 | `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI reading is on |
 | `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's counters are gone |
+| `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
-its version with `X-SplitVibe-Version`. A signed-in app adds `Authorization: Bearer <session>`.
-The body of a bill read is exactly
+its version with `X-SplitVibe-Version`; only the exchange rates need neither. A signed-in app adds
+`Authorization: Bearer <session>`. The body of a bill read is exactly
 [`sample_bill_request.json`](../app/src/sharedTest/resources/fixtures/sample_bill_request.json) in
-shape; the app's and the proxy's tests both use that file. The full contract, with every error
+shape; the app's and the proxy's tests both use that file. A bill photographed in several pages is
+still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="…">` per photo, in
+order, with rows numbered from 1 and coordinates from 0 to 1000 within each page. A one-page bill
+stays `<bill_ocr rows="N">` with its rows directly inside. The full contract, with every error
 code, is in [the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md).
 
 ### Calls and limits
@@ -46,12 +52,29 @@ The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change w
   Each call holds the most it could cost, then settles at what it did cost. Also set a monthly spend
   limit in the Anthropic console.
 
+### Exchange rates
+
+`GET /v1/fx-rates` hands out how much of each currency one euro buys, from version 2 of the
+[Frankfurter](https://frankfurter.dev) API, which gathers the reference rates of the European
+Central Bank and of other central banks. Version 1 has only some 30 currencies and no dong, so it
+is not used. Only fiat currencies are kept, with the euro at 1; the crypto assets and metals
+Frankfurter also lists are dropped. Each rate keeps the day the source gives it for, which can be a
+day or two behind the others.
+
+One Durable Object, `FxBook`, holds the latest snapshot and when it was fetched. A cron fetches it
+every day at 16:30 UTC, after the European Central Bank publishes, and a request that finds no
+snapshot, or one a day old, fetches it first. A fetch that fails, takes more than 10 seconds or
+answers with anything unexpected never replaces the snapshot: the route hands out the last one, and
+`fetchedAt` shows its age. Only when there has never been a snapshot does a failed fetch answer 503
+`fx_unavailable`. An answer may be cached for an hour.
+
 ### What it keeps
 
 Durable Objects hold counters only: calls used per install or per account, request ids for a day,
-requests and spend per address. Objects are named by salted hashes, never by an IP address or a
-Google id. A request id is kept with a salted hash of what it asked, so that it cannot be reused for
-another bill. Nothing of a bill, an instruction or a name is stored.
+requests and spend per address. One more holds the latest exchange rates, which are public.
+Objects are named by salted hashes, never by an IP address or a Google id. A request id is kept
+with a salted hash of what it asked, so that it cannot be reused for another bill. Nothing of a
+bill, an instruction or a name is stored.
 
 The Worker prints one log line per request: the outcome, whether the caller is an install or an
 account, the model, the tokens, the cost and the time taken. Cloudflare's invocation logs are off in
@@ -104,8 +127,8 @@ npm test
 ```
 
 The tests run the Worker and its Durable Objects in the workers runtime against a fake model that
-streams the way the Messages API does, so they need no key and no network. GitHub Actions runs both
-for every pull request.
+streams the way the Messages API does and a fake Frankfurter, so they need no key and no network.
+GitHub Actions runs both for every pull request.
 
 ## Deploy it
 
@@ -138,6 +161,11 @@ These steps need the owner's accounts.
    npx wrangler deploy
    ```
 
+   The deploy also adds the `FxBook` class of Durable Objects (migration `v2`) and sets the daily
+   cron in `triggers.crons` of `wrangler.jsonc`, which fetches the exchange rates. A new or changed
+   cron can take up to 15 minutes to start; until it first runs, the first request for the rates
+   fetches them.
+
 4. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
    a value with a placeholder such as `<your-subdomain>` still in it.
@@ -160,7 +188,8 @@ Two variables in `wrangler.jsonc` change behaviour without a new app:
 - `AI_ENABLED`: bill reading works only while it is exactly `"true"`. Anything else answers 503
   `ai_off`, and the app tells the person AI reading is switched off.
 - `MIN_APP_VERSION`: an app with a lower version code gets 426 `update_required` on a bill read.
-  Signing in, the calls left and deleting the account keep working for old apps.
+  Signing in, the calls left, the exchange rates and deleting the account keep working for old
+  apps.
 
 Change either in `wrangler.jsonc` and deploy, or under the Worker's settings in the Cloudflare
 dashboard; a deploy from `wrangler.jsonc` sets them back to the file's values.
