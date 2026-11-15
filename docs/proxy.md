@@ -105,12 +105,13 @@ deleting an account changes the shared data is described [below](#deleting-an-ac
 A bill link keeps, until it expires or is revoked and the next daily run deletes it, what its page
 shows: the bill as the owner's app projected it (merchant, date, items, charges, total and the
 names of the participants), the claims under the names people typed with the items they took, and
-once the split is settled what each participant owes and how to pay it. A payment request may
-also keep how to pay it as its creditor's app built it for its page. Link tokens and the keys of
-claims are kept as SHA-256 hashes. What the web pages do without a session is counted per hour and
-per address, under the same salted hash of the address as the limits of bill reads, never the
-address itself, and forgotten by the daily run once the hour is over. The `ShareRoom` objects hold
-open connections only.
+once the split is settled what each participant owes and how to pay it, and who paid the whole
+bill when its owner said so. A payment request may also keep how to pay it as its creditor's app
+built it for its page. Link tokens, the keys of claims and the attempts of first claims are kept
+as SHA-256 hashes. What the web pages do without a session is counted per hour and per address,
+under the same salted hash of the address as the limits of bill reads, never the address itself,
+and only for a token that leads to a link, a request or an invite that works; it is forgotten by
+the daily run once the hour is over. The `ShareRoom` objects hold open connections only.
 
 The Worker prints one log line per bill read: the outcome, whether the caller is an install or an
 account, the model, the tokens, the cost and the time taken. For notifications it prints their
