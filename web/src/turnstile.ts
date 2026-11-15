@@ -80,6 +80,7 @@ interface Waiter {
 export class TurnstileCheck implements HumanCheck {
   private api: TurnstileApi | null = null;
   private widgetId: string | null = null;
+  private renderedInto: HTMLElement | null = null;
   private starting: Promise<void> | null = null;
   private ready: string | null = null;
   private waiters: Waiter[] = [];
@@ -106,12 +107,15 @@ export class TurnstileCheck implements HumanCheck {
     }
     return new Promise<string>((resolve, reject) => {
       this.waiters.push({ resolve, reject });
-      if (this.failed && this.api && this.widgetId !== null) {
-        // A widget that failed stays failed until it is reset.
-        this.failed = false;
-        this.api.reset(this.widgetId);
-      }
-      this.start().catch((error: unknown) => this.rejectAll(error instanceof Error ? error : new Error("Turnstile failed")));
+      this.start()
+        .then(() => {
+          if (this.failed && this.api && this.widgetId !== null) {
+            // A widget that failed stays failed until it is reset.
+            this.failed = false;
+            this.api.reset(this.widgetId);
+          }
+        })
+        .catch((error: unknown) => this.rejectAll(error instanceof Error ? error : new Error("Turnstile failed")));
     });
   }
 
@@ -121,21 +125,36 @@ export class TurnstileCheck implements HumanCheck {
    */
   consumed(): void {
     this.ready = null;
-    this.failed = false;
-    if (this.api && this.widgetId !== null) this.api.remove(this.widgetId);
-    this.widgetId = null;
+    this.removeWidget();
   }
 
   dispose(): void {
     this.disposed = true;
     this.rejectAll(new Error("The check was closed"));
-    if (this.api && this.widgetId !== null) this.api.remove(this.widgetId);
+    this.removeWidget();
+  }
+
+  private removeWidget(): void {
+    const widgetId = this.widgetId;
     this.widgetId = null;
+    this.renderedInto = null;
+    this.failed = false;
+    if (this.api === null || widgetId === null) return;
+    try {
+      this.api.remove(widgetId);
+    } catch {
+      // A widget whose element already left the page is gone either way.
+    }
   }
 
   private start(): Promise<void> {
     if (this.disposed) return Promise.reject(new Error("The check was closed"));
-    if (this.widgetId !== null) return Promise.resolve();
+    if (this.widgetId !== null) {
+      if (this.renderedInto !== null && this.renderedInto.isConnected && this.renderedInto === this.container()) return Promise.resolve();
+      // The page drew a new place for the check, as when picks closed and opened again; the
+      // widget went with the old one.
+      this.removeWidget();
+    }
     if (!this.starting) {
       this.starting = this.render().finally(() => {
         this.starting = null;
@@ -172,6 +191,7 @@ export class TurnstileCheck implements HumanCheck {
     });
     if (typeof widgetId !== "string") throw new Error("Turnstile did not render");
     this.widgetId = widgetId;
+    this.renderedInto = container;
   }
 
   private received(token: string): void {

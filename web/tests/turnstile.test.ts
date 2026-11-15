@@ -59,6 +59,7 @@ describe("TurnstileCheck", () => {
   const container = document.createElement("div");
 
   beforeEach(() => {
+    document.body.appendChild(container);
     options = undefined;
     let widgets = 0;
     api = {
@@ -73,6 +74,7 @@ describe("TurnstileCheck", () => {
   });
 
   afterEach(() => {
+    container.remove();
     vi.restoreAllMocks();
   });
 
@@ -110,9 +112,29 @@ describe("TurnstileCheck", () => {
     options?.["error-callback"]("300030");
     await expect(token).rejects.toThrow();
     const retry = check.token();
-    expect(api.reset).toHaveBeenCalledWith("widget-1");
+    await vi.waitFor(() => expect(api.reset).toHaveBeenCalledWith("widget-1"));
+    expect(api.render).toHaveBeenCalledOnce();
     options?.callback("token-after-reset");
     await expect(retry).resolves.toBe("token-after-reset");
+  });
+
+  it("renders again where the page now shows the check, once the old place left the page", async () => {
+    const { TurnstileCheck } = await freshModule();
+    let place = document.createElement("div");
+    document.body.appendChild(place);
+    const check = new TurnstileCheck("site-key", () => place, async () => api);
+    check.prepare();
+    await vi.waitFor(() => expect(api.render).toHaveBeenCalledOnce());
+    place.remove();
+    place = document.createElement("div");
+    document.body.appendChild(place);
+    const token = check.token();
+    await vi.waitFor(() => expect(api.render).toHaveBeenCalledTimes(2));
+    expect(api.remove).toHaveBeenCalledWith("widget-1");
+    expect(api.render.mock.calls[1]?.[0]).toBe(place);
+    options?.callback("token-in-new-place");
+    await expect(token).resolves.toBe("token-in-new-place");
+    place.remove();
   });
 
   it("fails the token when the script cannot be loaded", async () => {
