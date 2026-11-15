@@ -70,8 +70,9 @@ CREATE TABLE group_bills (
   revision INTEGER NOT NULL CHECK (revision >= 1),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  -- JSON as the app sent it; null once the bill is deleted.
+  -- JSON as the app sent it, and its size in bytes; null once the bill is deleted.
   document TEXT,
+  document_bytes INTEGER,
   conversion TEXT,
   total_minor INTEGER CHECK (total_minor >= 0),
   -- JSON objects from member id to an amount in the group's minor units.
@@ -81,6 +82,8 @@ CREATE TABLE group_bills (
   PRIMARY KEY (group_id, id),
   FOREIGN KEY (group_id, owner_member_id) REFERENCES members (group_id, id)
 );
+-- The bills a group's state holds, in order, without reading the deleted ones.
+CREATE INDEX group_bills_live ON group_bills (group_id, created_at, id) WHERE deleted_at IS NULL;
 
 -- Money one member paid another, recorded by the member who received it. Rows are only ever
 -- added: no route changes or deletes one, and the triggers below refuse any change, and any

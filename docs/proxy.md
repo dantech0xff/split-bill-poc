@@ -199,8 +199,17 @@ and any claim of theirs in the group, goes. Payment requests already made stay a
 Removing the owner's own member, or a placeholder, is 409. A removed account can join again only
 through an invite, which the owner can revoke.
 
-A group has at most 100 members, placeholders included, and 1,000 bills that are not deleted; an
-account is in, or waits to join, at most 100 groups. Past these, 413 `too_large`.
+A group holds at most 100 members, placeholders included, 500 bills that are not deleted, 1 MB of
+those bills' documents together (as serialized; a changed bill counts as it would be), and 2,000
+settlements; an account is in, or waits to join, at most 100 groups. Past these, 413 `too_large`,
+also for confirming a group request whose settlement would pass the limit. These keep a group's
+state, which every answer carries whole, within the CPU time and the D1 reads a request may take.
+
+Every route that changes a group counts once against an hourly limit of 200 per account, over all
+its groups: making a group, renaming it, adding, renaming and removing members, leaving, joining
+and claiming through an invite, approving and rejecting claims, bills, settlements, and confirming
+a group request. Past it, 429 `rate_limited` with `Retry-After`. Reading groups, making invites
+(which have their own limit) and payment requests do not count.
 
 ### Invites and claims
 

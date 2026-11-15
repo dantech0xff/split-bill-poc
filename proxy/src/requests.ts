@@ -307,7 +307,8 @@ export const reportPaidRoute = signedIn(async ({ env, ctx, params, account }) =>
 /**
  * `POST /v1/requests/{id}/confirmed-paid`: the creditor confirms they were paid. It is set once,
  * and the debtor is notified. For a request in a group, the same batch records the settlement
- * from the payer's member to the creditor's, so the group's balances change exactly once.
+ * from the payer's member to the creditor's, so the group's balances change exactly once; in a
+ * group that holds [POLICY.maxSettlements] already, it is 413.
  */
 export const confirmPaidRoute = signedIn(async ({ env, ctx, params, account }) => {
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -350,12 +351,20 @@ export const confirmPaidRoute = signedIn(async ({ env, ctx, params, account }) =
  */
 async function confirmInGroup(env: Env, group: Group, id: string, account: string, tell: (row: RequestRow) => void): Promise<Plan> {
   const db = env.DB;
-  const fresh = await requestRow(db, id);
+  const [requestResult, countResult] = await db.batch([
+    db.prepare(`SELECT ${COLUMNS} FROM requests WHERE id = ?1`).bind(id),
+    db.prepare("SELECT count(*) AS settlements FROM settlements WHERE group_id = ?1").bind(group.row.id),
+  ]);
+  // Rows of this Worker's own tables, shaped by migrations/.
+  const fresh = (requestResult.results[0] as RequestRow | undefined) ?? null;
+  const settlements = (countResult.results[0] as { settlements: number } | undefined)?.settlements ?? 0;
   if (fresh === null || fresh.deleted_at !== null || fresh.creditor !== account || fresh.group_id !== group.row.id) {
     return reply(errorResponse(404, "not_found"));
   }
   if (fresh.confirmed_paid_at !== null) return reply(viewResponse(fresh, "creditor"));
   if (fresh.to_member_id === null || fresh.creditor_member_id === null) throw new Error("A group request without its members");
+  // The settlement it records would take the group past its limit.
+  if (settlements >= POLICY.maxSettlements) return reply(errorResponse(413, "too_large"));
   const now = Date.now();
   const settlementId = crypto.randomUUID();
   // The request as this confirmation leaves it, and as nothing else does: open until now, then confirmed at [now].

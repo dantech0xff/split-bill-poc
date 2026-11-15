@@ -1,6 +1,7 @@
 import type { Env } from "./index";
 import type { Currency } from "./input";
 import { POLICY } from "./policy";
+import { admitHourly } from "./rate-limit";
 import { errorResponse, jsonResponse } from "./respond";
 
 /** What a group's log records. Each entry names the member who acted and what it acted on. */
@@ -277,11 +278,15 @@ export function stateAnswer(status = 200): (state: GroupState | null) => Respons
  * changes, permissions included, and moves the revision on by exactly one. The state the batch
  * leaves is read in the same batch, unless the change does not need it.
  *
- * 404 `not_found` when the group does not exist; 409 `conflict` when other changes keep coming
- * first [WRITE_ATTEMPTS] times, which only a group changed many times a second would see.
+ * Every change counts once against the caller's hourly limit of group writes, whatever it then
+ * decides: 429 past it. 404 `not_found` when the group does not exist; 409 `conflict` when other
+ * changes keep coming first [WRITE_ATTEMPTS] times, which only a group changed many times a second
+ * would see.
  */
 export async function changeGroup(env: Env, groupId: string, account: string, plan: (group: Group) => Plan | Promise<Plan>): Promise<Response> {
   const db = env.DB;
+  const refused = await groupWriteRefusal(db, account);
+  if (refused !== null) return refused;
   for (let attempt = 1; attempt <= WRITE_ATTEMPTS; attempt++) {
     if (attempt > 1) await new Promise((resolve) => setTimeout(resolve, Math.random() * RETRY_STEP_MS * attempt));
     const group = await readGroup(db, groupId, account);
@@ -312,6 +317,15 @@ export async function changeGroup(env: Env, groupId: string, account: string, pl
   }
   console.error(JSON.stringify({ event: "group_change_contended" }));
   return errorResponse(409, "conflict");
+}
+
+/**
+ * Counts one change to a group by [account] against [POLICY.groupWritesPerHour], over all its
+ * groups; the 429 to answer with once past it, else null.
+ */
+export async function groupWriteRefusal(db: D1Database, account: string): Promise<Response | null> {
+  const gate = await admitHourly(db, account, "group_write", POLICY.groupWritesPerHour, Date.now());
+  return gate.ok ? null : errorResponse(429, "rate_limited", { retryAfter: gate.retryAfter });
 }
 
 /**

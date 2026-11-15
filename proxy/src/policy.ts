@@ -74,10 +74,18 @@ export const POLICY = {
   /** A bill's document and a request's payment method, serialized as JSON, in bytes. */
   maxBillDocumentBytes: 64 * 1024,
   maxMethodBytes: 4 * 1024,
-  /** A group's state is always sent whole, and an account's groups are listed whole; these keep both small. */
+  /**
+   * A group's state is always sent whole, and read whole by every change, and an account's groups
+   * are listed whole; these keep both small enough for the CPU time and the D1 reads a request
+   * may take. The documents of a group's bills count together.
+   */
   maxMembers: 100,
-  maxBills: 1_000,
+  maxBills: 500,
+  maxGroupDocumentBytes: 1024 * 1024,
+  maxSettlements: 2_000,
   maxGroupsPerAccount: 100,
+  /** Changes one account may make to groups in an hour, over all of them: every route that changes a group counts once. */
+  groupWritesPerHour: 200,
   /** The devices an account keeps; registering one more forgets the one updated longest ago. */
   maxDevices: 10,
   /** The newest log entries a group's state carries, and the newest requests a list carries. */

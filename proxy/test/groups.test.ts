@@ -4,7 +4,23 @@ import type { GroupState } from "../src/group-state";
 import { POLICY } from "../src/policy";
 import type { RequestView } from "../src/requests";
 import { send } from "./requests";
-import { addBill, addPlaceholder, api, invite, join, memberView, newGroup, person, rows, stateOf, THB, VND } from "./shared";
+import {
+  addBill,
+  addPlaceholder,
+  api,
+  billBody,
+  invite,
+  join,
+  memberView,
+  newGroup,
+  type Person,
+  person,
+  rows,
+  stateOf,
+  type TestGroup,
+  THB,
+  VND,
+} from "./shared";
 
 describe("a group", () => {
   it("is made with the caller as its owner and first member, and read by its members only", async () => {
@@ -341,6 +357,18 @@ describe("a member", () => {
   });
 });
 
+/** Adds [count] bills of [bytes] bytes of document each to [group], straight in the database. */
+async function fillBills(group: TestGroup, count: number, bytes: number) {
+  await env.DB.prepare(
+    `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?3)
+     INSERT INTO group_bills (group_id, id, owner_member_id, revision, created_at, updated_at, document, document_bytes, conversion,
+       total_minor, shares, paid)
+     SELECT ?1, lower(hex(randomblob(16))), ?2, 1, 1, 1, '{}', ?4, NULL, 0, '{}', '{}' FROM n`,
+  )
+    .bind(group.id, group.ownerMemberId, count, bytes)
+    .run();
+}
+
 describe("the size of a group", () => {
   it("stops at 100 members, placeholders included", async () => {
     const owner = await person();
@@ -360,19 +388,16 @@ describe("the size of a group", () => {
     expect(joined.status).toBe(413);
   });
 
-  it("stops at 1,000 bills, and an account at 100 groups", async () => {
+  it("stops at 500 bills that are not deleted, and an account at 100 groups", async () => {
     const owner = await person();
     const group = await newGroup(owner);
-    await env.DB.prepare(
-      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?3)
-       INSERT INTO group_bills (group_id, id, owner_member_id, revision, created_at, updated_at, document, conversion, total_minor, shares, paid)
-       SELECT ?1, lower(hex(randomblob(16))), ?2, 1, 1, 1, '{}', NULL, 0, '{}', '{}' FROM n`,
-    )
-      .bind(group.id, group.ownerMemberId, POLICY.maxBills)
-      .run();
+    await fillBills(group, POLICY.maxBills, 2);
     const bill = { expectedRevision: 0, document: {}, conversion: null, totalMinor: 0, shares: {}, paid: {} };
 
     expect((await api(owner, "PUT", `/v1/groups/${group.id}/bills/${crypto.randomUUID()}`, bill)).status).toBe(413);
+    // Deleted bills do not count.
+    await env.DB.prepare("UPDATE group_bills SET deleted_at = 1 WHERE rowid IN (SELECT rowid FROM group_bills LIMIT 1)").run();
+    expect((await api(owner, "PUT", `/v1/groups/${group.id}/bills/${crypto.randomUUID()}`, bill)).status).toBe(200);
 
     // The owner is in one group already; these make it a hundred.
     await env.DB.batch([
@@ -394,5 +419,122 @@ describe("the size of a group", () => {
       memberName: "Owner",
     });
     expect(oneMore.status).toBe(413);
+  });
+
+  it("stops at 1 MB of bill documents, counting a changed bill as it would be", async () => {
+    const owner = await person();
+    const group = await newGroup(owner);
+    const billId = crypto.randomUUID();
+    const bill = (expectedRevision: number, text: string) =>
+      api(owner, "PUT", `/v1/groups/${group.id}/bills/${billId}`, { ...billBody({}, {}, expectedRevision), document: { text } });
+    expect((await bill(0, "small")).status).toBe(200);
+    const [{ document_bytes: own }] = await rows<{ document_bytes: number }>("SELECT document_bytes FROM group_bills WHERE id = ?1", billId);
+    expect(own).toBe(JSON.stringify({ text: "small" }).length);
+    await fillBills(group, 1, POLICY.maxGroupDocumentBytes - own - 100);
+
+    // Growing the bill by a hundred bytes fits; by more, not; nor does another bill.
+    const fits = "x".repeat("small".length + 100);
+    expect((await bill(1, `${fits}x`)).status).toBe(413);
+    expect((await bill(1, fits)).status).toBe(200);
+    expect((await api(owner, "PUT", `/v1/groups/${group.id}/bills/${crypto.randomUUID()}`, billBody({}, {}))).body).toEqual({ error: "too_large" });
+    expect((await api(owner, "DELETE", `/v1/groups/${group.id}/bills/${billId}`)).status).toBe(200);
+    expect((await api(owner, "PUT", `/v1/groups/${group.id}/bills/${crypto.randomUUID()}`, billBody({}, {}))).status).toBe(200);
+  });
+
+  it("stops at 2,000 settlements, also for one a confirmed request records", async () => {
+    const owner = await person();
+    const group = await newGroup(owner, "Flat", VND);
+    const minh = await person();
+    const minhId = await join(group, minh, "Minh");
+    const asked = await api<{ request: RequestView }>(owner, "POST", "/v1/requests", {
+      id: crypto.randomUUID(),
+      amountMinor: 1_000,
+      currency: VND,
+      payerName: "Minh",
+      creditorName: "Lan",
+      method: { kind: "PlainDetails", text: "Pay me" },
+      groupId: group.id,
+      toMemberId: minhId,
+    });
+    await env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?4)
+       INSERT INTO settlements (group_id, id, from_member_id, to_member_id, amount_minor, recorded_by_member_id, request_id, created_at)
+       SELECT ?1, lower(hex(randomblob(16))), ?2, ?3, 1, ?3, NULL, i FROM n`,
+    )
+      .bind(group.id, minhId, group.ownerMemberId, POLICY.maxSettlements)
+      .run();
+
+    const recorded = await api(owner, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor: 1 });
+    const confirmed = await api(owner, "POST", `/v1/requests/${asked.body.request.id}/confirmed-paid`);
+
+    expect(recorded.status).toBe(413);
+    expect(recorded.body).toEqual({ error: "too_large" });
+    expect(confirmed.status).toBe(413);
+    expect(await rows("SELECT confirmed_paid_at FROM requests")).toEqual([{ confirmed_paid_at: null }]);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM settlements").first("n")).toBe(POLICY.maxSettlements);
+  });
+});
+
+describe("changes to groups", () => {
+  async function used(who: Person): Promise<number> {
+    const [window] = await rows<{ used: number }>("SELECT used FROM rate_windows WHERE account = ?1 AND kind = 'group_write'", who.account);
+    return window?.used ?? 0;
+  }
+
+  it("count once each against the caller's hourly limit, on every route that changes a group", async () => {
+    const owner = await person();
+    const group = await newGroup(owner, "Flat", VND);
+    const path = `/v1/groups/${group.id}`;
+    const placeholder = await addPlaceholder(group, "Hoa");
+    await api(owner, "PATCH", path, { name: "Flat 4B" });
+    await api(owner, "PATCH", `${path}/members/${placeholder}`, { name: "Hoa T." });
+    const billId = await addBill(group, owner, { [placeholder]: 100 }, { [group.ownerMemberId]: 100 });
+    await api(owner, "DELETE", `${path}/bills/${billId}`);
+    await api(owner, "POST", `${path}/settlements`, { id: crypto.randomUUID(), fromMemberId: placeholder, amountMinor: 100 });
+    const lan = await person();
+    const lanId = await join(group, lan, "Lan");
+    const claimant = await person();
+    await api(claimant, "POST", "/v1/invites/join", { token: await invite(group), claimMemberId: placeholder, name: "Hoa" });
+    await api(owner, "POST", `${path}/claims/${placeholder}/reject`);
+    const asked = await api<{ request: RequestView }>(owner, "POST", "/v1/requests", {
+      id: crypto.randomUUID(),
+      amountMinor: 1_000,
+      currency: VND,
+      payerName: "Lan",
+      creditorName: "Owner",
+      method: { kind: "PlainDetails", text: "Pay me" },
+      groupId: group.id,
+      toMemberId: lanId,
+    });
+    await api(owner, "POST", `/v1/requests/${asked.body.request.id}/confirmed-paid`);
+    await api(owner, "POST", `${path}/members/${lanId}/remove`);
+    // Reading, inviting and asking for money change no group.
+    await api(owner, "GET", path);
+    await api(owner, "GET", "/v1/groups");
+
+    // Made, renamed, a placeholder added and renamed, a bill added and deleted, a settlement, a rejection, a confirmation, a removal.
+    expect(await used(owner)).toBe(10);
+    expect(await used(lan)).toBe(1);
+    expect(await used(claimant)).toBe(1);
+  });
+
+  it("are refused past 200 an hour by one account, over all its groups, until the hour is over", async () => {
+    const owner = await person();
+    const first = await newGroup(owner);
+    const second = await newGroup(owner);
+    await env.DB.prepare("UPDATE rate_windows SET used = ?2 WHERE account = ?1 AND kind = 'group_write'").bind(owner.account, POLICY.groupWritesPerHour - 1).run();
+
+    expect((await api(owner, "PATCH", `/v1/groups/${first.id}`, { name: "Last one" })).status).toBe(200);
+    const refused = await api(owner, "PATCH", `/v1/groups/${second.id}`, { name: "One too many" });
+    const settled = await api(owner, "POST", `/v1/groups/${first.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: crypto.randomUUID(), amountMinor: 1 });
+
+    expect(refused.status).toBe(429);
+    expect(refused.body).toEqual({ error: "rate_limited" });
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(3_500);
+    expect(settled.status).toBe(429);
+    expect((await api(owner, "GET", `/v1/groups/${second.id}`)).status).toBe(200);
+    expect((await api(await person(), "POST", "/v1/groups", { id: crypto.randomUUID(), name: "Mine", currency: THB, memberId: crypto.randomUUID(), memberName: "Me" })).status).toBe(201);
+    await env.DB.prepare("UPDATE rate_windows SET started_at = started_at - ?2 WHERE account = ?1").bind(owner.account, POLICY.hourMs).run();
+    expect((await api(owner, "PATCH", `/v1/groups/${second.id}`, { name: "Next hour" })).status).toBe(200);
   });
 });

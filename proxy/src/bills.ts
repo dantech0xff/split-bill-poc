@@ -8,6 +8,8 @@ import { errorResponse } from "./respond";
 type BillInput = {
   expectedRevision: number;
   document: string;
+  /** The document's size in UTF-8, which the group's total of [POLICY.maxGroupDocumentBytes] counts. */
+  documentBytes: number;
   conversion: string | null;
   totalMinor: number;
   shares: string;
@@ -20,6 +22,7 @@ type StoredBill = {
   owner_member_id: string;
   revision: number;
   document: string | null;
+  document_bytes: number | null;
   conversion: string | null;
   total_minor: number | null;
   shares: string | null;
@@ -49,10 +52,12 @@ function billOf(body: Record<string, unknown>): BillInput | typeof TOO_LARGE | n
   const total = BigInt(totalMinor);
   if (sum(shares) !== total || sum(paid) !== total) return null;
   const document = JSON.stringify(body.document);
-  if (byteLength(document) > POLICY.maxBillDocumentBytes) return TOO_LARGE;
+  const documentBytes = byteLength(document);
+  if (documentBytes > POLICY.maxBillDocumentBytes) return TOO_LARGE;
   return {
     expectedRevision,
     document,
+    documentBytes,
     conversion: conversion === null ? null : JSON.stringify(conversion),
     totalMinor,
     shares: JSON.stringify(shares),
@@ -127,19 +132,24 @@ export const putBillRoute = signedIn(async ({ request, env, params, account }) =
     const [storedResult, liveResult] = await db.batch([
       db
         .prepare(
-          `SELECT owner_member_id, revision, document, conversion, total_minor, shares, paid, deleted_at
+          `SELECT owner_member_id, revision, document, document_bytes, conversion, total_minor, shares, paid, deleted_at
            FROM group_bills WHERE group_id = ?1 AND id = ?2`,
         )
         .bind(groupId, billId),
-      db.prepare("SELECT count(*) AS live FROM group_bills WHERE group_id = ?1 AND deleted_at IS NULL").bind(groupId),
+      // Counted on the index of live bills, so deleted ones are never read.
+      db
+        .prepare("SELECT count(*) AS live, coalesce(sum(document_bytes), 0) AS bytes FROM group_bills WHERE group_id = ?1 AND deleted_at IS NULL")
+        .bind(groupId),
     ]);
     // Rows of this Worker's own table, shaped by migrations/.
     const stored = (storedResult.results[0] as StoredBill | undefined) ?? null;
-    const live = (liveResult.results[0] as { live: number } | undefined)?.live ?? 0;
+    const { live, bytes } = (liveResult.results[0] as { live: number; bytes: number } | undefined) ?? { live: 0, bytes: 0 };
     if (stored !== null && stored.deleted_at !== null) return reply(errorResponse(409, "conflict"));
     if (stored !== null && stored.owner_member_id !== group.me.id && !group.isOwner) return reply(errorResponse(403, "forbidden"));
     if (stored !== null && stored.revision === bill.expectedRevision + 1 && sameBill(stored, bill)) return keep(stateAnswer());
     if ((stored?.revision ?? 0) !== bill.expectedRevision) return reply(errorResponse(409, "conflict"));
+    // The documents of the group's other bills, and this one as it would be.
+    if (bytes - (stored?.document_bytes ?? 0) + bill.documentBytes > POLICY.maxGroupDocumentBytes) return reply(errorResponse(413, "too_large"));
     const now = Date.now();
     if (stored === null) {
       if (live >= POLICY.maxBills) return reply(errorResponse(413, "too_large"));
@@ -147,10 +157,11 @@ export const putBillRoute = signedIn(async ({ request, env, params, account }) =
         [
           db
             .prepare(
-              `INSERT INTO group_bills (group_id, id, owner_member_id, revision, created_at, updated_at, document, conversion, total_minor, shares, paid)
-               VALUES (?1, ?2, ?3, 1, ?4, ?4, ?5, ?6, ?7, ?8, ?9)`,
+              `INSERT INTO group_bills (group_id, id, owner_member_id, revision, created_at, updated_at, document, document_bytes, conversion,
+                 total_minor, shares, paid)
+               VALUES (?1, ?2, ?3, 1, ?4, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
             )
-            .bind(groupId, billId, group.me.id, now, bill.document, bill.conversion, bill.totalMinor, bill.shares, bill.paid),
+            .bind(groupId, billId, group.me.id, now, bill.document, bill.documentBytes, bill.conversion, bill.totalMinor, bill.shares, bill.paid),
           logStatement(db, groupId, now, "bill_added", group.me.id, billId),
         ],
         stateAnswer(),
@@ -160,10 +171,11 @@ export const putBillRoute = signedIn(async ({ request, env, params, account }) =
       [
         db
           .prepare(
-            `UPDATE group_bills SET revision = ?3 + 1, updated_at = ?4, document = ?5, conversion = ?6, total_minor = ?7, shares = ?8, paid = ?9
+            `UPDATE group_bills SET revision = ?3 + 1, updated_at = ?4, document = ?5, document_bytes = ?6, conversion = ?7, total_minor = ?8,
+               shares = ?9, paid = ?10
              WHERE group_id = ?1 AND id = ?2 AND revision = ?3 AND deleted_at IS NULL`,
           )
-          .bind(groupId, billId, bill.expectedRevision, now, bill.document, bill.conversion, bill.totalMinor, bill.shares, bill.paid),
+          .bind(groupId, billId, bill.expectedRevision, now, bill.document, bill.documentBytes, bill.conversion, bill.totalMinor, bill.shares, bill.paid),
         logStatement(db, groupId, now, "bill_changed", group.me.id, billId),
       ],
       stateAnswer(),
@@ -196,7 +208,7 @@ export const deleteBillRoute = signedIn(async ({ env, params, account }) => {
         db
           .prepare(
             `UPDATE group_bills SET revision = revision + 1, updated_at = ?3, deleted_at = ?3,
-               document = NULL, conversion = NULL, total_minor = NULL, shares = NULL, paid = NULL
+               document = NULL, document_bytes = NULL, conversion = NULL, total_minor = NULL, shares = NULL, paid = NULL
              WHERE group_id = ?1 AND id = ?2`,
           )
           .bind(groupId, billId, now),
@@ -226,12 +238,17 @@ export const recordSettlementRoute = signedIn(async ({ request, env, params, acc
   const db = env.DB;
   return changeGroup(env, groupId, account, async (group) => {
     if (!isMember(group)) return reply(outsider(group));
-    const recorded = await db
-      .prepare("SELECT recorded_by_member_id FROM settlements WHERE group_id = ?1 AND id = ?2")
+    const found = await db
+      .prepare(
+        `SELECT (SELECT recorded_by_member_id FROM settlements WHERE group_id = ?1 AND id = ?2) AS recorded_by,
+                (SELECT count(*) FROM settlements WHERE group_id = ?1) AS settlements`,
+      )
       .bind(groupId, id)
-      .first<{ recorded_by_member_id: string }>();
-    if (recorded !== null) return recorded.recorded_by_member_id === group.me.id ? keep(stateAnswer()) : reply(errorResponse(409, "conflict"));
+      .first<{ recorded_by: string | null; settlements: number }>();
+    const recordedBy = found?.recorded_by ?? null;
+    if (recordedBy !== null) return recordedBy === group.me.id ? keep(stateAnswer()) : reply(errorResponse(409, "conflict"));
     if (fromMemberId === group.me.id || !group.members.some((member) => member.id === fromMemberId)) return reply(errorResponse(400, "input"));
+    if ((found?.settlements ?? 0) >= POLICY.maxSettlements) return reply(errorResponse(413, "too_large"));
     const now = Date.now();
     return write(
       [

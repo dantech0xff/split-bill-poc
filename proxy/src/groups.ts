@@ -1,6 +1,7 @@
 import {
   changeGroup,
   groupCountOf,
+  groupWriteRefusal,
   isMember,
   keep,
   logStatement,
@@ -75,6 +76,8 @@ export const createGroupRoute = signedIn(async ({ request, env, account }) => {
   if (!input.ok) return input.response;
   const { id, name, currency, memberId, memberName } = input.value;
   const db = env.DB;
+  const refused = await groupWriteRefusal(db, account);
+  if (refused !== null) return refused;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const existing = await readState(db, id, account);
     if (existing !== null) return isMember(existing.group) ? jsonResponse(201, existing.state) : errorResponse(409, "conflict");
@@ -205,11 +208,12 @@ export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
       db.prepare("UPDATE members SET account = NULL WHERE group_id = ?1 AND id = ?2").bind(groupId, me.id),
       logStatement(db, groupId, now, "member_left", me.id, me.id),
     ];
-    if (!group.isOwner) return write(leaving, left);
+    // The answer is 204, so the batch need not read the group's state.
+    if (!group.isOwner) return write(leaving, left, { readState: false });
     // Members are in the order they joined.
     const heir = group.members.find((member) => member.account !== null && member.id !== me.id);
-    if (heir === undefined) return write(deleteGroupStatements(db, groupId), left);
-    return write([db.prepare("UPDATE groups SET owner_member_id = ?2 WHERE id = ?1").bind(groupId, heir.id), ...leaving], left);
+    if (heir === undefined) return write(deleteGroupStatements(db, groupId), left, { readState: false });
+    return write([db.prepare("UPDATE groups SET owner_member_id = ?2 WHERE id = ?1").bind(groupId, heir.id), ...leaving], left, { readState: false });
   });
 });
 
