@@ -4,7 +4,6 @@ import java.math.BigDecimal
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,19 +77,6 @@ class BillCurrencyTest {
         assertTrue(formattedIdr, formattedIdr.contains("33.334") && !formattedIdr.contains(","))
         assertEquals("12.50 ABC", BillCurrency("ABC", 2).format(1_250, Locale.US))
         assertEquals("1,250", BillCurrency("", 0).format(1_250, Locale.US))
-    }
-
-    @Test
-    fun `bill in another currency than the app's is pointed out, not converted`() {
-        fun billIn(currency: BillCurrency) = BillReconciler.reconcile(null, null, currency, emptyList(), emptyList(), 100, emptyList())
-
-        assertEquals(
-            "This bill is in USD, but your app currency is VND. Amounts are shown in USD and are not converted.",
-            billIn(BillCurrency("USD", 2)).currencyMismatchNote("vnd"),
-        )
-        assertNull(billIn(BillCurrency("VND", 0)).currencyMismatchNote("VND"))
-        assertNull("an unknown bill currency says nothing", billIn(BillCurrency("", 0)).currencyMismatchNote("VND"))
-        assertNull(billIn(BillCurrency("USD", 2)).currencyMismatchNote(""))
     }
 
     @Test

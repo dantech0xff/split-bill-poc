@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
-import java.util.Locale
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -80,17 +79,6 @@ data class Bill(
         /** A new bill with nothing on it yet, to be entered by hand. */
         fun empty(currency: BillCurrency): Bill = Bill(null, null, currency, emptyList(), emptyList(), printedTotalMinor = null)
     }
-}
-
-/**
- * The note shown when a bill is not in the currency the user's payment app works in. The amounts
- * stay in the bill's currency: converting them would need an exchange rate the app does not have.
- */
-fun Bill.currencyMismatchNote(localCurrency: String): String? {
-    val local = localCurrency.trim().uppercase(Locale.ROOT)
-    val billCurrency = currency.code
-    if (local.isEmpty() || billCurrency.isEmpty() || billCurrency == local) return null
-    return "This bill is in $billCurrency, but your app currency is $local. Amounts are shown in $billCurrency and are not converted."
 }
 
 /** Keeps a decimal exactly as written ("1.5"), never through a floating-point number. */
