@@ -21,6 +21,10 @@ import kotlinx.serialization.json.putJsonObject
  * The body of the proxy's `POST /v1/split-revision`, all but the `requestId` the app adds: the
  * user's instruction, and the bill and its split as they are now, in the shape the proxy and the app
  * agreed on. The bill goes as its lines and total, never as the text read from its photo.
+ *
+ * Names and labels go as the proxy takes them, the way bill links send them ([oneLine]): on one line
+ * and at most [MAX_NAME_CODE_POINTS] long. A name that would show nothing goes empty, which the proxy
+ * takes, and a merchant that would goes as none.
  */
 object SplitRevisionRequest {
 
@@ -29,6 +33,9 @@ object SplitRevisionRequest {
 
     /** The name the user goes by in the request when they have not given one, so the model still knows who "I" is. */
     const val DEFAULT_ME_NAME = "Me"
+
+    /** The longest merchant, item name, charge label or participant name the proxy takes, in code points. */
+    const val MAX_NAME_CODE_POINTS = 200
 
     // Equal divisions keep their empty lists, as the agreed shape has them.
     private val json = Json { encodeDefaults = true }
@@ -56,7 +63,7 @@ object SplitRevisionRequest {
         return buildJsonObject {
             put("instruction", text)
             putJsonObject("bill") {
-                put("merchant", bill.merchant)
+                put("merchant", bill.merchant?.let(::name)?.ifEmpty { null })
                 putJsonObject("currency") {
                     put("code", bill.currency.code)
                     put("fractionDigits", bill.currency.fractionDigits)
@@ -65,7 +72,7 @@ object SplitRevisionRequest {
                     bill.items.forEach { item ->
                         addJsonObject {
                             put("id", item.id)
-                            put("name", item.name)
+                            put("name", name(item.name))
                             put("quantity", item.quantity.toPlainString())
                             put("amountMinor", item.amountMinor)
                         }
@@ -75,7 +82,7 @@ object SplitRevisionRequest {
                     bill.charges.forEach { charge ->
                         addJsonObject {
                             put("id", charge.id)
-                            put("label", charge.label)
+                            put("label", name(charge.label))
                             put("kind", charge.kind.wireName())
                             put("amountMinor", charge.amountMinor)
                         }
@@ -88,7 +95,7 @@ object SplitRevisionRequest {
                     plan.participants.forEach { participant ->
                         addJsonObject {
                             put("id", participant.id)
-                            put("name", if (participant.isMe) meName.trim().ifEmpty { DEFAULT_ME_NAME } else participant.name)
+                            put("name", if (participant.isMe) name(meName).ifEmpty { DEFAULT_ME_NAME } else name(participant.name))
                         }
                     }
                 }
@@ -109,6 +116,9 @@ object SplitRevisionRequest {
             }
         }
     }
+
+    /** [text] as the proxy takes a name or a label. */
+    private fun name(text: String): String = text.oneLine(MAX_NAME_CODE_POINTS)
 
     /** [division] as the domain writes it everywhere: `{"type": "equal", "among": [...], "except": [...]}` and so on. */
     private fun division(division: Division): JsonElement = json.encodeToJsonElement(Division.serializer(), division)

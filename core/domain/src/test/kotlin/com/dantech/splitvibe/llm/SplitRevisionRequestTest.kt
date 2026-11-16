@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -121,6 +122,34 @@ class SplitRevisionRequestTest {
         )
         // A division of an item that is no longer on the bill says nothing about it.
         assertEquals(setOf("i1"), sent["items"]!!.jsonObject.keys)
+    }
+
+    @Test
+    fun `names, labels and the merchant go as the proxy takes them, as bill links send them`() {
+        val smile = "\uD83D\uDE00"
+        // A receipt line printed over two lines, a tab and a reversal of the text, and a merchant that shows nothing.
+        val read = bill.copy(
+            merchant = "\u200B\u2060",
+            items = listOf(BillItem("i1", "Bia Saigon\nLon 330ml", BigDecimal(3), 30_000, 90_000)),
+            charges = listOf(BillCharge("c1", "Service\tcharge\u202E", ChargeKind.SERVICE_CHARGE, 14_000)),
+        )
+        val people = plan.withParticipantAdded(smile.repeat(201)).withParticipantAdded("\uFEFF\u200D").withBill(read)
+
+        val body = SplitRevisionRequest.body("x", read, people, meName = "Dana\n")
+
+        val sent = body["bill"]!!.jsonObject
+        assertEquals(JsonNull, sent["merchant"])
+        assertEquals(JsonPrimitive("Bia Saigon Lon 330ml"), sent["items"]!!.jsonArray[0].jsonObject["name"])
+        assertEquals(JsonPrimitive("Service charge"), sent["charges"]!!.jsonArray[0].jsonObject["label"])
+        assertEquals(
+            listOf("Dana", "Lan", smile.repeat(SplitRevisionRequest.MAX_NAME_CODE_POINTS), ""),
+            body["split"]!!.jsonObject["participants"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content },
+        )
+        val named = bill.copy(merchant = "M".repeat(250))
+        assertEquals(
+            JsonPrimitive("M".repeat(SplitRevisionRequest.MAX_NAME_CODE_POINTS)),
+            SplitRevisionRequest.body("x", named, plan, "Dana")["bill"]!!.jsonObject["merchant"],
+        )
     }
 
     @Test
