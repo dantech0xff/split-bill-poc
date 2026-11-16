@@ -281,6 +281,16 @@ class SplitAssistantViewModel(
         listen()
     }
 
+    /**
+     * The screen is no longer seen, as when the user turns to another app: listening ends at once, so
+     * the microphone is never left on behind it, and the words heard so far stay in the field.
+     */
+    fun onScreenStopped() {
+        if (!voice.isListening) return
+        voice.cancel()
+        draft.update { it.copy(listening = false) }
+    }
+
     /** The user's answer to whether the phone's speech service may hear them. Saying no leaves typing as it was. */
     fun onNetworkVoice(allowed: Boolean) {
         draft.update { it.copy(askingNetwork = false) }

@@ -11,6 +11,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.designsystem.motion.SvSteps
@@ -49,6 +51,8 @@ fun SplitScreen(
     val state by viewModel.state.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
     val assistantState by assistant.state.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
     val people by viewModel.people.collectAsStateWithLifecycle()
+    // Listening for a change ends when the screen is no longer seen, as when the user turns to another app.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { assistant.onScreenStopped() }
     val result = state.result
     val sentRequests = state.sentRequests
     val step = when {
