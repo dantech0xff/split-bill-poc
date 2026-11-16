@@ -1,7 +1,7 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { WEIGHTS } from "../src/identity";
+import { WEIGHTS, weightInHundredths } from "../src/identity";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf, type Allowance } from "../src/quota-book";
 
@@ -78,6 +78,28 @@ describe("monthly calls", () => {
 
     const nextMonth = await stub.hold(nextMonthStart(now), crypto.randomUUID(), MONTHLY, BILL, READ);
     expect(nextMonth).toMatchObject({ ok: true, usage: { used: 0, remaining: 9 } });
+  });
+});
+
+describe("the weight of a route", () => {
+  it("is a whole number of hundredths from one hundredth to a whole call", () => {
+    expect(WEIGHTS).toEqual({ billAnalysis: 100, splitRevision: 20 });
+    for (const [calls, hundredths] of [
+      [0.2, 20],
+      [0.01, 1],
+      [0.07, 7],
+      [0.29, 29],
+      [0.57, 57],
+      [1, 100],
+    ]) {
+      expect(weightInHundredths(calls), String(calls)).toBe(hundredths);
+    }
+  });
+
+  it("stops the Worker from loading when it is anything else, rather than be rounded without a word", () => {
+    for (const calls of [0.004, 0.125, 0.0101, 0, -0.2, 1.01, 2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => weightInHundredths(calls), String(calls)).toThrow(/whole number of hundredths of a call from 0.01 to 1/);
+    }
   });
 });
 

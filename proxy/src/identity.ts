@@ -2,7 +2,7 @@ import type { Env } from "./index";
 import { uuidOf } from "./input";
 import type { AbuseLedger } from "./ledger";
 import { POLICY } from "./policy";
-import { type Allowance, hundredthsOf, PER_CALL, type QuotaBook } from "./quota-book";
+import { type Allowance, PER_CALL, type QuotaBook } from "./quota-book";
 import { errorResponse } from "./respond";
 import { accountOfSession } from "./session";
 
@@ -17,8 +17,21 @@ export const ALLOWANCES = {
 /** What one call takes of the caller's allowance, in hundredths of a call: a bill read takes a whole call. */
 export const WEIGHTS = {
   billAnalysis: PER_CALL,
-  splitRevision: hundredthsOf(POLICY.revisionWeight),
+  splitRevision: weightInHundredths(POLICY.revisionWeight),
 } as const;
+
+/**
+ * [calls], the weight of a route in calls, in hundredths of a call. It must be a whole number of
+ * hundredths from one hundredth to a whole call: anything else would be rounded without a word,
+ * 0.125 to 0.13 and 0.004 to a whole call, so it throws instead, which stops the Worker from
+ * loading and every test from running.
+ */
+export function weightInHundredths(calls: number): number {
+  const hundredths = Math.round(calls * PER_CALL);
+  // A weight of two decimals, times 100, lands a rounding error away from its whole number.
+  if (hundredths >= 1 && hundredths <= PER_CALL && Math.abs(calls * PER_CALL - hundredths) < 1e-9) return hundredths;
+  throw new Error(`A weight must be a whole number of hundredths of a call from 0.01 to 1, not ${calls}`);
+}
 
 /**
  * Who is calling, as far as allowances are concerned: an install that is not signed in, or a

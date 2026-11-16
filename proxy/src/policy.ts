@@ -13,7 +13,8 @@ export const POLICY = {
   monthlyCalls: 10,
   /**
    * What an edit of a split by a sentence takes of the same allowance, in calls; a bill read takes
-   * one. Allowances are counted in hundredths of a call, so a weight has at most two decimals.
+   * one. Allowances are counted in hundredths of a call, so a weight is a whole number of
+   * hundredths from 0.01 to 1; the Worker does not load with any other.
    */
   revisionWeight: 0.2,
   /** A held call that is neither committed nor released within this time is given back. */
