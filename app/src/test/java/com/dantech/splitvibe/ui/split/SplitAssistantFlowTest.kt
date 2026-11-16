@@ -229,6 +229,7 @@ class SplitAssistantFlowTest {
 
         val proposal = checkNotNull(assistant.ui().proposal)
         assertFalse(proposal.canApply)
+        assertEquals(ProposalOutcome.NONE_APPLIES, proposal.outcome)
         assertEquals(
             listOf(
                 "An amount cannot be less than zero.",
@@ -243,6 +244,21 @@ class SplitAssistantFlowTest {
         assistant.apply()
         assertEquals(before, onScreen())
         assertTrue("nothing to undo", assistant.ui().applied == null)
+    }
+
+    @Test
+    fun `changes that leave the split as it is say so, rather than that they cannot be applied`() {
+        // The bill is split equally already, and there are three beers already.
+        val edits = """[{"op":"split_mode","mode":"equal"},{"op":"item_quantity","itemId":"i1","quantity":"3.000000"}]"""
+
+        ask("Split it equally, with three beers", answer(edits))
+
+        val proposal = checkNotNull(assistant.ui().proposal)
+        assertEquals(listOf<String?>(null, null), proposal.edits.map { it.reason })
+        assertEquals(ProposalOutcome.NO_CHANGE, proposal.outcome)
+        assertEquals("The changes that are kept leave the split as it is.", proposal.outcome.note)
+        assertFalse(proposal.outcome.isError)
+        assertFalse(proposal.canApply)
     }
 
     @Test

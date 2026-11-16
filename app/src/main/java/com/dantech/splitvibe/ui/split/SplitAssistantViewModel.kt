@@ -66,6 +66,22 @@ data class ShareChange(
     val changed: Boolean get() = beforeMinor != afterMinor || onBillBefore != onBillAfter
 }
 
+/** What applying the kept edits of a proposal would do to the split, and what the proposal then says about it. */
+enum class ProposalOutcome(
+    /** What the proposal says when the split would not change; null when it would. */
+    val note: String?,
+    val isError: Boolean,
+) {
+    /** The split changes. */
+    CHANGES(note = null, isError = false),
+
+    /** Kept edits can be applied, but they change nothing, such as a split into the way it is split already. */
+    NO_CHANGE(note = "The changes that are kept leave the split as it is.", isError = false),
+
+    /** None of the kept edits can be applied. */
+    NONE_APPLIES(note = "None of the changes that are kept can be applied, so the split stays as it is.", isError = true),
+}
+
 /** The changes the AI proposed, worked out on the split on screen, for the user to check before anything changes. */
 data class ProposalUi(
     /** What the user asked for. */
@@ -79,9 +95,11 @@ data class ProposalUi(
     /** What keeps the split from being finished after the changes, which the result screen then shows too. */
     val problems: List<String>,
     val currency: BillCurrency,
+    val outcome: ProposalOutcome,
+) {
     /** Applying the kept edits changes the split. */
-    val canApply: Boolean,
-)
+    val canApply: Boolean get() = outcome == ProposalOutcome.CHANGES
+}
 
 /** Listening to the user, as the mic button and what is around it show it. */
 data class VoiceUi(
@@ -368,7 +386,11 @@ class SplitAssistantViewModel(
             shares = shareChanges(bill, plan, result.bill, result.plan),
             problems = result.plan.problems(result.bill),
             currency = result.bill.currency,
-            canApply = result.bill != bill || result.plan != plan,
+            outcome = when {
+                result.bill != bill || result.plan != plan -> ProposalOutcome.CHANGES
+                result.applied.isNotEmpty() -> ProposalOutcome.NO_CHANGE
+                else -> ProposalOutcome.NONE_APPLIES
+            },
         )
     }
 

@@ -182,7 +182,7 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
             )
             proposal.shares.forEach { ShareChangeRow(it, proposal.currency) }
             proposal.problems.forEach { problem -> Note("After these changes: $problem", isError = true) }
-            if (!proposal.canApply) Note("None of the changes that are kept can be applied, so the split stays as it is.", isError = true)
+            proposal.outcome.note?.let { Note(it, isError = proposal.outcome.isError) }
 
             Row(
                 modifier = Modifier
