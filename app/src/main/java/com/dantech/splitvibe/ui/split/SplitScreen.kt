@@ -19,6 +19,7 @@ import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.editor.BillEditorContent
 import kotlinx.coroutines.Dispatchers
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 /** The button that sends the requests turns into the mark that confirms them; both carry this name. */
 internal const val SEND_SURFACE = "send"
@@ -40,10 +41,13 @@ fun SplitScreen(
     onOpenPaymentMethods: () -> Unit = {},
     /** Opens the link of the bill on screen, where everyone at the table picks what they had. */
     onPickTogether: () -> Unit = {},
+    /** Changes the split on screen by a sentence the user types or says; it lives as long as the screen. */
+    assistant: SplitAssistantViewModel = koinViewModel { parametersOf(viewModel) },
 ) {
     // Collected without waiting for the next frame, so a field always shows what was just typed
     // into it and never a value from a keystroke before.
     val state by viewModel.state.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
+    val assistantState by assistant.state.collectAsStateWithLifecycle(context = Dispatchers.Main.immediate)
     val people by viewModel.people.collectAsStateWithLifecycle()
     val result = state.result
     val sentRequests = state.sentRequests
@@ -95,6 +99,23 @@ fun SplitScreen(
             onLinkedToGroup = viewModel::linkToGroup,
             onPickTogether = onPickTogether,
         )
+    val assistantActions =
+        AssistantActions(
+            onTextChange = assistant::onTextChanged,
+            onSend = assistant::send,
+            onCancel = assistant::cancel,
+            onToggleEdit = assistant::toggleEdit,
+            onApply = assistant::apply,
+            onDiscard = assistant::discard,
+            onUndo = assistant::undo,
+            onForgetQuestion = assistant::forgetQuestion,
+            onDismissError = assistant::dismissError,
+            onOpenSettings = onOpenSettings,
+            onMic = assistant::onMic,
+            onNetworkVoice = assistant::onNetworkVoice,
+            onMicPermissionAsked = assistant::onMicPermissionAsked,
+            onMicPermission = assistant::onMicPermission,
+        )
 
     // One surface with the button that opened this screen, so the screen grows out of that button.
     Box(modifier = Modifier.sharedSurface(SPLIT_SURFACE)) {
@@ -115,7 +136,13 @@ fun SplitScreen(
                     onDone = viewModel::doneEditing,
                 )
 
-                is SplitStep.Result -> ResultContent(result = shown.result, people = people, actions = resultActions)
+                is SplitStep.Result -> ResultContent(
+                    result = shown.result,
+                    people = people,
+                    actions = resultActions,
+                    assistant = assistantState,
+                    assistantActions = assistantActions,
+                )
 
                 is SplitStep.Input -> NewSplitContent(
                     state = shown.state,

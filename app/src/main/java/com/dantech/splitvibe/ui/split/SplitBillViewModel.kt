@@ -175,7 +175,8 @@ class SplitBillViewModel(
     /** Shows the bill again on its link after each change; without it, a bill's link keeps what it showed. */
     private val shares: ShareRepository? = null,
 ) : ViewModel(),
-    BillOnScreen {
+    BillOnScreen,
+    SplitOnScreen {
 
     /** The people the user split with before, most recent first, to suggest their names. */
     val people: StateFlow<List<Person>> = peopleRepository.people.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -500,6 +501,9 @@ class SplitBillViewModel(
     }
 
     override fun applyPlan(plan: SplitPlan) = change { it.copy(plan = plan) }
+
+    /** What the assistant applies, or the bill and split from before it, which undoing it brings back exactly. */
+    override fun replaceSplit(bill: Bill, plan: SplitPlan) = change { it.copy(bill = bill, plan = plan) }
 
     override suspend fun storedBill(): SavedBill? {
         val id = mutableState.value.result?.saved?.id ?: return null

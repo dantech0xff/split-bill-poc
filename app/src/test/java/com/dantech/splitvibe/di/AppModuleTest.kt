@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.assistant.SplitAssistant
+import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.bills.BillPages
@@ -20,6 +22,7 @@ import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
+import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
@@ -62,7 +65,11 @@ class AppModuleTest {
         assertNotNull(koin.get<SettingsViewModel>())
         assertNotNull(koin.get<HistoryViewModel> { parametersOf(SavedStateHandle()) })
         // A screen hands the view model the state the system keeps for it.
-        assertNotNull(koin.get<SplitBillViewModel> { parametersOf(SavedStateHandle()) })
+        val split = koin.get<SplitBillViewModel> { parametersOf(SavedStateHandle()) }
+        assertNotNull(koin.get<SplitAssistant>())
+        assertNotNull(koin.get<VoiceInput>())
+        // The assistant changes the bill through the split screen that has it open.
+        assertNotNull(koin.get<SplitAssistantViewModel> { parametersOf(split) })
 
         assertSame("long-lived objects are created once", koin.get<SettingsStore>(), koin.get<SettingsStore>())
         assertSame("the database is opened once", koin.get<SplitVibeDatabase>(), koin.get<SplitVibeDatabase>())

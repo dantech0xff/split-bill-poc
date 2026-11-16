@@ -1,6 +1,8 @@
 package com.dantech.splitvibe.di
 
 import com.dantech.splitvibe.BuildConfig
+import com.dantech.splitvibe.assistant.SplitAssistant
+import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CredentialManagerGoogleAccounts
@@ -36,7 +38,9 @@ import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
 import com.dantech.splitvibe.ui.requests.RequestsViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
+import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
+import com.dantech.splitvibe.ui.split.SplitOnScreen
 import java.io.File
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.koin.android.ext.koin.androidContext
@@ -49,6 +53,9 @@ val appModule = module {
     single { AccountStore(androidContext(), proxySetUp = BuildConfig.AI_PROXY_URL.toHttpUrlOrNull() != null) }
     single { ProxyApi(BuildConfig.AI_PROXY_URL, account = get(), appVersion = BuildConfig.VERSION_CODE) }
     single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
+    single { SplitAssistant(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
+    // One for each screen that listens, which lets go of the recognizer when the screen goes.
+    factory { VoiceInput(androidContext()) }
     single {
         AccountRepository(
             api = get(),
@@ -122,6 +129,15 @@ val appModule = module {
             account = get<AccountStore>().account,
             settings = get<SettingsStore>().settings,
             saveName = get<SettingsStore>()::saveName,
+        )
+    }
+    viewModel { (host: SplitOnScreen) ->
+        SplitAssistantViewModel(
+            host = host,
+            assistant = get(),
+            voice = get(),
+            settings = get<SettingsStore>().settings,
+            account = get<AccountStore>().account,
         )
     }
     viewModel {

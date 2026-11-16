@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -114,11 +115,18 @@ class ResultActions(
 
 /**
  * Second step of a split: the bill, who is on it, how it is divided and who paid, and what each
- * person pays as a result. Every change is saved as it is made.
+ * person pays as a result. Every change is saved as it is made. Near the top, the [assistant]
+ * changes the split by a sentence the user types or says, once the user has checked what it proposes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ResultContent(result: SplitResultState, people: List<Person>, actions: ResultActions) {
+fun ResultContent(
+    result: SplitResultState,
+    people: List<Person>,
+    actions: ResultActions,
+    assistant: AssistantUiState,
+    assistantActions: AssistantActions,
+) {
     var addingPerson by rememberSaveable { mutableStateOf(false) }
     var changingPerson by rememberSaveable { mutableStateOf<String?>(null) }
     var splittingItem by rememberSaveable { mutableStateOf<String?>(null) }
@@ -140,6 +148,8 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
     val entry = rememberSvEntryState()
 
     Scaffold(
+        // The assistant's field is typed into, so the page ends above the keyboard.
+        modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
                 title = { Text(bill.merchant ?: "Bill", maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -195,6 +205,34 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
                         action = "Edit bill",
                         onAction = actions.onEditBill,
                         modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
+                    )
+                }
+            }
+
+            item(key = "assistant") {
+                AssistantCard(
+                    state = assistant,
+                    actions = assistantActions,
+                    modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                )
+            }
+            assistant.applied?.let { applied ->
+                item(key = "applied") {
+                    SvMessageCard(
+                        text = applied,
+                        isError = false,
+                        action = "Undo",
+                        onAction = assistantActions.onUndo,
+                        modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
+                    )
+                }
+            }
+            assistant.proposal?.let { proposal ->
+                item(key = "proposal") {
+                    ProposalCard(
+                        proposal = proposal,
+                        actions = assistantActions,
+                        modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
                     )
                 }
             }
@@ -348,6 +386,8 @@ fun ResultContent(result: SplitResultState, people: List<Person>, actions: Resul
             }
         }
     }
+
+    AssistantVoicePrompts(voice = assistant.voice, actions = assistantActions)
 
     val sheetPeople = plan.participants.map { SheetPerson(it.id, result.nameOf(it.id)) }
 

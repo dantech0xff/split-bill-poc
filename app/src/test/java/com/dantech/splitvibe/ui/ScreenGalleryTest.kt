@@ -14,9 +14,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -30,6 +32,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
+import com.dantech.splitvibe.assistant.SplitAssistant
+import com.dantech.splitvibe.assistant.TestVoice
+import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
@@ -47,6 +52,7 @@ import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import com.dantech.splitvibe.ui.split.DEFAULT_INSTRUCTION
 import com.dantech.splitvibe.ui.split.Progress
+import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
@@ -54,7 +60,9 @@ import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertNull
@@ -104,8 +112,15 @@ class ScreenGalleryTest {
         override suspend fun recognize(image: Bitmap): OcrResult = Fixtures.ocr("sample_bill_ocr.json")
     }
 
+    /** The assistant of the result screen, asking the same stand-in for the proxy as the bill read. */
+    private lateinit var assistant: SplitAssistantViewModel
+
     @Before
-    fun setUp() = server.start()
+    fun setUp() {
+        server.start()
+        // A phone that turns speech into text by itself, as most new phones do, so the result screen offers the mic.
+        TestVoice.recognizeOnDevice()
+    }
 
     @After
     fun tearDown() {
@@ -132,6 +147,17 @@ class ScreenGalleryTest {
     fun `whole result page in the dark theme`() {
         suffix = "-dark"
         wholeResultPage()
+    }
+
+    /** Changing the split by a sentence: the field on the result screen, then what the AI proposes, before and after. */
+    @Test
+    fun `the assistant on the result screen`() = assistantScreens()
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_AT_NIGHT)
+    fun `the assistant on the result screen in the dark theme`() {
+        suffix = "-dark"
+        assistantScreens()
     }
 
     /** Text at twice its size must still fit: nothing may be cut off on the four main screens. */
@@ -199,6 +225,9 @@ class ScreenGalleryTest {
         // The lazy list only: the text shown under "what was sent" scrolls sideways and would match a plain scroll matcher.
         val list = compose.onNode(hasScrollToIndexAction())
         list.performScrollToNode(hasText("Adds up to the bill total"))
+        // The shares and their total clear of the bottom bar.
+        val total = compose.onNodeWithText("Adds up to the bill total").fetchSemanticsNode().boundsInRoot.bottom
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, total - SHARES_TOTAL_BOTTOM_PX) }
         shot("06-result-shares")
 
         // Someone split with before is suggested as their name is typed.
@@ -258,6 +287,34 @@ class ScreenGalleryTest {
         shot("21-history")
     }
 
+    private fun assistantScreens() {
+        val viewModel = start(answerDelaySeconds = 0)
+        show(Screen.SPLIT)
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+
+        compose.onNode(hasText("Change the split") and hasSetTextAction()).performTextInput(ASSISTANT_INSTRUCTION)
+        shot("30-assistant")
+
+        server.enqueue(revisionAnswer())
+        compose.onNodeWithContentDescription("Ask Claude").performClick()
+        awaitState { assistant.state.value.let { it.proposal != null || it.error != null } }
+        assertNull(assistant.state.value.error)
+        // The user keeps two of the three changes.
+        val paid = hasContentDescription("Minh paid the whole bill") and isToggleable()
+        compose.onNode(paid).performSemanticsAction(SemanticsActions.OnClick)
+        // The proposed changes up under the top bar, so they show whole above the bottom bar.
+        val list = compose.onNode(hasScrollToIndexAction())
+        list.performScrollToNode(hasText("Proposed changes"))
+        val title = compose.onNodeWithText("Proposed changes").fetchSemanticsNode().boundsInRoot.top
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, title - PROPOSAL_TOP_PX) }
+        shot("31-assistant-proposal")
+    }
+
     private fun wholeResultPage() {
         val viewModel = start(answerDelaySeconds = 0)
         show(Screen.SPLIT)
@@ -283,6 +340,13 @@ class ScreenGalleryTest {
             analyzer = proxy.analyzer,
             localCurrency = settings.localCurrency,
         )
+        assistant = SplitAssistantViewModel(
+            host = viewModel,
+            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
+            voice = VoiceInput(context),
+            settings = MutableStateFlow(settings),
+            account = proxy.account.account,
+        )
         compose.setContent {
             val bills by storage.bills.listings().collectAsState(emptyList())
             // No touch ripples: they are drawn by the platform on real time, so a picture taken
@@ -297,12 +361,12 @@ class ScreenGalleryTest {
 
                         Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
-                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, assistant = assistant)
 
                         // What a build without the AI proxy's address shows.
                         Screen.SPLIT_WITHOUT_AI -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.NOT_SET_UP, newCameraTarget = {
                             Uri.EMPTY
-                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, assistant = assistant)
 
                         // Before signing in, with the count the proxy reported for this install.
                         Screen.SETTINGS -> SettingsScreen(
@@ -372,14 +436,21 @@ private const val PHONE = "w412dp-h915dp-xhdpi"
 private const val PHONE_AT_NIGHT = "w412dp-h915dp-night-xhdpi"
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
-private const val TALL = "w412dp-h1700dp-xhdpi"
-private const val TALL_AT_NIGHT = "w412dp-h1700dp-night-xhdpi"
+private const val TALL = "w412dp-h1900dp-xhdpi"
+private const val TALL_AT_NIGHT = "w412dp-h1900dp-night-xhdpi"
 private const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
+private const val ASSISTANT_INSTRUCTION = "Lan didn't have any water. Add a 5% tip, and Minh paid"
 private const val BEERS = "Bia Saigon Special"
 
 // Scroll distances at xhdpi (2 px per dp).
 private const val PAGE_PX = 1150f
 private const val HALF_PAGE_PX = 540f
+
+/** Where the title of the proposed changes ends up: below the top bar, with the top of its card in view. */
+private const val PROPOSAL_TOP_PX = 220f
+
+/** Where the line under the shares ends up: well above the bottom bar. */
+private const val SHARES_TOTAL_BOTTOM_PX = 1500f
 private const val TIMEOUT_MS = 60_000L
 private const val WORKING_ANIMATION_MS = 500L
 private const val HALFWAY_TO_SENT_MS = 200L
@@ -399,3 +470,14 @@ private val SIGNED_IN = SIGNED_OUT.copy(
 )
 
 private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {})
+
+/** What the proxy answers to [ASSISTANT_INSTRUCTION] on the sample bill: the water, a tip and who paid, as three edits. */
+private fun revisionAnswer(): MockResponse {
+    val edits = """[{"op":"item_sharers","itemId":"i7","participantIds":["me","p1"]},""" +
+        """{"op":"add_charge","kind":"tip","label":"Tip","percentBasisPoints":500},{"op":"set_payer","participantId":"p1"}]"""
+    val answer = """{"edits":$edits,"explanation":"Lan no longer shares the water, a 5% tip is added, and Minh paid.","question":null}"""
+    val usage = """{"limit":3,"used":1.2,"remaining":1.8,"period":"trial","resetsAt":null}"""
+    return MockResponse()
+        .setHeader("content-type", "application/x-ndjson; charset=utf-8")
+        .setBody("{\"type\":\"wait\"}\n{\"type\":\"result\",\"answer\":$answer,\"usage\":$usage}\n")
+}
