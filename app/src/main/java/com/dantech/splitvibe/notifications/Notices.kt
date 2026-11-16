@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.notifications
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -69,7 +70,6 @@ object Notices {
     fun show(context: Context, data: Map<String, String>) {
         val kind = data["type"]
         val (title, text) = textOf(kind) ?: return
-        if (!allowed(context)) return
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra(EXTRA_KIND, kind)
@@ -88,7 +88,7 @@ object Notices {
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
-        NotificationManagerCompat.from(context).notify(kind.hashCode(), notice)
+        post(context, null, kind.hashCode(), notice)
     }
 
     /**
@@ -99,7 +99,6 @@ object Notices {
      */
     fun showDrafts(context: Context, name: String, drafts: List<SavedBill>) {
         val newest = drafts.lastOrNull() ?: return
-        if (!allowed(context)) return
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(DRAFTS_CHANNEL, "Recurring bills", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "When a recurring bill, such as the rent, is due and its draft is ready to check."
@@ -135,12 +134,21 @@ object Notices {
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
-        NotificationManagerCompat.from(context).notify(newest.id, DRAFT_NOTICE, notice)
+        post(context, newest.id, DRAFT_NOTICE, notice)
     }
 
-    /** Whether the user lets the app show notices, which Android 13 and later ask leave for. */
-    private fun allowed(context: Context): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    /**
+     * Shows [notice] under [tag] and [id], when the user lets the app show notices, which Android 13
+     * and later ask leave for. The check is here, by the call it guards, where lint sees it.
+     */
+    private fun post(context: Context, tag: String?, id: Int, notice: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        NotificationManagerCompat.from(context).notify(tag, id, notice)
+    }
 
     /** What the notice of a recurring bill's drafts says where private notices are hidden. */
     private const val DRAFTS_DUE = "A recurring bill is due"
