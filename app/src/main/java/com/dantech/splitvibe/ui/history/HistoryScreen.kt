@@ -65,7 +65,7 @@ fun HistoryScreen(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
-    onRepeat: ((billId: String, name: String, schedule: RecurrenceSchedule) -> Unit)? = null,
+    onRepeat: ((billId: String, name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate) -> Unit)? = null,
     today: LocalDate = LocalDate.now(),
 ) {
     var deleting by rememberSaveable { mutableStateOf<String?>(null) }
@@ -133,9 +133,9 @@ fun HistoryScreen(
                 name = listing.merchant?.trim().orEmpty(),
                 date = listing.date,
                 today = today,
-                onRepeat = { name, schedule ->
+                onRepeat = { name, schedule, firstDraft ->
                     repeating = null
-                    onRepeat(id, name, schedule)
+                    onRepeat(id, name, schedule, firstDraft)
                 },
                 onDismiss = { repeating = null },
             )

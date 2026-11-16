@@ -161,7 +161,7 @@ class SpendingGalleryTest {
         onOpen = {},
         onDelete = {},
         onBack = {},
-        onRepeat = { _, _, _ -> },
+        onRepeat = { _, _, _, _ -> },
         today = today,
     )
 

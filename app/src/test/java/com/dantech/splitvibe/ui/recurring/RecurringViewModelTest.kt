@@ -65,7 +65,7 @@ class RecurringViewModelTest {
 
     @Test
     fun `a bill made to recur is listed with the day of its next draft, and what is due is made at once`() {
-        viewModel.repeat(rent.id, "Flat rent", RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2026, 12, 1)))
+        viewModel.repeat(rent.id, "Flat rent", RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2026, 11, 1)), LocalDate.of(2026, 12, 1))
         awaitOnMain { viewModel.rows.value?.size == 1 }
 
         val row = rows().single()
@@ -77,7 +77,8 @@ class RecurringViewModelTest {
 
     @Test
     fun `pausing, resuming and deleting change the list, and resuming makes what is due at once`() {
-        viewModel.repeat(rent.id, "Rent", RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17)))
+        val tuesdays = RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17))
+        viewModel.repeat(rent.id, "Rent", tuesdays, tuesdays.start)
         awaitOnMain { viewModel.rows.value?.size == 1 }
         val id = rows().single().bill.id
 
@@ -93,20 +94,26 @@ class RecurringViewModelTest {
     }
 
     @Test
-    fun `the first draft is suggested one period after the bill's own date, and today at the earliest`() {
+    fun `the sheet suggests the bill's own day, with the first draft on the next occurrence after it, and today at the earliest`() {
         val today = LocalDate.of(2026, 11, 16)
+        fun suggested(date: String?, frequency: Frequency) =
+            suggestedSchedule(date, frequency, today).let { it.start to firstDraftDay(it, today) }
 
-        assertEquals(LocalDate.of(2026, 12, 1), firstDraftDay("2026-11-01", Frequency.MONTHLY, today))
+        assertEquals(LocalDate.of(2026, 11, 1) to LocalDate.of(2026, 12, 1), suggested("2026-11-01", Frequency.MONTHLY))
         // A Tuesday: the next Tuesday from today on.
-        assertEquals(LocalDate.of(2026, 11, 17), firstDraftDay("2026-11-10", Frequency.WEEKLY, today))
-        assertEquals(LocalDate.of(2026, 11, 17), firstDraftDay("2026-10-06", Frequency.WEEKLY, today))
+        assertEquals(LocalDate.of(2026, 11, 10) to LocalDate.of(2026, 11, 17), suggested("2026-11-10", Frequency.WEEKLY))
+        assertEquals(LocalDate.of(2026, 10, 6) to LocalDate.of(2026, 11, 17), suggested("2026-10-06", Frequency.WEEKLY))
         // The bill is of today: its next occurrence is the first draft.
-        assertEquals(LocalDate.of(2026, 12, 16), firstDraftDay("2026-11-16", Frequency.MONTHLY, today))
-        // Without a date that can be read, one period from today.
-        assertEquals(LocalDate.of(2026, 12, 16), firstDraftDay(null, Frequency.MONTHLY, today))
-        assertEquals(LocalDate.of(2026, 11, 23), firstDraftDay("13/11/2026", Frequency.WEEKLY, today))
-        // A rent dated the 31st comes back on the last day of a shorter month.
-        assertEquals(LocalDate.of(2026, 11, 30), firstDraftDay("2026-10-31", Frequency.MONTHLY, today))
+        assertEquals(today to LocalDate.of(2026, 12, 16), suggested("2026-11-16", Frequency.MONTHLY))
+        // Without a date that can be read, from today.
+        assertEquals(today to LocalDate.of(2026, 12, 16), suggested(null, Frequency.MONTHLY))
+        assertEquals(today to LocalDate.of(2026, 11, 23), suggested("13/11/2026", Frequency.WEEKLY))
+        // A rent dated the 31st keeps the 31st, and only its first draft is on the last day of a shorter month.
+        assertEquals(LocalDate.of(2026, 10, 31) to LocalDate.of(2026, 11, 30), suggested("2026-10-31", Frequency.MONTHLY))
+        assertEquals(
+            "Every month on the 31st, or the last day of a shorter month",
+            describe(suggestedSchedule("2026-10-31", Frequency.MONTHLY, today)),
+        )
     }
 
     @Test

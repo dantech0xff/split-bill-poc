@@ -36,11 +36,14 @@ class RecurringViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MS), null)
 
-    /** Makes the bill [billId] come back on [schedule], called [name]; nothing when the bill is gone meanwhile. */
-    fun repeat(billId: String, name: String, schedule: RecurrenceSchedule) {
+    /**
+     * Makes the bill [billId] come back on [schedule], called [name], with its first draft on
+     * [firstDraft]; nothing when the bill is gone meanwhile.
+     */
+    fun repeat(billId: String, name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate) {
         viewModelScope.launch {
             val saved = bills.get(billId) ?: return@launch
-            recurring.create(saved, name, schedule)
+            recurring.create(saved, name, schedule, firstDraft)
             runDrafts()
         }
     }

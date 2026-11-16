@@ -17,6 +17,8 @@ import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.Recurrence
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.ui.recurring.firstDraftDay
+import com.dantech.splitvibe.ui.recurring.suggestedSchedule
 import java.time.LocalDate
 import java.util.Collections
 import java.util.UUID
@@ -69,8 +71,9 @@ class RecurringDraftsTest {
     @After
     fun tearDown() = storage.close()
 
+    /** [rent] made to recur from [start], with its first draft then, or today when [start] is before today. */
     private fun makeRecurring(frequency: Frequency, start: String): RecurringBill = runBlocking {
-        recurring.create(rent, "Rent", RecurrenceSchedule(frequency, LocalDate.parse(start)))
+        recurring.create(rent, "Rent", RecurrenceSchedule(frequency, LocalDate.parse(start)), firstDraft = LocalDate.parse(start))
     }
 
     /** Runs the work on every day from the clock's day to [last], and returns the drafts made on each day that made any. */
@@ -107,6 +110,38 @@ class RecurringDraftsTest {
         // Every draft has an id the proxy takes, so a finished one can go to a group, a request or a link.
         ids.forEach { UUID.fromString(it) }
         assertEquals(ids, notices)
+    }
+
+    @Test
+    fun `a rent dated the 31st and repeated as the sheet suggests makes its drafts on the 31st, and on the last day of a shorter month`() {
+        val october = runBlocking {
+            bills.save(SpendingFixtures.finished("rent-oct", "2026-10-31", "Rent", BillCategory.RENT, 9_000_000, listOf("Minh", "Khoa")))
+        }
+        val schedule = suggestedSchedule(october.bill.date, Frequency.MONTHLY, clock.today)
+        val template = runBlocking { recurring.create(october, "Rent", schedule, firstDraftDay(schedule, clock.today)) }
+
+        val made = runDaily(LocalDate.of(2027, 3, 31))
+
+        assertEquals(RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2026, 10, 31)), template.schedule)
+        // November and February are short: their drafts are on their last days, and the 31st comes back after them.
+        val days = listOf("2026-11-30", "2026-12-31", "2027-01-31", "2027-02-28", "2027-03-31").map(LocalDate::parse)
+        assertEquals(days, made.keys.toList())
+        made.forEach { (day, onThatDay) -> assertEquals(listOf(Recurrence.draftId(template.id, day)), onThatDay.map { it.id }) }
+        // The bill itself is the occurrence of 31 October, which makes no draft.
+        assertNull(runBlocking { bills.get(Recurrence.draftId(template.id, LocalDate.of(2026, 10, 31))) })
+    }
+
+    @Test
+    fun `a bill of today repeated as the sheet suggests makes no draft of itself, and its first one a period later`() {
+        val ofToday = runBlocking {
+            bills.save(SpendingFixtures.finished("rent-today", "2026-11-16", "Rent", BillCategory.RENT, 9_000_000, listOf("Minh")))
+        }
+        val schedule = suggestedSchedule(ofToday.bill.date, Frequency.MONTHLY, clock.today)
+        val template = runBlocking { recurring.create(ofToday, "Rent", schedule, firstDraftDay(schedule, clock.today)) }
+
+        assertTrue(runBlocking { drafts.makeDue() }.isEmpty())
+        assertEquals(listOf(LocalDate.of(2026, 12, 16)), runDaily(LocalDate.of(2026, 12, 16)).keys.toList())
+        assertEquals(LocalDate.of(2026, 11, 16), template.schedule.start)
     }
 
     @Test

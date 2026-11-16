@@ -5,6 +5,8 @@ import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.PersonShare
 import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitPlan
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -121,3 +123,12 @@ data class ShareLink(
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")
+
+/** The day a bill's [date] names, written yyyy-mm-dd as bills keep it; null when it names none, such as "13/11/2026". */
+fun dayOf(date: String?): LocalDate? = date?.let {
+    try {
+        LocalDate.parse(it.trim())
+    } catch (e: DateTimeParseException) {
+        null
+    }
+}

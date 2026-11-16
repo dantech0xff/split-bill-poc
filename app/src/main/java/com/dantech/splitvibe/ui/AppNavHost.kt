@@ -273,8 +273,8 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpen = openBill,
                             onDelete = historyViewModel::delete,
                             onBack = { backStack.remove(HistoryKey) },
-                            onRepeat = { id, name, schedule ->
-                                recurringViewModel.repeat(id, name, schedule)
+                            onRepeat = { id, name, schedule, firstDraft ->
+                                recurringViewModel.repeat(id, name, schedule, firstDraft)
                                 // Each draft comes with a notice, which needs leave on Android 13 and later.
                                 askForNotices()
                                 backStack.open(RecurringKey)

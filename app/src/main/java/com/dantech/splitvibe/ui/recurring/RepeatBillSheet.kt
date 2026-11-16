@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
@@ -34,27 +35,37 @@ import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.Recurrence
 import com.dantech.splitvibe.domain.RecurrenceSchedule
 import java.time.LocalDate
-import java.time.format.DateTimeParseException
 import java.util.concurrent.TimeUnit
 
 /**
  * Makes a bill come back every week or every month: what to call it, how often, and the day of its
- * first draft, which is today at the earliest. Until the user picks a day, the first draft comes one
- * week or one month after the bill's own date, or after today for a bill without one.
+ * first draft, which is today at the earliest. Until the user picks a day, the bill comes back on its
+ * own day of the week or month, or from today for a bill without a date, and its first draft is the
+ * next of those days after the bill itself.
  *
  * @param name what the bill is called now, such as its merchant.
  * @param date the bill's date as written on it, which may be no day at all.
+ * @param onRepeat gets the name, the schedule and the day of the first draft, an occurrence of it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RepeatBillSheet(name: String, date: String?, today: LocalDate, onRepeat: (String, RecurrenceSchedule) -> Unit, onDismiss: () -> Unit) {
+fun RepeatBillSheet(
+    name: String,
+    date: String?,
+    today: LocalDate,
+    onRepeat: (name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var typed by rememberSaveable { mutableStateOf(name) }
     var frequency by rememberSaveable { mutableStateOf(Frequency.MONTHLY) }
     // Kept as an epoch day, which saves as a plain number; null until the user picks a day.
     var pickedDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var picking by rememberSaveable { mutableStateOf(false) }
-    val start = pickedDay?.let(LocalDate::ofEpochDay) ?: firstDraftDay(date, frequency, today)
-    val schedule = RecurrenceSchedule(frequency, start)
+    val picked = pickedDay?.let(LocalDate::ofEpochDay)
+    // A day the user picks starts the schedule. Until then it keeps to the bill's own day, so a rent
+    // dated the 31st comes back on the 31st, and only its first draft is on the 30th of a shorter month.
+    val schedule = picked?.let { RecurrenceSchedule(frequency, it) } ?: suggestedSchedule(date, frequency, today)
+    val firstDraft = picked ?: firstDraftDay(schedule, today)
 
     SvBottomSheet(
         title = "Repeat this bill",
@@ -63,7 +74,7 @@ fun RepeatBillSheet(name: String, date: String?, today: LocalDate, onRepeat: (St
         actions = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { onRepeat(typed.trim(), schedule) }) { Text("Repeat") }
+            Button(onClick = { onRepeat(typed.trim(), schedule, firstDraft) }) { Text("Repeat") }
         },
     ) {
         Column(
@@ -87,7 +98,7 @@ fun RepeatBillSheet(name: String, date: String?, today: LocalDate, onRepeat: (St
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("First draft ${dayText(start)}", style = MaterialTheme.typography.bodyLarge)
+                    Text("First draft ${dayText(firstDraft)}", style = MaterialTheme.typography.bodyLarge)
                     Text(describe(schedule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 TextButton(onClick = { picking = true }) { Text("Change") }
@@ -98,7 +109,7 @@ fun RepeatBillSheet(name: String, date: String?, today: LocalDate, onRepeat: (St
     if (picking) {
         val firstAllowed = today.toEpochDay() * DAY_MS
         val picker = rememberDatePickerState(
-            initialSelectedDateMillis = start.toEpochDay() * DAY_MS,
+            initialSelectedDateMillis = firstDraft.toEpochDay() * DAY_MS,
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis >= firstAllowed
 
@@ -121,18 +132,15 @@ fun RepeatBillSheet(name: String, date: String?, today: LocalDate, onRepeat: (St
     }
 }
 
-/** The day of the first draft until the user picks one: one period after the bill's date, and today at the earliest. */
-internal fun firstDraftDay(date: String?, frequency: Frequency, today: LocalDate): LocalDate {
-    val billDay = date?.let {
-        try {
-            LocalDate.parse(it.trim())
-        } catch (e: DateTimeParseException) {
-            null
-        }
-    }
-    // The bill itself is the occurrence it starts from, so the first draft is the one after it.
-    val from = billDay ?: today
-    return Recurrence.next(RecurrenceSchedule(frequency, from), maxOf(from, today.minusDays(1)))
-}
+/** The schedule of a bill dated [date] until the user picks a day: from the bill's own day, or from [today] for a bill without one. */
+internal fun suggestedSchedule(date: String?, frequency: Frequency, today: LocalDate): RecurrenceSchedule =
+    RecurrenceSchedule(frequency, dayOf(date) ?: today)
+
+/**
+ * The first draft of [schedule] until the user picks a day. The bill itself is the occurrence the
+ * schedule starts from, so the first draft is the one after it, and today at the earliest.
+ */
+internal fun firstDraftDay(schedule: RecurrenceSchedule, today: LocalDate): LocalDate =
+    Recurrence.next(schedule, maxOf(schedule.start, today.minusDays(1)))
 
 private val DAY_MS = TimeUnit.DAYS.toMillis(1)

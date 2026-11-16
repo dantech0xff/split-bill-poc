@@ -31,10 +31,13 @@ class RecurringBillRepository(
     suspend fun active(): List<RecurringBill> = dao.active().mapNotNull(::read)
 
     /**
-     * Makes [saved] come back on [schedule], called [name], and returns it. Its drafts start on the
-     * first occurrence from today on: a start before today only sets the day it comes back on.
+     * Makes [saved] come back on [schedule], called [name], and returns it. Its first draft is
+     * [firstDraft], an occurrence of [schedule], or the first occurrence from today on when that is
+     * later: no draft is made for a day before either. The schedule's start only sets the days it
+     * comes back on, as each occurrence is counted from it. So a schedule that starts on the 31st, as
+     * the rent it comes from, is back on the 31st after a first draft on the 30th of a shorter month.
      */
-    suspend fun create(saved: SavedBill, name: String, schedule: RecurrenceSchedule): RecurringBill {
+    suspend fun create(saved: SavedBill, name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate): RecurringBill {
         val bill = RecurringBill(
             id = newId(),
             name = name.trim().take(MAX_NAME).ifEmpty { saved.bill.merchant?.trim()?.take(MAX_NAME)?.ifEmpty { null } ?: DEFAULT_NAME },
@@ -43,7 +46,7 @@ class RecurringBillRepository(
             plan = saved.plan,
             paused = false,
             createdAt = clock.millis(),
-            madeThrough = LocalDate.now(clock).minusDays(1),
+            madeThrough = maxOf(LocalDate.now(clock), firstDraft).minusDays(1),
         )
         dao.insert(bill.toEntity())
         return bill

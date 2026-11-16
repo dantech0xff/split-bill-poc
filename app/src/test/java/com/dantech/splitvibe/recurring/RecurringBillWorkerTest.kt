@@ -76,7 +76,8 @@ class RecurringBillWorkerTest {
 
     private fun weeklyRent() = runBlocking {
         val rent = bills.save(SpendingFixtures.finished("rent", "2026-11-03", "Rent", BillCategory.RENT, 9_000_000, listOf("Minh", "Khoa")))
-        recurring.create(rent, "Rent", RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17)))
+        // Every Tuesday from the bill's own, with the first draft on the next one, as the sheet suggests.
+        recurring.create(rent, "Rent", RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 3)), LocalDate.of(2026, 11, 17))
     }
 
     @Test
