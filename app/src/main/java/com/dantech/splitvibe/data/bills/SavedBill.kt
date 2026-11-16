@@ -9,6 +9,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable
 enum class BillStatus {
@@ -123,6 +124,17 @@ data class ShareLink(
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")
+
+/**
+ * How the phone keeps its bills as JSON, the recurring ones too. Reading one back skips what a newer
+ * version added, and reads a choice this version does not know, such as a new category, as its
+ * default, as the list of bills already shows it.
+ */
+internal val storedJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+    coerceInputValues = true
+}
 
 /** The day a bill's [date] names, written yyyy-mm-dd as bills keep it; null when it names none, such as "13/11/2026". */
 fun dayOf(date: String?): LocalDate? = date?.let {

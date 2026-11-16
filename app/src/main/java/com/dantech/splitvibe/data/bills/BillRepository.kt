@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 
 /**
  * The bills kept on the phone: drafts saved as the user works and the splits they finished. Each
@@ -24,7 +23,7 @@ class BillRepository(
     /** Bills matching [query] (all of them when it is blank), newest first. */
     fun listings(query: String = ""): Flow<List<BillListing>> = bills.listings(likePattern(query))
 
-    suspend fun get(id: String): SavedBill? = bills.get(id)?.let { json.decodeFromString(SavedBill.serializer(), it.document) }
+    suspend fun get(id: String): SavedBill? = bills.get(id)?.let { storedJson.decodeFromString(SavedBill.serializer(), it.document) }
 
     /**
      * The finished bills, the latest saved first, for the statistics and exports. A bill this
@@ -34,7 +33,7 @@ class BillRepository(
         .map { documents ->
             documents.mapNotNull { document ->
                 try {
-                    json.decodeFromString(SavedBill.serializer(), document)
+                    storedJson.decodeFromString(SavedBill.serializer(), document)
                 } catch (e: SerializationException) {
                     null
                 }
@@ -104,7 +103,7 @@ class BillRepository(
             searchText = NameMatcher.normalize(
                 listOfNotNull(bill.merchant, bill.date, instruction).plus(bill.items.map { it.name }).plus(names).joinToString(" "),
             ),
-            document = json.encodeToString(SavedBill.serializer(), this),
+            document = storedJson.encodeToString(SavedBill.serializer(), this),
             category = bill.category.wireValue,
         )
     }
@@ -113,11 +112,4 @@ class BillRepository(
         .replace("\\", "\\\\")
         .replace("%", "\\%")
         .replace("_", "\\_")
-
-    private companion object {
-        val json = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
-    }
 }

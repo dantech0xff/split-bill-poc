@@ -3,6 +3,7 @@ package com.dantech.splitvibe.data.recurring
 import androidx.room.withTransaction
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.SplitVibeDatabase
+import com.dantech.splitvibe.data.bills.storedJson
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
 import java.time.Clock
@@ -11,7 +12,6 @@ import java.time.format.DateTimeParseException
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.json.Json
 
 /**
  * The recurring bills kept on the phone, each of which makes a draft on every occurrence of its
@@ -88,12 +88,12 @@ class RecurringBillRepository(
         paused = paused,
         createdAt = createdAt,
         madeThrough = madeThrough.toString(),
-        document = json.encodeToString(RecurringBillContent.serializer(), RecurringBillContent(bill, plan)),
+        document = storedJson.encodeToString(RecurringBillContent.serializer(), RecurringBillContent(bill, plan)),
     )
 
     /** The bill [row] keeps; null for a row this version cannot read, such as one written by a newer version. */
     private fun read(row: RecurringBillEntity): RecurringBill? = try {
-        val content = json.decodeFromString(RecurringBillContent.serializer(), row.document)
+        val content = storedJson.decodeFromString(RecurringBillContent.serializer(), row.document)
         RecurringBill(
             id = row.id,
             name = row.name,
@@ -117,10 +117,5 @@ class RecurringBillRepository(
 
         /** The name of a recurring bill made from a bill without a merchant, when none is given. */
         const val DEFAULT_NAME = "Bill"
-
-        private val json = Json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
     }
 }

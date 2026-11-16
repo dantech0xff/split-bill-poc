@@ -100,6 +100,9 @@ class DatabaseMigrationTest {
             val bills = BillRepository(database, PeopleRepository(database), BillPages(context))
             assertEquals(rent, runBlocking { bills.get("rent") })
             assertEquals(BillCategory.OTHER, runBlocking { bills.get("older") }?.bill?.category)
+            // A category this version does not know reads as other in the document too, as in the list.
+            assertEquals(unknown.bill.copy(category = BillCategory.OTHER), runBlocking { bills.get("unknown") }?.bill)
+            assertEquals(3, runBlocking { bills.finished().first() }.size)
             val recurring = RecurringBillEntity("r1", "Rent", "MONTHLY", "2026-12-01", false, 1, "2026-11-15", "{}")
             runBlocking { database.recurringBills().insert(recurring) }
             assertEquals(listOf(recurring), runBlocking { database.recurringBills().active() })
