@@ -1,0 +1,2 @@
+# The reference files of the CSV export are compared byte for byte, line ends included, so git leaves them as they are.
+*.csv -text

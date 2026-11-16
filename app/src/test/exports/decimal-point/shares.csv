@@ -1,0 +1,8 @@
+﻿Bill ID,Date,Place,Person,Share,Paid,Currency
+a1,2026-11-12,Quán Ốc Ba Miển,You,81000,243000,VND
+a1,2026-11-12,Quán Ốc Ba Miển,Minh,81000,0,VND
+a1,2026-11-12,Quán Ốc Ba Miển,Lan,81000,0,VND
+b1,2026-10-20,"Bowling ""Strike"", Inc.",You,10.00,0.00,USD
+b1,2026-10-20,"Bowling ""Strike"", Inc.",Lan,10.00,30.00,USD
+b1,2026-10-20,"Bowling ""Strike"", Inc.",'=1+2,10.00,0.00,USD
+c1,,Tops Market,You,412.50,412.50,THB

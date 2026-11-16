@@ -1,0 +1,9 @@
+﻿Bill ID;Date;Place;Line;Kind;Quantity;Unit price;Amount;Currency
+a1;2026-11-12;Quán Ốc Ba Miển;Ốc hương rang muối;Item;1;165000;165000;VND
+a1;2026-11-12;Quán Ốc Ba Miển;Bia Saigon;Item;3;20000;60000;VND
+a1;2026-11-12;Quán Ốc Ba Miển;VAT 8%;Tax;;;18000;VND
+b1;2026-10-20;"Bowling ""Strike"", Inc.";Lane, 2 games;Item;2;12,50;25,00;USD
+b1;2026-10-20;"Bowling ""Strike"", Inc.";Shoes;Item;1,5;4,00;6,00;USD
+b1;2026-10-20;"Bowling ""Strike"", Inc.";Member discount;Discount;;;-3,50;USD
+b1;2026-10-20;"Bowling ""Strike"", Inc.";Tip;Tip;;;2,50;USD
+c1;;Tops Market;Groceries;Item;1;;412,50;THB

@@ -3,4 +3,6 @@
     <cache-path name="bill_photos" path="bill_photos/" />
     <!-- Cards and payment codes shared to another app, only for that share. -->
     <cache-path name="shared" path="shared/" />
+    <!-- The CSV files and PDF summaries of the insights, shared to another app, only for that share. -->
+    <cache-path name="exports" path="exports/" />
 </paths>
