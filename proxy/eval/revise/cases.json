@@ -46,6 +46,8 @@
     "expect": { "edits": [{ "op": "set_sharing", "participantId": "p2", "sharing": true }] } },
   { "id": "vi-not-sharing-left-out", "language": "vi", "fixture": "karaoke-vnd", "instruction": "bao khong uong bia", "tags": ["typed_differently"],
     "expect": { "edits": [{ "op": "item_sharers", "itemId": "i2", "participantIds": ["me", "p1"] }] } },
+  { "id": "vi-divided-beer", "language": "vi", "fixture": "hotpot-divided", "instruction": "Lan không uống bia",
+    "expect": { "edits": [{ "op": "item_sharers", "itemId": "i2", "participantIds": ["me", "p2", "p3"] }] } },
   { "id": "vi-which-minh", "language": "vi", "fixture": "two-minhs", "instruction": "Minh không uống bia",
     "expect": { "question": true } },
   { "id": "vi-full-name", "language": "vi", "fixture": "two-minhs", "instruction": "Minh Tuấn không uống bia",
@@ -81,6 +83,13 @@
       { "op": "add_person", "ref": "new1", "name": "Mike" },
       { "op": "item_sharers", "itemId": "i2", "participantIds": ["new1"] }
     ] } },
+  { "id": "en-add-two", "language": "en", "fixture": "diner-usd", "instruction": "Mike and Ana are joining us, add them both",
+    "expect": { "edits": [
+      { "op": "add_person", "ref": "new1", "name": "Mike" },
+      { "op": "add_person", "ref": "new2", "name": "Ana" }
+    ] } },
+  { "id": "en-divided-juice", "language": "en", "fixture": "hotpot-divided", "instruction": "Lan didn't have any of the orange juice",
+    "expect": { "edits": [{ "op": "item_sharers", "itemId": "i3", "participantIds": ["me", "p4"] }] } },
   { "id": "en-drinks-and-tip", "language": "en", "fixture": "diner-usd", "instruction": "Sarah and I didn't have any of the drinks, and add an 18% tip",
     "expect": { "edits": [
       { "op": "item_sharers", "itemId": "i3", "participantIds": ["p1", "p3"] },

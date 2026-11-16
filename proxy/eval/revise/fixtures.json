@@ -100,6 +100,37 @@
       "payments": [{ "participantId": "p2", "amountMinor": 810000 }]
     }
   },
+  "hotpot-divided": {
+    "bill": {
+      "merchant": "Lẩu Nấm Ashima",
+      "currency": { "code": "VND", "fractionDigits": 0 },
+      "items": [
+        { "id": "i1", "name": "Lẩu nấm thập cẩm", "quantity": "1", "amountMinor": 400000 },
+        { "id": "i2", "name": "Bia Heineken", "quantity": "6", "amountMinor": 180000 },
+        { "id": "i3", "name": "Nước cam", "quantity": "2", "amountMinor": 70000 },
+        { "id": "i4", "name": "Rau thêm", "quantity": "1", "amountMinor": 50000 }
+      ],
+      "charges": [],
+      "totalMinor": 700000
+    },
+    "split": {
+      "participants": [
+        { "id": "me", "name": "Me" },
+        { "id": "p1", "name": "Lan" },
+        { "id": "p2", "name": "Minh" },
+        { "id": "p3", "name": "Hùng" },
+        { "id": "p4", "name": "Trang" }
+      ],
+      "whole": null,
+      "items": {
+        "i1": { "type": "shares", "shares": { "me": 1, "p1": 1, "p2": 2, "p3": 1, "p4": 1 } },
+        "i2": { "type": "equal", "among": ["me", "p1", "p2", "p3"], "except": [] },
+        "i3": { "type": "equal", "among": [], "except": ["p2", "p3"] }
+      },
+      "notSharing": [],
+      "payments": [{ "participantId": "me", "amountMinor": 700000 }]
+    }
+  },
   "two-minhs": {
     "bill": {
       "merchant": "Lẩu Thái Tomyum",

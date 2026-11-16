@@ -16,7 +16,7 @@ import {
   scoreAnswer,
   summaryOf,
 } from "../eval/revise/score";
-import { type Edit, type Revision, revisionAnswerOf, revisionRequestOf } from "../src/split-revision";
+import { type Edit, type Revision, type RevisionRequest, revisionAnswerOf, revisionRequestOf } from "../src/split-revision";
 import { isPriced } from "../src/spend";
 import { network } from "./network";
 import { last, model, send } from "./requests";
@@ -26,6 +26,13 @@ const FIXTURES = fixturesOf(fixturesFile);
 const CASES = casesOf(casesFile, FIXTURES);
 
 const expectedEdits = (evalCase: EvalCase): Edit[] => ("edits" in evalCase.expect ? evalCase.expect.edits : []);
+
+/** The bill and split of [fixture] as the proxy reads them, which the cases' own test checks it does. */
+function requestOfFixture(fixture: string): RevisionRequest {
+  const request = revisionRequestOf({ requestId: crypto.randomUUID(), instruction: "-", ...FIXTURES[fixture] });
+  if (request === null) throw new Error(`The proxy refuses the fixture ${fixture}`);
+  return request;
+}
 
 /** What a model that does exactly what [evalCase] expects answers, as the app gets it. */
 function rightAnswer(evalCase: EvalCase): Revision {
@@ -107,6 +114,24 @@ describe("the cases", () => {
     // An instruction hidden in an item's name, and one that asks for a negative amount.
     expect(CASES.some((evalCase) => evalCase.fixture === "hidden-instructions")).toBe(true);
     expect(CASES.some((evalCase) => evalCase.tags.includes("adversarial") && /-\$?\d/.test(evalCase.instruction))).toBe(true);
+    // An item someone is taken off that is not shared by everyone now, and two people added at once.
+    expect(CASES.some((evalCase) => expectedEdits(evalCase).some((edit) => edit.op === "item_sharers" && edit.itemId in requestOfFixture(evalCase.fixture).split.items))).toBe(true);
+    expect(CASES.some((evalCase) => expectedEdits(evalCase).filter((edit) => edit.op === "add_person").length >= 2)).toBe(true);
+  });
+
+  it("divide items only among the fixture's own items and people", () => {
+    for (const fixture of Object.keys(FIXTURES)) {
+      const { bill, split } = requestOfFixture(fixture);
+      const people = split.participants.map((participant) => participant.id);
+      for (const [itemId, division] of Object.entries(split.items)) {
+        expect(bill.items.map((item) => item.id), `${fixture} ${itemId}`).toContain(itemId);
+        const named =
+          division.type === "equal"
+            ? [...division.among, ...division.except]
+            : Object.keys(division.type === "shares" ? division.shares : division.type === "percent" ? division.basisPoints : division.amounts);
+        for (const id of named) expect(people, `${fixture} ${itemId} ${id}`).toContain(id);
+      }
+    }
   });
 
   it('name the user as the app does: "Me" in most, their own name in some, and in one a name another participant\'s starts with', () => {
