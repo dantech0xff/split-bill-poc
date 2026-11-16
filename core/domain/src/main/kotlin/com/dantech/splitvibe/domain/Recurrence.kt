@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -65,11 +66,14 @@ object Recurrence {
     fun periodKey(occurrence: LocalDate): String = occurrence.toString()
 
     /**
-     * The id of the draft bill for the period of [templateId] that begins on [occurrence]. Every
-     * device works out the same id for the same period, so a draft is made once, however many of
-     * them are signed in to the account.
+     * The id of the draft bill for the period of [templateId] that begins on [occurrence]: the
+     * name-based UUID of `{templateId}_{periodKey}`. Every device works out the same id for the same
+     * period, so a draft is made once, however many of them are signed in to the account. It is a
+     * UUID because that is the only kind of bill id the proxy takes, when a finished draft goes to a
+     * group, to a payment request or onto a bill's link.
      */
-    fun draftId(templateId: String, occurrence: LocalDate): String = "${templateId}_${periodKey(occurrence)}"
+    fun draftId(templateId: String, occurrence: LocalDate): String =
+        UUID.nameUUIDFromBytes("${templateId}_${periodKey(occurrence)}".toByteArray(Charsets.UTF_8)).toString()
 }
 
 /** Keeps a day as yyyy-mm-dd. */

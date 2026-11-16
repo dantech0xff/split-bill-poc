@@ -3,10 +3,12 @@ package com.dantech.splitvibe.domain
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RecurrenceTest {
@@ -100,7 +102,9 @@ class RecurrenceTest {
         val ids = periods.map { Recurrence.draftId("rent-flat", it) }
 
         assertEquals("2026-02-28", Recurrence.periodKey(periods[1]))
-        assertEquals("rent-flat_2026-02-28", ids[1])
+        assertEquals(UUID.nameUUIDFromBytes("rent-flat_2026-02-28".toByteArray(Charsets.UTF_8)).toString(), ids[1])
+        // A UUID in its usual form, the only kind of bill id the proxy takes.
+        assertTrue(ids.all { UUID.fromString(it).toString() == it })
         assertEquals(periods.size, ids.toSet().size)
         // A second phone of the same account, catching up on the periods it missed, makes the same ids.
         val later = Recurrence.occurrences(RecurrenceSchedule(Frequency.MONTHLY, day("2026-01-31")), day("2026-12-31"))
