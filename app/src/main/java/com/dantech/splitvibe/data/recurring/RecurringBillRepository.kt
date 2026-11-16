@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.data.recurring
 
+import androidx.room.withTransaction
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.SplitVibeDatabase
 import com.dantech.splitvibe.domain.Frequency
@@ -18,7 +19,7 @@ import kotlinx.serialization.json.Json
  * zone the phone is in.
  */
 class RecurringBillRepository(
-    database: SplitVibeDatabase,
+    private val database: SplitVibeDatabase,
     private val clock: Clock,
     private val newId: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -62,8 +63,19 @@ class RecurringBillRepository(
     /** Starts [id] again from today; the occurrences that went by while it was paused are not made. */
     suspend fun resume(id: String) = dao.resume(id, LocalDate.now(clock).minusDays(1).toString())
 
-    /** Notes that the drafts of [id] are made up to [day], unless they are made further already. */
-    suspend fun madeThrough(id: String, day: LocalDate) = dao.madeThrough(id, day.toString())
+    /**
+     * Makes the draft of [id]'s occurrence on [day] with [make], and notes that the drafts of [id]
+     * are made up to [day], in one transaction with the check that [id] still makes that draft: it is
+     * there and not paused, and its drafts are not made up to [day] already. So a recurring bill
+     * paused or deleted while a run is under way makes no more drafts, and a draft that a run which
+     * ended meanwhile made, and the user deleted, is not made again. Returns what [make] made, or
+     * null when [id] no longer makes that draft.
+     */
+    suspend fun makeDraft(id: String, day: LocalDate, make: suspend () -> SavedBill?): SavedBill? = database.withTransaction {
+        val row = dao.get(id)
+        if (row == null || row.paused || row.madeThrough >= day.toString()) return@withTransaction null
+        make().also { dao.madeThrough(id, day.toString()) }
+    }
 
     /** Deletes [id]. The drafts it made are bills of their own and stay. */
     suspend fun delete(id: String) = dao.delete(id)

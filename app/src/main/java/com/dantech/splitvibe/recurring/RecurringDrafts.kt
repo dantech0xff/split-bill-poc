@@ -14,9 +14,11 @@ import java.time.LocalDate
  * opened. A paused recurring bill makes none.
  *
  * Each draft has the id [Recurrence.draftId] gives its occurrence and is only written when no bill
- * has that id, in one transaction. A run that is repeated, or two runs at once, therefore make each
- * draft once, and only the run that made a draft tells the user of it, through [notify]: once for
- * all the drafts a recurring bill made in the run, earliest first, however many periods it caught up.
+ * has that id, in one transaction with the check that its recurring bill still makes it and with the
+ * mark that it did ([RecurringBillRepository.makeDraft]). A run that is repeated, or two runs at
+ * once, therefore make each draft once, and only the run that made a draft tells the user of it,
+ * through [notify]: once for all the drafts a recurring bill made in the run, earliest first, however
+ * many periods it caught up.
  */
 class RecurringDrafts(
     private val recurring: RecurringBillRepository,
@@ -29,9 +31,9 @@ class RecurringDrafts(
         val today = LocalDate.now(clock)
         val made = mutableListOf<SavedBill>()
         for (template in recurring.active()) {
-            val due = template.due(today)
-            val drafts = due.mapNotNull { day -> bills.createIfAbsent(template.draft(day, clock.millis())) }
-            due.lastOrNull()?.let { recurring.madeThrough(template.id, it) }
+            val drafts = template.due(today).mapNotNull { day ->
+                recurring.makeDraft(template.id, day) { bills.createIfAbsent(template.draft(day, clock.millis())) }
+            }
             if (drafts.isEmpty()) continue
             made += drafts
             try {

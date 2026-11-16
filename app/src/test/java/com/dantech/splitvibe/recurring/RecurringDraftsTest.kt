@@ -76,6 +76,12 @@ class RecurringDraftsTest {
         recurring.create(rent, "Rent", RecurrenceSchedule(frequency, LocalDate.parse(start)), firstDraft = LocalDate.parse(start))
     }
 
+    /** [rent] made on [day] to recur every Tuesday from 17 November, its first draft then. */
+    private fun makeRecurringOn(day: LocalDate): RecurringBill {
+        clock.moveTo(day)
+        return makeRecurring(Frequency.WEEKLY, "2026-11-17")
+    }
+
     /** Runs the work on every day from the clock's day to [last], and returns the drafts made on each day that made any. */
     private fun runDaily(last: LocalDate): Map<LocalDate, List<SavedBill>> {
         val made = linkedMapOf<LocalDate, List<SavedBill>>()
@@ -260,6 +266,53 @@ class RecurringDraftsTest {
         assertEquals(3, made.size)
         made.forEach { assertNotNull(runBlocking { bills.get(it.id) }) }
         assertTrue(again.isEmpty())
+    }
+
+    @Test
+    fun `a recurring bill paused or deleted while a run is under way makes no more drafts in that run`() {
+        // Made on three days in a row, so a run reads them in this order.
+        val first = makeRecurringOn(LocalDate.of(2026, 11, 14))
+        val paused = makeRecurringOn(LocalDate.of(2026, 11, 15))
+        val deleted = makeRecurringOn(LocalDate.of(2026, 11, 16))
+        clock.moveTo(LocalDate.of(2026, 11, 17))
+        // The user pauses one and deletes another as the run tells of the first one's draft.
+        val run = RecurringDrafts(recurring, bills, clock = clock, notify = { _, _ ->
+            runBlocking {
+                recurring.pause(paused.id)
+                recurring.delete(deleted.id)
+            }
+        })
+
+        val made = runBlocking { run.makeDue() }
+
+        assertEquals(listOf(Recurrence.draftId(first.id, clock.today)), made.map { it.id })
+        assertNull(runBlocking { bills.get(Recurrence.draftId(paused.id, clock.today)) })
+        assertNull(runBlocking { bills.get(Recurrence.draftId(deleted.id, clock.today)) })
+    }
+
+    @Test
+    fun `a draft deleted while a run was under way is not made again by that run`() {
+        makeRecurringOn(LocalDate.of(2026, 11, 15))
+        val later = makeRecurringOn(LocalDate.of(2026, 11, 16))
+        clock.moveTo(LocalDate.of(2026, 11, 17))
+        val draft = Recurrence.draftId(later.id, clock.today)
+        var interrupted = false
+        // As the run tells of the first recurring bill's draft, a second run makes the other one's,
+        // and the user deletes it at once. The first run read that recurring bill before all this.
+        val run = RecurringDrafts(recurring, bills, clock = clock, notify = { _, _ ->
+            if (!interrupted) {
+                interrupted = true
+                runBlocking {
+                    assertEquals(listOf(draft), drafts.makeDue().map { it.id })
+                    bills.delete(draft)
+                }
+            }
+        })
+
+        runBlocking { run.makeDue() }
+
+        assertTrue(interrupted)
+        assertNull(runBlocking { bills.get(draft) })
     }
 
     @Test

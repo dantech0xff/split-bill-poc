@@ -85,6 +85,9 @@ interface RecurringBillDao {
     @Query("SELECT * FROM recurring_bills WHERE paused = 0 ORDER BY createdAt, id")
     suspend fun active(): List<RecurringBillEntity>
 
+    @Query("SELECT * FROM recurring_bills WHERE id = :id")
+    suspend fun get(id: String): RecurringBillEntity?
+
     @Insert
     suspend fun insert(bill: RecurringBillEntity)
 
