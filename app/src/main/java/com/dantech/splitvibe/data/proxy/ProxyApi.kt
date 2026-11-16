@@ -71,6 +71,9 @@ class ProxyApi(
     /** `POST /v1/bill-analysis`: reads the streamed reply up to the line with the answer. */
     suspend fun readBill(body: JsonObject): ModelReply = askModel("v1/bill-analysis", body)
 
+    /** `POST /v1/split-revision`: the edits the model proposes for a split, streamed the way a bill read is. */
+    suspend fun reviseSplit(body: JsonObject): ModelReply = askModel("v1/split-revision", body)
+
     /** `POST /v1/session`: trades the ID token Google gave at sign-in for the proxy's session. */
     suspend fun startSession(idToken: String): Pair<Session, CallsLeft?> =
         // Signing in carries Google's token in place of a session, also when the old one has run out.
