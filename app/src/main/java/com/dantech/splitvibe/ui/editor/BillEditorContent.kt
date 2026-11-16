@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
@@ -44,6 +45,7 @@ import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.Bill
+import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
@@ -55,8 +57,9 @@ import java.math.BigDecimal
 import java.util.Locale
 
 /**
- * The bill as the user can correct it: where and when, the currency, every item and charge, and
- * the total printed on it. Each change is saved as it is typed; the split follows it.
+ * The bill as the user can correct it: where and when, the currency, what it was spent on, every
+ * item and charge, and the total printed on it. Each change is saved as it is typed; the split
+ * follows it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,6 +120,18 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                             ),
                         )
                     }
+                }
+            }
+
+            item(key = "category") {
+                Column(modifier = rowMotion()) {
+                    SvSectionHeader("Category", hint = "What the bill was spent on, which the insights add up by.")
+                    SvChoiceChips(
+                        options = BillCategory.entries.map { it.label },
+                        selected = bill.category.ordinal,
+                        onSelect = { index -> onEdit { it.copy(category = BillCategory.entries[index]) } },
+                        modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    )
                 }
             }
 

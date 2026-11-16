@@ -55,8 +55,14 @@ import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.insights.InsightsActions
+import com.dantech.splitvibe.ui.insights.InsightsScreen
+import com.dantech.splitvibe.ui.insights.InsightsViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
+import com.dantech.splitvibe.ui.recurring.RecurringActions
+import com.dantech.splitvibe.ui.recurring.RecurringScreen
+import com.dantech.splitvibe.ui.recurring.RecurringViewModel
 import com.dantech.splitvibe.ui.requests.RequestActions
 import com.dantech.splitvibe.ui.requests.RequestLinkScreen
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
@@ -109,6 +115,13 @@ data object ClaimKey : NavKey
 @Serializable
 data class RequestLinkKey(val token: String) : NavKey
 
+/** What the finished bills add up to, and their export. */
+@Serializable
+data object InsightsKey : NavKey
+
+@Serializable
+data object RecurringKey : NavKey
+
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
 
@@ -123,6 +136,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val backStack = rememberNavBackStack(HomeKey)
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
     val splitViewModel: SplitBillViewModel = koinViewModel()
+    // Scoped to the activity too, so a bill made to recur from the list of bills is stored whatever is opened next.
+    val recurringViewModel: RecurringViewModel = koinViewModel()
+    val askForNotices = rememberNoticeAsk()
     val settingsStore: SettingsStore = koinInject()
     val accountStore: AccountStore = koinInject()
     val imageLoader: BillImageLoader = koinInject()
@@ -187,6 +203,8 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onOpenGroups = { backStack.open(GroupsKey) },
                             onOpenRequests = { backStack.open(RequestsKey) },
+                            onOpenInsights = { backStack.open(InsightsKey) },
+                            onOpenRecurring = { backStack.open(RecurringKey) },
                         )
                     }
                 }
@@ -255,6 +273,51 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpen = openBill,
                             onDelete = historyViewModel::delete,
                             onBack = { backStack.remove(HistoryKey) },
+                            onRepeat = { id, name, schedule ->
+                                recurringViewModel.repeat(id, name, schedule)
+                                // Each draft comes with a notice, which needs leave on Android 13 and later.
+                                askForNotices()
+                                backStack.open(RecurringKey)
+                            },
+                        )
+                    }
+                }
+                entry<InsightsKey> {
+                    Screen {
+                        val insightsViewModel: InsightsViewModel = koinViewModel()
+                        val insights by insightsViewModel.state.collectAsStateWithLifecycle()
+                        val export by insightsViewModel.export.collectAsStateWithLifecycle()
+                        InsightsScreen(
+                            state = insights,
+                            export = export,
+                            actions = remember(insightsViewModel) {
+                                InsightsActions(
+                                    onChoosePeriod = insightsViewModel::choose,
+                                    onShare = insightsViewModel::share,
+                                    onSaveToFolder = insightsViewModel::saveToFolder,
+                                    onSaveTo = insightsViewModel::saveTo,
+                                    onShared = insightsViewModel::shared,
+                                    onPickerMissing = insightsViewModel::pickerMissing,
+                                    onDismissMessage = insightsViewModel::dismissMessage,
+                                    onBack = { backStack.remove(InsightsKey) },
+                                )
+                            },
+                        )
+                    }
+                }
+                entry<RecurringKey> {
+                    Screen {
+                        val rows by recurringViewModel.rows.collectAsStateWithLifecycle()
+                        RecurringScreen(
+                            rows = rows,
+                            actions = remember(recurringViewModel) {
+                                RecurringActions(
+                                    onPause = recurringViewModel::pause,
+                                    onResume = recurringViewModel::resume,
+                                    onDelete = recurringViewModel::delete,
+                                    onBack = { backStack.remove(RecurringKey) },
+                                )
+                            },
                         )
                     }
                 }
@@ -468,6 +531,25 @@ private fun NoticePermission(signedIn: Boolean) {
         if (granted || preferences.getBoolean(ASKED, false)) return@LaunchedEffect
         preferences.edit { putBoolean(ASKED, true) }
         ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+}
+
+/**
+ * What asks for leave to show notices on Android 13 and later, when it was not given yet, such as
+ * when the user makes a bill recur. Whatever the answer, every flow works the same.
+ */
+@Composable
+private fun rememberNoticeAsk(): () -> Unit {
+    val context = LocalContext.current
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    return remember(context, ask) {
+        {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
 }
 

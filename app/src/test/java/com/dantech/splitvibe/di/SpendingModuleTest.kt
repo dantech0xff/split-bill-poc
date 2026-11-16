@@ -9,6 +9,7 @@ import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.export.Exporter
 import com.dantech.splitvibe.recurring.RecurringDrafts
 import com.dantech.splitvibe.ui.insights.InsightsViewModel
+import com.dantech.splitvibe.ui.recurring.RecurringViewModel
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -34,6 +35,7 @@ class SpendingModuleTest {
         assertNotNull(koin.get<Exporter>())
         // The worker asks for this one, through Koin, when WorkManager runs it.
         assertNotNull(koin.get<RecurringDrafts>())
+        assertNotNull(koin.get<RecurringViewModel>())
         // A screen hands the view model the state the system keeps for it.
         assertNotNull(koin.get<InsightsViewModel> { parametersOf(SavedStateHandle()) })
 

@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,8 +17,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -30,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
@@ -47,7 +51,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.history.BillListingRow
 
-/** The app's home: the way into a new split and the bills split last. */
+/** The app's home: the way into a new split, the bills split last, and the ways to what the bills add up to. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -59,6 +63,8 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenGroups: () -> Unit = {},
     onOpenRequests: () -> Unit = {},
+    onOpenInsights: () -> Unit = {},
+    onOpenRecurring: () -> Unit = {},
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
@@ -98,20 +104,15 @@ fun HomeScreen(
                 IntroCard(modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm))
             }
             item {
-                Row(
+                FlowRow(
                     modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
                     horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.xs),
                 ) {
-                    FilledTonalButton(onClick = onOpenGroups) {
-                        Icon(Icons.Default.Person, contentDescription = null)
-                        Spacer(Modifier.width(SvSpacing.sm))
-                        Text("Groups")
-                    }
-                    FilledTonalButton(onClick = onOpenRequests) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
-                        Spacer(Modifier.width(SvSpacing.sm))
-                        Text("Requests")
-                    }
+                    PlaceButton("Groups", Icons.Default.Person, onOpenGroups)
+                    PlaceButton("Requests", Icons.AutoMirrored.Filled.List, onOpenRequests)
+                    PlaceButton("Insights", Icons.Default.ShoppingCart, onOpenInsights)
+                    PlaceButton("Recurring bills", Icons.Default.DateRange, onOpenRecurring)
                 }
             }
             item {
@@ -133,6 +134,16 @@ fun HomeScreen(
                 BillListingRow(listing = listing, position = SvRowPosition.of(index, recent.size), onOpen = { onOpenBill(listing.id) })
             }
         }
+    }
+}
+
+/** A button to another part of the app, with its icon. */
+@Composable
+private fun PlaceButton(text: String, icon: ImageVector, onClick: () -> Unit) {
+    FilledTonalButton(onClick = onClick) {
+        Icon(icon, contentDescription = null)
+        Spacer(Modifier.width(SvSpacing.sm))
+        Text(text)
     }
 }
 

@@ -4,8 +4,10 @@ import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.export.Exporter
 import com.dantech.splitvibe.notifications.Notices
+import com.dantech.splitvibe.recurring.RecurringBillWorker
 import com.dantech.splitvibe.recurring.RecurringDrafts
 import com.dantech.splitvibe.ui.insights.InsightsViewModel
+import com.dantech.splitvibe.ui.recurring.RecurringViewModel
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -27,6 +29,10 @@ val spendingModule = module {
 
     viewModel {
         InsightsViewModel(bills = get(), settings = get<SettingsStore>().settings, exporter = get(), clock = PhoneClock, savedState = get())
+    }
+    viewModel {
+        val context = androidContext()
+        RecurringViewModel(recurring = get(), bills = get(), runDrafts = { RecurringBillWorker.schedule(context) }, clock = PhoneClock)
     }
 }
 
