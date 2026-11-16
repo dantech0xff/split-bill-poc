@@ -2,7 +2,11 @@ package com.dantech.splitvibe.data.bills
 
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.domain.NameMatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /**
@@ -21,6 +25,22 @@ class BillRepository(
     fun listings(query: String = ""): Flow<List<BillListing>> = bills.listings(likePattern(query))
 
     suspend fun get(id: String): SavedBill? = bills.get(id)?.let { json.decodeFromString(SavedBill.serializer(), it.document) }
+
+    /**
+     * The finished bills, the latest saved first, for the statistics and exports. A bill this
+     * version cannot read, such as one a newer version saved, is left out.
+     */
+    fun finished(): Flow<List<SavedBill>> = bills.finishedDocuments()
+        .map { documents ->
+            documents.mapNotNull { document ->
+                try {
+                    json.decodeFromString(SavedBill.serializer(), document)
+                } catch (e: SerializationException) {
+                    null
+                }
+            }
+        }
+        .flowOn(Dispatchers.Default)
 
     /**
      * Saves [bill] as the revision after the one it was read as, with its shares worked out again,
@@ -50,6 +70,17 @@ class BillRepository(
         return next
     }
 
+    /**
+     * Saves [bill] as a new bill, unless a bill with its id is kept already, and returns what was
+     * saved, or null when one was. The check and the write are one transaction, so of two writers
+     * that create the same bill at once exactly one does.
+     */
+    suspend fun createIfAbsent(bill: SavedBill): SavedBill? = try {
+        save(bill.copy(revision = 0))
+    } catch (e: BillConflictException) {
+        null
+    }
+
     /** Deletes the bill and the photos of its pages. */
     suspend fun delete(id: String) {
         val stored = get(id)
@@ -74,6 +105,7 @@ class BillRepository(
                 listOfNotNull(bill.merchant, bill.date, instruction).plus(bill.items.map { it.name }).plus(names).joinToString(" "),
             ),
             document = json.encodeToString(SavedBill.serializer(), this),
+            category = bill.category.wireValue,
         )
     }
 

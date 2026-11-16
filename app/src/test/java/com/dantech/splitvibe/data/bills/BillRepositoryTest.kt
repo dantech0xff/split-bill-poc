@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.domain.Bill
+import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ME_ID
@@ -129,6 +130,28 @@ class BillRepositoryTest {
         bills.delete("pho-1")
         assertNull(bills.get("pho-1"))
         assertNull(storage.pages.load(new))
+    }
+
+    @Test
+    fun `a bill made only if absent is made once, by the first of two writers, and the list shows its category`() = runBlocking {
+        val rent = draft("rent-dec", "Rent", 9_000_000).let { it.copy(bill = it.bill.copy(category = BillCategory.RENT)) }
+
+        val made = bills.createIfAbsent(rent)
+        val again = bills.createIfAbsent(rent.copy(bill = rent.bill.copy(merchant = "Rent again")))
+
+        assertEquals(1, made?.revision)
+        assertNull(again)
+        assertEquals("Rent", bills.get("rent-dec")?.bill?.merchant)
+        assertEquals(listOf("rent"), bills.listings().first().map { it.category })
+    }
+
+    @Test
+    fun `the finished bills are read whole, the latest saved first, without the drafts`() = runBlocking {
+        val pho = bills.save(draft("pho-1", "Phở Hà Nội", 120_000).copy(status = BillStatus.FINAL))
+        bills.save(draft("bbq-1", "Gogi House", 900_000))
+        val tea = bills.save(draft("tea-1", "Phúc Long", 60_000).copy(status = BillStatus.FINAL))
+
+        assertEquals(listOf(tea, pho), bills.finished().first())
     }
 
     private fun draft(id: String, merchant: String, amount: Long, item: String = "Noodles"): SavedBill {

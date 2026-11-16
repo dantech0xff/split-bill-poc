@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.bills
 
 import android.content.Context
 import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -12,7 +13,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.migration.AutoMigrationSpec
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.dantech.splitvibe.data.recurring.RecurringBillDao
+import com.dantech.splitvibe.data.recurring.RecurringBillEntity
+import com.dantech.splitvibe.domain.BillCategory
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /** A saved bill: the whole [SavedBill] as JSON in [document], and copies of what lists and searches need. */
 @Entity(tableName = "bills", indices = [Index("updatedAt")])
@@ -31,6 +41,8 @@ data class BillEntity(
     /** Merchant, date, items and people without accents or case, which is what a search looks in. */
     val searchText: String,
     val document: String,
+    /** What the bill was spent on, as stored in the document, such as "food_and_drink". */
+    @ColumnInfo(defaultValue = "'other'") val category: String,
 )
 
 /** What the history shows of a bill without reading the whole document. */
@@ -44,6 +56,8 @@ data class BillListing(
     val fractionDigits: Int,
     val totalMinor: Long,
     val people: String,
+    /** What the bill was spent on, such as "food_and_drink"; see [BillCategory.wireValue]. */
+    val category: String,
 )
 
 /** Someone the user split a bill with, remembered by name only to suggest it again. */
@@ -54,13 +68,17 @@ data class PersonEntity(@PrimaryKey val id: String, val name: String, val normal
 abstract class BillDao {
     /** Bills whose search text contains [query], newest first. [query] is already normalized and escaped for LIKE. */
     @Query(
-        "SELECT id, status, updatedAt, merchant, date, currency, fractionDigits, totalMinor, people FROM bills " +
+        "SELECT id, status, updatedAt, merchant, date, currency, fractionDigits, totalMinor, people, category FROM bills " +
             "WHERE searchText LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY updatedAt DESC",
     )
     abstract fun listings(query: String): Flow<List<BillListing>>
 
     @Query("SELECT * FROM bills WHERE id = :id")
     abstract suspend fun get(id: String): BillEntity?
+
+    /** The documents of the finished bills, the latest saved first. A bill's status is stored as [BillStatus.name]. */
+    @Query("SELECT document FROM bills WHERE status = 'FINAL' ORDER BY updatedAt DESC")
+    abstract fun finishedDocuments(): Flow<List<String>>
 
     @Query("SELECT revision FROM bills WHERE id = :id")
     protected abstract suspend fun revisionOf(id: String): Int?
@@ -170,11 +188,14 @@ interface ProxyCacheDao {
 }
 
 @Database(
-    entities = [BillEntity::class, PersonEntity::class, PaymentMethodEntity::class, ProxyCacheEntity::class],
-    version = 2,
+    entities = [BillEntity::class, PersonEntity::class, PaymentMethodEntity::class, ProxyCacheEntity::class, RecurringBillEntity::class],
+    version = 3,
     exportSchema = true,
-    // Version 2 only adds tables, which Room migrates on its own.
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [
+        // Version 2 only adds tables, which Room migrates on its own.
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3, spec = CategoriesFromDocuments::class),
+    ],
 )
 abstract class SplitVibeDatabase : RoomDatabase() {
     abstract fun bills(): BillDao
@@ -185,8 +206,38 @@ abstract class SplitVibeDatabase : RoomDatabase() {
 
     abstract fun proxyCache(): ProxyCacheDao
 
+    abstract fun recurringBills(): RecurringBillDao
+
     companion object {
         fun create(context: Context): SplitVibeDatabase =
             Room.databaseBuilder(context.applicationContext, SplitVibeDatabase::class.java, "split-vibe.db").build()
+    }
+}
+
+/**
+ * Version 3 adds the table of recurring bills, and the category of each bill as a column for the
+ * list of bills. Room adds both; this then copies each bill's category from its document. A bill
+ * saved before bills had one, or with one this version does not know, is "other".
+ */
+class CategoriesFromDocuments : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        val categories = buildList {
+            db.query("SELECT id, document FROM bills").use { rows ->
+                while (rows.moveToNext()) add(rows.getString(0) to categoryIn(rows.getString(1)))
+            }
+        }
+        categories.filter { (_, category) -> category != BillCategory.OTHER }.forEach { (id, category) ->
+            db.execSQL("UPDATE bills SET category = ? WHERE id = ?", arrayOf(category.wireValue, id))
+        }
+    }
+
+    private fun categoryIn(document: String): BillCategory {
+        val bill = try {
+            Json.parseToJsonElement(document) as? JsonObject
+        } catch (e: SerializationException) {
+            null
+        }?.get("bill") as? JsonObject
+        val value = (bill?.get("category") as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return value?.let(BillCategory::fromWire) ?: BillCategory.OTHER
     }
 }
