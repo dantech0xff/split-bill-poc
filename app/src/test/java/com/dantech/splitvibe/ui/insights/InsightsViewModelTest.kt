@@ -101,6 +101,10 @@ class InsightsViewModelTest {
         storage.close()
     }
 
+    /** A screen's view model that nothing watches yet, as one the system just made again, on the day [clock] tells. */
+    private fun viewModelOn(clock: Clock) =
+        InsightsViewModel(bills, MutableStateFlow(AppSettings(localCurrency = "VND")), Exporter(context), clock, SavedStateHandle())
+
     private fun shown(period: InsightsPeriod): InsightsState {
         viewModel.choose(period)
         awaitOnMain { viewModel.state.value?.period == period }
@@ -327,6 +331,34 @@ class InsightsViewModelTest {
     }
 
     @Test
+    fun `a folder picked as the system ended the app is saved to once the bills are read again`() {
+        Robolectric.setupContentProvider(PickedFolder::class.java, PickedFolder.AUTHORITY)
+        // The screen comes back with its period, and the picker's answer comes before the bills are read.
+        val restored = viewModelOn(clock)
+        assertNull(restored.state.value)
+
+        restored.saveToFolder(DocumentsContract.buildTreeDocumentUri(PickedFolder.AUTHORITY, "Downloads"))
+        awaitOnMain { restored.export.value.message != null }
+
+        assertEquals(ExportMessage("Saved bills.csv, items.csv and shares.csv.", isError = false), restored.export.value.message)
+        assertEquals(CsvExport.BILLS, File(context.cacheDir, "picked").list()?.sorted()?.first())
+    }
+
+    @Test
+    fun `a period without bills says so, instead of exporting nothing without a word`() {
+        // Four years on, no bill of the fixture is in this month.
+        val later = Clock.fixed(LocalDate.of(2030, 11, 16).atTime(9, 30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+        val empty = viewModelOn(later)
+
+        empty.share(ExportFormat.CSV)
+        awaitOnMain { empty.export.value.message != null }
+
+        assertEquals(ExportMessage(NOTHING_TO_EXPORT, isError = true), empty.export.value.message)
+        assertNull(empty.export.value.share)
+        assertEquals(false, empty.export.value.working)
+    }
+
+    @Test
     fun `a folder that cannot be written to is said so, and nothing else changes`() {
         shown(InsightsPeriod.THIS_MONTH)
 
@@ -336,6 +368,10 @@ class InsightsViewModelTest {
 
         assertEquals(true, viewModel.export.value.message?.isError)
         assertEquals(false, viewModel.export.value.working)
+    }
+
+    private companion object {
+        const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
     }
 }
 

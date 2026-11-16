@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -140,14 +142,19 @@ class InsightsViewModel(
 
     fun dismissMessage() = exportStatus.update { it.copy(message = null) }
 
-    /** Writes the files of [format] for the period on screen and hands them to [deliver]; says [failure] when that fails. */
+    /**
+     * Writes the files of [format] for the period on screen and hands them to [deliver]; says
+     * [failure] when that fails, and says so when the period has no bills. A place the user picked
+     * is never dropped: after the system ended the app behind the file picker, the answer comes
+     * before the bills are read again, and the export waits for them.
+     */
     private fun exportAs(format: ExportFormat, failure: String, deliver: suspend (List<ExportFile>) -> Unit) {
-        val shown = state.value ?: return
-        if (shown.bills.isEmpty() || exportStatus.value.working) return
+        if (exportStatus.value.working) return
         exportStatus.update { it.copy(working = true, message = null) }
         viewModelScope.launch {
             try {
-                deliver(exporter.files(contentOf(shown), format))
+                val shown = state.filterNotNull().first()
+                if (shown.bills.isEmpty()) tell(NOTHING_TO_EXPORT, isError = true) else deliver(exporter.files(contentOf(shown), format))
             } catch (e: IOException) {
                 tell(failure, isError = true)
             } finally {
@@ -163,6 +170,7 @@ class InsightsViewModel(
         const val STOP_AFTER_MS = 5_000L
         const val SHARE_FAILED = "The files could not be written. Check the space left on the phone."
         const val SAVE_FAILED = "The files could not be saved there. Pick another place, or share them instead."
+        const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
     }
 }
 
