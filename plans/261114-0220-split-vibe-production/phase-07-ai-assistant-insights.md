@@ -1,6 +1,6 @@
 ---
 title: "Phase 7: Chỉnh bằng lời với AI, thống kê, xuất file, hóa đơn định kỳ"
-status: todo
+status: in-progress
 phase: 7
 priority: P2
 effort: "9d"
@@ -10,6 +10,13 @@ dependencies: [4]
 # Phase 7: Chỉnh bằng lời với AI, thống kê, xuất file, hóa đơn định kỳ
 
 ## Overview
+
+<!-- Updated: 16/11/2026 - chủ sản phẩm chốt bốn điểm khi bắt đầu phase -->
+> **Đã chốt ngày 16/11/2026:**
+> - Mỗi lần chỉnh bằng lời tính 1/5 lượt vào cùng hạn mức AI với lần đọc hóa đơn. Số lượt còn lại hiện kèm phần lẻ, ví dụ 2,4. Trọng số đặt trên server.
+> - Chỉnh bằng lời dùng Claude Haiku 5.5 cho tới khi bộ đánh giá cho số liệu khác.
+> - Loại chi tiêu là danh sách 9 loại cố định: Food & drink, Groceries, Transport, Lodging, Entertainment, Shopping, Utilities, Rent, Other.
+> - Bộ đánh giá được làm và thử với model giả trong phase này. Lần chạy với key Anthropic thật để sau, khi chủ sản phẩm đưa key qua form bảo mật.
 
 Sau khi có kết quả, người dùng gõ hoặc nói một câu như "Lan không uống bia" hay "thêm 10% tip" và app cập nhật cách chia. Người dùng xem được chi tiêu theo tháng, theo người, theo loại, xuất ra CSV hoặc PDF, và đặt hóa đơn lặp lại như tiền nhà.
 
@@ -62,6 +69,119 @@ App:
 - Loại chi tiêu: thêm trường `category` vào schema trả lời của `analyzeBill` (kiểu liệt kê cố định); `BillAnalysisParser` đọc trường mới, vắng thì coi là "khác".
 
 Vết mở rộng (ranh giới cổng AI): `reviseSplit` là biến thể thứ hai của cùng một cổng. Phần dùng chung là xác thực, hạn mức, log và cách gọi model; phần riêng là prompt, schema và trọng số hạn mức. Không tách dịch vụ mới.
+
+## Hợp đồng chung
+
+<!-- Updated: 16/11/2026 - chốt trước khi chia việc cho domain, proxy và app -->
+Domain, proxy và app làm song song, nên ba phần dùng chung đúng các định dạng dưới đây.
+
+### Loại chi tiêu
+
+| Giá trị trên đường truyền | Tên hiện trên màn hình |
+|---|---|
+| `food_and_drink` | Food & drink |
+| `groceries` | Groceries |
+| `transport` | Transport |
+| `lodging` | Lodging |
+| `entertainment` | Entertainment |
+| `shopping` | Shopping |
+| `utilities` | Utilities |
+| `rent` | Rent |
+| `other` | Other |
+
+- Câu trả lời của `bill-analysis` có thêm trường bắt buộc `category`, là một trong các giá trị trên.
+- `BillAnalysisParser` coi trường vắng hay giá trị lạ là `other`.
+- Trong domain: `enum class BillCategory`, và `Bill.category` mặc định là `OTHER`, nên hóa đơn đã lưu không có trường này đọc ra `OTHER`.
+
+### `POST /v1/split-revision`
+
+Cách xác định người gọi, `requestId`, cách giữ chỗ rồi chốt lượt, giới hạn theo IP, trần chi phí, cách truyền câu trả lời (các dòng chờ rồi câu trả lời cuối) và các mã lỗi giống `POST /v1/bill-analysis`.
+
+Thân yêu cầu:
+
+```json
+{
+  "requestId": "<uuid>",
+  "instruction": "Lan không uống bia",
+  "bill": {
+    "merchant": "Pho 24",
+    "currency": { "code": "VND", "fractionDigits": 0 },
+    "items": [{ "id": "i1", "name": "Bia", "quantity": "3", "amountMinor": 90000 }],
+    "charges": [{ "id": "c1", "label": "Service charge", "kind": "service_charge", "amountMinor": 14000 }],
+    "totalMinor": 154000
+  },
+  "split": {
+    "participants": [{ "id": "me", "name": "Dana" }, { "id": "p1", "name": "Lan" }],
+    "whole": null,
+    "items": { "i1": { "type": "equal", "among": ["me"], "except": [] } },
+    "notSharing": [],
+    "payments": [{ "participantId": "me", "amountMinor": 154000 }]
+  }
+}
+```
+
+- `instruction` dài 1 đến 500 ký tự (tính theo code point). `merchant` có thể là null.
+- `kind` của phụ phí là một trong `tax`, `service_charge`, `tip`, `discount`, `rounding`, `other`.
+- `whole` là null khi chia theo món. Nếu không, nó là một cách chia, ở đúng dạng mà domain đang ghi `Division`:
+  - `{"type":"equal","among":[...],"except":[...]}`;
+  - `{"type":"shares","shares":{...}}`;
+  - `{"type":"percent","basisPoints":{...}}`;
+  - `{"type":"amount","amounts":{...}}`.
+- `items` dùng cùng các dạng đó. Món vắng mặt trong `items` được mọi người chia đều.
+
+Câu trả lời cuối:
+
+```json
+{
+  "edits": [{ "op": "item_sharers", "itemId": "i1", "participantIds": ["me"] }],
+  "explanation": "Lan no longer shares the beer.",
+  "question": null
+}
+```
+
+- `edits` có tối đa 20 thao tác.
+- `explanation` dài tối đa 200 ký tự, viết bằng ngôn ngữ của câu lệnh.
+- `question` là một câu hỏi lại ngắn khi câu lệnh quá mơ hồ để làm; khi đó `edits` rỗng.
+
+Các thao tác:
+
+| `op` | Trường | Nghĩa |
+|---|---|---|
+| `item_sharers` | `itemId`, `participantIds` (không rỗng) | Món được chia đều cho đúng những người này |
+| `item_shares` | `itemId`, `shares` (số nguyên từ 1) | Món được chia theo phần |
+| `split_mode` | `mode`: `equal`, `by_item`, `by_shares`, `by_percent`, `by_amount` | Chia cả hóa đơn theo cách này, bắt đầu từ chia đều |
+| `whole_shares` | `shares` (số nguyên từ 0) | Cả hóa đơn chia theo phần |
+| `whole_percent` | `basisPoints` (số nguyên từ 0, cộng lại đúng 10000) | Cả hóa đơn chia theo phần trăm |
+| `whole_amounts` | `amounts` (số nguyên từ 0, cộng lại đúng tổng hóa đơn) | Cả hóa đơn chia theo số tiền |
+| `add_person` | `ref` (`new1` đến `new9`), `name` | Thêm người; các thao tác sau dùng `ref` làm mã người |
+| `remove_person` | `participantId` (không phải `me`) | Bỏ một người khỏi hóa đơn |
+| `set_sharing` | `participantId`, `sharing` | Người này có tham gia mà không chia (`false`), hay lại chia (`true`) |
+| `add_charge` | `kind`, `label`, và đúng một trong `amountMinor` (từ 1) hay `percentBasisPoints` (1 đến 10000) | Thêm phụ phí; phần trăm tính trên tổng các món; `discount` trừ đi |
+| `set_payer` | `participantId` | Người này trả cả hóa đơn |
+| `item_amount` | `itemId`, `amountMinor` (từ 0) | Sửa thành tiền của món |
+| `item_quantity` | `itemId`, `quantity` (chuỗi số thập phân lớn hơn 0) | Sửa số lượng, giữ đơn giá khi biết |
+
+Quy tắc áp thao tác, trong `:core:domain`:
+- Các thao tác được áp theo thứ tự. Mỗi thao tác hoặc được áp, hoặc bị loại kèm lý do: món, người hay `ref` không tồn tại; số không hợp lệ; bỏ `me`; tổng không khớp.
+- Một thao tác trên món, khi hóa đơn đang chia cả hóa đơn, chuyển sang chia theo món trước, như `split_mode` `by_item`.
+- `add_charge` cộng vào số đã trả: khi hóa đơn có tổng in trên bill, tổng đó cũng tăng (hay giảm, với `discount`) đúng bằng phụ phí.
+- `item_amount` và `item_quantity` theo `BillEditor`: tổng in trên bill giữ nguyên, phần chênh được chia theo tỷ lệ như hiện nay.
+- Người trả đi theo tổng mới như `SplitPlan.withBill` đang làm.
+- Domain viết câu mô tả bằng tiếng Anh cho từng thao tác, để màn hình hiện danh sách trước và sau.
+
+### Hạn mức có trọng số
+
+- `limit`, `used` và `remaining` trong `/v1/usage` và trong thân lỗi trở thành số thập phân, tối đa hai chữ số lẻ, ví dụ `3`, `0.2`, `2.8`.
+- Một lần đọc hóa đơn tốn 1. Một lần chỉnh tốn `revisionWeight`, đặt là 0,2 trong `policy.ts`.
+- Một lượt gọi chỉ chạy khi `remaining` còn ít nhất bằng trọng số của nó.
+- Proxy giữ số nguyên bên trong, theo phần trăm của một lượt.
+- App đọc các số này dưới dạng thập phân và hiện chúng, bỏ các số 0 thừa.
+
+### Lịch định kỳ
+
+- Một lịch là hằng tuần (cùng thứ với ngày bắt đầu) hay hằng tháng (cùng ngày với ngày bắt đầu).
+- Ngày hằng tháng không có trong tháng thì lùi về ngày cuối tháng. Mỗi kỳ tính từ ngày bắt đầu, không từ kỳ trước, nên ngày 31 trở lại khi tháng có ngày 31.
+- Bản nháp của mỗi kỳ có mã `{templateId}_{ngày của kỳ theo ISO}` và chỉ được tạo khi chưa có.
 
 ## Files
 

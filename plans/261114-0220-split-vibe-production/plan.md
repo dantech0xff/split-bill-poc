@@ -53,7 +53,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 | 4 | [Quét, sửa hóa đơn, cách chia, đa tiền tệ, lịch sử](./phase-04-bill-capture-editing-split-modes.md) | In Progress |
 | 5 | [Nhóm, số dư và thu tiền không giữ tiền](./phase-05-people-groups-settle-up.md) | In Progress |
 | 6 | [Trang web cho người nhận và tự nhận món trực tiếp](./phase-06-web-companion-realtime-claim.md) | In Progress |
-| 7 | [Chỉnh bằng lời với AI, thống kê, xuất file, hóa đơn định kỳ](./phase-07-ai-assistant-insights.md) | Pending |
+| 7 | [Chỉnh bằng lời với AI, thống kê, xuất file, hóa đơn định kỳ](./phase-07-ai-assistant-insights.md) | In Progress |
 | 8 | [Gói Pro](./phase-08-pro-subscription.md) | Pending |
 | 9 | [Chất lượng, tuân thủ và phát hành](./phase-09-quality-compliance-release.md) | Pending |
 
