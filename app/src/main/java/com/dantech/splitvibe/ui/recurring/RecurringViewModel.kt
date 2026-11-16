@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** A recurring bill as its list shows it, with the day its next draft is made. */
-data class RecurringRow(val bill: RecurringBill, val next: LocalDate)
+/** A recurring bill as its list shows it, with the day of its next draft, and whether that draft is [due] and not made yet. */
+data class RecurringRow(val bill: RecurringBill, val next: LocalDate, val due: Boolean)
 
 /**
  * The recurring bills: making one from a bill, and pausing, resuming and deleting them. After a
@@ -32,7 +32,7 @@ class RecurringViewModel(
     val rows: StateFlow<List<RecurringRow>?> = recurring.all
         .map { list ->
             val today = LocalDate.now(clock)
-            list.map { RecurringRow(it, it.next(today)) }
+            list.map { bill -> bill.nextDraft().let { RecurringRow(bill, it, due = !it.isAfter(today)) } }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MS), null)
 

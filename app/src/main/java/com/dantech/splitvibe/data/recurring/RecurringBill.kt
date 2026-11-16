@@ -39,8 +39,11 @@ data class RecurringBill(
     /** The occurrences up to [today], [today] included, whose drafts are still to be made, earliest first. */
     fun due(today: LocalDate): List<LocalDate> = Recurrence.occurrences(schedule, today).filter { it.isAfter(madeThrough) }
 
-    /** The day of the next draft still to be made, [today] at the earliest. */
-    fun next(today: LocalDate): LocalDate = Recurrence.next(schedule, maxOf(madeThrough, today.minusDays(1)))
+    /**
+     * The day of the next draft still to be made. It is today or earlier while that draft is due and
+     * not made yet, such as when the system held the daily work back.
+     */
+    fun nextDraft(): LocalDate = Recurrence.next(schedule, madeThrough)
 
     /** The draft of the occurrence on [day], unfinished, for the user to check and finish. Its id is the same on every device. */
     fun draft(day: LocalDate, now: Long): SavedBill = SavedBill(

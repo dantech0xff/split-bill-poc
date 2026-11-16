@@ -119,12 +119,11 @@ fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
 @Composable
 private fun RecurringBillRow(row: RecurringRow, position: SvRowPosition, actions: RecurringActions, onDelete: () -> Unit) {
     val bill = row.bill
-    val detail = if (bill.paused) "Paused" else "Next draft ${dayText(row.next)}"
     SvListRow(position = position) {
         Column(modifier = Modifier.weight(1f)) {
             Text(bill.name, style = MaterialTheme.typography.bodyLarge)
             Text(describe(bill.schedule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detailOf(row), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(SvSpacing.md))
         Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountSmall)
@@ -161,6 +160,13 @@ internal fun describe(schedule: RecurrenceSchedule): String {
             "Every month on the $day$suffix$shorter"
         }
     }
+}
+
+/** Where [row] is: paused, with a draft due and not made yet, or with the day of its next draft. */
+internal fun detailOf(row: RecurringRow): String = when {
+    row.bill.paused -> "Paused"
+    row.due -> "Draft due ${dayText(row.next)}"
+    else -> "Next draft ${dayText(row.next)}"
 }
 
 /** A day as the app shows dates, such as "Dec 1, 2026". */

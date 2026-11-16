@@ -128,7 +128,7 @@ class SpendingGalleryTest {
         fun row(name: String, frequency: Frequency, start: String, bill: SavedBill, paused: Boolean = false): RecurringRow {
             val day = LocalDate.parse(start)
             val recurring = RecurringBill(name, name, RecurrenceSchedule(frequency, day), bill.bill, bill.plan, paused, 0, today)
-            return RecurringRow(recurring, next = day)
+            return RecurringRow(recurring, next = day, due = false)
         }
         RecurringScreen(
             rows = listOf(

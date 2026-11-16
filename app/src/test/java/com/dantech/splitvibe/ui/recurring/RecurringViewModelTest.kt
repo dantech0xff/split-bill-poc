@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -72,7 +73,25 @@ class RecurringViewModelTest {
         assertEquals("Flat rent", row.bill.name)
         assertEquals(rent.bill, row.bill.bill)
         assertEquals(LocalDate.of(2026, 12, 1), row.next)
+        assertEquals("Next draft Dec 1, 2026", detailOf(row))
         assertEquals(1, runs)
+    }
+
+    @Test
+    fun `a draft that is due but not made yet is listed as due, not as the next period's`() {
+        val tuesdays = RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17))
+        runBlocking { recurring.create(rent, "Cleaning", tuesdays, tuesdays.start) }
+        // Thursday, and the system held the work back, so Tuesday's draft is not made yet.
+        clock.moveTo(LocalDate.of(2026, 11, 19))
+        val later = RecurringViewModel(recurring, bills, runDrafts = {}, clock = clock)
+        watching.launch { later.rows.collect {} }
+        awaitOnMain { later.rows.value != null }
+
+        val row = checkNotNull(later.rows.value).single()
+        assertEquals(LocalDate.of(2026, 11, 17), row.next)
+        assertTrue(row.due)
+        assertEquals("Draft due Nov 17, 2026", detailOf(row))
+        assertEquals("Paused", detailOf(row.copy(bill = row.bill.copy(paused = true))))
     }
 
     @Test

@@ -227,7 +227,7 @@ class RecurringDraftsTest {
         assertEquals(days.map(LocalDate::toString), caughtUp.map { it.bill.date })
         assertTrue(again.isEmpty())
         assertEquals(4, notices.size)
-        assertEquals(LocalDate.of(2027, 4, 1), runBlocking { recurring.all.first() }.single().next(clock.today))
+        assertEquals(LocalDate.of(2027, 4, 1), runBlocking { recurring.all.first() }.single().nextDraft())
     }
 
     @Test
@@ -279,7 +279,7 @@ class RecurringDraftsTest {
         val template = makeRecurring(Frequency.MONTHLY, "2026-10-05")
 
         assertTrue(runBlocking { drafts.makeDue() }.isEmpty())
-        assertEquals(LocalDate.of(2026, 12, 5), template.next(clock.today))
+        assertEquals(LocalDate.of(2026, 12, 5), template.nextDraft())
         assertEquals(listOf(LocalDate.of(2026, 12, 5)), runDaily(LocalDate.of(2026, 12, 5)).keys.toList())
     }
 }
