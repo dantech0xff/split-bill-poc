@@ -7,6 +7,20 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Push notices about payment requests and groups. Saying no turns only the notices off. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Saying how to change a split. It is asked for only when the mic is tapped, and saying no
+         leaves typing as it was. A phone without a microphone can still install the app. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
+    <!-- The speech recognizer the phone has, which turns what is said into text; Android shows it
+         to the app only when the app says it looks for one. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 
     <application
         android:name=".SplitVibeApp"
