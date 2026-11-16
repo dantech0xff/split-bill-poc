@@ -5,6 +5,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.fx.DayRate
 import com.dantech.splitvibe.data.fx.FxSnapshot
+import com.dantech.splitvibe.llm.JsonNesting
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.math.BigDecimal
@@ -231,7 +232,9 @@ class ProxyApi(
 }
 
 private fun parse(text: String): JsonObject? = try {
-    Json.parseToJsonElement(text) as? JsonObject
+    // A reader goes into each array and object on the stack, so text nested far deeper than the
+    // proxy writes is none of its answers, rather than a reader out of stack.
+    if (JsonNesting.isWithin(text)) Json.parseToJsonElement(text) as? JsonObject else null
 } catch (e: SerializationException) {
     null
 }

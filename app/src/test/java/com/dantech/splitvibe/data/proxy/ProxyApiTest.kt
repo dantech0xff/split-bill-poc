@@ -8,6 +8,8 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -134,6 +136,30 @@ class ProxyApiTest {
                 fail("$answer must not read as calls left")
             } catch (e: ProxyException) {
                 assertEquals(answer, ProxyApi.BAD_RESPONSE, e.code)
+            }
+        }
+    }
+
+    @Test
+    fun `a line nested far deeper than the proxy writes is a bad response, not a crash`() = runBlocking {
+        val deep = "[".repeat(100_000) + "]".repeat(100_000)
+        server.enqueue(
+            MockResponse()
+                .setHeader("content-type", "application/x-ndjson")
+                .setBody("{\"type\":\"wait\"}\n{\"type\":\"result\",\"answer\":{\"edits\":$deep}}\n"),
+        )
+        server.enqueue(json(200, """{"usage":$deep}"""))
+
+        val asks: List<suspend () -> Unit> = listOf(
+            { proxy.api.reviseSplit(buildJsonObject { put("instruction", "x") }) },
+            { proxy.api.usage() },
+        )
+        for (ask in asks) {
+            try {
+                ask()
+                fail("an answer nested that deep must not be read")
+            } catch (e: ProxyException) {
+                assertEquals(ProxyApi.BAD_RESPONSE, e.code)
             }
         }
     }
