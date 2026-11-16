@@ -50,7 +50,7 @@ object ExportFixtures {
                 printedTotalMinor = null,
             ).copy(category = BillCategory.ENTERTAINMENT),
             people = listOf("Lan"),
-            rate = SpendingFixtures.usdToVnd("25400"),
+            rate = SpendingFixtures.usdDayRate,
             strangers = listOf("=1+2"),
             payer = "Lan",
         ),

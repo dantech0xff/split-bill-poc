@@ -17,7 +17,6 @@ import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.io.File
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -41,8 +40,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34])
 class PdfSummaryTest {
 
-    private val today = LocalDate.of(2026, 11, 16)
-    private val content = contentOf(insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, today))
+    private val content = contentOf(insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock))
     private val summary = PdfSummary(content, Locale.US)
 
     @Test
@@ -108,7 +106,7 @@ class PdfSummaryTest {
 
     /** What each page of the summary of [bills] draws as a line of text, as a PDF page gets it. */
     private fun drawn(bills: List<SavedBill>): List<Drawn> {
-        val summary = PdfSummary(contentOf(insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, today)), Locale.US)
+        val summary = PdfSummary(contentOf(insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock)), Locale.US)
         return summary.pages.indices.flatMap { index ->
             val page = Bitmap.createBitmap(PdfSummary.PAGE_WIDTH, PdfSummary.PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
             val canvas = TextCanvas(index, page)

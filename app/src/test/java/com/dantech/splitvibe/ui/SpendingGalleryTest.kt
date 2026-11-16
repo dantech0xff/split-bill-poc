@@ -58,7 +58,7 @@ class SpendingGalleryTest {
     val compose = createComposeRule()
 
     private val today = LocalDate.of(2026, 11, 16)
-    private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, today)
+    private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, SpendingFixtures.clock)
 
     @Test
     @Config(sdk = [34], qualifiers = WHOLE_PAGE)

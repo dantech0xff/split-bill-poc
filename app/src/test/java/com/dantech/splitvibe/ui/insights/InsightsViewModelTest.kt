@@ -24,10 +24,13 @@ import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCategory.ENTERTAINMENT
 import com.dantech.splitvibe.domain.BillCategory.FOOD_AND_DRINK
 import com.dantech.splitvibe.domain.BillCategory.LODGING
+import com.dantech.splitvibe.domain.BillCategory.OTHER
 import com.dantech.splitvibe.domain.BillCategory.RENT
 import com.dantech.splitvibe.domain.BillCategory.SHOPPING
 import com.dantech.splitvibe.domain.BillCategory.TRANSPORT
 import com.dantech.splitvibe.domain.BillCategory.UTILITIES
+import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.InsightShare
 import com.dantech.splitvibe.domain.Insights
@@ -37,6 +40,7 @@ import com.dantech.splitvibe.export.CsvExport
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
 import java.io.File
+import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -60,7 +64,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * The statistics of the saved bills as the insights screen shows them: which bills each period
  * takes, how a saved bill becomes what the statistics count, and the totals, checked against a
- * table worked out by hand for the fixture's eleven finished bills and one draft.
+ * table worked out by hand for the fixture's twelve finished bills and one draft, in the zone of
+ * Ho Chi Minh City.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -73,8 +78,7 @@ class InsightsViewModelTest {
     /** A clock that moves on by one at every save, so the bill saved last is the latest. */
     private var now = 0L
     private val bills = BillRepository(storage.database, storage.people, storage.pages) { ++now }
-    private val today = LocalDate.of(2026, 11, 16)
-    private val clock = Clock.fixed(today.atTime(9, 30).toInstant(ZoneOffset.UTC), ZoneOffset.UTC)
+    private val clock = SpendingFixtures.clock
     private val watching = MainScope()
     private lateinit var viewModel: InsightsViewModel
 
@@ -118,41 +122,44 @@ class InsightsViewModelTest {
         state.insights.byPerson.map { listOf(it.name, it.bills, it.totalMinor, it.myShareMinor, it.shareMinor) }
 
     @Test
-    fun `this month takes the bills dated in November and adds them up to the table worked out by hand`() {
+    fun `this month takes the bills of November, the undated ones by the day they were saved, and adds them up by hand`() {
         val month = shown(InsightsPeriod.THIS_MONTH)
 
         assertEquals("November 2026", month.periodName)
         assertEquals("2026-11", month.periodKey)
-        assertEquals(listOf("b10", "b1", "b11", "b5", "b2"), month.bills.map { it.id })
-        // 10, 1 and 2: 600,000 + 300,000 + 9,000,000; 0 + 100,000 + 3,000,000. The euros and the baht have no rate to dong.
-        assertEquals(Spending(3, 9_900_000, 3_100_000), month.insights.overall)
+        // By the day each counts on: 9 was saved on the 13th, and 8 on the 1st, in Ho Chi Minh City.
+        assertEquals(listOf("b10", "b9", "b1", "b11", "b12", "b5", "b2", "b8"), month.bills.map { it.id })
+        // 10, 9, 1, 12, 2 and 8: 600,000 + 1,200,000 + 310,000 + 139,409 + 9,000,000 + 500,000;
+        // 0 + 400,000 + 103,334 + 69,704 + 3,000,000 + 250,000. The euros and the baht of 5 have no rate to dong.
+        assertEquals(Spending(6, 11_749_409, 3_823_038), month.insights.overall)
         assertEquals(mapOf("EUR" to 1, "THB" to 1), month.insights.withoutRate)
-        assertEquals(mapOf(YearMonth.of(2026, 11) to Spending(3, 9_900_000, 3_100_000)), month.insights.byMonth)
+        assertEquals(mapOf(YearMonth.of(2026, 11) to Spending(6, 11_749_409, 3_823_038)), month.insights.byMonth)
         assertEquals(
-            listOf(RENT to Spending(1, 9_000_000, 3_000_000), FOOD_AND_DRINK to Spending(2, 900_000, 100_000)),
+            listOf(
+                RENT to Spending(1, 9_000_000, 3_000_000),
+                UTILITIES to Spending(1, 1_200_000, 400_000),
+                FOOD_AND_DRINK to Spending(2, 910_000, 103_334),
+                SHOPPING to Spending(1, 500_000, 250_000),
+                TRANSPORT to Spending(1, 139_409, 69_704),
+            ),
             month.insights.byCategory.toList(),
         )
         assertEquals(
-            listOf(flat to Spending(1, 9_000_000, 3_000_000), null to Spending(2, 900_000, 100_000)),
+            listOf(flat to Spending(2, 10_200_000, 3_400_000), null to Spending(4, 1_549_409, 423_038)),
             month.insights.byGroup.toList(),
         )
         assertEquals(
             listOf(
-                // 1, 2 and 10: 100,000 + 3,000,000 + 300,000, more than the user's own part.
-                listOf("Minh", 3, 9_900_000L, 3_100_000L, 3_400_000L),
-                listOf("You", 3, 9_900_000L, 3_100_000L, 3_100_000L),
-                listOf("Khoa", 1, 9_000_000L, 3_000_000L, 3_000_000L),
-                listOf("Lan", 2, 900_000L, 100_000L, 400_000L),
+                listOf("You", 6, 11_749_409L, 3_823_038L, 3_823_038L),
+                // 10, 1, 2 and 9: 300,000 + 103,333 + 3,000,000 + 400,000, more than the user's own part.
+                listOf("Minh", 4, 11_110_000L, 3_503_334L, 3_803_333L),
+                listOf("Khoa", 2, 10_200_000L, 3_400_000L, 3_400_000L),
+                // 10, 1, 12 and 8: 300,000 + 103,333 + 69,704 + 250,000.
+                listOf("Lan", 4, 1_549_409L, 423_038L, 723_037L),
             ),
             people(month),
         )
-        assertEquals(
-            listOf(
-                "2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB.",
-                "2 bills have no date that can be read, so they are left out of this period. All time counts them.",
-            ),
-            month.notes,
-        )
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), month.notes)
     }
 
     @Test
@@ -162,60 +169,65 @@ class InsightsViewModelTest {
         assertEquals("December 2025 to November 2026", year.periodName)
         assertEquals("2025-12-to-2026-11", year.periodKey)
         // Bill 7, of 30 November 2025, is a day too early.
-        assertEquals(listOf("b10", "b1", "b11", "b5", "b2", "b4", "b3", "b6"), year.bills.map { it.id })
-        // 600,000 + 300,000 + 9,000,000 + 762,000 + 9,000,000 + 800,000; 0 + 100,000 + 3,000,000 + 381,000 + 3,000,000 + 200,000.
-        assertEquals(Spending(6, 20_462_000, 6_681_000), year.insights.overall)
+        assertEquals(listOf("b10", "b9", "b1", "b11", "b12", "b5", "b2", "b8", "b4", "b3", "b6"), year.bills.map { it.id })
+        // November's, then 4, 3 and 6: + 762,024 + 9,000,000 + 800,000; + 381,012 + 3,000,000 + 200,000.
+        assertEquals(Spending(9, 22_311_433, 7_404_050), year.insights.overall)
         assertEquals(
             mapOf(
                 YearMonth.of(2025, 12) to Spending(1, 800_000, 200_000),
-                // 3 and the $30.00 of 4 at 25,400: 9,000,000 + 762,000; 3,000,000 + 381,000.
-                YearMonth.of(2026, 10) to Spending(2, 9_762_000, 3_381_000),
-                YearMonth.of(2026, 11) to Spending(3, 9_900_000, 3_100_000),
+                // 3 and the $30.00 of 4 at the day's rate: 9,000,000 + 762,024; 3,000,000 + 381,012.
+                YearMonth.of(2026, 10) to Spending(2, 9_762_024, 3_381_012),
+                YearMonth.of(2026, 11) to Spending(6, 11_749_409, 3_823_038),
             ),
             year.insights.byMonth,
         )
         assertEquals(
             listOf(
                 RENT to Spending(2, 18_000_000, 6_000_000),
-                FOOD_AND_DRINK to Spending(2, 900_000, 100_000),
-                TRANSPORT to Spending(1, 800_000, 200_000),
-                ENTERTAINMENT to Spending(1, 762_000, 381_000),
+                UTILITIES to Spending(1, 1_200_000, 400_000),
+                // 12 and 6: 139,409 + 800,000; 69,704 + 200,000.
+                TRANSPORT to Spending(2, 939_409, 269_704),
+                FOOD_AND_DRINK to Spending(2, 910_000, 103_334),
+                ENTERTAINMENT to Spending(1, 762_024, 381_012),
+                SHOPPING to Spending(1, 500_000, 250_000),
             ),
             year.insights.byCategory.toList(),
         )
         assertEquals(
             listOf(
-                flat to Spending(2, 18_000_000, 6_000_000),
-                // 1, 4 and 10: 300,000 + 762,000 + 600,000; 100,000 + 381,000 + 0.
-                null to Spending(3, 1_662_000, 481_000),
+                flat to Spending(3, 19_200_000, 6_400_000),
+                // 10, 1, 12, 4 and 8: 600,000 + 310,000 + 139,409 + 762,024 + 500,000; 0 + 103,334 + 69,704 + 381,012 + 250,000.
+                null to Spending(5, 2_311_433, 804_050),
                 trip to Spending(1, 800_000, 200_000),
             ),
             year.insights.byGroup.toList(),
         )
         assertEquals(
             listOf(
-                listOf("You", 6, 20_462_000L, 6_681_000L, 6_681_000L),
-                // 1, 2, 3, 6 and 10.
-                listOf("Minh", 5, 19_700_000L, 6_300_000L, 6_600_000L),
-                listOf("Khoa", 2, 18_000_000L, 6_000_000L, 6_000_000L),
-                // 1, 4, 6 and 10: 300,000 + 762,000 + 800,000 + 600,000; 100,000 + 381,000 + 200,000 + 0;
-                // and Lan's own 100,000 + 381,000 + 200,000 + 300,000.
-                listOf("Lan", 4, 2_462_000L, 681_000L, 981_000L),
+                listOf("You", 9, 22_311_433L, 7_404_050L, 7_404_050L),
+                // 10, 1, 2, 3, 6 and 9.
+                listOf("Minh", 6, 20_910_000L, 6_703_334L, 7_003_333L),
+                listOf("Khoa", 3, 19_200_000L, 6_400_000L, 6_400_000L),
+                // 10, 1, 12, 4, 6 and 8: 600,000 + 310,000 + 139,409 + 762,024 + 800,000 + 500,000;
+                // 0 + 103,334 + 69,704 + 381,012 + 200,000 + 250,000; and Lan's own 300,000 + 103,333 + 69,704
+                // + 381,012 + 200,000 + 250,000.
+                listOf("Lan", 6, 3_111_433L, 1_004_050L, 1_304_049L),
                 listOf("An", 1, 800_000L, 200_000L, 200_000L),
             ),
             people(year),
         )
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), year.notes)
     }
 
     @Test
-    fun `all time also counts the bills without a date, in every sum but those by month`() {
+    fun `all time counts every bill, each in a month, and the trip's group under its name now`() {
         val all = shown(InsightsPeriod.ALL_TIME)
 
         assertEquals("All time", all.periodName)
-        assertEquals(11, all.bills.size)
-        // Every bill but the euros and the baht: the year's, plus 7, 8 and 9: 2,400,000 + 500,000 + 1,200,000; 600,000 + 250,000 + 400,000.
-        assertEquals(Spending(9, 24_562_000, 7_931_000), all.insights.overall)
-        assertEquals(Spending(2, 1_700_000, 650_000), all.insights.undated)
+        assertEquals(12, all.bills.size)
+        // Every bill but the euros and the baht of 5: the year's, plus 7: + 2,400,000; + 600,000.
+        assertEquals(Spending(10, 24_711_433, 8_004_050), all.insights.overall)
+        assertEquals(Spending(0, 0, 0), all.insights.undated)
         assertEquals(
             listOf(YearMonth.of(2025, 11), YearMonth.of(2025, 12), YearMonth.of(2026, 10), YearMonth.of(2026, 11)),
             all.insights.byMonth.keys.toList(),
@@ -226,9 +238,9 @@ class InsightsViewModelTest {
                 RENT to Spending(2, 18_000_000, 6_000_000),
                 LODGING to Spending(1, 2_400_000, 600_000),
                 UTILITIES to Spending(1, 1_200_000, 400_000),
-                FOOD_AND_DRINK to Spending(2, 900_000, 100_000),
-                TRANSPORT to Spending(1, 800_000, 200_000),
-                ENTERTAINMENT to Spending(1, 762_000, 381_000),
+                TRANSPORT to Spending(2, 939_409, 269_704),
+                FOOD_AND_DRINK to Spending(2, 910_000, 103_334),
+                ENTERTAINMENT to Spending(1, 762_024, 381_012),
                 SHOPPING to Spending(1, 500_000, 250_000),
             ),
             all.insights.byCategory.toList(),
@@ -236,39 +248,34 @@ class InsightsViewModelTest {
         assertEquals(
             listOf(
                 flat to Spending(3, 19_200_000, 6_400_000),
+                // 6 and 7: 7 went to the group while it was called Đà Lạt; it is named as 6 names it.
                 trip to Spending(2, 3_200_000, 800_000),
-                // 1, 4, 8 and 10: 300,000 + 762,000 + 500,000 + 600,000; 100,000 + 381,000 + 250,000 + 0.
-                null to Spending(4, 2_162_000, 731_000),
+                null to Spending(5, 2_311_433, 804_050),
             ),
             all.insights.byGroup.toList(),
         )
+        assertEquals(TRIP, all.insights.byGroup.keys.elementAt(1)?.name)
         assertEquals(
             listOf(
-                listOf("You", 9, 24_562_000L, 7_931_000L, 7_931_000L),
-                listOf("Minh", 7, 23_300_000L, 7_300_000L, 7_600_000L),
+                listOf("You", 10, 24_711_433L, 8_004_050L, 8_004_050L),
+                listOf("Minh", 7, 23_310_000L, 7_303_334L, 7_603_333L),
                 listOf("Khoa", 3, 19_200_000L, 6_400_000L, 6_400_000L),
-                listOf("Lan", 6, 5_362_000L, 1_531_000L, 1_831_000L),
+                listOf("Lan", 7, 5_511_433L, 1_604_050L, 1_904_049L),
                 // Joined bills 6 and 7 from their links as "An" and "an": the same person, named as the latest bill does.
                 listOf("An", 2, 3_200_000L, 800_000L, 800_000L),
             ),
             people(all),
         )
-        assertEquals(
-            listOf(
-                "2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB.",
-                "2 bills have no date that can be read, so they are in the totals but in no month.",
-            ),
-            all.notes,
-        )
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), all.notes)
     }
 
     @Test
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
 
-        val counted = insightBillOf(saved, "VND")
+        val counted = insightBillOf(saved, "VND", clock.zone)
 
-        assertEquals("2025-12-05", counted.date)
+        assertEquals(LocalDate.of(2025, 12, 5), counted.day)
         assertEquals(TRANSPORT, counted.category)
         assertEquals(trip, counted.group)
         assertEquals(800_000L, counted.totalMinor)
@@ -285,9 +292,37 @@ class InsightsViewModelTest {
             counted.shares,
         )
         assertNull(counted.rate)
-        assertEquals(SpendingFixtures.usdToVnd("25400"), insightBillOf(runBlocking { checkNotNull(bills.get("b4")) }, "VND").rate)
-        // A rate from euros to dollars converts nothing into dong.
-        assertNull(insightBillOf(runBlocking { checkNotNull(bills.get("b11")) }, "VND").rate)
+        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone).rate
+        // The day's rate saved as the bill was finished, and a rate the user typed.
+        assertEquals(SpendingFixtures.usdDayRate, rateOf("b4"))
+        assertEquals(ExchangeRate("THB", "VND", BigDecimal("745.5")), rateOf("b12"))
+        // A rate typed from euros to dollars converts nothing into dong, and the baht of 5 have none.
+        assertNull(rateOf("b11"))
+        assertNull(rateOf("b5"))
+        // Without a date that can be read, the day it was saved in Ho Chi Minh City, not in UTC.
+        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(runBlocking { checkNotNull(bills.get("b8")) }, "VND", clock.zone).day)
+    }
+
+    @Test
+    fun `a period's notes say how many bills each note is about, and how to count one without a rate`() {
+        fun notes(vararg bills: SavedBill) = insightsOf(bills.toList(), "VND", InsightsPeriod.ALL_TIME, clock).notes
+        val yen = SpendingFixtures.finished("y1", "2026-11-02", "Ichiran", FOOD_AND_DRINK, 1_980, emptyList(), BillCurrency("JPY", 0))
+        val undated = SpendingFixtures.finished("u1", null, "Chợ", OTHER, 50_000, emptyList())
+
+        assertEquals(
+            listOf(
+                "1 bill in JPY is left out of the totals, as no rate to VND is saved with it. To count it, open it and type a rate.",
+                "1 bill has no date that can be read, so it is counted on the day it was saved.",
+            ),
+            notes(yen, undated),
+        )
+        assertEquals(
+            listOf(
+                "2 bills in JPY are left out of the totals, as no rate to VND is saved with them. " +
+                    "To count one, open it and type a rate.",
+            ),
+            notes(yen, yen.copy(id = "y2")),
+        )
     }
 
     @Test
@@ -301,7 +336,7 @@ class InsightsViewModelTest {
             .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))
             .withPersonIds("Lan" to "lan-again")
 
-        val people = Insights.of(listOf(newer, older).map { insightBillOf(it, "VND") }, SpendingFixtures.vnd).byPerson
+        val people = Insights.of(listOf(newer, older).map { insightBillOf(it, "VND", clock.zone) }, SpendingFixtures.vnd).byPerson
 
         // 100,000 + 70,000 each, and Minh named as the newer bill names him.
         assertEquals(listOf("Lan", "You", "minh"), people.map { it.name })
@@ -398,6 +433,9 @@ class InsightsViewModelTest {
 
     private companion object {
         const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
+        const val RATE_NOTE = "2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB. " +
+            "To count one, open it and type a rate."
+        const val SAVED_DAY_NOTE = "2 bills have no date that can be read, so each is counted on the day it was saved."
     }
 }
 

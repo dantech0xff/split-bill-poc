@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.InsightBill
@@ -21,9 +22,10 @@ import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
 import java.io.IOException
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeParseException
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,7 +48,7 @@ enum class InsightsPeriod(val label: String) {
     ALL_TIME("All time"),
     ;
 
-    /** The first and the last day of the period [today] is in; null for all time, which also counts bills without a date. */
+    /** The first and the last day of the period [today] is in; null for all time. */
     fun days(today: LocalDate): ClosedRange<LocalDate>? {
         val month = YearMonth.from(today)
         return when (this) {
@@ -70,7 +72,7 @@ data class InsightsState(
     /** A short form of [periodName] for file names, such as "2026-11". */
     val periodKey: String,
     val insights: Insights,
-    /** The finished bills of the period, the latest saved first. */
+    /** The finished bills of the period, by the day each counts on, the latest first. */
     val bills: List<SavedBill>,
     /** What the totals leave out and why. */
     val notes: List<String>,
@@ -104,7 +106,7 @@ class InsightsViewModel(
         savedState.getStateFlow(KEY_PERIOD, InsightsPeriod.THIS_MONTH.name),
     ) { finished, localCurrency, period ->
         val chosen = InsightsPeriod.entries.firstOrNull { it.name == period } ?: InsightsPeriod.THIS_MONTH
-        insightsOf(finished, localCurrency, chosen, LocalDate.now(clock))
+        insightsOf(finished, localCurrency, chosen, clock)
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MS), null)
@@ -174,26 +176,29 @@ class InsightsViewModel(
     }
 }
 
-/** What the files of [state] hold: its bills by the date on each, the latest first, and what they add up to. */
+/** What the files of [state] hold: its bills by the day each counts on, the latest first, and what they add up to. */
 internal fun contentOf(state: InsightsState) = ExportContent(
     period = state.periodName,
     periodKey = state.periodKey,
-    // Undated bills last; the sort keeps the latest saved first among bills of the same day.
-    bills = state.bills.sortedByDescending { dayOf(it.bill.date) },
+    bills = state.bills,
     insights = state.insights,
     notes = state.notes,
 )
 
 /**
- * The insights of the [finished] bills, the latest saved first, for [period] as it is on [today], in
- * the currency [localCurrency] names. A bill without a usable date is in no period but all time.
+ * The insights of the [finished] bills, the latest saved first, for [period] as it is on the day
+ * [clock] tells, in the currency [localCurrency] names. A bill counts on its own date, or on the day
+ * it was saved when it has none that can be read, in the zone [clock] is in.
  */
-internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period: InsightsPeriod, today: LocalDate): InsightsState {
+internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period: InsightsPeriod, clock: Clock): InsightsState {
     val local = BillCurrency.resolve(localCurrency, null, emptyList())
+    val today = LocalDate.now(clock)
     val days = period.days(today)
-    val inPeriod = if (days == null) finished else finished.filter { saved -> dayOf(saved.bill.date)?.let { it in days } == true }
-    val undated = if (days == null) 0 else finished.count { dayOf(it.bill.date) == null }
-    val insights = Insights.of(inPeriod.map { insightBillOf(it, local.code) }, local)
+    // The sort keeps the latest saved first among bills of the same day.
+    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone) }
+        .filter { (_, counted) -> days == null || counted.day?.let { it in days } == true }
+        .sortedByDescending { (_, counted) -> counted.day }
+    val insights = Insights.of(inPeriod.map { (_, counted) -> counted }, local)
     val month = YearMonth.from(today)
     return InsightsState(
         period = period,
@@ -208,25 +213,26 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
             InsightsPeriod.ALL_TIME -> "all-time"
         },
         insights = insights,
-        bills = inPeriod,
-        notes = notesOf(insights, undatedLeftOut = undated),
+        bills = inPeriod.map { (saved, _) -> saved },
+        notes = notesOf(insights, bySavedDay = inPeriod.count { (saved, _) -> dayOf(saved.bill.date) == null }),
         anyFinished = finished.isNotEmpty(),
     )
 }
 
 /**
- * [saved] as the statistics count it: its date, category, group, currency and total, each
- * participant's part under a key that is the same for the same person on every bill, the user's
- * own part, and its rate when that converts into [localCurrency].
+ * [saved] as the statistics count it: the day it counts on, its category, group, currency and total,
+ * each participant's part under a key that is the same for the same person on every bill, the
+ * user's own part, and its rate when that converts into [localCurrency]. Its day is its date, or, when
+ * that is no day that can be read, the day it was saved, in [zone].
  *
  * Everyone but the user is told apart by name, without case, accents or punctuation, as the phone
  * tells the people it remembers apart. So is someone forgotten and added again, who is remembered
  * under a new id, and someone of the same name who joined a bill from its link.
  */
-internal fun insightBillOf(saved: SavedBill, localCurrency: String): InsightBill {
+internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId): InsightBill {
     val bill = saved.bill
     return InsightBill(
-        date = bill.date,
+        day = dayOf(bill.date) ?: Instant.ofEpochMilli(saved.createdAt).atZone(zone).toLocalDate(),
         category = bill.category,
         group = saved.group?.let { InsightGroup(it.groupId, it.groupName) },
         currency = bill.currency,
@@ -246,51 +252,40 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String): InsightBill
     )
 }
 
-/** What the totals of [insights] leave out and why: bills without a rate, and bills without a date. */
-private fun notesOf(insights: Insights, undatedLeftOut: Int): List<String> = buildList {
+/**
+ * What the totals of [insights] leave out and how to count it: bills without a rate, which a rate
+ * typed on the bill counts. And how [bySavedDay] bills without a date that can be read are counted.
+ */
+private fun notesOf(insights: Insights, bySavedDay: Int): List<String> = buildList {
     val withoutRate = insights.withoutRate
     val count = withoutRate.values.sum()
     if (count > 0) {
         val local = insights.currency.code
         add(
-            if (withoutRate.size == 1) {
-                val code = withoutRate.keys.single()
-                if (count == 1) {
-                    "1 bill in $code is left out of the totals, as no rate to $local is saved with it."
-                } else {
-                    "$count bills in $code are left out of the totals, as no rate to $local is saved with them."
-                }
-            } else {
-                "$count bills are left out of the totals, as no rate to $local is saved with them: " +
-                    andList(withoutRate.map { (code, bills) -> "$bills in $code" }) + "."
+            when {
+                withoutRate.size > 1 ->
+                    "$count bills are left out of the totals, as no rate to $local is saved with them: " +
+                        andList(withoutRate.map { (code, bills) -> "$bills in $code" }) + ". To count one, open it and type a rate."
+
+                count == 1 ->
+                    "1 bill in ${withoutRate.keys.single()} is left out of the totals, as no rate to $local is saved with it. " +
+                        "To count it, open it and type a rate."
+
+                else ->
+                    "$count bills in ${withoutRate.keys.single()} are left out of the totals, as no rate to $local is saved with them. " +
+                        "To count one, open it and type a rate."
             },
         )
     }
-    val undated = insights.undated.bills
     when {
-        undatedLeftOut == 1 -> add("1 bill has no date that can be read, so it is left out of this period. All time counts it.")
-
-        undatedLeftOut > 1 ->
-            add("$undatedLeftOut bills have no date that can be read, so they are left out of this period. All time counts them.")
-
-        undated == 1 -> add("1 bill has no date that can be read, so it is in the totals but in no month.")
-
-        undated > 1 -> add("$undated bills have no date that can be read, so they are in the totals but in no month.")
+        bySavedDay == 1 -> add("1 bill has no date that can be read, so it is counted on the day it was saved.")
+        bySavedDay > 1 -> add("$bySavedDay bills have no date that can be read, so each is counted on the day it was saved.")
     }
 }
 
 /** [items] as a list in a sentence, such as "A, B and C". */
 private fun andList(items: List<String>): String =
     if (items.size < 2) items.joinToString() else items.dropLast(1).joinToString() + " and " + items.last()
-
-/** The day [date] names, as yyyy-mm-dd; null when it names none, as the statistics read it. */
-private fun dayOf(date: String?): LocalDate? = date?.let {
-    try {
-        LocalDate.parse(it.trim())
-    } catch (e: DateTimeParseException) {
-        null
-    }
-}
 
 private const val YOU = "You"
 private const val SOMEONE = "Someone"

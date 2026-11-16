@@ -14,6 +14,7 @@ import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Payments
 import com.dantech.splitvibe.domain.SplitPlan
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -46,7 +47,7 @@ class PdfSummaryOnDeviceTest {
         insights = Insights.of(
             bills.map { saved ->
                 InsightBill(
-                    date = saved.bill.date,
+                    day = LocalDate.parse(saved.bill.date),
                     category = saved.bill.category,
                     group = null,
                     currency = vnd,

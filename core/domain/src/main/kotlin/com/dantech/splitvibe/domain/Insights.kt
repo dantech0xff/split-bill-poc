@@ -3,12 +3,11 @@ package com.dantech.splitvibe.domain
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeParseException
 
 /** One saved bill as the statistics count it. The app builds it from a saved bill and the shares worked out for it. */
 data class InsightBill(
-    /** The day of the bill as yyyy-mm-dd; null, or anything else, when it is not known. */
-    val date: String?,
+    /** The day the bill counts on; null when it has none. */
+    val day: LocalDate?,
     val category: BillCategory,
     /** The group the bill is in; null for a bill in no group. */
     val group: InsightGroup?,
@@ -53,13 +52,13 @@ data class PersonSpending(
  * the app converts an amount, and only then added up. So a bill's total here is the one the bill
  * shows in the local currency, and its converted parts can differ from it by a unit or two. A bill
  * in another currency without a usable rate is left out of every sum and only counted, by currency,
- * in [withoutRate]. A bill without a usable date is in every sum except those by month, and
- * [undated] adds those bills up on their own.
+ * in [withoutRate]. A bill without a day is in every sum except those by month, and [undated] adds
+ * those bills up on their own.
  */
 data class Insights(
     val currency: BillCurrency,
     val overall: Spending,
-    /** By calendar month of the bill's date, earliest first. */
+    /** By calendar month of the bill's day, earliest first. */
     val byMonth: Map<YearMonth, Spending>,
     /** Everyone on the bills, the user too, the largest own part first. */
     val byPerson: List<PersonSpending>,
@@ -132,20 +131,11 @@ data class Insights(
             }
             return Counted(
                 bill = bill,
-                month = monthOf(bill.date),
+                month = bill.day?.let(YearMonth::from),
                 totalMinor = convert(bill.totalMinor) ?: return null,
                 myShareMinor = convert(bill.myShareMinor) ?: return null,
                 shares = bill.shares.map { share -> share to (convert(share.amountMinor) ?: return null) },
             )
-        }
-
-        private fun monthOf(date: String?): YearMonth? {
-            if (date == null) return null
-            return try {
-                YearMonth.from(LocalDate.parse(date.trim()))
-            } catch (e: DateTimeParseException) {
-                null
-            }
         }
 
         private fun spending(bills: List<Counted>) = Spending(
@@ -172,7 +162,7 @@ data class Insights(
         }
     }
 
-    /** A bill with its amounts in the local currency, and the calendar month of its date, if it has a usable one. */
+    /** A bill with its amounts in the local currency, and the calendar month of its day, if it has one. */
     private class Counted(
         val bill: InsightBill,
         val month: YearMonth?,

@@ -10,6 +10,7 @@ import com.dantech.splitvibe.domain.BillCategory.SHOPPING
 import com.dantech.splitvibe.domain.BillCategory.TRANSPORT
 import com.dantech.splitvibe.domain.BillCategory.UTILITIES
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,8 +24,9 @@ class InsightsTest {
     private val eur = BillCurrency("EUR", 2)
     private val names = mapOf(ME to "Dana", MINH to "Minh", LAN to "Lan", KHOA to "Khoa")
 
+    /** A bill of the day [day] names, as yyyy-mm-dd, or of no day. */
     private fun bill(
-        date: String?,
+        day: String?,
         category: BillCategory,
         group: InsightGroup?,
         currency: BillCurrency,
@@ -32,7 +34,7 @@ class InsightsTest {
         shares: Map<String, Long>,
         rate: ExchangeRate? = null,
     ) = InsightBill(
-        date = date,
+        day = day?.let(LocalDate::parse),
         category = category,
         group = group,
         currency = currency,
@@ -83,9 +85,9 @@ class InsightsTest {
         bill("2026-11-09", FOOD_AND_DRINK, null, thb, 50_000, mapOf(ME to 25_000, KHOA to 25_000)),
         bill("2026-10-05", LODGING, null, eur, 20_000, mapOf(ME to 10_000, LAN to 10_000), ExchangeRate("EUR", "USD", BigDecimal("1.08"))),
         bill("2026-11-03", SHOPPING, null, usd, 1_500, mapOf(ME to 1_500)),
-        // 14 and 15: no usable date, so in every sum but those by month.
+        // 14 and 15: no day, so in every sum but those by month.
         bill(null, GROCERIES, FLAT, vnd, 210_000, mapOf(ME to 70_000, MINH to 70_000, KHOA to 70_000)),
-        bill("13/11/2026", TRANSPORT, null, vnd, 90_000, mapOf(ME to 45_000, LAN to 45_000)),
+        bill(null, TRANSPORT, null, vnd, 90_000, mapOf(ME to 45_000, LAN to 45_000)),
         // 16: the user paid for Minh and Lan's dinner and had none of it.
         bill("2026-10-18", FOOD_AND_DRINK, TRIP, vnd, 600_000, mapOf(ME to 0, MINH to 300_000, LAN to 300_000)),
         bill("2026-11-12", RENT, FLAT, vnd, 9_000_000, mapOf(ME to 3_000_000, MINH to 3_000_000, KHOA to 3_000_000)),
@@ -185,7 +187,7 @@ class InsightsTest {
     fun `each bill is converted at its own rate, half up as the bill shows it, before the bills are added up`() {
         val coffee = bill("2026-11-01", FOOD_AND_DRINK, null, usd, 50, mapOf(ME to 50), usdAt("25349"))
 
-        val insights = Insights.of(listOf(coffee, coffee.copy(date = "2026-11-02")), vnd)
+        val insights = Insights.of(listOf(coffee, coffee.copy(day = LocalDate.of(2026, 11, 2))), vnd)
 
         // Each $0.50 at 25,349 is 12,674.5, which half up makes 12,675, as the bill shows it in dong:
         // 25,350 for both, where half to even would have made 25,348, and their $1.00 converted at
@@ -243,7 +245,7 @@ class InsightsTest {
     @Test
     fun `someone who is two participants of one bill is on it once, with both parts`() {
         val twice = InsightBill(
-            date = "2026-11-01",
+            day = LocalDate.of(2026, 11, 1),
             category = OTHER,
             group = null,
             currency = vnd,

@@ -1,12 +1,12 @@
 Spending summary
 All time. Finished bills, in VND.
-9 bills came to ₫24,562,000. Your share was ₫7,931,000.
-2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB.
-2 bills have no date that can be read, so they are in the totals but in no month.
+10 bills came to ₫24,711,433. Your share was ₫8,004,050.
+2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB. To count one, open it and type a rate.
+2 bills have no date that can be read, so each is counted on the day it was saved.
 By month
 Month | Bills | Total | Your share
-November 2026 | 3 | ₫9,900,000 | ₫3,100,000
-October 2026 | 2 | ₫9,762,000 | ₫3,381,000
+November 2026 | 6 | ₫11,749,409 | ₫3,823,038
+October 2026 | 2 | ₫9,762,024 | ₫3,381,012
 December 2025 | 1 | ₫800,000 | ₫200,000
 November 2025 | 1 | ₫2,400,000 | ₫600,000
 By category
@@ -14,36 +14,37 @@ Category | Bills | Total | Your share
 Rent | 2 | ₫18,000,000 | ₫6,000,000
 Lodging | 1 | ₫2,400,000 | ₫600,000
 Utilities | 1 | ₫1,200,000 | ₫400,000
-Food & drink | 2 | ₫900,000 | ₫100,000
-Transport | 1 | ₫800,000 | ₫200,000
-Entertainment | 1 | ₫762,000 | ₫381,000
+Transport | 2 | ₫939,409 | ₫269,704
+Food & drink | 2 | ₫910,000 | ₫103,334
+Entertainment | 1 | ₫762,024 | ₫381,012
 Shopping | 1 | ₫500,000 | ₫250,000
 By person
 Person | Bills | Total | Their share
-You | 9 | ₫24,562,000 | ₫7,931,000
-Minh | 7 | ₫23,300,000 | ₫7,600,000
+You | 10 | ₫24,711,433 | ₫8,004,050
+Minh | 7 | ₫23,310,000 | ₫7,603,333
 Khoa | 3 | ₫19,200,000 | ₫6,400,000
-Lan | 6 | ₫5,362,000 | ₫1,831,000
+Lan | 7 | ₫5,511,433 | ₫1,904,049
 An | 2 | ₫3,200,000 | ₫800,000
 By group
 Group | Bills | Total | Your share
 Flat 3B | 3 | ₫19,200,000 | ₫6,400,000
 Da Lat trip | 2 | ₫3,200,000 | ₫800,000
-No group | 4 | ₫2,162,000 | ₫731,000
+No group | 5 | ₫2,311,433 | ₫804,050
 Bills
 Date | Place | Category | Total | Your share
 Nov 15, 2026 | Bún chả | Food & drink | ₫600,000 | ₫0
-Nov 12, 2026 | Phở Thìn | Food & drink | ₫300,000 | ₫100,000
+13/11/2026 | EVN | Utilities | ₫1,200,000 | ₫400,000
 Split Vibe · All time | Page 1 of 2
 
 Date | Place | Category | Total | Your share
+Nov 12, 2026 | Phở Thìn | Food & drink | ₫310,000 | ₫103,334
 Nov 10, 2026 | Musée | Entertainment | €20.00 | €10.00
+Nov 5, 2026 | Grab | Transport | THB187.00 | THB93.50
 Nov 3, 2026 | Tops Market | Groceries | THB412.50 | THB412.50
 Nov 1, 2026 | Rent | Rent | ₫9,000,000 | ₫3,000,000
+No date | Uniqlo | Shopping | ₫500,000 | ₫250,000
 Oct 20, 2026 | Bowling | Entertainment | $30.00 | $15.00
 Oct 1, 2026 | Rent | Rent | ₫9,000,000 | ₫3,000,000
 Dec 5, 2025 | Xe khách | Transport | ₫800,000 | ₫200,000
 Nov 30, 2025 | Dalat Palace | Lodging | ₫2,400,000 | ₫600,000
-No date | Uniqlo | Shopping | ₫500,000 | ₫250,000
-13/11/2026 | EVN | Utilities | ₫1,200,000 | ₫400,000
 Split Vibe · All time | Page 2 of 2
