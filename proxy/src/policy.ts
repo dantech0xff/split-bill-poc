@@ -45,6 +45,22 @@ export const POLICY = {
   /** Room for the model's reasoning plus the JSON answer of a long bill. */
   maxTokens: 16_000,
   /**
+   * The model that edits a split by a sentence, how hard it works, and room for its answer. An
+   * edit maps one sentence onto a few structured edits of a bill already read and split, so low
+   * effort, the fastest and cheapest level, meant for short and simple requests, fits it. Thinking
+   * stays adaptive: the model thinks briefly when an instruction needs it (several edits at once,
+   * percentages that must add up, a name typed differently, a sentence too vague to act on) and
+   * answers at once otherwise. With thinking off, this model tends to write its reasoning into
+   * the text the user reads, here the explanation; and Claude Sonnet 5.5 and Claude Opus 5.5,
+   * which the evaluation compares it with, refuse thinking off, so the same settings compare the
+   * three like for like. Its tokenizer counts about 30% more tokens than older models for the
+   * same text: 8,000 leave room for a short think and an answer of 20 edits. The evaluation set
+   * in `eval/revise/` measures the choice.
+   */
+  revisionModel: "claude-haiku-5-5",
+  revisionEffort: "low",
+  revisionMaxTokens: 8_000,
+  /**
    * How long the proxy waits for the model, its one retry included. It stays under the 150 seconds
    * the app waits, so the app hears the outcome rather than timing out first.
    */
@@ -64,6 +80,12 @@ export const POLICY = {
   maxBodyBytes: 256 * 1024,
   maxDocumentChars: 20_000,
   maxInstructionChars: 1_000,
+  /**
+   * The largest body of an edit of a split, in bytes: ample for a bill of 200 items with its
+   * split. It keeps the prompt under the 100K tokens up to which the price of the edit's model in
+   * `spend.ts` holds, since no token is shorter than a byte.
+   */
+  maxRevisionBodyBytes: 64 * 1024,
 
   // Groups, payment requests and push notifications.
   hourMs: 60 * 60 * 1000,

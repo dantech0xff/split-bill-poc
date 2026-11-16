@@ -34,6 +34,7 @@ import { errorResponse } from "./respond";
 import { claimRoute, liveShareRoute, openShareRoute } from "./share-claims";
 import { ShareRoom } from "./share-room";
 import { finalizeShareRoute, lockShareRoute, putShareRoute, readShareRoute, removeClaimRoute, reopenShareRoute, revokeShareRoute } from "./shares";
+import { splitRevision } from "./split-revision";
 import { webAssetRoute, webPageRoute } from "./web";
 
 export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
@@ -43,7 +44,7 @@ export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
 export interface Env {
   /**
    * The Anthropic key. A secret of the Worker; on a computer it sits in `.dev.vars`, which git
-   * ignores. Until it is set, bill reads answer 503 `not_configured`.
+   * ignores. Until it is set, bill reads and edits of a split answer 503 `not_configured`.
    */
   ANTHROPIC_API_KEY?: string;
   /**
@@ -70,9 +71,9 @@ export interface Env {
   ABUSE_EMAIL: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
   GOOGLE_CLIENT_ID: string;
-  /** "true" while bills may be read with AI; anything else turns AI off without a release. */
+  /** "true" while bills may be read, and splits edited, with AI; anything else turns AI off without a release. */
   AI_ENABLED: string;
-  /** The oldest version code of the app that may still read bills. */
+  /** The oldest version code of the app that may still read bills and edit splits with AI. */
   MIN_APP_VERSION: string;
   /** The SHA-256 fingerprints of the keys that sign the app, comma-separated, for App Links. Public; may be empty. */
   ANDROID_CERT_SHA256: string;
@@ -96,6 +97,7 @@ const MIN_SALT_BYTES = 16;
 
 const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, Route>]> = [
   ["/v1/bill-analysis", { POST: (request, env, ctx) => billAnalysis(request, env, ctx) }],
+  ["/v1/split-revision", { POST: (request, env, ctx) => splitRevision(request, env, ctx) }],
   ["/v1/session", { POST: sessionRoute }],
   ["/v1/usage", { GET: usageRoute }],
   ["/v1/account", { DELETE: accountRoute }],

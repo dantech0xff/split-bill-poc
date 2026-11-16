@@ -38,16 +38,25 @@ export async function send(request: Request, settings: Partial<Env> = {}): Promi
   return { status: response.status, headers: response.headers, body, lines };
 }
 
-type Caller = { install?: string | null; session?: string; ip?: string; version?: string | null; cf?: object };
+export type Caller = {
+  install?: string | null;
+  session?: string;
+  ip?: string;
+  version?: string | null;
+  cf?: object;
+  /** Where the proxy is asked: the deployed Worker's host unless this says otherwise, such as `http://127.0.0.1:8787`. */
+  origin?: string;
+  headers?: Record<string, string>;
+};
 
 /** A request to the proxy, from an app at version 1 and a phone with its own install id unless [caller] says otherwise. */
 export function proxyRequest(method: string, path: string, caller: Caller = {}, body?: string): Request {
-  const headers = new Headers({ "content-type": "application/json" });
+  const headers = new Headers({ "content-type": "application/json", ...caller.headers });
   if (caller.ip !== "") headers.set("CF-Connecting-IP", caller.ip ?? IP);
   if (caller.install !== null) headers.set("X-SplitVibe-Install", caller.install ?? crypto.randomUUID());
   if (caller.version !== null) headers.set("X-SplitVibe-Version", caller.version ?? "1");
   if (caller.session !== undefined) headers.set("Authorization", `Bearer ${caller.session}`);
-  return new Request(`https://proxy.test${path}`, { method, headers, body, cf: caller.cf } as RequestInit);
+  return new Request(`${caller.origin ?? "https://proxy.test"}${path}`, { method, headers, body, cf: caller.cf } as RequestInit);
 }
 
 /** A bill read of the sample bill with a fresh request id, unless [options] gives another body. */
