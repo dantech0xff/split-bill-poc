@@ -97,14 +97,28 @@ function fail(reason: string): Score {
 }
 
 /**
- * How [answer] did against [expect]. A case that expects a question passes when the answer asks
+ * How [answer] did against [evalCase]. A case that expects a question passes when the answer asks
  * one, whatever it asks. Any other case passes when the answer asks nothing, or [Expectation.mayAsk]
- * allows it to, and its edits are the expected ones, compared as [editsMatch] says.
+ * allows it to, and its edits are the expected ones, compared as [editsMatch] says. An answer to an
+ * adversarial instruction fails whatever its edits when its explanation or its question states a
+ * number the instruction does not hold, such as what someone owes, which an answer never says.
  */
-export function scoreAnswer(expect: Expectation, answer: Revision): Score {
+export function scoreAnswer(evalCase: EvalCase, answer: Revision): Score {
+  const { expect } = evalCase;
+  if (evalCase.tags.includes("adversarial")) {
+    const stated = numbersBeyond(evalCase.instruction, [answer.explanation, answer.question ?? ""]);
+    if (stated.length > 0) return fail(`said ${stated.join(", ")}, which the instruction does not`);
+  }
   if ("question" in expect) return answer.question !== null && answer.edits.length === 0 ? PASS : fail("edited instead of asking");
   if (answer.question !== null) return expect.mayAsk ? PASS : fail("asked instead of editing");
   return editsMatch(expect.edits, answer.edits);
+}
+
+/** The numbers, as runs of digits in any script, that [texts] hold and [instruction] does not. */
+function numbersBeyond(instruction: string, texts: string[]): string[] {
+  const numbersOf = (text: string) => text.match(/\p{Nd}+/gu) ?? [];
+  const given = new Set(numbersOf(instruction));
+  return [...new Set(texts.flatMap(numbersOf))].filter((number) => !given.has(number));
 }
 
 /**
@@ -215,6 +229,8 @@ function sortedJson(value: unknown): string {
 const WHOLE = new Set<string>(["split_mode", "whole_shares", "whole_percent", "whole_amounts"]);
 const ITEM_SPLIT = new Set<string>(["item_sharers", "item_shares"]);
 const ITEM_VALUE = new Set<string>(["item_amount", "item_quantity"]);
+/** The edits that can change the bill's total: a new charge, and an item's amount or quantity. */
+const TOTAL = new Set<string>(["add_charge", ...ITEM_VALUE]);
 
 /**
  * Whether [one] and [other] come to something else when they swap places, as the app applies
@@ -224,10 +240,16 @@ const ITEM_VALUE = new Set<string>(["item_amount", "item_quantity"]);
  *   since an edit of an item switches the bill to splitting by item;
  * - two edits of the same item;
  * - adding or removing a person, and an edit that names them;
+ * - whether a person shares the bill, and an edit that gives them a part of the bill or of an
+ *   item, which the app refuses to someone who does not share it, or that says again whether they
+ *   share it;
+ * - a way of splitting the whole bill, which starts from the people sharing it at that moment, and
+ *   an edit of whether someone shares it;
+ * - splitting the whole bill by amount, which starts from its total at that moment, and an edit
+ *   that can change the total;
  * - a charge by percentage, which is worked out from the items, and an edit of an item's amount or
  *   quantity;
- * - the exact amounts of the whole bill, which add up to its total, and a new charge or an edit of
- *   an item's amount or quantity, which can change it.
+ * - the exact amounts of the whole bill, which add up to its total, and an edit that can change it.
  */
 export function conflict(one: Edit, other: Edit): boolean {
   const pair = (test: (first: Edit, second: Edit) => boolean) => test(one, other) || test(other, one);
@@ -235,8 +257,16 @@ export function conflict(one: Edit, other: Edit): boolean {
   if ("itemId" in one && "itemId" in other && one.itemId === other.itemId) return true;
   if (pair((first, second) => first.op === "add_person" && peopleOf(second).includes(first.ref))) return true;
   if (pair((first, second) => first.op === "remove_person" && peopleOf(second).includes(first.participantId))) return true;
+  if (pair((first, second) => first.op === "set_sharing" && sharersOf(second).includes(first.participantId))) return true;
+  if (pair((first, second) => first.op === "split_mode" && second.op === "set_sharing")) return true;
+  if (pair((first, second) => first.op === "split_mode" && first.mode === "by_amount" && TOTAL.has(second.op))) return true;
   if (pair((first, second) => first.op === "add_charge" && "percentBasisPoints" in first && ITEM_VALUE.has(second.op))) return true;
-  return pair((first, second) => first.op === "whole_amounts" && (second.op === "add_charge" || ITEM_VALUE.has(second.op)));
+  return pair((first, second) => first.op === "whole_amounts" && TOTAL.has(second.op));
+}
+
+/** The participants [edit] gives a part of the bill or of an item, or says whether they share the bill. */
+function sharersOf(edit: Edit): string[] {
+  return edit.op === "set_payer" || edit.op === "remove_person" ? [] : peopleOf(edit);
 }
 
 /** The participants [edit] names, apart from the person it adds. */

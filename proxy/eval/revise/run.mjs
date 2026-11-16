@@ -175,7 +175,7 @@ async function runCase(evalCase, model, fixtures) {
     const cost = typeof last.eval?.costMicro === "number" ? last.eval.costMicro : null;
     if (last.type === "error") return failed(ms, `the error ${last.code}`, cost);
     if (last.type !== "result" || last.eval === undefined) return failed(ms, "an answer the proxy did not report");
-    return outcome(ms, { costMicro: cost, answer: last.answer, score: scoreAnswer(evalCase.expect, last.answer) });
+    return outcome(ms, { costMicro: cost, answer: last.answer, score: scoreAnswer(evalCase, last.answer) });
   }
 }
 
