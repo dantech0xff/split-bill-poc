@@ -31,7 +31,7 @@ import com.dantech.splitvibe.domain.Payments
 import com.dantech.splitvibe.domain.SplitPlan
 import com.dantech.splitvibe.domain.payments.PaymentMethod
 import java.time.Duration
-import java.util.Collections
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
@@ -60,7 +60,9 @@ class ClaimViewModelTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val storage = TestStorage(context)
-    private val received: MutableList<RecordedRequest> = Collections.synchronizedList(mutableListOf())
+
+    /** The requests the server got. Its thread adds to them while the test looks through them, so each look goes over a copy of its own. */
+    private val received: MutableList<RecordedRequest> = CopyOnWriteArrayList()
     private val host = FakeHost(ShareFixtures.saved)
     private val store = ViewModelStore()
     private lateinit var proxy: TestProxy
