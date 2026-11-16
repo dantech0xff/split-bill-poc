@@ -2,6 +2,7 @@ package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
 import java.math.MathContext
+import java.math.RoundingMode
 import java.text.NumberFormat
 import java.util.Locale
 import kotlinx.serialization.Serializable
@@ -28,11 +29,17 @@ data class ExchangeRate(
     fun converts(bill: Bill, localCurrency: String): Boolean = from == bill.currency.code && to == localCurrency
 
     /**
-     * [amountMinor] in [fromCurrency] as minor units of [toCurrency], to the nearest unit; null when
-     * the result is too large to hold, which only a mistyped rate can cause.
+     * [amountMinor] in [fromCurrency] as minor units of [toCurrency], to the nearest unit, half up
+     * unless [rounding] says otherwise; null when the result is too large to hold, which only a
+     * mistyped rate can cause.
      */
-    fun convert(amountMinor: Long, fromCurrency: BillCurrency, toCurrency: BillCurrency): Long? = try {
-        toCurrency.toMinor(fromCurrency.toMajor(amountMinor).multiply(rate))
+    fun convert(
+        amountMinor: Long,
+        fromCurrency: BillCurrency,
+        toCurrency: BillCurrency,
+        rounding: RoundingMode = RoundingMode.HALF_UP,
+    ): Long? = try {
+        toCurrency.toMinor(fromCurrency.toMajor(amountMinor).multiply(rate), rounding)
     } catch (e: ArithmeticException) {
         null
     }

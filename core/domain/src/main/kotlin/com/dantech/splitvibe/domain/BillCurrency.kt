@@ -17,8 +17,9 @@ import kotlinx.serialization.Transient
 @Serializable
 data class BillCurrency(val code: String, val fractionDigits: Int) {
 
-    /** Converts a decimal amount in major units (12.50) to minor units (1250), rounding half up. */
-    fun toMinor(amount: BigDecimal): Long = amount.movePointRight(fractionDigits).setScale(0, RoundingMode.HALF_UP).longValueExact()
+    /** Converts a decimal amount in major units (12.50) to minor units (1250), rounding half up unless [rounding] says otherwise. */
+    fun toMinor(amount: BigDecimal, rounding: RoundingMode = RoundingMode.HALF_UP): Long =
+        amount.movePointRight(fractionDigits).setScale(0, rounding).longValueExact()
 
     fun toMajor(minor: Long): BigDecimal = BigDecimal.valueOf(minor, fractionDigits)
 
