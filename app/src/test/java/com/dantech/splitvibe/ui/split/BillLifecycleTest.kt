@@ -23,6 +23,7 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.fx.FxRepository
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
@@ -200,12 +201,7 @@ class BillLifecycleTest {
 
     @Test
     fun `a bill in dollars is also shown in dong at the day's rate, and its shares stay in dollars`() {
-        server.enqueue(
-            MockResponse().setBody(
-                """{"base":"EUR","source":"Frankfurter","fetchedAt":1,"rates":{"EUR":{"rate":1,"date":"2026-11-14"},""" +
-                    """"USD":{"rate":1.08,"date":"2026-11-14"},"VND":{"rate":27378,"date":"2026-11-13"}}}""",
-            ),
-        )
+        server.enqueue(dayRates())
         val proxy = TestProxy(server, context)
         val fx = FxRepository(proxy.api, File(context.filesDir, "fx-rates-lifecycle.json"))
         val viewModel = testSplitViewModel(context, storage, proxy.account.account, recordedMlKitOutput, NeverAsked, fx = fx)
@@ -237,6 +233,58 @@ class BillLifecycleTest {
     }
 
     @Test
+    fun `finishing a bill in dollars keeps the day's rate it is shown at, and a rate typed in stays`() {
+        server.enqueue(dayRates())
+        val proxy = TestProxy(server, context)
+        val fx = FxRepository(proxy.api, File(context.filesDir, "fx-rates-finish.json"))
+        val viewModel = testSplitViewModel(context, storage, proxy.account.account, recordedMlKitOutput, NeverAsked, fx = fx)
+
+        val shown = burgerInDollars(viewModel)
+        assertNull("only shown until the split is finished", shown.saved.exchangeRate)
+        viewModel.finish()
+
+        val finished = awaitStored(shown.saved.id) { it.status == BillStatus.FINAL }
+        val day = checkNotNull(shown.exchangeRate)
+        val stored = checkNotNull(finished.exchangeRate)
+        assertEquals(listOf("USD", "VND", "2026-11-13", "Frankfurter"), listOf(stored.from, stored.to, stored.date, stored.source))
+        // Equal as numbers: the stored copy writes 2.535E+4 as 25350.
+        assertEquals(0, day.rate.compareTo(stored.rate))
+
+        // The rate the user's card was charged at is the one a finished bill keeps.
+        viewModel.startNewSplit()
+        val typed = burgerInDollars(viewModel)
+        viewModel.setExchangeRate(BigDecimal("26000"))
+        viewModel.finish()
+
+        val kept = awaitStored(typed.saved.id) { it.status == BillStatus.FINAL }
+        assertTrue(kept.exchangeRate?.isByHand == true)
+        assertEquals(BigDecimal("26000"), kept.exchangeRate?.rate)
+    }
+
+    @Test
+    fun `a bill finished without the day's rate keeps none, and opening it once the rate is found writes nothing`() {
+        val proxy = TestProxy(server, context)
+        val offline = testSplitViewModel(context, storage, proxy.account.account, recordedMlKitOutput, NeverAsked, fx = storage.noRates)
+        offline.startManualEntry()
+        offline.editBill { BillEditor.withCurrency(it, BillCurrency("USD", 2)) }
+        offline.editBill { BillEditor.withItemAdded(it, "Burger", amountMinor = 1_000) }
+        val id = checkNotNull(offline.state.value.result).saved.id
+        offline.finish()
+        val finished = awaitStored(id) { it.status == BillStatus.FINAL }
+        assertNull(finished.exchangeRate)
+
+        server.enqueue(dayRates())
+        val fx = FxRepository(proxy.api, File(context.filesDir, "fx-rates-open.json"))
+        val online = testSplitViewModel(context, storage, proxy.account.account, recordedMlKitOutput, NeverAsked, fx = fx)
+        online.open(id)
+        awaitOnMain { online.state.value.result?.exchangeRate != null }
+
+        // The day's rate is shown, and the bill stays as it was finished, on screen and stored.
+        assertEquals(finished, online.state.value.result?.saved)
+        assertEquals(finished, runBlocking { storage.bills.get(id) })
+    }
+
+    @Test
     fun `a bill opened from the list goes back to the list, and its photo step is not shown`() {
         val viewModel = readSampleBill()
         val id = checkNotNull(viewModel.state.value.result).saved.id
@@ -257,6 +305,26 @@ class BillLifecycleTest {
         compose.onNodeWithContentDescription("Back").performClick()
 
         assertTrue(exited)
+    }
+
+    /** The day's rates as the proxy sends them, with dollars and dong. */
+    private fun dayRates(): MockResponse = MockResponse().setBody(
+        """{"base":"EUR","source":"Frankfurter","fetchedAt":1,"rates":{"EUR":{"rate":1,"date":"2026-11-14"},""" +
+            """"USD":{"rate":1.08,"date":"2026-11-14"},"VND":{"rate":27378,"date":"2026-11-13"}}}""",
+    )
+
+    /** A bill typed in by hand, a burger for $10.00, once the day's rate into dong is shown with it. */
+    private fun burgerInDollars(viewModel: SplitBillViewModel): SplitResultState {
+        viewModel.startManualEntry()
+        viewModel.editBill { BillEditor.withCurrency(it, BillCurrency("USD", 2)) }
+        viewModel.editBill { BillEditor.withItemAdded(it, "Burger", amountMinor = 1_000) }
+        awaitOnMain { viewModel.state.value.result?.exchangeRate != null }
+        return checkNotNull(viewModel.state.value.result)
+    }
+
+    private fun awaitStored(id: String, condition: (SavedBill) -> Boolean): SavedBill {
+        awaitOnMain { runBlocking { storage.bills.get(id) }?.let(condition) == true }
+        return checkNotNull(runBlocking { storage.bills.get(id) })
     }
 
     /** The sample bill read with the recorded answer, split between me, Minh and Lan. */

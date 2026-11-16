@@ -86,7 +86,10 @@ data class SplitResultState(
     val saved: SavedBill,
     /** The currency the user counts in, such as VND, which the bill is also shown in when it differs. */
     val localCurrency: String = "",
-    /** The day's rate from the bill's currency into [localCurrency], when it has been found; shown, never saved. */
+    /**
+     * The day's rate from the bill's currency into [localCurrency], when it has been found. It is
+     * shown, and saved with the bill only when the user finishes a split that has no rate of its own.
+     */
     val dayRate: ExchangeRate? = null,
 ) {
     val bill: Bill get() = saved.bill
@@ -520,11 +523,18 @@ class SplitBillViewModel(
         return saveLock.withLock { bills.get(id) }
     }
 
-    /** Marks the split as finished; it stays in the history and can still be opened and changed. */
+    /**
+     * Marks the split as finished; it stays in the history and can still be opened and changed. A
+     * bill in another currency without a rate of its own keeps the day's rate it is shown at, so it
+     * counts in what the user spent in their own currency. A rate the user typed in stays, and a bill
+     * finished while no day's rate is known keeps none.
+     */
     override fun finish() {
         val result = mutableState.value.result ?: return
         if (result.problems.isNotEmpty()) return
-        change { it.copy(status = BillStatus.FINAL) }
+        // Without a rate of the bill's own, the rate shown is the day's, when it converts the bill into the user's currency.
+        val shown = result.exchangeRate
+        change { it.copy(status = BillStatus.FINAL, exchangeRate = it.exchangeRate ?: shown) }
     }
 
     fun dismissNotice() = mutableState.update { it.copy(notice = null) }
@@ -569,7 +579,8 @@ class SplitBillViewModel(
     /**
      * Finds the day's rate for a bill on screen in another currency than the user's. It is only
      * shown: the bill is not changed, so opening a bill never rewrites it, and a rate the user typed
-     * in stays first. With [tellWhenMissing], the person hears when no rate can be found.
+     * in stays first. Only finishing the split, which the user does, keeps it with the bill
+     * ([finish]). With [tellWhenMissing], the person hears when no rate can be found.
      */
     private fun lookUpDayRate(tellWhenMissing: Boolean = false) {
         rateLookup?.cancel()
