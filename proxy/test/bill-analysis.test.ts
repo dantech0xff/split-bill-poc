@@ -346,7 +346,7 @@ describe("spend", () => {
     expect(await quotaOf(install)).toMatchObject({ used: 0, remaining: 3 });
     const prompt = userMessage(sampleRequest.ocrDocument, sampleRequest.instruction, sampleRequest.localCurrency);
     const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
-    const held = holdMicro(bytes(SYSTEM_PROMPT) + bytes(prompt) + bytes(JSON.stringify(BILL_SCHEMA)));
+    const held = holdMicro(bytes(SYSTEM_PROMPT) + bytes(prompt) + bytes(JSON.stringify(BILL_SCHEMA)), POLICY.maxTokens);
     expect(await spendOf(`install:${install}`)).toMatchObject({ spent: held, held: 0 });
   });
 

@@ -13,7 +13,7 @@ it("holds at least what the dearest model would charge for the whole prompt and 
     usage: { input_tokens: promptBytes, output_tokens: POLICY.maxTokens, iterations: null },
   } as Parameters<typeof costMicro>[0]);
 
-  expect(holdMicro(promptBytes)).toBeGreaterThanOrEqual(fullAnswer);
+  expect(holdMicro(promptBytes, POLICY.maxTokens)).toBeGreaterThanOrEqual(fullAnswer);
 });
 
 it("charges a model missing from the price list at the highest list price of any model", () => {

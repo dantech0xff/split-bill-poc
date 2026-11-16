@@ -2,7 +2,8 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { billAnalysis, TIMING, type Timing } from "../src/bill-analysis";
+import { billAnalysis } from "../src/bill-analysis";
+import { TIMING, type Timing } from "../src/model-call";
 import type { Env } from "../src/index";
 import { POLICY } from "../src/policy";
 import { SYSTEM_PROMPT, userMessage } from "../src/prompt";
@@ -30,7 +31,7 @@ import {
 const SAMPLE_HOLD = (() => {
   const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
   const prompt = userMessage(sampleRequest.ocrDocument, sampleRequest.instruction, sampleRequest.localCurrency);
-  return holdMicro(bytes(SYSTEM_PROMPT) + bytes(prompt) + bytes(JSON.stringify(BILL_SCHEMA)));
+  return holdMicro(bytes(SYSTEM_PROMPT) + bytes(prompt) + bytes(JSON.stringify(BILL_SCHEMA)), POLICY.maxTokens);
 })();
 
 /** The start of the sample answer, up to and including `message_start`. */
