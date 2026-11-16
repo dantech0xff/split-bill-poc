@@ -161,6 +161,10 @@ class SplitAssistantViewModel(
     private val account: StateFlow<Account>,
 ) : ViewModel() {
 
+    // Kept in memory only, and not in a SavedStateHandle: when the system ends the app in the
+    // background, what was typed, asked and proposed is gone, and so is the id of a request still
+    // unanswered, so asking again is a new request, charged again. That loss is accepted. Nothing is
+    // ever half applied, as a change reaches the bill only through Apply, which the split screen saves.
     private val draft = MutableStateFlow(Draft(voiceAvailable = voice.support != VoiceSupport.NONE))
 
     val state: StateFlow<AssistantUiState> = combine(draft, host.billOnScreen, account, ::uiOf)
