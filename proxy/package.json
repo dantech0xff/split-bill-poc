@@ -8,7 +8,8 @@
     "bundle": "node scripts/bundle.mjs",
     "test": "node scripts/embed-web.mjs && vitest run",
     "typecheck": "node scripts/embed-web.mjs && wrangler types && tsc",
-    "dev": "node scripts/embed-web.mjs && wrangler dev"
+    "dev": "node scripts/embed-web.mjs && wrangler dev",
+    "eval:revise": "node eval/revise/run.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.8.2",
