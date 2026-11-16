@@ -24,6 +24,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.dantech.splitvibe.data.bills.dayOf
@@ -101,7 +103,11 @@ fun RepeatBillSheet(
                     Text("First draft ${dayText(firstDraft)}", style = MaterialTheme.typography.bodyLarge)
                     Text(describe(schedule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                TextButton(onClick = { picking = true }) { Text("Change") }
+                TextButton(
+                    onClick = { picking = true },
+                    // Said in full, as "Change" alone does not tell someone who hears the screen what it changes.
+                    modifier = Modifier.semantics { contentDescription = "Change the day of the first draft" },
+                ) { Text("Change") }
             }
         }
     }
