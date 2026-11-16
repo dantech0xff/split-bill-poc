@@ -80,6 +80,9 @@ enum class ProposalOutcome(
 
     /** None of the kept edits can be applied. */
     NONE_APPLIES(note = "None of the changes that are kept can be applied, so the split stays as it is.", isError = true),
+
+    /** Working the kept edits out on this bill failed, which the app does not expect of any edit; nothing is applied. */
+    NOT_WORKED_OUT(note = "These changes could not be worked out on this bill. Change the split by hand instead.", isError = true),
 }
 
 /** The changes the AI proposed, worked out on the split on screen, for the user to check before anything changes. */
@@ -227,7 +230,12 @@ class SplitAssistantViewModel(
     fun apply() {
         val proposal = draft.value.proposal ?: return
         val saved = host.billOnScreen.value?.takeIf { it.id == proposal.billId } ?: return
-        val result = SplitEdits.apply(saved.bill, saved.plan, proposal.kept)
+        val result = try {
+            SplitEdits.apply(saved.bill, saved.plan, proposal.kept)
+        } catch (e: RuntimeException) {
+            // The proposal says it could not be worked out, and nothing of it is applied.
+            return
+        }
         if (result.bill == saved.bill && result.plan == saved.plan) return
         host.replaceSplit(result.bill, result.plan)
         val summary = proposal.explanation.ifBlank { "The split was changed." }
@@ -358,10 +366,30 @@ class SplitAssistantViewModel(
     }
 
     /**
+     * The kept edits of [proposal] worked out on [bill] split as [plan], or a proposal that says it
+     * could not be worked out when that throws. The edits come from a model, and no answer may end
+     * the screen, not even one that meets a failure of the app's own.
+     */
+    private fun proposalUi(proposal: Proposal, bill: Bill, plan: SplitPlan): ProposalUi = try {
+        workedOut(proposal, bill, plan)
+    } catch (e: RuntimeException) {
+        ProposalUi(
+            instruction = proposal.instruction,
+            explanation = proposal.explanation,
+            edits = emptyList(),
+            unreadable = proposal.unreadable,
+            shares = emptyList(),
+            problems = emptyList(),
+            currency = bill.currency,
+            outcome = ProposalOutcome.NOT_WORKED_OUT,
+        )
+    }
+
+    /**
      * The kept edits of [proposal] worked out on [bill] split as [plan]: each edit in words, a kept
      * one that cannot be applied with its reason, and what everyone pays before and after.
      */
-    private fun proposalUi(proposal: Proposal, bill: Bill, plan: SplitPlan): ProposalUi {
+    private fun workedOut(proposal: Proposal, bill: Bill, plan: SplitPlan): ProposalUi {
         val keptAt = proposal.edits.indices.filter { it !in proposal.dropped }
         val kept = keptAt.map(proposal.edits::get)
         val result = SplitEdits.apply(bill, plan, kept)

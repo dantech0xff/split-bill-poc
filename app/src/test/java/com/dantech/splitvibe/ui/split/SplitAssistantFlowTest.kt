@@ -247,6 +247,25 @@ class SplitAssistantFlowTest {
     }
 
     @Test
+    fun `numbers past what a bill can hold do not end the screen, and change nothing`() {
+        // Bought by the gram, as a bill can hold it: a quantity of 0.0001.
+        split.editBill { BillEditor.withItemQuantity(it, "i1", BigDecimal("0.0001")) }
+        awaitOnMain { onScreen().bill.items[0].quantity.compareTo(BigDecimal("0.0001")) == 0 }
+        val before = onScreen()
+
+        // The largest amount the proxy takes, which divided by the quantity is more than any number the app counts in.
+        ask("The beer comes to 1,000,000,000,000,000", answer("""[{"op":"item_amount","itemId":"i1","amountMinor":1000000000000000}]"""))
+
+        val proposal = checkNotNull(assistant.ui().proposal)
+        assertEquals(ProposalOutcome.NOT_WORKED_OUT, proposal.outcome)
+        assertFalse(proposal.canApply)
+        assistant.apply()
+        assertEquals(before, onScreen())
+        assistant.discard()
+        assertNull(assistant.ui().proposal)
+    }
+
+    @Test
     fun `changes that leave the split as it is say so, rather than that they cannot be applied`() {
         // The bill is split equally already, and there are three beers already.
         val edits = """[{"op":"split_mode","mode":"equal"},{"op":"item_quantity","itemId":"i1","quantity":"3.000000"}]"""

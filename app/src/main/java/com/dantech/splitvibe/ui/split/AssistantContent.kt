@@ -175,11 +175,14 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
                 Note("$changes Claude proposed could not be read, so they are left out.")
             }
 
-            Text(
-                "Each person pays",
-                modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.lg, top = SvSpacing.sm),
-                style = MaterialTheme.typography.titleSmall,
-            )
+            // A proposal that could not be worked out has no amounts to show.
+            if (proposal.shares.isNotEmpty()) {
+                Text(
+                    "Each person pays",
+                    modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.lg, top = SvSpacing.sm),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
             proposal.shares.forEach { ShareChangeRow(it, proposal.currency) }
             proposal.problems.forEach { problem -> Note("After these changes: $problem", isError = true) }
             proposal.outcome.note?.let { Note(it, isError = proposal.outcome.isError) }
