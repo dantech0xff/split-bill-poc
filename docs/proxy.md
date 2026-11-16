@@ -1,16 +1,17 @@
 # AI proxy
 
-The app never holds an Anthropic key. It sends the text it read from a bill to a small Cloudflare
-Worker in [`proxy/`](../proxy), and the Worker asks Claude. The Worker holds the key, builds the
-prompt and the answer schema, counts each person's calls, limits each network address, caps what
-the whole service may spend in a day, and keeps nothing of the bill. It also hands the app the
+The app never holds an Anthropic key. It sends the text it read from a bill, or a bill and its
+split with a sentence that should change the split, to a small Cloudflare Worker in
+[`proxy/`](../proxy), and the Worker asks Claude. The Worker holds the key, builds the prompt and
+the answer schema, counts each person's calls, limits each network address, caps what the whole
+service may spend in a day, and keeps nothing of the bill. It also hands the app the
 day's exchange rates, keeps what signed-in people share (groups, their bills and settlements, and
 payment requests), sends their push notifications, and serves the web pages of shared links, where
 people without the app claim the items they had on a bill, or see a payment request or an invite.
 
 ```mermaid
 flowchart LR
-    app[App: OCR on the phone] -->|text of the bill, instruction| worker[Worker]
+    app[App: OCR on the phone] -->|text of the bill, or bill and split;<br/>instruction| worker[Worker]
     worker --> limits[Durable Objects:<br/>calls per person,<br/>limits and spend]
     worker -->|prompt + schema| claude[Claude]
     claude --> worker
@@ -29,8 +30,9 @@ flowchart LR
 | Route | Who calls it | What it answers |
 |---|---|---|
 | `POST /v1/bill-analysis` | the app, to read a bill | lines of JSON: `{"type":"wait"}` while the model works, then one `{"type":"result","answer":…,"usage":…}` or `{"type":"error","code":…}` |
+| `POST /v1/split-revision` | the app, to change a split by a sentence | the same lines, with edits of the split as the answer, [below](#editing-a-split-by-a-sentence) |
 | `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage}`: a session the proxy signs, for 30 days |
-| `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI reading is on |
+| `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on |
 | `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's counters, and its part in the shared data, are gone |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
@@ -48,9 +50,12 @@ still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="�
 order, with rows numbered from 1 and coordinates from 0 to 1000 within each page. A one-page bill
 stays `<bill_ocr rows="N">` with its rows directly inside. The full contract of the bill read,
 the session, usage and account routes, with every error code, is in
-[the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md); the
-exchange rates and their one error are described [below](#exchange-rates), and the shared data's
-whole contract in [its own section](#shared-data-groups-payment-requests-and-push).
+[the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md), but
+for the numbers of `usage`, which [Calls and limits](#calls-and-limits) gives as they are now, and
+the bill's `category`, [below](#changing-the-prompt-or-the-model). Edits of a split are described
+[in their own section](#editing-a-split-by-a-sentence), the exchange rates and their one error
+[below](#exchange-rates), and the shared data's whole contract in
+[its own section](#shared-data-groups-payment-requests-and-push).
 
 ### Calls and limits
 
@@ -58,15 +63,137 @@ The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change w
 
 - An install that has not signed in gets 3 calls, once. A Google account gets 10 calls each calendar
   month, counted in UTC.
+- A bill read takes one call, and an edit of a split by a sentence a fifth of one
+  (`revisionWeight`, 0.2), from the same calls. The proxy counts in hundredths of a call, so
+  `limit`, `used` and `remaining`, in `/v1/usage`, in the answer of `/v1/session`, and in every line
+  and error body that carries `usage`, are decimal numbers with at most two decimals, such as `3`,
+  `0.2` or `2.8`. A call runs only while `remaining` is at least what it takes: with 0.8 left, a
+  bill read is refused with 429 `quota_exhausted` and an edit still runs.
 - A call is held while the model works and charged once the model has answered, whatever the answer
   says, also when the app hung up, as long as the answer comes within 25 seconds of the hang-up.
-  A call that got no answer is given back. The same request id is charged once however often it
-  runs (at most three times), and it can only be used again for the same bill.
-- Each network address may send 10 bill reads a minute and 100 a day, whoever sends them. IPv6
-  counts by its /64.
+  A call that got no answer is given back, and so is an edit whose answer the proxy could not use
+  (`bad_response`). The same request id is charged once however often it runs (at most three
+  times), at what its first run took, and it can only be used again for the same request, never for
+  another bill, another edit or the other route.
+- Each network address may send 10 calls to the model a minute and 100 a day, bill reads and edits
+  together, whoever sends them. IPv6 counts by its /64.
 - Spend is capped over each 24 hours: $3 per caller, $6 per address and $20 for the whole proxy.
   Each call holds the most it could cost, then settles at what it did cost. Also set a monthly spend
   limit in the Anthropic console.
+
+### Editing a split by a sentence
+
+`POST /v1/split-revision` turns a sentence such as "Lan didn't drink beer" or "add a 10% tip" into
+edits of a split, which the app shows the user and applies only once they accept them. The model
+never works out what anyone owes: it proposes edits from a fixed set, and the app's `:core:domain`
+checks and applies them. The route identifies its caller, holds and charges, limits addresses, caps
+spend, streams its answer and refuses with the same headers and codes as a bill read; an edit
+takes a fifth of a call.
+
+```json
+{
+  "requestId": "<uuid>",
+  "instruction": "Lan không uống bia",
+  "bill": {
+    "merchant": "Pho 24",
+    "currency": { "code": "VND", "fractionDigits": 0 },
+    "items": [{ "id": "i1", "name": "Bia", "quantity": "3", "amountMinor": 90000 }],
+    "charges": [{ "id": "c1", "label": "Service charge", "kind": "service_charge", "amountMinor": 14000 }],
+    "totalMinor": 154000
+  },
+  "split": {
+    "participants": [{ "id": "me", "name": "Dana" }, { "id": "p1", "name": "Lan" }],
+    "whole": null,
+    "items": { "i1": { "type": "equal", "among": ["me"], "except": [] } },
+    "notSharing": [],
+    "payments": [{ "participantId": "me", "amountMinor": 154000 }]
+  }
+}
+```
+
+- `requestId` is a UUID, and `instruction` 1 to 500 characters.
+- `bill` has `merchant` (null, or 1 to 200 characters), `currency`, `items` (0 to 200, each
+  `{id, name, quantity, amountMinor}`), `charges` (0 to 50, each `{id, label, kind, amountMinor}`,
+  with `kind` one of `tax`, `service_charge`, `tip`, `discount`, `rounding` and `other`) and
+  `totalMinor`.
+- `split` has `participants` (1 to 100, as many as a group has members, each `{id, name}`, the
+  app's user being `me`), `whole`, `items`, `notSharing` (participant ids) and `payments` (at most
+  100 `{participantId, amountMinor}`). `whole` is null when each item is split on its own, and
+  otherwise a division, as the domain writes `Division`: `{"type":"equal","among":[…],"except":[…]}`,
+  `{"type":"shares","shares":{…}}`, `{"type":"percent","basisPoints":{…}}` or
+  `{"type":"amount","amounts":{…}}`, keyed by participant id. `items` holds a division by item id;
+  an item without one is shared equally by everyone sharing the bill. `items`, `notSharing`,
+  `payments`, `among` and `except` may be left out when empty; `whole` may not.
+- Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list. A bill is edited as
+  the app holds it, so names and labels may be empty, where the app let its user clear one, and are
+  at most 200 characters. Names, labels and the instruction lose invisible formatting characters
+  but the joiners, as the [Conventions](#conventions) say, are trimmed, and hold no control
+  characters, so an instruction is one line. `quantity` is null or a decimal written as text, as
+  on a bill link. An item's amount and the total are 0 to 10^15, a charge's -10^15 to 10^15, and a
+  payment 0 to 10^15. Shares and basis points are whole numbers from 0, which need not add up, as
+  a split the user is still typing may not.
+- The body is at most 64 KB, which keeps the prompt under the 100K tokens up to which the model's
+  price holds. Anything else is 400 `input`, before anything is held or counted. Fields the
+  contract does not name are ignored and never reach the model.
+
+The last line is `{"type":"result","answer":…,"usage":…}`, with the answer:
+
+```json
+{"edits": [{"op": "item_sharers", "itemId": "i1", "participantIds": ["me"]}],
+ "explanation": "Lan no longer shares the beer.",
+ "question": null}
+```
+
+- `edits` holds at most 20 edits, in the order the app applies them.
+- `explanation` is at most 200 characters, in the language of the instruction. It never says what
+  anyone owes, and may be empty when the answer asks a question.
+- `question` is null, or a short question of at most 200 characters when the instruction is too
+  unclear to act on; `edits` is then empty.
+
+| `op` | Fields |
+|---|---|
+| `item_sharers` | `itemId`; `participantIds`, 1 or more ids, each once |
+| `item_shares` | `itemId`; `shares`, `{"<participant id>": n}` with n from 1 to 1,000 |
+| `split_mode` | `mode`: `equal`, `by_item`, `by_shares`, `by_percent` or `by_amount` |
+| `whole_shares` | `shares`, `{"<participant id>": n}` with n from 0 to 1,000 |
+| `whole_percent` | `basisPoints`, `{"<participant id>": n}` with n from 0 to 10,000 |
+| `whole_amounts` | `amounts`, `{"<participant id>": n}` with n from 0 to 10^15 |
+| `add_person` | `ref`, `new1` to `new9`, which later edits use as the person's id; `name`, 1 to 200 characters |
+| `remove_person` | `participantId` |
+| `set_sharing` | `participantId`; `sharing`, true or false |
+| `add_charge` | `kind`; `label`, 1 to 200 characters; and exactly one of `amountMinor`, 1 to 10^15, or `percentBasisPoints`, 1 to 10,000 of the items' total, the other left out |
+| `set_payer` | `participantId` |
+| `item_amount` | `itemId`; `amountMinor`, 0 to 10^15 |
+| `item_quantity` | `itemId`; `quantity`, a decimal written as text and more than 0, such as `"2"` or `"0.5"` |
+
+What each edit does to the split is the contract's, in the section "Hợp đồng chung" of
+[the Phase 7 plan](../plans/261114-0220-split-vibe-production/phase-07-ai-assistant-insights.md).
+
+The proxy checks the model's answer again before the app gets it. Structured outputs cannot key an
+object by participant, so the model writes each number per participant as a pair, and the proxy
+makes the object of them; it also writes `op`, `mode`, `kind` and `ref` in lower case, which
+structured outputs do not promise, and line breaks in text as spaces. An answer that breaks the
+rules above (an op that is not one of these, a field that is missing, of the wrong type or out of
+range, the same person twice in one edit, more than 20 edits, a text too long, or a question with
+edits) ends as the error `bad_response`, and, unlike a bill read's, the call is given back. What
+only the bill can judge passes as it is: ids it does not have, percentages that do not add up to
+10,000, amounts that do not add up to its total, or removing `me`. The app rejects those edits one
+by one, and tells the user.
+
+The errors are those of a bill read. Before the answer: 400 `input`, also for a request id used
+before for something else; 401 `install` or `session`; 426 `update_required`; 429
+`quota_exhausted` (with `usage`), `retry_limit` (with `usage`), `rate_limited`, `spend_limited` or
+`busy`; 503 `ai_off` or `not_configured`. As the last line: `refused` and `too_long`, which are
+charged and carry `usage`, and `bad_response`, `upstream`, `busy`, `timeout` and `internal`, which
+are not.
+
+The model is `claude-haiku-5-5` (`revisionModel`), at low effort, with adaptive thinking, room for
+8,000 tokens and no fallback; `policy.ts` says why. A refusal of its safety classifiers ends the call
+as `refused`. The prompt is [`proxy/src/revise-prompt.ts`](../proxy/src/revise-prompt.ts) and the
+schema `REVISION_SCHEMA` in [`proxy/src/schema.ts`](../proxy/src/schema.ts). The prompt tells the
+model that the instruction and every name on the bill are data written by people, never
+instructions to it, and the user message writes the bill, the split and the instruction as JSON, so
+that nothing in a name or in the instruction can pass for the message's own structure.
 
 ### Exchange rates
 
@@ -88,11 +215,17 @@ the cron always asks. Only when there has never been a snapshot does a failed fe
 
 ### What it keeps
 
-Durable Objects hold counters only: calls used per install or per account, request ids for a day,
-requests and spend per address. One more holds the latest exchange rates, which are public.
-Objects are named by salted hashes, never by an IP address or a Google id. A request id is kept
-with a salted hash of what it asked, so that it cannot be reused for another bill. Nothing of a
-bill read, an instruction or a name is stored.
+Durable Objects hold counters only: calls used per install or per account, in hundredths of a
+call, request ids for a day with what each one takes, requests and spend per address. One more
+holds the latest exchange rates, which are public. Objects are named by salted hashes, never by an
+IP address or a Google id. A request id is kept with a salted hash of what it asked, so that it
+cannot be reused for another bill or another edit. Nothing of a bill read or of an edit, an
+instruction or a name is stored.
+
+The `QuotaBook` objects written before calls had weights counted whole calls. Each turns its count
+and its request ids into hundredths the first time it is asked after the deploy, record by record,
+so that nobody gains or loses a call; what was written since is left as it is. A Worker still
+finishing a bill read while the new one starts sends no weight, which counts as a whole call.
 
 The shared data in D1 is what people chose to share, and no more: groups with the names members
 typed for themselves and for placeholders, the bills put into a group, settlements, the group's
@@ -114,9 +247,10 @@ as the limits of bill reads, never the address itself, and only for a token that
 a request or an invite that works; it is forgotten by the daily run once the hour is over. The
 `ShareRoom` objects hold open connections only.
 
-The Worker prints one log line per bill read: the outcome, whether the caller is an install or an
-account, the model, the tokens, the cost and the time taken. For notifications it prints their
-type and how many devices got them, never an id, a token or any text. When Turnstile cannot judge
+The Worker prints one log line per bill read (`bill_analysis`) and per edit (`split_revision`): the
+outcome, whether the caller is an install or an account, the model, the tokens, the cost and the
+time taken. For notifications it prints their type and how many devices got them, never an id, a
+token or any text. When Turnstile cannot judge
 a claim, it prints Cloudflare's error codes; when a token was solved for another action or host, the
 action and the hostname Cloudflare gave; and when a test secret is refused, that it was. It never
 prints a token. Cloudflare's invocation
@@ -789,16 +923,18 @@ npm test
 
 The tests run the Worker and its Durable Objects in the workers runtime against a fake model that
 streams the way the Messages API does and a fake Frankfurter, so they need no key and no network.
-Each test starts from an empty local D1 database with the migrations of `proxy/migrations/`
-applied, and push goes to a fake of Google's token endpoint and of FCM, which checks the signed
-token request. New claims go to a fake of Turnstile's Siteverify, which hands out tokens for an
-action and a host and passes each once, and answers Cloudflare's test secrets as Cloudflare does.
-Live connections are opened as a browser opens them. A claim and a lock are raced by landing one
-just before the other's batch, both ways round, and a claim is removed just before the batch of a
-settlement that matches it. The tests of the pages read nothing of what the page says, so they
-hold for the web app and for the placeholder alike. Both commands first write the module of the
-web app, from `web/dist` as it is. GitHub Actions runs both for every pull request, after building
-`web/` once it has a lock file.
+They also check the case files and the scoring of [the evaluation of
+edits](#the-evaluation-of-edits), and run every one of its cases through the route, with the fake
+model answering what the case expects. Each test starts from an empty local D1 database with the
+migrations of `proxy/migrations/` applied, and push goes to a fake of Google's token endpoint and of
+FCM, which checks the signed token request. New claims go to a fake of Turnstile's Siteverify, which
+hands out tokens for an action and a host and passes each once, and answers Cloudflare's test
+secrets as Cloudflare does. Live connections are opened as a browser opens them. A claim and a lock
+are raced by landing one just before the other's batch, both ways round, and a claim is removed just
+before the batch of a settlement that matches it. The tests of the pages read nothing of what the
+page says, so they hold for the web app and for the placeholder alike. Both commands first write the
+module of the web app, from `web/dist` as it is. GitHub Actions runs both for every pull request,
+after building `web/` once it has a lock file.
 
 ## Deploy it
 
@@ -920,19 +1056,72 @@ data is named by it, and every payment request link and bill link is made with i
 
 Two variables in `wrangler.jsonc` change behaviour without a new app:
 
-- `AI_ENABLED`: bill reading works only while it is exactly `"true"`. Anything else answers 503
-  `ai_off`, and the app tells the person AI reading is switched off.
-- `MIN_APP_VERSION`: an app with a lower version code gets 426 `update_required` on a bill read.
-  Signing in, the calls left, the exchange rates, the shared data and deleting the account keep
-  working for old apps.
+- `AI_ENABLED`: bill reading and edits of a split work only while it is exactly `"true"`. Anything
+  else answers 503 `ai_off`, and the app tells the person AI is switched off.
+- `MIN_APP_VERSION`: an app with a lower version code gets 426 `update_required` on a bill read or
+  an edit. Signing in, the calls left, the exchange rates, the shared data and deleting the account
+  keep working for old apps.
 
 Change either in `wrangler.jsonc` and deploy, or under the Worker's settings in the Cloudflare
 dashboard; a deploy from `wrangler.jsonc` sets them back to the file's values.
 
 ## Changing the prompt or the model
 
-The prompt is [`proxy/src/prompt.ts`](../proxy/src/prompt.ts) and the answer schema
-[`proxy/src/schema.ts`](../proxy/src/schema.ts). The app's `BillAnalysisParser` in `:core:domain`
-reads that schema, so a field the parser does not know is ignored and a field it needs must stay.
-The model, its effort and `max_tokens` are in `policy.ts`; a new model also needs its price in
-`proxy/src/spend.ts`, or its calls are counted at the highest list price.
+The prompts are [`proxy/src/prompt.ts`](../proxy/src/prompt.ts) for a bill read and
+[`proxy/src/revise-prompt.ts`](../proxy/src/revise-prompt.ts) for an edit, and the answer schemas
+`BILL_SCHEMA` and `REVISION_SCHEMA` are in [`proxy/src/schema.ts`](../proxy/src/schema.ts). The
+app's `BillAnalysisParser` in `:core:domain` reads the bill read's answer as the model wrote it, so a
+field the parser does not know is ignored and a field it needs must stay. Among them is the
+required `category`, what the whole bill was spent on: one of `food_and_drink`, `groceries`,
+`transport`, `lodging`, `entertainment`, `shopping`, `utilities`, `rent` and `other`, which the
+prompt describes; the parser reads a missing or unknown one as `other`. An edit's answer goes
+through the proxy's check first, so its schema may change as long as the check still hands the app
+[the edits of the contract](#editing-a-split-by-a-sentence). The models, their effort and
+`max_tokens` are in `policy.ts`; a new model also needs its price in `proxy/src/spend.ts`, or its
+calls are counted at the highest list price.
+
+### The evaluation of edits
+
+[`proxy/eval/revise/`](../proxy/eval/revise) holds the cases that the model of edits is chosen and
+changed by: 56 instructions, most in Vietnamese and English and five each in Thai, Indonesian and
+Spanish, on the bills and splits of `fixtures.json`, each with the edits it expects, or a question
+where the instruction is too unclear. They cover every op, edits together, tips by percentage and by
+amount, payers, people added and removed, names typed without accents or as nicknames, and
+instructions that ask for a negative amount, ask for something else entirely, or hide in an item's
+or a person's name. A case passes when the answer asks a question where one is expected; otherwise
+when its edits are exactly the expected ones and it asks nothing, though a case that expects no
+edits may allow a question instead. Edits are compared with lists of people and the numbers per
+participant as sets, without the label of a new charge, with a new person's ref matched by name, and
+in any order but between two edits that come to something else the other way round: two edits of
+the whole bill's split, one of those and one of an item's split, two edits of one item, adding or
+removing a person and an edit that names them, a charge by percentage and an edit of an item's
+amount or quantity, and the exact amounts of the whole bill and an edit that can change its total.
+
+The run calls the real model, so it needs the owner's key in `proxy/.dev.vars`, as
+[Run it on a computer](#run-it-on-a-computer) says, and Node 22.18 or later. Without a key it says
+so and runs nothing. From `proxy/`, every candidate model in turn, or only those named:
+
+```bash
+npm run eval:revise
+```
+
+```bash
+npm run eval:revise -- claude-haiku-5-5
+```
+
+- For each model it starts `wrangler dev` on `127.0.0.1:8788`, with fresh state in a temporary
+  directory, so that nothing of `npm run dev` on 8787 or of an earlier run counts, and stops it, with
+  everything it started, when that model is done or the run is interrupted. Port 8788 must be free.
+- The candidates are `claude-haiku-5-5`, `claude-sonnet-5-5` and `claude-opus-5-5`, each asked with
+  the settings of `policy.ts`. Each call names its model in the header `X-SplitVibe-Eval-Model`,
+  which only a proxy on a computer reads (asked at `localhost`, `127.0.0.1` or `[::1]`), and only
+  for a model with a price in `spend.ts`; its last line then also carries
+  `"eval": {"model", "inputTokens", "outputTokens", "costMicro"}`. The deployed proxy ignores the
+  header and always asks its own model.
+- Calls go one after another, each from a new install. One turned down for the limit of 10 a minute
+  of the address waits for its `Retry-After` and goes again. A full run makes 168 calls and costs a
+  few dollars at list prices, most of it Opus.
+- The report goes to `plans/reports/eval-split-revision-<YYMMDD-HHMM>.md` (in UTC): for each model,
+  the cases passed, the calls that ended in an error, the latency from sending a request to its last
+  line at the 50th and 95th percentiles (by nearest rank), the average cost per call, the cases
+  passed by language, and every case that failed with what the model answered.
