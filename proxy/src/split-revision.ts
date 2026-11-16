@@ -5,7 +5,6 @@ import {
   billChargeOf,
   type BillItem,
   billItemOf,
-  countOf,
   type Currency,
   currencyOf,
   idOf,
@@ -14,11 +13,12 @@ import {
   linesOf,
   MAX_BILL_ITEMS,
   moneyOf,
-  type NameLength,
   optional,
   type Participant,
   participantOf,
-  textOf,
+  signedMoneyOf,
+  spacedTextOf,
+  type TextReader,
 } from "./input";
 import { callModel, type ModelTask, TIMING, type Timing } from "./model-call";
 import { POLICY } from "./policy";
@@ -35,13 +35,16 @@ const MAX_INSTRUCTION_CHARS = 500;
 /**
  * What a bill to edit may hold. It comes as the app holds it, so these take any bill the app can
  * make, unlike a bill link's: as many items as a link, more charges, as many participants as a
- * group has members, and names of up to 200 characters, which may be empty where the app lets its
- * user clear one. The size of the body bounds them all together.
+ * group has members, names of up to 200 characters, which may be empty where the app lets its user
+ * clear one, and the code of a currency the app could not match to ISO 4217, or none. The size of
+ * the body bounds them all together.
  */
 const MAX_CHARGES = 50;
 const MAX_PARTICIPANTS = POLICY.maxMembers;
-const NAME: NameLength = { min: 0, max: 200 };
-const MERCHANT: NameLength = { min: 1, max: 200 };
+const MAX_NAME_CHARS = 200;
+const MAX_CURRENCY_CODE_CHARS = 8;
+/** A name or a label of a bill to edit, with single spaces, as [spacedTextOf] reads it. */
+const nameOf: TextReader = (value) => spacedTextOf(value, 0, MAX_NAME_CHARS);
 /** The most edits an answer holds, and the longest explanation and question, in code points. */
 const MAX_EDITS = 20;
 const MAX_EXPLANATION_CHARS = 200;
@@ -162,14 +165,15 @@ function modelOf(request: Request): { model: string; report: boolean } | null {
 /**
  * The request when [body] follows the contract, or null. Fields the contract does not name are
  * ignored, and the lists and maps of the split that are empty may be left out; `whole` may not,
- * as null there means splitting by item. Names and labels lose invisible formatting characters but
- * the joiners and are trimmed, as everywhere, and hold no control characters; so does the
- * instruction, which is 1 to [MAX_INSTRUCTION_CHARS] code points.
+ * as null there means splitting by item. The instruction, the merchant, names and labels are read
+ * as [spacedTextOf] reads them, so a line break or a control character in what the user typed, or
+ * in a name read from a photo, is a space rather than a refusal; the instruction is then 1 to
+ * [MAX_INSTRUCTION_CHARS] code points.
  */
 export function revisionRequestOf(body: unknown): RevisionRequest | null {
   if (!isRecord(body)) return null;
   const requestId = idOf(body.requestId);
-  const instruction = textOf(body.instruction, 1, MAX_INSTRUCTION_CHARS);
+  const instruction = spacedTextOf(body.instruction, 1, MAX_INSTRUCTION_CHARS);
   const bill = billOf(body.bill);
   const split = splitOf(body.split);
   if (requestId === null || instruction === null || bill === null || split === null) return null;
@@ -178,10 +182,11 @@ export function revisionRequestOf(body: unknown): RevisionRequest | null {
 
 function billOf(value: unknown): RevisionBill | null {
   if (!isRecord(value)) return null;
-  const merchant = optional(value.merchant, (text) => textOf(text, MERCHANT.min, MERCHANT.max));
-  const currency = currencyOf(value.currency);
+  const merchant = optional(value.merchant, (text) => spacedTextOf(text, 1, MAX_NAME_CHARS));
+  // The app keeps the code a bill read gave when it matches no ISO 4217 code, and none for XXX.
+  const currency = currencyOf(value.currency, (code) => spacedTextOf(code, 0, MAX_CURRENCY_CODE_CHARS));
   // A bill entered by hand may have no items, only its total.
-  const items = linesOf(value.items, 0, MAX_BILL_ITEMS, (entry, id) => billItemOf(entry, id, NAME));
+  const items = linesOf(value.items, 0, MAX_BILL_ITEMS, (entry, id) => billItemOf(entry, id, nameOf));
   const charges = linesOf(value.charges, 0, MAX_CHARGES, chargeOf);
   const totalMinor = moneyOf(value.totalMinor);
   if (merchant === undefined || currency === null || items === null || charges === null || totalMinor === null) return null;
@@ -189,14 +194,14 @@ function billOf(value: unknown): RevisionBill | null {
 }
 
 function chargeOf(entry: Record<string, unknown>, id: string): RevisionBill["charges"][number] | null {
-  const charge = billChargeOf(entry, id, NAME);
+  const charge = billChargeOf(entry, id, nameOf);
   const kind = CHARGE_KINDS.find((one) => one === entry.kind) ?? null;
   return charge === null || kind === null ? null : { id, label: charge.label, kind, amountMinor: charge.amountMinor };
 }
 
 function splitOf(value: unknown): RevisionSplit | null {
   if (!isRecord(value) || value.whole === undefined) return null;
-  const participants = linesOf(value.participants, 1, MAX_PARTICIPANTS, (entry, id) => participantOf(entry, id, NAME));
+  const participants = linesOf(value.participants, 1, MAX_PARTICIPANTS, (entry, id) => participantOf(entry, id, nameOf));
   const whole = optional(value.whole, divisionOf);
   const items = value.items === undefined ? {} : itemDivisionsOf(value.items);
   const notSharing = value.notSharing === undefined ? [] : idListOf(value.notSharing);
@@ -205,6 +210,11 @@ function splitOf(value: unknown): RevisionSplit | null {
   return { participants, whole, items, notSharing, payments };
 }
 
+/**
+ * A division as the domain writes it. Its numbers per person are those of a split the user may
+ * still be typing: they need not add up, and may be past their sum or below zero, as "-5" typed
+ * for someone's amount is.
+ */
 function divisionOf(value: unknown): Division | null {
   if (!isRecord(value)) return null;
   switch (value.type) {
@@ -214,16 +224,15 @@ function divisionOf(value: unknown): Division | null {
       return among === null || except === null ? null : { type: "equal", among, except };
     }
     case "shares": {
-      const shares = perPersonOf(value.shares, countOf);
+      const shares = perPersonOf(value.shares, anyWholeNumberOf);
       return shares === null ? null : { type: "shares", shares };
     }
     case "percent": {
-      // Not necessarily 100% in all, nor each at most 100%, while the user is still at it.
-      const basisPoints = perPersonOf(value.basisPoints, countOf);
+      const basisPoints = perPersonOf(value.basisPoints, anyWholeNumberOf);
       return basisPoints === null ? null : { type: "percent", basisPoints };
     }
     case "amount": {
-      const amounts = perPersonOf(value.amounts, moneyOf);
+      const amounts = perPersonOf(value.amounts, signedMoneyOf);
       return amounts === null ? null : { type: "amount", amounts };
     }
     default:
@@ -285,8 +294,8 @@ function paymentsOf(value: unknown): RevisionSplit["payments"] | null {
 export function revisionAnswerOf(value: Record<string, unknown>): Revision | null {
   const { edits, explanation, question } = value;
   if (!Array.isArray(edits) || edits.length > MAX_EDITS) return null;
-  const said = answerTextOf(explanation, 0, MAX_EXPLANATION_CHARS);
-  const asked = question === null || question === undefined ? "" : answerTextOf(question, 0, MAX_QUESTION_CHARS);
+  const said = spacedTextOf(explanation, 0, MAX_EXPLANATION_CHARS);
+  const asked = question === null || question === undefined ? "" : spacedTextOf(question, 0, MAX_QUESTION_CHARS);
   if (said === null || asked === null || (asked !== "" && edits.length > 0)) return null;
   const checked: Edit[] = [];
   for (const edit of edits) {
@@ -331,7 +340,7 @@ function editOf(value: unknown): Edit | null {
     }
     case "add_person": {
       const ref = oneOf(value.ref, PERSON_REFS);
-      const name = answerTextOf(value.name, 1, NAME.max);
+      const name = spacedTextOf(value.name, 1, MAX_NAME_CHARS);
       return ref === null || name === null ? null : { op, ref, name };
     }
     case "remove_person":
@@ -363,7 +372,7 @@ function editOf(value: unknown): Edit | null {
 /** A new charge, with exactly one of an amount of 1 or more and a percentage of 1 to 10000 basis points. */
 function chargeEditOf(value: Record<string, unknown>): Edit | null {
   const kind = oneOf(value.kind, CHARGE_KINDS);
-  const label = answerTextOf(value.label, 1, NAME.max);
+  const label = spacedTextOf(value.label, 1, MAX_NAME_CHARS);
   const byAmount = value.amountMinor !== undefined && value.amountMinor !== null;
   const byPercent = value.percentBasisPoints !== undefined && value.percentBasisPoints !== null;
   if (kind === null || label === null || byAmount === byPercent) return null;
@@ -404,13 +413,13 @@ function pairsOf(value: unknown, field: string, read: (number: unknown) => numbe
   return Object.fromEntries(entries);
 }
 
-/** Text the model wrote for the user, with each run of whitespace, line breaks among them, as one space, read as [textOf] reads names. */
-function answerTextOf(value: unknown, min: number, max: number): string | null {
-  return typeof value === "string" ? textOf(value.replace(/\s+/gu, " "), min, max) : null;
-}
-
 function wholeNumberOf(value: unknown, min: number, max: number): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max ? value : null;
+}
+
+/** Any whole number, below zero too. */
+function anyWholeNumberOf(value: unknown): number | null {
+  return wholeNumberOf(value, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 }
 
 /** [value] as one of [allowed], whatever its capitals; null otherwise. */

@@ -172,11 +172,13 @@ describe("an edit of a split", () => {
       changed((body) => (body.instruction = "")),
       changed((body) => (body.instruction = " ‍ ")),
       changed((body) => (body.instruction = "x".repeat(501))),
-      changed((body) => (body.instruction = "Lan\nkhông uống bia")),
+      changed((body) => (body.instruction = "\n\t\u0007 \u2028")),
       changed((body) => Reflect.deleteProperty(body, "bill")),
       changed((body) => (body.bill.merchant = "")),
       changed((body) => (body.bill.merchant = "x".repeat(201))),
-      changed((body) => (body.bill.currency = { code: "vnd", fractionDigits: 0 })),
+      changed((body) => (body.bill.currency = { code: "VND_CODE1", fractionDigits: 0 })),
+      changed((body) => (body.bill.currency = { code: 704, fractionDigits: 0 })),
+      changed((body) => (body.bill.currency = { code: "VND", fractionDigits: 4 })),
       changed((body) => (body.bill.items = Array.from({ length: 201 }, (_, index) => item(`i${index}`)))),
       changed((body) => (body.bill.items = [item("i1"), item("i1")])),
       changed((body) => (items(body)[0].id = "i 1")),
@@ -196,9 +198,10 @@ describe("an edit of a split", () => {
       changed((body) => (participants(body)[1].id = "me")),
       changed((body) => Reflect.deleteProperty(body.split, "whole")),
       changed((body) => (body.split.whole = { type: "thirds" })),
-      changed((body) => (body.split.whole = { type: "shares", shares: { me: -1 } })),
-      changed((body) => (body.split.whole = { type: "percent", basisPoints: { me: -1 } })),
+      changed((body) => (body.split.whole = { type: "shares", shares: { me: 1.5 } })),
+      changed((body) => (body.split.whole = { type: "percent", basisPoints: { me: "5000" } })),
       changed((body) => (body.split.whole = { type: "amount", amounts: { me: 0.5 } })),
+      changed((body) => (body.split.whole = { type: "amount", amounts: { me: -POLICY.maxAmountMinor - 1 } })),
       changed((body) => (body.split.whole = { type: "equal", among: ["me", "me"], except: [] })),
       changed((body) => (body.split.items = { "i 1": { type: "equal" } })),
       changed((body) => (body.split.items = { i1: { type: "equal", among: "me" } })),
@@ -278,6 +281,65 @@ describe("an edit of a split", () => {
     expect(JSON.parse(sent.body)).toEqual({ error: "install" });
     expect((await send(revisionRequest({ session: "not-a-session" }))).status).toBe(401);
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe("what the app sends as its user and its bill read left it", () => {
+  const lines = (body: RevisionBody, list: "items" | "charges") => body.bill[list] as Array<Record<string, unknown>>;
+  const people = (body: RevisionBody) => body.split.participants as Array<Record<string, unknown>>;
+
+  /** Sends [body], which must be answered, and gives the prompt the model got. */
+  async function promptSent(body: RevisionBody): Promise<string> {
+    const seen = model(modelRevision(SAMPLE_REVISION));
+    const sent = await send(revisionRequest({ body }));
+    expect(last(sent), JSON.stringify(body).slice(0, 160)).toEqual({ type: "result", answer: SAMPLE_REVISION, usage: TRIAL_AFTER_ONE_EDIT });
+    network.resetHandlers();
+    return (seen[0].body.messages as Array<{ content: string }>)[0].content;
+  }
+
+  it("takes an instruction of several lines, as its box has four, with each run of line breaks and tabs as one space", async () => {
+    const body = changed((sample) => (sample.instruction = "Lan không uống bia\nthêm tip 10%\r\n\tcảm ơn "));
+
+    expect(await promptSent(body)).toContain('<instruction>\n"Lan không uống bia thêm tip 10% cảm ơn"\n</instruction>');
+  });
+
+  it("takes names, labels and a merchant with line breaks or control characters, which become spaces", async () => {
+    const body = changed((sample) => {
+      // A name the bill read wrapped onto a second row, and others pasted with what they carried.
+      lines(sample, "items")[0].name = "Bia\nSaigon";
+      lines(sample, "charges")[0].label = "Service\tcharge\u0085";
+      people(sample)[1].name = "Lan\u0000 Anh\r\n";
+      sample.bill.merchant = "Phở\u001b24";
+    });
+
+    const prompt = await promptSent(body);
+
+    expect(prompt).toContain('"merchant":"Phở 24"');
+    expect(prompt).toContain('{"id":"i1","name":"Bia Saigon"');
+    expect(prompt).toContain('"label":"Service charge"');
+    expect(prompt).toContain('{"id":"p1","name":"Lan Anh"}');
+  });
+
+  it("takes a currency whose code is not ISO 4217, or empty, as the app keeps one it could not match", async () => {
+    for (const code of ["VNĐ", "", "BAHT"]) {
+      const body = changed((sample) => (sample.bill.currency = { code, fractionDigits: 0 }));
+
+      expect(await promptSent(body)).toContain(`"currency":{"code":${JSON.stringify(code)},"fractionDigits":0}`);
+    }
+  });
+
+  it("takes the numbers of a split still being typed: an amount below zero, and shares and percentages below zero or past their sum", async () => {
+    const typed: Array<[Partial<RevisionBody["split"]>, string]> = [
+      // "-5" typed for someone's amount in a split by amount.
+      [{ whole: { type: "amount", amounts: { me: -500, p1: 154500 } } }, '"whole":{"type":"amount","amounts":{"me":-500,"p1":154500}}'],
+      [{ whole: { type: "shares", shares: { me: -1, p1: 3 } } }, '"whole":{"type":"shares","shares":{"me":-1,"p1":3}}'],
+      [{ items: { i1: { type: "percent", basisPoints: { me: -2000, p1: 12000 } } } }, '"items":{"i1":{"type":"percent","basisPoints":{"me":-2000,"p1":12000}}}'],
+      [{ items: { i1: { type: "amount", amounts: { me: -POLICY.maxAmountMinor } } } }, `"items":{"i1":{"type":"amount","amounts":{"me":-${POLICY.maxAmountMinor}}}}`],
+    ];
+
+    for (const [split, written] of typed) {
+      expect(await promptSent(changed((sample) => Object.assign(sample.split, split)))).toContain(written);
+    }
   });
 });
 
@@ -463,9 +525,9 @@ describe("the check of the model's answer", () => {
     expect(last(await send(revisionRequest()))).toMatchObject({ type: "result", answer: SAMPLE_REVISION });
   });
 
-  it("writes line breaks in the explanation as spaces, and enum values in the contract's own capitals", async () => {
+  it("writes line breaks and control characters in the explanation as spaces, and enum values in the contract's own capitals", async () => {
     const written = {
-      explanation: "Lan no longer\nshares the beer.\t",
+      explanation: "Lan no longer\nshares\u0007 the beer.\t",
       edits: [
         { ...modelEdit(SAMPLE_REVISION.edits[0]), op: "Item_Sharers" },
         { op: "add_charge", kind: "TIP", label: "Tip", percentBasisPoints: 1000 },

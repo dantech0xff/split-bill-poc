@@ -99,6 +99,19 @@ export function textOf(value: unknown, min = 1, max = 60): string | null {
   return length >= min && length <= max && !CONTROL.test(text) ? text : null;
 }
 
+/** A run of whitespace or control characters: spaces, line breaks, tabs, U+2028 and the like. */
+const SPACING = /[\p{White_Space}\p{Cc}]+/gu;
+
+/**
+ * Text that was typed freely, read from a photo or written by the model, read as [textOf] reads
+ * it once its invisible formatting characters, the joiners aside, are gone, and each run of
+ * whitespace or control characters is one space. So a line break, a tab or a control character
+ * is never refused: it becomes a space.
+ */
+export function spacedTextOf(value: unknown, min: number, max: number): string | null {
+  return typeof value === "string" ? textOf(value.replace(FORMAT, "").replace(SPACING, " "), min, max) : null;
+}
+
 /** The most items, charges and participants a bill holds, on a bill link and in an edit of its split. */
 export const MAX_BILL_ITEMS = 200;
 export const MAX_BILL_CHARGES = 20;
@@ -142,51 +155,60 @@ export function linesOf<T>(value: unknown, min: number, max: number, entryOf: (e
   return entries;
 }
 
-/** How long a name or a label may be, in code points. */
-export type NameLength = { min: number; max: number };
+/** How a text of a bill is read: the text to keep, or null when it is not one. */
+export type TextReader = (value: unknown) => string | null;
 /** A name or a label on a bill link: 1 to 80 characters. */
-const LINK_NAME: NameLength = { min: 1, max: 80 };
+const linkName: TextReader = (value) => textOf(value, 1, 80);
 
-/** An item: a name of [length], a quantity that is null or a decimal written as text, and a line total of 0 or more. */
-export function billItemOf(entry: Record<string, unknown>, id: string, length: NameLength = LINK_NAME): BillItem | null {
-  const name = textOf(entry.name, length.min, length.max);
+/** An item: a name as [name] reads it, a quantity that is null or a decimal written as text, and a line total of 0 or more. */
+export function billItemOf(entry: Record<string, unknown>, id: string, name: TextReader = linkName): BillItem | null {
+  const read = name(entry.name);
   const quantity = optional(entry.quantity, (text) => (typeof text === "string" && QUANTITY.test(text) ? text : null));
   const amountMinor = moneyOf(entry.amountMinor);
-  return name === null || quantity === undefined || amountMinor === null ? null : { id, name, quantity, amountMinor };
+  return read === null || quantity === undefined || amountMinor === null ? null : { id, name: read, quantity, amountMinor };
 }
 
-/** A charge: a label of [length] and an amount that may take money off, as a discount does. */
-export function billChargeOf(entry: Record<string, unknown>, id: string, length: NameLength = LINK_NAME): BillCharge | null {
-  const label = textOf(entry.label, length.min, length.max);
-  const amount = entry.amountMinor;
-  const amountMinor = typeof amount === "number" && Number.isInteger(amount) && Math.abs(amount) <= POLICY.maxAmountMinor ? amount : null;
-  return label === null || amountMinor === null ? null : { id, label, amountMinor };
+/** A charge: a label as [label] reads it, and an amount that may take money off, as a discount does. */
+export function billChargeOf(entry: Record<string, unknown>, id: string, label: TextReader = linkName): BillCharge | null {
+  const read = label(entry.label);
+  const amountMinor = signedMoneyOf(entry.amountMinor);
+  return read === null || amountMinor === null ? null : { id, label: read, amountMinor };
 }
 
-/** A participant: a name of [length], on a bill link 1 to 60 characters, which may be empty for `me`. */
+/** A participant: a name as [name] reads it, on a bill link 1 to 60 characters, which may be empty for `me`. */
 export function participantOf(
   entry: Record<string, unknown>,
   id: string,
-  length: NameLength = { min: id === OWNER_PARTICIPANT ? 0 : 1, max: 60 },
+  name: TextReader = (value) => textOf(value, id === OWNER_PARTICIPANT ? 0 : 1, 60),
 ): Participant | null {
-  const name = textOf(entry.name, length.min, length.max);
-  return name === null ? null : { id, name };
+  const read = name(entry.name);
+  return read === null ? null : { id, name: read };
 }
 
 /** A currency as the shared data names it: an ISO 4217 code and the digits of its minor unit. */
 export type Currency = { code: string; fractionDigits: number };
 
-export function currencyOf(value: unknown): Currency | null {
+/** Three capital letters, as ISO 4217 writes a code. */
+const isoCodeOf: TextReader = (value) => (typeof value === "string" && /^[A-Z]{3}$/.test(value) ? value : null);
+
+/** A currency whose code [code] reads, by default as ISO 4217 writes one, with 0 to 3 digits of its minor unit. */
+export function currencyOf(value: unknown, code: TextReader = isoCodeOf): Currency | null {
   if (!isRecord(value)) return null;
-  const { code, fractionDigits } = value;
-  if (typeof code !== "string" || !/^[A-Z]{3}$/.test(code)) return null;
+  const read = code(value.code);
+  const { fractionDigits } = value;
+  if (read === null) return null;
   if (typeof fractionDigits !== "number" || !Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 3) return null;
-  return { code, fractionDigits };
+  return { code: read, fractionDigits };
 }
 
 /** An amount of money in minor units, from 0 up to [POLICY.maxAmountMinor], or null. */
 export function moneyOf(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= POLICY.maxAmountMinor ? value : null;
+}
+
+/** An amount of money in minor units that may take money off, from -[POLICY.maxAmountMinor] to [POLICY.maxAmountMinor], or null. */
+export function signedMoneyOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && Math.abs(value) <= POLICY.maxAmountMinor ? value : null;
 }
 
 /** A count, such as a revision, from 0 up, or null. */
