@@ -278,9 +278,10 @@ describe("the score of an answer", () => {
 });
 
 describe("the report", () => {
-  const outcome = (caseId: string, modelName: string, pass: boolean, ms: number, costMicro: number | null, error: string | null = null): Outcome => ({
+  const outcome = (caseId: string, modelName: string, pass: boolean, ms: number, costMicro: number | null, error: string | null = null, run = 1): Outcome => ({
     caseId,
     model: modelName,
+    run,
     ms,
     costMicro,
     answer: error === null ? { edits: [], explanation: "", question: null } : null,
@@ -313,19 +314,44 @@ describe("the report", () => {
       model: models[0],
       cases: 3,
       passed: 2,
+      unsteady: 0,
       errors: 0,
       p50Ms: 1_800,
       p95Ms: 2_400,
       averageCostMicro: 600,
       languages: { vi: { cases: 1, passed: 1 }, en: { cases: 1, passed: 0 }, th: { cases: 1, passed: 1 } },
     });
-    const report = reportOf({ startedAt: new Date(Date.UTC(2026, 10, 20, 9, 5)), commit: "abc1234", models, cases, outcomes });
+    const report = reportOf({ startedAt: new Date(Date.UTC(2026, 10, 20, 9, 5)), commit: "abc1234", models, runs: 1, cases, outcomes });
     expect(report).toContain("Run on 2026-11-20 09:05 UTC at commit `abc1234`");
-    expect(report).toContain("| claude-haiku-5-5 | 2 of 3 (66.7%) | 0 | 1.8 s | 2.4 s | $0.00060 |");
-    expect(report).toContain("| claude-sonnet-5-5 | 2 of 3 (66.7%) | 1 | 4.0 s | 9.0 s | $0.01000 |");
+    expect(report).toContain("| claude-haiku-5-5 | 2 of 3 (66.7%) | 0 | 0 | 1.8 s | 2.4 s | $0.00060 |");
+    expect(report).toContain("| claude-sonnet-5-5 | 2 of 3 (66.7%) | 0 | 1 | 4.0 s | 9.0 s | $0.01000 |");
     expect(report).toContain("| Model | vi | en | th |");
     expect(report).toContain("| claude-haiku-5-5 | 1 of 1 | 0 of 1 | 1 of 1 |");
-    expect(report).toContain('- `en-milkshake` (en) "Thomas didn\'t have a milkshake": missing an edit. Got [].');
-    expect(report).toContain('- `th-beer` (th) "นกไม่ได้ดื่มเบียร์": ended in the error upstream.\n');
+    expect(report).toContain('- `en-milkshake` (en) "Thomas didn\'t have a milkshake": failed 1 of 1 runs.\n  - Run 1: missing an edit. Got [], explaining "".\n');
+    expect(report).toContain('- `th-beer` (th) "นกไม่ได้ดื่มเบียร์": failed 1 of 1 runs.\n  - Run 1: ended in the error upstream.\n');
+  });
+
+  it("counts each case at its lowest score over its runs, tells the cases that passed in some only, and shows what every answer said", () => {
+    const cases = CASES.filter((evalCase) => ["vi-beer-lan", "en-milkshake", "vi-which-minh"].includes(evalCase.id));
+    const model = "claude-haiku-5-5";
+    const said = (caseId: string, run: number, pass: boolean, explanation: string, question: string | null = null): Outcome => ({
+      ...outcome(caseId, model, pass, 1_000, 500, null, run),
+      answer: { edits: [], explanation, question },
+    });
+    const outcomes = [1, 2, 3].flatMap((run) => [
+      said("vi-beer-lan", run, run !== 2, run === 3 ? "Đã bỏ Lan khỏi bia." : "Lan không còn chia bia."),
+      said("en-milkshake", run, true, "Thomas no longer shares the milkshakes."),
+      said("vi-which-minh", run, true, "", "Bạn muốn nói Minh nào?"),
+    ]);
+
+    expect(summaryOf(outcomes, cases, [model])[0]).toMatchObject({ cases: 3, passed: 2, unsteady: 1, errors: 0, languages: { vi: { cases: 2, passed: 1 }, en: { cases: 1, passed: 1 } } });
+    const report = reportOf({ startedAt: new Date(Date.UTC(2026, 10, 20, 9, 5)), commit: "abc1234", models: [model], runs: 3, cases, outcomes });
+    expect(report).toContain("each sent to each model in 3 runs");
+    expect(report).toContain("| claude-haiku-5-5 | 2 of 3 (66.7%) | 1 | 0 |");
+    expect(report).toContain('- `vi-beer-lan` (vi) "Lan không uống bia": failed 1 of 3 runs.\n  - Run 2: missing an edit. Got [], explaining "Lan không còn chia bia.".\n');
+    expect(report).toContain('\n## Explanations\n');
+    expect(report).toContain('- `vi-beer-lan`: "Lan không còn chia bia."; "Đã bỏ Lan khỏi bia."\n');
+    expect(report).toContain('- `en-milkshake`: "Thomas no longer shares the milkshakes."\n');
+    expect(report).toContain('- `vi-which-minh`: "", asking "Bạn muốn nói Minh nào?"\n');
   });
 });

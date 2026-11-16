@@ -26,10 +26,12 @@ export type EvalCase = { id: string; language: string; fixture: string; instruct
 /** How one answer did against its case, and why it failed when it did. */
 export type Score = { pass: boolean; reason: string | null };
 
-/** One case as one model answered it, or the error that ended it. */
+/** One case as one model answered it in one run, or the error that ended it. */
 export type Outcome = {
   caseId: string;
   model: string;
+  /** Which run of the case it was, from 1: a model does not answer alike every time, so each case is sent in several. */
+  run: number;
   /** From sending the request to the line that ended the answer. */
   ms: number;
   /** What the call cost, in microdollars, as the proxy reported it; null when the model never answered. */
@@ -297,18 +299,22 @@ export function percentile(values: number[], percent: number): number | null {
   return sorted[Math.max(0, Math.ceil((percent / 100) * sorted.length) - 1)];
 }
 
-/** What one model did over the cases it was sent. */
+/** What one model did over the cases it was sent, in every run. */
 export type ModelSummary = {
   model: string;
   cases: number;
+  /** Cases that passed in every run: each case counts at its lowest score. */
   passed: number;
+  /** Cases that passed in some runs, and failed in others. */
+  unsteady: number;
   /** Calls that ended without an answer to score: an error line, or a request that failed. */
   errors: number;
+  /** Over every call. */
   p50Ms: number | null;
   p95Ms: number | null;
   /** Over the calls the proxy reported a cost for, in microdollars. */
   averageCostMicro: number | null;
-  /** Cases and passes by language. */
+  /** Cases, and those passed in every run, by language. */
   languages: Record<string, { cases: number; passed: number }>;
 };
 
@@ -319,16 +325,23 @@ export function summaryOf(outcomes: Outcome[], cases: EvalCase[], models: readon
     const mine = outcomes.filter((outcome) => outcome.model === model);
     const costs = mine.flatMap((outcome) => (outcome.costMicro === null ? [] : [outcome.costMicro]));
     const languages: ModelSummary["languages"] = {};
-    for (const outcome of mine) {
-      const language = languageOf.get(outcome.caseId) ?? "?";
+    const byCase = runsByCase(mine);
+    let passed = 0;
+    let unsteady = 0;
+    for (const [caseId, runs] of byCase) {
+      const always = runs.every((outcome) => outcome.score.pass);
+      if (always) passed += 1;
+      else if (runs.some((outcome) => outcome.score.pass)) unsteady += 1;
+      const language = languageOf.get(caseId) ?? "?";
       languages[language] ??= { cases: 0, passed: 0 };
       languages[language].cases += 1;
-      if (outcome.score.pass) languages[language].passed += 1;
+      if (always) languages[language].passed += 1;
     }
     return {
       model,
-      cases: mine.length,
-      passed: mine.filter((outcome) => outcome.score.pass).length,
+      cases: byCase.size,
+      passed,
+      unsteady,
       errors: mine.filter((outcome) => outcome.error !== null).length,
       p50Ms: percentile(mine.map((outcome) => outcome.ms), 50),
       p95Ms: percentile(mine.map((outcome) => outcome.ms), 95),
@@ -338,29 +351,40 @@ export function summaryOf(outcomes: Outcome[], cases: EvalCase[], models: readon
   });
 }
 
-/** What a run of the evaluation tells, for its report. */
-export type Run = { startedAt: Date; commit: string; models: readonly string[]; cases: EvalCase[]; outcomes: Outcome[] };
+/** [outcomes] by case, in the order the cases first come, each with its runs in order. */
+function runsByCase(outcomes: Outcome[]): Map<string, Outcome[]> {
+  const cases = new Map<string, Outcome[]>();
+  for (const outcome of outcomes) cases.set(outcome.caseId, [...(cases.get(outcome.caseId) ?? []), outcome]);
+  for (const runs of cases.values()) runs.sort((one, other) => one.run - other.run);
+  return cases;
+}
+
+/** What a run of the evaluation tells, for its report: [runs] is how many times each case was sent to each model. */
+export type Run = { startedAt: Date; commit: string; models: readonly string[]; runs: number; cases: EvalCase[]; outcomes: Outcome[] };
 
 /** The report of [run], in Markdown, as `run.mjs` writes it to `plans/reports/`. */
 export function reportOf(run: Run): string {
   const summaries = summaryOf(run.outcomes, run.cases, run.models);
   const languages = [...new Set(run.cases.map((evalCase) => evalCase.language))];
   const byId = new Map(run.cases.map((evalCase) => [evalCase.id, evalCase]));
+  const runsOf = (model: string) => runsByCase(run.outcomes.filter((outcome) => outcome.model === model));
   const lines = [
     "# Evaluation of edits by a sentence",
     "",
-    `Run on ${run.startedAt.toISOString().slice(0, 16).replace("T", " ")} UTC at commit \`${run.commit}\`, through the proxy on a computer, with the prompt, schema and settings of \`proxy/src\`: one call per case and model, ${run.cases.length} cases in ${languages.join(", ")}. The cases are in \`proxy/eval/revise/cases.json\`.`,
+    `Run on ${run.startedAt.toISOString().slice(0, 16).replace("T", " ")} UTC at commit \`${run.commit}\`, through the proxy on a computer, with the prompt, schema and settings of \`proxy/src\`: ${run.cases.length} cases in ${languages.join(", ")}, each sent to each model in ${run.runs} runs, one call a run, every run on a fresh proxy. The cases are in \`proxy/eval/revise/cases.json\`.`,
     "",
-    "A case that expects a question passes when the answer asks one. Any other passes when the answer's edits are exactly the expected ones and it asks nothing, though a case that expects no edits may allow a question instead. Edits are compared with lists of people and numbers per participant as sets, without the label of a new charge, with a new person's ref matched by name, and in any order but between two edits that come to something else the other way round. An answer that ends in an error fails.",
+    "A case that expects a question passes when the answer asks one. Any other passes when the answer's edits are exactly the expected ones and it asks nothing, though a case that expects no edits may allow a question instead. Edits are compared with lists of people and numbers per participant as sets, without the label of a new charge, with a new person's ref matched by name, and in any order but between two edits that come to something else the other way round. An answer to an adversarial instruction also fails when its explanation or its question states a number the instruction does not hold. An answer that ends in an error fails. A case passes only when it passes in every run: each counts at its lowest score. Errors count calls; the latencies and the cost are over every call.",
     "",
-    "| Model | Passed | Errors | p50 | p95 | Average cost per call |",
-    "|---|---|---|---|---|---|",
+    "| Model | Passed in every run | Passed in some runs only | Errors | p50 | p95 | Average cost per call |",
+    "|---|---|---|---|---|---|---|",
     ...summaries.map(
       (summary) =>
-        `| ${summary.model} | ${summary.passed} of ${summary.cases} (${percent(summary.passed, summary.cases)}) | ${summary.errors} | ${seconds(summary.p50Ms)} | ${seconds(summary.p95Ms)} | ${dollars(summary.averageCostMicro)} |`,
+        `| ${summary.model} | ${summary.passed} of ${summary.cases} (${percent(summary.passed, summary.cases)}) | ${summary.unsteady} | ${summary.errors} | ${seconds(summary.p50Ms)} | ${seconds(summary.p95Ms)} | ${dollars(summary.averageCostMicro)} |`,
     ),
     "",
     "## By language",
+    "",
+    "Cases passed in every run.",
     "",
     `| Model | ${languages.join(" | ")} |`,
     `|---|${languages.map(() => "---").join("|")}|`,
@@ -369,17 +393,37 @@ export function reportOf(run: Run): string {
     "## Cases that failed",
   ];
   for (const model of run.models) {
-    const failed = run.outcomes.filter((outcome) => outcome.model === model && !outcome.score.pass);
+    const failed = [...runsOf(model)].filter(([, runs]) => runs.some((outcome) => !outcome.score.pass));
     lines.push("", `### ${model}`, "");
     if (failed.length === 0) lines.push("None.");
-    for (const outcome of failed) {
-      const evalCase = byId.get(outcome.caseId);
-      const asked = outcome.answer === null ? null : outcome.answer.question;
-      const got = outcome.error !== null ? "" : ` Got ${asked !== null ? `the question ${JSON.stringify(asked)}` : JSON.stringify(outcome.answer?.edits ?? [])}.`;
-      lines.push(`- \`${outcome.caseId}\` (${evalCase?.language ?? "?"}) ${JSON.stringify(evalCase?.instruction ?? "")}: ${outcome.score.reason ?? "failed"}.${got}`);
+    for (const [caseId, runs] of failed) {
+      const evalCase = byId.get(caseId);
+      const misses = runs.filter((outcome) => !outcome.score.pass);
+      lines.push(`- \`${caseId}\` (${evalCase?.language ?? "?"}) ${JSON.stringify(evalCase?.instruction ?? "")}: failed ${misses.length} of ${runs.length} runs.`);
+      for (const outcome of misses) lines.push(`  - Run ${outcome.run}: ${outcome.score.reason ?? "failed"}.${gotOf(outcome.answer)}`);
+    }
+  }
+  lines.push("", "## Explanations", "", "What the answers of each case said, as each model wrote them, once each however many runs wrote the same.");
+  for (const model of run.models) {
+    lines.push("", `### ${model}`, "");
+    for (const [caseId, runs] of runsOf(model)) {
+      const said = [...new Set(runs.flatMap((outcome) => (outcome.answer === null ? [] : [saidOf(outcome.answer)])))];
+      lines.push(`- \`${caseId}\`: ${said.length === 0 ? "no answer" : said.join("; ")}`);
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** What [answer] held, after the reason a run failed: its question or its edits, and its explanation. */
+function gotOf(answer: Revision | null): string {
+  if (answer === null) return "";
+  const what = answer.question !== null ? `the question ${JSON.stringify(answer.question)}` : JSON.stringify(answer.edits);
+  return ` Got ${what}, explaining ${JSON.stringify(answer.explanation)}.`;
+}
+
+/** [answer]'s explanation, and its question when it asked one. */
+function saidOf(answer: Revision): string {
+  return answer.question === null ? JSON.stringify(answer.explanation) : `${JSON.stringify(answer.explanation)}, asking ${JSON.stringify(answer.question)}`;
 }
 
 function percent(part: number, whole: number): string {

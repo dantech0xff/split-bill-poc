@@ -1,14 +1,14 @@
 // Runs the evaluation of edits by a sentence: every case of `cases.json`, sent to each candidate
-// model through the proxy on this computer, scored, and reported in `plans/reports/`:
+// model in [RUNS] runs through the proxy on this computer, scored, and reported in `plans/reports/`:
 //
 //   npm run eval:revise                        every candidate model
 //   npm run eval:revise -- claude-haiku-5-5    only those named
 //
 // Every call goes to the real model and is paid for, with the Anthropic key in `proxy/.dev.vars`,
-// as `npm run dev` reads it; without one it refuses to start. For each model it starts
+// as `npm run dev` reads it; without one it refuses to start. For each run of each model it starts
 // `wrangler dev` on 127.0.0.1:8788 with its own state in a temporary directory, so that the counts
 // of a run never mix with those of `npm run dev` on 8787 or of an earlier run, and stops it, with
-// everything it started, once that model is done or the run is interrupted. The proxy takes the
+// everything it started, once that run is done or the evaluation is interrupted. The proxy takes the
 // model of each call from the header X-SplitVibe-Eval-Model, which only a proxy on a computer
 // reads, and reports that call's tokens and cost. Calls go one after another, each from a new
 // install, so that no call waits on another; one the proxy turns down for the per-minute limit of
@@ -33,6 +33,12 @@ const START_MS = 90_000;
 const CALL_MS = 180_000;
 /** How often a call turned down for the limit of its address is sent again. */
 const RATE_RETRIES = 5;
+/**
+ * How many times each case is sent to each model. A model does not answer alike every time, and
+ * one case is nearly two points of the score, so a case counts at its lowest score. Each run has a
+ * proxy of its own, as the limit of its address, 100 calls a day, would stop a second run.
+ */
+const RUNS = 3;
 
 /** The proxy this run started and has not stopped yet, so that an interrupted run stops it too. */
 let running = null;
@@ -135,10 +141,10 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-/** One case sent to [model], as an outcome for the report. */
-async function runCase(evalCase, model, fixtures) {
+/** One case sent to [model] in [run], as an outcome for the report. */
+async function runCase(evalCase, model, run, fixtures) {
   const body = JSON.stringify(requestOf(evalCase, fixtures, crypto.randomUUID()));
-  const outcome = (ms, fields) => ({ caseId: evalCase.id, model, ms, costMicro: null, answer: null, error: null, ...fields });
+  const outcome = (ms, fields) => ({ caseId: evalCase.id, model, run, ms, costMicro: null, answer: null, error: null, ...fields });
   const failed = (ms, error, costMicro = null) => outcome(ms, { error, costMicro, score: { pass: false, reason: `ended in ${error}` } });
   for (let attempt = 0; ; attempt++) {
     const started = performance.now();
@@ -221,19 +227,21 @@ execFileSync(process.execPath, ["scripts/embed-web.mjs"], { cwd: PROXY, stdio: "
 
 const outcomes = [];
 for (const model of models) {
-  await startProxy();
-  try {
-    for (const evalCase of cases) {
-      const outcome = await runCase(evalCase, model, fixtures);
-      outcomes.push(outcome);
-      console.log(`${model} ${evalCase.id}: ${outcome.score.pass ? "passed" : `failed, ${outcome.score.reason}`} in ${(outcome.ms / 1000).toFixed(1)} s`);
+  for (let run = 1; run <= RUNS; run++) {
+    await startProxy();
+    try {
+      for (const evalCase of cases) {
+        const outcome = await runCase(evalCase, model, run, fixtures);
+        outcomes.push(outcome);
+        console.log(`${model} run ${run} ${evalCase.id}: ${outcome.score.pass ? "passed" : `failed, ${outcome.score.reason}`} in ${(outcome.ms / 1000).toFixed(1)} s`);
+      }
+    } finally {
+      await stopProxy();
     }
-  } finally {
-    await stopProxy();
   }
 }
 
 await mkdir(REPORTS, { recursive: true });
 const report = join(REPORTS, `eval-split-revision-${stamp(startedAt)}.md`);
-await writeFile(report, reportOf({ startedAt, commit, models, cases, outcomes }));
+await writeFile(report, reportOf({ startedAt, commit, models, runs: RUNS, cases, outcomes }));
 console.log(`The report is in ${relative(process.cwd(), report)}.`);
