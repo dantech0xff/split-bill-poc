@@ -3,6 +3,7 @@ package com.dantech.splitvibe
 import android.app.Application
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.di.appModule
+import com.dantech.splitvibe.di.spendingModule
 import com.dantech.splitvibe.notifications.DeviceRegistrar
 import com.dantech.splitvibe.notifications.Push
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +27,7 @@ class SplitVibeApp : Application() {
         super.onCreate()
         val koin = startKoin {
             androidContext(this@SplitVibeApp)
-            modules(appModule)
+            modules(appModule, spendingModule)
         }.koin
         Push.start(this)
         // Whenever someone signs in, the proxy learns where to send their push notices.

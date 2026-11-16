@@ -17,6 +17,9 @@ sealed interface AppLink {
 
     data object Requests : AppLink
 
+    /** A bill on the phone, such as the draft a recurring bill made, whose notice was tapped. */
+    data class OpenBill(val id: String) : AppLink
+
     companion object {
         private val TOKEN = Regex("[A-Za-z0-9_-]{16,128}")
         private val UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -34,6 +37,10 @@ sealed interface AppLink {
             // background, whose data Firebase puts in the intent as it came.
             val fromSystem = intent.hasExtra(FIREBASE_MESSAGE_ID)
             val kind = intent.getStringExtra(Notices.EXTRA_KIND) ?: intent.getStringExtra("type").takeIf { fromSystem }
+            if (kind == Notices.KIND_DRAFT) {
+                // Any app can send extras, so only what has the shape of a bill's id opens a bill.
+                return intent.getStringExtra(Notices.EXTRA_BILL_ID)?.takeIf { UUID.matches(it) }?.let(::OpenBill)
+            }
             if (kind != null) {
                 // Any app can send extras, so a group id must look like one before it goes into a call.
                 val groupId = (intent.getStringExtra(Notices.EXTRA_GROUP_ID) ?: intent.getStringExtra("groupId").takeIf { fromSystem })

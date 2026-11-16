@@ -147,6 +147,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
             is AppLink.OpenRequest -> backStack.open(RequestLinkKey(link.token))
             is AppLink.Group -> backStack.open(GroupKey(link.id))
             AppLink.Requests -> backStack.open(RequestsKey)
+            is AppLink.OpenBill -> openBill(link.id)
             null -> Unit
         }
     }

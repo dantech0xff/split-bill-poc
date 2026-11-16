@@ -2,21 +2,31 @@ package com.dantech.splitvibe
 
 import android.content.ContentResolver
 import android.content.Intent
+import android.database.SQLException
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.recurring.RecurringBillWorker
+import com.dantech.splitvibe.recurring.RecurringDrafts
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.AppLink
 import com.dantech.splitvibe.ui.AppNavHost
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+
+    private val recurringDrafts: RecurringDrafts by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) catchUpOnRecurringBills()
         // Photos shared from another app, and a link or a notice that opened the app, are taken
         // once, not again when the activity comes back.
         val shared = if (savedInstanceState == null) sharedImagesOf(intent, packageName) else emptyList()
@@ -24,6 +34,22 @@ class MainActivity : ComponentActivity() {
         setContent {
             SplitVibeTheme {
                 AppNavHost(sharedImages = shared, link = link)
+            }
+        }
+    }
+
+    /**
+     * Makes the drafts of recurring bills that came due while the app was not running, as it opens,
+     * rather than waiting for the daily work, which the system may hold back; and keeps that work
+     * scheduled while there is a recurring bill.
+     */
+    private fun catchUpOnRecurringBills() {
+        lifecycleScope.launch {
+            try {
+                recurringDrafts.makeDue()
+                if (recurringDrafts.anyActive()) RecurringBillWorker.keepDaily(this@MainActivity)
+            } catch (e: SQLException) {
+                // The bills could not be read or written this time; the daily work makes the drafts later.
             }
         }
     }
