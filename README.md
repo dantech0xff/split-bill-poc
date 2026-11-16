@@ -45,26 +45,39 @@ flowchart LR
      be divided its own way too.
    - **Who paid:** one person, or several with an amount each.
    - Every share is shown, and the shares always add up to the bill total.
-4. **Edit bill** corrects every item, quantity, price, tax, fee, discount and the total. When the
-   lines and the printed total disagree, it shows by how much and offers two ways to settle it.
-5. **Ask for the money** gives each person who owes something a message of their own to send in any
+4. **Change the split by a sentence:** type or say something like "Lan didn't have beer" or "add a
+   10% tip". Claude proposes the changes, each person's share shows before and after, and nothing
+   changes until you apply them; Undo puts the split back. A change takes 0.2 of a call.
+5. **Edit bill** corrects every item, quantity, price, tax, fee, discount, the total and the bill's
+   category. When the lines and the printed total disagree, it shows by how much and offers two ways
+   to settle it.
+6. **Ask for the money** gives each person who owes something a message of their own to send in any
    chat app: what it is for, the amount, and how to pay it, as a QR code, a link or details to type
    in, built from one of your **ways to get paid**. A card with the whole split can go to the group
    chat as a picture. Signed in, each request is also kept on Split Vibe's server, so the payer can
    say they paid from the app and you confirm it. A finished split stays in the list and can be
    changed later.
-6. **Groups** (from the home screen) keep the bills of a trip or a shared flat in one currency: each
+7. **Everyone picks their items:** a link from the result screen that everyone at the table opens in
+   a browser, without the app. They type their name and tap what they had, and the picks show live.
+   You say who each person is on the bill, close the picking, and send what everyone owes, which the
+   page then shows with how to pay.
+8. **Groups** (from the home screen) keep the bills of a trip or a shared flat in one currency: each
    member's balance, the fewest payments that settle the group, the people and places kept for
    those without the app, the bills and what changed. A split is added to a group from its result
    screen, matching people to members and converting the total once at the day's rate; from then on
    it is settled in the group, not asked for person by person. Invite links let people join, or ask
    for a place kept under their name, which the group's owner decides; the owner can also take
    someone out of the group, keeping what they paid and owe.
-7. **Requests** lists what you have to pay, with its code and details, and what you asked for, to
+9. **Requests** lists what you have to pay, with its code and details, and what you asked for, to
    confirm once the money arrived, remind by hand or on a schedule, or delete.
-8. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
-   bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
-   (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
+10. **Insights** (from the home screen) shows what the finished bills came to by month, category,
+    person and group, in your own currency and with your own share. A period exports as three CSV
+    files (bills, items and shares) or a PDF summary.
+11. **Recurring bills:** a finished bill can repeat every week or month. On its day the app makes a
+    draft to check and finish, and says so in a notice.
+12. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
+    bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
+    (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
 
 Every change is saved as a draft as it is made, so a split survives the app being closed.
 
@@ -118,10 +131,11 @@ Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own ad
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
 app is signed with (see [docs/proxy.md](docs/proxy.md)).
 
-Without signing in, each install gets 3 free reads. **Settings** (gear icon) shows the reads left
-and offers "Sign in with Google" for 10 reads a month, signing out and deleting the account. When a
-sign-in runs out, the app asks to sign in again and never falls back to the phone's free reads on
-its own; signing out does that. It
+Without signing in, each install gets 3 free calls to Claude: reading a bill takes a whole call, and
+changing a split by a sentence takes 0.2. **Settings** (gear icon) shows the calls left and offers
+"Sign in with Google" for 10 calls a month, signing out and deleting the account. When a sign-in
+runs out, the app asks to sign in again and never falls back to the phone's free calls on its own;
+signing out does that. It
 also holds the app's **local currency** (the currency the payment app works in), which defaults to
 the currency of the phone's region.
 
@@ -305,7 +319,7 @@ contrast of the colour palette, the motion, and the design system components.
 
 - The proxy client tests run the real client against a local server that answers as the proxy does.
   They pin down the request, which must match the shared fixture the proxy's tests send, and every
-  kind of answer: the bill, free reads used up, sign-in run out, AI switched off, app too old,
+  kind of answer: the bill, free calls used up, sign-in run out, AI switched off, app too old,
   rate limits, busy, refused, too long, timeout, and an answer that stops half way.
 - `SplitFlowTest` walks through the real screens without a device (Robolectric): sample photo,
   instruction, analysis, the people named, exact shares, changing who shares an item, request
@@ -386,7 +400,7 @@ What has not been verified:
 
 ## Known limits
 
-- **Free reads are per install.** Clearing the app's data makes a new install with 3 new reads. The
+- **Free calls are per install.** Clearing the app's data makes a new install with 3 new calls. The
   proxy's limits per network address and its daily spend caps bound what that can cost.
 - **The app never moves money.** A request carries a link, a QR code or details for the payer's own
   banking or payment app; "paid" counts once the requester confirms it.

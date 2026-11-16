@@ -8,14 +8,14 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push, bill links"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push, bill links,<br/>edits by a sentence, insights, recurring bills"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>group balances, payment codes,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
     app --> domain
     app --> design
     profile -. drives and measures .-> app
-    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push,<br/>bill links and their live claims"]
+    proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push,<br/>bill links and their live claims,<br/>edits of a split by a sentence"]
     web["web/<br/>the pages a link opens:<br/>Vite, Preact, TypeScript"]
     app -. HTTPS and a WebSocket .-> proxy
     web -. built into .-> proxy
@@ -24,11 +24,11 @@ flowchart LR
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`) |
-| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser` |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`) |
+| `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `BillCategory`, `SplitEdit` and `SplitEdits`, `Insights`, `Recurrence`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser`, `SplitRevisionParser`, `SplitRevisionRequest` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
-| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links, bill links with what people claim on them and their live updates (`ShareRoom`), the web pages; described in [proxy.md](proxy.md) |
+| `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links, bill links with what people claim on them and their live updates (`ShareRoom`), the web pages, edits of a split by a sentence, calls counted in hundredths so that an edit weighs 0.2; described in [proxy.md](proxy.md) |
 | `web/` | Web pages, TypeScript | the pages a bill link, a payment request link and a group invite open (`/s/`, `/r/`, `/g/`), with Vite and Preact; built into the Worker, so the proxy serves them from its own address; described in [web.md](web.md) |
 
 `:core:domain` applies only the Kotlin JVM plugin, so it cannot import an Android class. Everything
@@ -55,19 +55,20 @@ are worth knowing before changing it:
 
 ### Dependency wiring
 
-`di/AppModule.kt` is one Koin module that lists every long-lived object and the view models.
-`SplitVibeApp` starts Koin when the process starts. Screens get objects with `koinViewModel()` and
-`koinInject()`.
+`di/AppModule.kt` and `di/SpendingModule.kt` (insights, export and recurring bills) are the Koin
+modules that list every long-lived object and the view models. `SplitVibeApp` starts Koin when the
+process starts. Screens get objects with `koinViewModel()` and `koinInject()`.
 
-Koin resolves the graph when the app runs, not when it compiles. `AppModuleTest` therefore resolves
-every definition in a local test, and `AppStartupTest` starts the real application and activity.
-A wiring mistake fails the checks instead of crashing a screen.
+Koin resolves the graph when the app runs, not when it compiles. `AppModuleTest` and
+`SpendingModuleTest` therefore resolve every definition in a local test, and `AppStartupTest` starts
+the real application and activity. A wiring mistake fails the checks instead of crashing a screen.
 
 ### Navigation
 
 `ui/AppNavHost.kt` uses Navigation 3. The back stack is a list of keys (`HomeKey`, `SplitKey`,
-`HistoryKey`, `SettingsKey`, `PaymentMethodsKey`, `GroupsKey`, `GroupKey(id)`, `JoinGroupKey(token)`,
-`RequestsKey`, `RequestLinkKey(token)`) that the screen code owns directly:
+`HistoryKey`, `SettingsKey`, `PaymentMethodsKey`, `GroupsKey`, `GroupKey(id)`,
+`JoinGroupKey(token)`, `RequestsKey`, `RequestLinkKey(token)`, `ClaimKey`, `InsightsKey`,
+`RecurringKey`) that the screen code owns directly:
 
 - The keys are `@Serializable`, so the list is saved with the activity and the open screens come
   back after the system recreates it.
@@ -121,7 +122,7 @@ longer the latest, so two writers never overwrite each other. Reading other phot
 in by hand starts a new bill; only reading the same photos again replaces their bill. What was on
 screen comes back from `SavedStateHandle` and the database after the system ends the app. The
 proxy streams its answer as lines of JSON, and the app's error kinds follow the proxy's codes: free
-reads used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
+calls used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
 The [README](../README.md) describes each step in detail.
 
 ### Groups, requests and push
@@ -224,6 +225,83 @@ flowchart LR
   Their colours and type come from the design system: `WebTokensTest` writes `web/src/tokens.css`
   when run with `-PwebTokens=write`, and otherwise fails when the file no longer matches the tokens.
   [proxy.md](proxy.md#bill-links-and-the-web-pages) describes the routes, the limits and the pages.
+
+### Changing a split by a sentence
+
+```mermaid
+flowchart LR
+    field[A sentence, typed or said] --> assistant[SplitAssistant]
+    assistant -->|bill, split, sentence| proxy[Proxy: Haiku 5.5]
+    proxy -->|edits from 13 ops| parser[SplitRevisionParser]
+    parser --> apply[SplitEdits.apply]
+    apply --> card[Proposed changes, before and after]
+    card -->|Apply| split[SplitBillViewModel: one change]
+```
+
+- `SplitRevisionRequest` sends the bill's lines and its split as the domain keeps them, with the
+  text cleaned as for bill links and the sentence on one line. The divisions of items go only while
+  the bill is split by item, so the model never sees divisions that are not in effect.
+- The proxy answers with edits drawn from thirteen ops, a short explanation, or a question when the
+  sentence is too unclear. The ops cover who shares an item, how the bill is divided, people added or
+  taken off, a charge or a tip, who paid, and an item's amount or quantity. The model never works
+  out a share.
+- `SplitEdits.apply` applies the edits in order and rejects, with a reason, each one it cannot apply:
+  an unknown item or person, a number out of range, sums that do not add up. A rejected edit changes
+  nothing. An item edit on a bill split as a whole starts a split by item from an even split.
+- `SplitAssistantViewModel` shows each edit in words, with a tick to drop it, and each person's share
+  before and after, worked out again when an edit is dropped. Nothing changes until Apply, which goes
+  through `SplitBillViewModel` as one change, so the bill is saved like any other edit. Undo puts the
+  bill back exactly as it was, its status included. A question from the model is shown on its own and
+  answered in the same field. A proposal and its Undo last through rotation and the screens opened
+  from the split, but not the system ending the app; asking again costs another 0.2 of a call.
+- An edit costs 0.2 of a call from the same allowance as a bill read. The proxy counts in hundredths
+  and the app reads the numbers as decimals (`CallsLeft`). `ProxyModelCall` holds what both AI routes
+  share: the request id that keeps a retry from being charged twice, the streamed answer and the
+  error kinds.
+- `VoiceInput` wraps `SpeechRecognizer`. It uses the phone's own recognizer when there is one, and
+  asks before using a speech service that may send the sound over the network; that consent can be
+  withdrawn in Settings. It asks for the microphone only when the mic is tapped, stops when the
+  screen does, and puts what it heard into the field for the user to check. It never sends by itself.
+
+### Insights and export
+
+- `InsightsViewModel` builds the domain's `InsightBill`s from the finished bills, and `Insights.of`
+  adds them up by month, category, person and group, in the local currency, with the user's own
+  share.
+- Each bill is converted with the rate saved with it: the day's rate the result screen showed, saved
+  when the split was finished, or a rate the user typed. A bill in another currency without a rate
+  is left out of the sums, and the screen says how many there are and how to add a rate. A bill
+  without a readable date counts on the day it was saved.
+- People are told apart by their name, without case, accents or punctuation, which is how the phone
+  tells the people it remembers apart; groups by their id.
+- `Exporter` writes a period as three CSV files (`bills.csv`, `items.csv`, `shares.csv`) or a PDF
+  summary (`PdfSummary`, drawn with `PdfDocument`).
+  - The CSV files are UTF-8 with a byte order mark and RFC 4180 quoting. They use commas and `.` for
+    decimals, or semicolons and `,` where the locale writes decimals with a comma. Text a spreadsheet
+    would take for a formula gets an apostrophe in front.
+  - Files go only where the user picks them to go, through the Storage Access Framework, or to the
+    share sheet through the `FileProvider` (`exports/` in the cache).
+
+### Recurring bills
+
+- A recurring bill (`RecurringBillRepository`) keeps a finished bill's lines and split with a weekly
+  or monthly schedule (`Recurrence`). It leaves out the photos, the read text and the reading's
+  warnings, the link, the group, and the people who joined from the link.
+- The schedule recurs on the bill's own day, or on the day the user picks for the first draft. A
+  monthly day that a month lacks falls back to its last day, and comes back the month after.
+- `RecurringDrafts.makeDue` makes a draft for every day due since the last one it made
+  (`madeThrough`). A draft's id is `Recurrence.draftId`, a name-based UUID of the recurring bill and
+  the day. `BillRepository.createIfAbsent` writes it in one transaction, so however many runs there
+  are, each draft is made once, and the id is one the proxy takes for groups, requests and links.
+  A deleted draft is not made again. A paused bill makes nothing, and resuming skips what passed
+  meanwhile.
+- The drafts are made when the app comes to the foreground, and by a daily `RecurringBillWorker`
+  (WorkManager unique work, stopped while no recurring bill is active). A run posts one notice per
+  recurring bill on its own channel. The notice names the bill once the phone is unlocked, says only
+  that a recurring bill is due on the lock screen, and opens the newest draft.
+- Database version 3 adds the bills' `category` column, filled from each bill's stored document, and
+  the `recurring_bills` table, through an automatic migration. `DatabaseMigrationTest` opens a
+  version 2 database with Room.
 
 ## Build variants
 
