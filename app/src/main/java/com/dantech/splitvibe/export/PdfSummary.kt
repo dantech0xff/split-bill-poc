@@ -9,11 +9,9 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import androidx.core.graphics.withTranslation
-import com.dantech.splitvibe.domain.ME_ID
+import com.dantech.splitvibe.data.bills.dayOf
 import java.io.ByteArrayOutputStream
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.time.format.FormatStyle
 import java.util.Locale
 
@@ -109,8 +107,7 @@ internal class PdfSummary(private val content: ExportContent, private val locale
                 listOf("Person", "Bills", "Total", "Their share"),
                 SUMMARY_COLUMNS,
                 insights.byPerson.map { person ->
-                    val name = if (person.personKey == ME_ID) "You" else person.name
-                    listOf(name, "${person.bills}", money(person.totalMinor), money(person.shareMinor))
+                    listOf(person.name, "${person.bills}", money(person.totalMinor), money(person.shareMinor))
                 },
             )
         }
@@ -131,13 +128,12 @@ internal class PdfSummary(private val content: ExportContent, private val locale
                 BILL_COLUMNS,
                 content.bills.map { saved ->
                     val bill = saved.bill
-                    val mine = saved.shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0
                     listOf(
                         day(bill.date),
                         bill.merchant?.takeIf { it.isNotBlank() } ?: "Bill",
                         bill.category.label,
                         bill.currency.format(bill.totalMinor, locale),
-                        bill.currency.format(mine, locale),
+                        bill.currency.format(saved.myShareMinor, locale),
                     )
                 },
             )
@@ -184,11 +180,8 @@ internal class PdfSummary(private val content: ExportContent, private val locale
     /** A bill's date as people read it, such as "Nov 13, 2026", or as written when it is no day. */
     private fun day(date: String?): String {
         if (date.isNullOrBlank()) return "No date"
-        return try {
-            DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(LocalDate.parse(date.trim()))
-        } catch (e: DateTimeParseException) {
-            date
-        }
+        val day = dayOf(date) ?: return date
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(day)
     }
 
     /** Something drawn on a page, [height] points tall, which says [text]. */

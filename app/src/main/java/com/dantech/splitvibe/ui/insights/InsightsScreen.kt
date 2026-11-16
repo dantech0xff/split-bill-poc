@@ -55,7 +55,6 @@ import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountLarge
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
-import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Spending
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
@@ -163,7 +162,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
                 try {
                     when (format) {
                         ExportFormat.CSV -> pickFolder.launch(null)
-                        ExportFormat.PDF -> makeFile.launch("spending-${state.periodKey}.pdf")
+                        ExportFormat.PDF -> makeFile.launch(Exporter.pdfName(state.periodKey))
                     }
                 } catch (e: ActivityNotFoundException) {
                     actions.onPickerMissing()
@@ -207,10 +206,7 @@ private fun LazyListScope.insights(state: InsightsState) {
         key = "person",
         title = "By person",
         hint = "What each person's part of the bills came to",
-        lines = insights.byPerson.map { person ->
-            val name = if (person.personKey == ME_ID) "You" else person.name
-            SpendingLine(person.personKey, name, person.shareMinor, billCount(person.bills))
-        },
+        lines = insights.byPerson.map { person -> SpendingLine(person.personKey, person.name, person.shareMinor, billCount(person.bills)) },
         format = currency::format,
     )
     section(

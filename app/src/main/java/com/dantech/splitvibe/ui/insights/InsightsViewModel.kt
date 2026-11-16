@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.bills.YOU
 import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCurrency
@@ -247,7 +248,7 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId
                 InsightShare(key ?: "${saved.id}/${share.personId}", name.ifEmpty { SOMEONE }, share.totalMinor)
             }
         },
-        myShareMinor = saved.shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0,
+        myShareMinor = saved.myShareMinor,
         rate = saved.exchangeRate?.takeIf { it.converts(bill, localCurrency) },
     )
 }
@@ -287,5 +288,4 @@ private fun notesOf(insights: Insights, bySavedDay: Int): List<String> = buildLi
 private fun andList(items: List<String>): String =
     if (items.size < 2) items.joinToString() else items.dropLast(1).joinToString() + " and " + items.last()
 
-private const val YOU = "You"
 private const val SOMEONE = "Someone"

@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.export
 
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.bills.YOU
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ME_ID
@@ -42,9 +43,6 @@ object CsvExport {
     const val SHARES = "shares.csv"
     const val MIME_TYPE = "text/csv"
 
-    /** What the user is called in the files, as on screen. */
-    private const val YOU = "You"
-
     private val BYTE_ORDER_MARK = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
 
     /** The three files for [bills], in this order, written for [convention]. */
@@ -58,7 +56,6 @@ object CsvExport {
         listOf(listOf("Bill ID", "Date", "Place", "Category", "Group", "Currency", "Total", "Your share")) +
             bills.map { saved ->
                 val bill = saved.bill
-                val mine = saved.shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0
                 listOf(
                     text(saved.id),
                     text(bill.date.orEmpty()),
@@ -67,7 +64,7 @@ object CsvExport {
                     text(saved.group?.groupName.orEmpty()),
                     text(bill.currency.code),
                     amount(bill.totalMinor, bill.currency, convention),
-                    amount(mine, bill.currency, convention),
+                    amount(saved.myShareMinor, bill.currency, convention),
                 )
             }
 

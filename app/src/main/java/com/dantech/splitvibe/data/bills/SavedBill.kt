@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.bills
 
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.ExchangeRate
+import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.PersonShare
 import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitPlan
@@ -59,6 +60,9 @@ data class SavedBill(
     val share: ShareLink? = null,
     val schemaVersion: Int = SCHEMA_VERSION,
 ) {
+    /** The user's own part of the bill, in minor units of its currency; 0 while the split is unfinished. */
+    val myShareMinor: Long get() = shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0
+
     /**
      * This bill with its shares worked out again from its inputs, as they will be saved. A finished
      * bill that was changed into something that no longer adds up is a draft again, so the shares of
@@ -124,6 +128,9 @@ data class ShareLink(
 
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")
+
+/** What the app calls its user, who has no stored name, wherever the people of a bill are named. */
+const val YOU = "You"
 
 /**
  * How the phone keeps its bills as JSON, the recurring ones too. Reading one back skips what a newer

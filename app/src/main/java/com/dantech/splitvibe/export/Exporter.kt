@@ -48,7 +48,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
     suspend fun files(content: ExportContent, format: ExportFormat): List<ExportFile> = withContext(Dispatchers.Default) {
         when (format) {
             ExportFormat.CSV -> CsvExport.files(content.bills, CsvConvention.of(locale()))
-            ExportFormat.PDF -> listOf(ExportFile(pdfName(content), PDF_TYPE, PdfSummary(content, locale()).bytes()))
+            ExportFormat.PDF -> listOf(ExportFile(pdfName(content.periodKey), PDF_TYPE, PdfSummary(content, locale()).bytes()))
         }
     }
 
@@ -129,8 +129,8 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         /** Where shared files are kept in the cache; see `res/xml/file_paths.xml`. */
         private const val FOLDER = "exports"
 
-        /** The name of the PDF summary of [content], such as "spending-2026-11.pdf". */
-        fun pdfName(content: ExportContent): String = "spending-${content.periodKey}.pdf"
+        /** The name of the PDF summary of the period [periodKey] names, such as "spending-2026-11.pdf". */
+        fun pdfName(periodKey: String): String = "spending-$periodKey.pdf"
 
         /** [month] as a heading, such as "November 2026", in English as the app is. */
         fun monthName(month: YearMonth): String = month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH))

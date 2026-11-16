@@ -88,7 +88,7 @@ class BillRepository(
     }
 
     private fun SavedBill.toEntity(): BillEntity {
-        val names = plan.participants.map { if (it.isMe) "You" else it.name }
+        val names = plan.participants.map { if (it.isMe) YOU else it.name }
         return BillEntity(
             id = id,
             revision = revision,
