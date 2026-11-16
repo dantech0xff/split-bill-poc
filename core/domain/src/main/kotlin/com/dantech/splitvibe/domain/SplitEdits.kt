@@ -182,10 +182,14 @@ object SplitEdits {
     private fun State.itemQuantity(edit: SplitEdit.ItemQuantity): State {
         val item = item(edit.itemId)
         if (!isQuantity(edit.quantity)) reject("A quantity has to be a number more than zero.")
+        // The same number written another way, such as 3.000000 for 3, changes nothing.
+        if (edit.quantity.compareTo(item.quantity) == 0) return this
+        // Kept as people write it, without trailing zeros: 2.5, and 100 rather than 1E+2.
+        val quantity = edit.quantity.stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }
         val price = item.unitPriceMinor
         // BillEditor keeps a line it cannot hold as it was; an edit that does nothing is better rejected.
-        if (price != null && BillEditor.lineAmount(edit.quantity, price) == null) reject(TOO_LARGE)
-        return withBill(BillEditor.withItemQuantity(bill, item.id, edit.quantity))
+        if (price != null && BillEditor.lineAmount(quantity, price) == null) reject(TOO_LARGE)
+        return withBill(BillEditor.withItemQuantity(bill, item.id, quantity))
     }
 
     /** The plan with [division] for the whole bill, unless the calculator finds the division wrong, as it does on screen. */

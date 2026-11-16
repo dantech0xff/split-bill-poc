@@ -409,6 +409,19 @@ class SplitEditsTest {
     }
 
     @Test
+    fun `a quantity equal to the one on the bill changes nothing, and another is kept without trailing zeros`() {
+        val same = apply(ItemQuantity(beer, BigDecimal("3.000000")))
+        val half = apply(ItemQuantity(beer, BigDecimal("2.500")))
+        val hundred = apply(ItemQuantity(pho, BigDecimal("100.00")))
+
+        assertEquals(1, same.applied.size)
+        assertEquals(bill, same.bill)
+        assertEquals(plan, same.plan)
+        assertEquals(BillItem(beer, "Beer", BigDecimal("2.5"), 30_000, 75_000), half.bill.items[0])
+        assertEquals(BigDecimal(100), hundred.bill.items[1].quantity)
+    }
+
+    @Test
     fun `a change of the way to split starts from an even split`() {
         val result = apply(SetMode(SplitMode.BY_PERCENT))
 
