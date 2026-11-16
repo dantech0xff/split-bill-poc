@@ -84,36 +84,51 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         content.notes.forEach { add(Paragraph(it, quietText, above = SMALL_GAP)) }
 
         if (insights.byMonth.isNotEmpty()) {
-            table("By month", listOf("Month", "Bills", "Total", "Your share"), SUMMARY_COLUMNS) {
+            table(
+                "By month",
+                listOf("Month", "Bills", "Total", "Your share"),
+                SUMMARY_COLUMNS,
                 insights.byMonth.entries.reversed().map { (month, spending) ->
                     listOf(Exporter.monthName(month), "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
-                }
-            }
+                },
+            )
         }
         if (insights.byCategory.isNotEmpty()) {
-            table("By category", listOf("Category", "Bills", "Total", "Your share"), SUMMARY_COLUMNS) {
+            table(
+                "By category",
+                listOf("Category", "Bills", "Total", "Your share"),
+                SUMMARY_COLUMNS,
                 insights.byCategory.map { (category, spending) ->
                     listOf(category.label, "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
-                }
-            }
+                },
+            )
         }
         if (insights.byPerson.isNotEmpty()) {
-            table("By person", listOf("Person", "Bills", "Total", "Their share"), SUMMARY_COLUMNS) {
+            table(
+                "By person",
+                listOf("Person", "Bills", "Total", "Their share"),
+                SUMMARY_COLUMNS,
                 insights.byPerson.map { person ->
                     val name = if (person.personKey == ME_ID) "You" else person.name
                     listOf(name, "${person.bills}", money(person.totalMinor), money(person.shareMinor))
-                }
-            }
+                },
+            )
         }
         if (insights.byGroup.isNotEmpty()) {
-            table("By group", listOf("Group", "Bills", "Total", "Your share"), SUMMARY_COLUMNS) {
+            table(
+                "By group",
+                listOf("Group", "Bills", "Total", "Your share"),
+                SUMMARY_COLUMNS,
                 insights.byGroup.map { (group, spending) ->
                     listOf(Exporter.groupName(group), "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
-                }
-            }
+                },
+            )
         }
         if (content.bills.isNotEmpty()) {
-            table("Bills", listOf("Date", "Place", "Category", "Total", "Your share"), BILL_COLUMNS) {
+            table(
+                "Bills",
+                listOf("Date", "Place", "Category", "Total", "Your share"),
+                BILL_COLUMNS,
                 content.bills.map { saved ->
                     val bill = saved.bill
                     val mine = saved.shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0
@@ -124,17 +139,18 @@ internal class PdfSummary(private val content: ExportContent, private val locale
                         bill.currency.format(bill.totalMinor, locale),
                         bill.currency.format(mine, locale),
                     )
-                }
-            }
+                },
+            )
         }
     }
 
     /** A table under [title]: a row of [headers], then [rows], laid out in [columns]. */
-    private fun MutableList<Block>.table(title: String, headers: List<String>, columns: List<Column>, rows: () -> List<List<String>>) {
+    private fun MutableList<Block>.table(title: String, headers: List<String>, columns: List<Column>, rows: List<List<String>>) {
         add(Paragraph(title, headingText, above = SECTION_GAP, keepWithNext = true))
-        val header = Row(headers, columns, strongText, isHeader = true)
+        val layout = TableLayout(columns, headers, rows)
+        val header = Row(headers, layout, strongText, isHeader = true)
         add(header)
-        rows().forEach { add(Row(it, columns, bodyText, isHeader = false, header = header)) }
+        rows.forEach { add(Row(it, layout, bodyText, isHeader = false, header = header)) }
     }
 
     /**
@@ -203,30 +219,81 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         }
     }
 
-    /** A column of a table: its share of the page's width, and whether its text ends at its right edge, as amounts do. */
-    private class Column(val share: Float, val alignEnd: Boolean = false)
+    /**
+     * What a column of a table holds. A [NAME], such as a place or a person, is cut short with "…"
+     * when it is longer than its column. The others never are, as a cut amount reads as another
+     * number, and a [NUMBER] ends at its column's right edge.
+     */
+    private enum class Kind { NAME, TEXT, NUMBER }
 
-    /** One line of a table. Each cell is cut short with "…" when it is wider than its column. */
+    /** A column of a table: what it holds, and its share of the page's width while its cells fit in it. */
+    private class Column(val kind: Kind, val share: Float)
+
+    /**
+     * The widths of a table's [columns], which have one name, for its [headers] and [rows]. Each column
+     * that is never cut takes its share, or what its widest cell needs when that is more, and the name
+     * takes the rest. Only when those cells would leave the name less than [MIN_NAME_WIDTH], as the
+     * largest amounts with a long currency code can, is their text drawn smaller until they leave it.
+     */
+    private inner class TableLayout(val columns: List<Column>, headers: List<String>, rows: List<List<String>>) {
+        /** How much smaller than the rest of the table the columns that are never cut are drawn: 1 but for such amounts. */
+        val scale: Float
+        val widths: List<Float>
+
+        init {
+            require(columns.count { it.kind == Kind.NAME } == 1) { "A table has one column that is cut short" }
+            val needed = columns.mapIndexed { index, column ->
+                if (column.kind == Kind.NAME) {
+                    0f
+                } else {
+                    maxOf(strongText.measureText(headers[index]), rows.maxOfOrNull { bodyText.measureText(it[index]) } ?: 0f) + CELL_GAP
+                }
+            }
+            val room = WIDTH - MIN_NAME_WIDTH
+            val preferred = columns.mapIndexed { index, column ->
+                if (column.kind == Kind.NAME) 0f else maxOf(needed[index], WIDTH * column.share)
+            }
+            val fitted = if (preferred.sum() <= room) preferred else needed
+            scale = minOf(1f, room / fitted.sum())
+            val scaled = fitted.map { it * scale }
+            widths = columns.mapIndexed { index, column -> if (column.kind == Kind.NAME) WIDTH - scaled.sum() else scaled[index] }
+        }
+
+        /** [paint] as a cell of column [index] is drawn with. */
+        fun paintOf(index: Int, paint: TextPaint): TextPaint =
+            if (columns[index].kind == Kind.NAME || scale == 1f) paint else TextPaint(paint).apply { textSize = paint.textSize * scale }
+    }
+
+    /** One line of a table, laid out in [layout]: only a name too long for its column is cut short, with "…". */
     private inner class Row(
-        private val cells: List<String>,
-        private val columns: List<Column>,
-        private val paint: TextPaint,
+        cells: List<String>,
+        private val layout: TableLayout,
+        paint: TextPaint,
         private val isHeader: Boolean,
         /** The header of the table the row belongs to, which a new page repeats. */
         val header: Row? = null,
     ) : Block {
+        private val paints = cells.indices.map { layout.paintOf(it, paint) }
+
+        /** The cells as they are drawn. */
+        private val shown = cells.mapIndexed { index, text ->
+            if (layout.columns[index].kind != Kind.NAME) {
+                text
+            } else {
+                TextUtils.ellipsize(text, paints[index], layout.widths[index] - CELL_GAP, TextUtils.TruncateAt.END).toString()
+            }
+        }
+        private val baselineOffset = (ROW_HEIGHT - paint.ascent() - paint.descent()) / 2
         override val height: Float = ROW_HEIGHT
         override val keepWithNext: Boolean = isHeader
-        override val text: String = cells.joinToString(" | ")
+        override val text: String = shown.joinToString(" | ")
 
         override fun draw(canvas: Canvas, top: Float) {
-            val baseline = top + (ROW_HEIGHT - paint.ascent() - paint.descent()) / 2
             var left = MARGIN
-            cells.zip(columns).forEach { (text, column) ->
-                val width = WIDTH * column.share
-                val shown = TextUtils.ellipsize(text, paint, width - CELL_GAP, TextUtils.TruncateAt.END).toString()
-                val x = if (column.alignEnd) left + width - paint.measureText(shown) else left
-                canvas.drawText(shown, x, baseline, paint)
+            shown.forEachIndexed { index, text ->
+                val width = layout.widths[index]
+                val x = if (layout.columns[index].kind == Kind.NUMBER) left + width - paints[index].measureText(text) else left
+                canvas.drawText(text, x, top + baselineOffset, paints[index])
                 left += width
             }
             if (isHeader) canvas.drawLine(MARGIN, top + ROW_HEIGHT, MARGIN + WIDTH, top + ROW_HEIGHT, rule)
@@ -238,7 +305,8 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         const val PAGE_WIDTH = 595
         const val PAGE_HEIGHT = 842
 
-        private const val MARGIN = 48f
+        /** The white space around the text of every page, in points. */
+        const val MARGIN = 48f
         private const val WIDTH = PAGE_WIDTH - 2 * MARGIN
         private const val FOOTER_GAP = 20f
         private const val BOTTOM = PAGE_HEIGHT - MARGIN - FOOTER_GAP
@@ -251,6 +319,9 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         private const val GAP = 12f
         private const val SECTION_GAP = 18f
         private const val CELL_GAP = 8f
+
+        /** The least a table leaves the column of names, which is a quarter of the page. */
+        private const val MIN_NAME_WIDTH = WIDTH / 4
         private const val RULE_WIDTH = 0.5f
 
         /** Grey, as black that lets the white page through. */
@@ -258,17 +329,17 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         private const val RULE_ALPHA = 96
 
         private val SUMMARY_COLUMNS = listOf(
-            Column(0.46f),
-            Column(0.12f, alignEnd = true),
-            Column(0.21f, alignEnd = true),
-            Column(0.21f, alignEnd = true),
+            Column(Kind.NAME, 0.46f),
+            Column(Kind.NUMBER, 0.12f),
+            Column(Kind.NUMBER, 0.21f),
+            Column(Kind.NUMBER, 0.21f),
         )
         private val BILL_COLUMNS = listOf(
-            Column(0.15f),
-            Column(0.31f),
-            Column(0.18f),
-            Column(0.18f, alignEnd = true),
-            Column(0.18f, alignEnd = true),
+            Column(Kind.TEXT, 0.15f),
+            Column(Kind.NAME, 0.31f),
+            Column(Kind.TEXT, 0.18f),
+            Column(Kind.NUMBER, 0.18f),
+            Column(Kind.NUMBER, 0.18f),
         )
 
         private fun paint(size: Float, typeface: Typeface) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
