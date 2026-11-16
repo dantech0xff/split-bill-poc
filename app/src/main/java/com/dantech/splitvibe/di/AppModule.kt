@@ -55,7 +55,7 @@ val appModule = module {
     single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
     single { SplitAssistant(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
     // One for each screen that listens, which lets go of the recognizer when the screen goes.
-    factory { VoiceInput(androidContext()) }
+    factory { VoiceInput(androidContext(), settings = get()) }
     single {
         AccountRepository(
             api = get(),

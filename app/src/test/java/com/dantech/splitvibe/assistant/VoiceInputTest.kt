@@ -7,6 +7,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.data.settings.SettingsStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -27,25 +28,25 @@ class VoiceInputTest {
     fun `a phone that cannot turn speech into text is offered no mic`() {
         TestVoice.recognizeOnDevice(false)
 
-        assertEquals(VoiceSupport.NONE, VoiceInput(context).support)
+        assertEquals(VoiceSupport.NONE, voiceInput().support)
     }
 
     @Test
     fun `the phone's own recognizer comes before its speech service`() {
         TestVoice.recognizeOnDevice(false)
         TestVoice.installSpeechService(context)
-        assertEquals(VoiceSupport.NETWORK, VoiceInput(context).support)
+        assertEquals(VoiceSupport.NETWORK, voiceInput().support)
 
         TestVoice.recognizeOnDevice()
 
-        assertEquals(VoiceSupport.ON_DEVICE, VoiceInput(context).support)
+        assertEquals(VoiceSupport.ON_DEVICE, voiceInput().support)
     }
 
     @Test
     fun `what is said arrives word by word and then whole, and the recognizer is let go`() {
         TestVoice.installSpeechService(context)
         TestVoice.recognizeOnDevice()
-        val voice = VoiceInput(context)
+        val voice = voiceInput()
         val partial = mutableListOf<String>()
         val ends = mutableListOf<VoiceEnd>()
 
@@ -67,7 +68,7 @@ class VoiceInputTest {
     @Test
     fun `how listening fails is told apart, and a cancelled recognizer says nothing more`() {
         TestVoice.installSpeechService(context)
-        val voice = VoiceInput(context)
+        val voice = voiceInput()
         val cases = mapOf(
             SpeechRecognizer.ERROR_NO_MATCH to VoiceEnd.NothingHeard,
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT to VoiceEnd.NothingHeard,
@@ -96,7 +97,7 @@ class VoiceInputTest {
     fun `when the phone cannot recognize its language by itself, its speech service is offered next`() {
         TestVoice.installSpeechService(context)
         TestVoice.recognizeOnDevice()
-        val voice = VoiceInput(context)
+        val voice = voiceInput()
         var end: VoiceEnd? = null
 
         voice.listen(onPartial = {}, onEnd = { end = it })
@@ -106,7 +107,7 @@ class VoiceInputTest {
         assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = true), end)
         assertEquals(VoiceSupport.NETWORK, voice.support)
         // The next screen tries the phone's own recognizer first again.
-        assertEquals(VoiceSupport.ON_DEVICE, VoiceInput(context).support)
+        assertEquals(VoiceSupport.ON_DEVICE, voiceInput().support)
     }
 
     @Test
@@ -114,13 +115,13 @@ class VoiceInputTest {
         TestVoice.recognizeOnDevice(false)
         TestVoice.installSpeechService(context)
 
-        assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = false), endOfLanguageUnavailable(VoiceInput(context)))
+        assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = false), endOfLanguageUnavailable(voiceInput()))
     }
 
     @Test
     fun `when the phone's own recognizer cannot take its language and it has no speech service, the mic goes`() {
         TestVoice.recognizeOnDevice()
-        val voice = VoiceInput(context)
+        val voice = voiceInput()
         assertEquals(VoiceSupport.ON_DEVICE, voice.support)
 
         assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = false), endOfLanguageUnavailable(voice))
@@ -128,8 +129,9 @@ class VoiceInputTest {
     }
 
     @Test
-    fun `the microphone and the speech service are each the user's to allow`() {
-        val voice = VoiceInput(context)
+    fun `the microphone and the speech service are each the user's to allow, and Settings can take the speech service back`() {
+        val settings = SettingsStore(context)
+        val voice = VoiceInput(context, settings)
         assertFalse(voice.hasPermission)
         assertFalse(voice.networkAllowed)
 
@@ -137,8 +139,17 @@ class VoiceInputTest {
         voice.networkAllowed = true
 
         assertTrue(voice.hasPermission)
-        assertTrue("remembered for the next screen", VoiceInput(context).networkAllowed)
+        assertTrue("remembered for the next screen", voiceInput().networkAllowed)
+        assertTrue("and kept with the settings", settings.settings.value.speechServiceAllowed)
+
+        settings.allowSpeechService(false)
+
+        assertFalse(voice.networkAllowed)
+        assertFalse(voiceInput().networkAllowed)
     }
+
+    /** A screen's voice input, with the app's settings as the phone keeps them. */
+    private fun voiceInput() = VoiceInput(context, SettingsStore(context))
 
     /** How listening ends when the recognizer reports that it cannot take the phone's language. */
     private fun endOfLanguageUnavailable(voice: VoiceInput): VoiceEnd? {

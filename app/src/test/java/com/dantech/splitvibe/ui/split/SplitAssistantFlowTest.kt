@@ -19,6 +19,7 @@ import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ChargeKind
 import com.dantech.splitvibe.domain.Division
@@ -64,6 +65,9 @@ class SplitAssistantFlowTest {
 
     private val context: Application = ApplicationProvider.getApplicationContext()
     private val storage = TestStorage(context)
+
+    /** Where the user's answer about the phone's speech service is kept, which Settings can take back. */
+    private val settingsStore = SettingsStore(context)
     private val server = MockWebServer()
     private lateinit var proxy: TestProxy
     private lateinit var split: SplitBillViewModel
@@ -377,7 +381,7 @@ class SplitAssistantFlowTest {
         val withoutAi = SplitAssistantViewModel(
             split,
             SplitAssistant(proxy.api, proxy.account, canSignIn = true),
-            VoiceInput(context),
+            VoiceInput(context, settingsStore),
             MutableStateFlow(AppSettings("VND")),
             MutableStateFlow(proxy.account.account.value.copy(ai = AiStatus.NOT_SET_UP)),
         )
@@ -435,6 +439,14 @@ class SplitAssistantFlowTest {
         // Asked once: the next tap listens at once.
         assistant.onMic()
         assertTrue(assistant.ui().voice.listening)
+        TestVoice.latest().triggerOnResults(TestVoice.heard("and add a tip"))
+        awaitOnMain { !assistant.ui().voice.listening }
+
+        // Taken back in Settings, it is asked about again before the mic listens.
+        settingsStore.allowSpeechService(false)
+        assistant.onMic()
+        assertTrue(assistant.ui().voice.askingNetwork)
+        assertFalse(assistant.ui().voice.listening)
     }
 
     @Test
@@ -466,7 +478,7 @@ class SplitAssistantFlowTest {
         assistant = SplitAssistantViewModel(
             host = split,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
-            voice = VoiceInput(context),
+            voice = VoiceInput(context, settingsStore),
             settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
             account = proxy.account.account,
         )

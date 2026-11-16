@@ -14,6 +14,12 @@ data class AppSettings(
     val localCurrency: String,
     /** The name the user goes by in groups and on their requests; empty until they give one. */
     val myName: String = "",
+    /**
+     * The user agreed that the phone's online speech service hears them, which is asked the first
+     * time they say a change on a phone that cannot turn speech into text by itself. Settings can
+     * take it back, and the question is then asked again.
+     */
+    val speechServiceAllowed: Boolean = false,
 )
 
 /** Where the app's own settings are kept on the device. */
@@ -49,9 +55,16 @@ class SettingsStore(context: Context) {
         state.value = read()
     }
 
+    /** Keeps whether the phone's online speech service may hear the user ([AppSettings.speechServiceAllowed]). */
+    fun allowSpeechService(allowed: Boolean) {
+        preferences.edit { putBoolean(KEY_SPEECH_SERVICE_ALLOWED, allowed) }
+        state.value = read()
+    }
+
     private fun read(): AppSettings = AppSettings(
         localCurrency = preferences.getString(KEY_LOCAL_CURRENCY, null) ?: deviceCurrency(),
         myName = preferences.getString(KEY_MY_NAME, null).orEmpty(),
+        speechServiceAllowed = preferences.getBoolean(KEY_SPEECH_SERVICE_ALLOWED, false),
     )
 
     /** The currency of the phone's region, as a sensible default for the app's own currency. */
@@ -64,6 +77,7 @@ class SettingsStore(context: Context) {
 
         private const val KEY_LOCAL_CURRENCY = "local_currency"
         private const val KEY_MY_NAME = "my_name"
+        private const val KEY_SPEECH_SERVICE_ALLOWED = "speech_service_allowed"
         private const val OLD_KEY_API_KEY = "anthropic_api_key_encrypted"
         private const val OLD_KEY_MODEL = "model"
         private const val FALLBACK_CURRENCY = "USD"

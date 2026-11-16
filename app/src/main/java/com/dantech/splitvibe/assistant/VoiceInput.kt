@@ -10,7 +10,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
+import com.dantech.splitvibe.data.settings.SettingsStore
 
 /** How this phone can turn what the user says into text. */
 enum class VoiceSupport {
@@ -49,15 +49,15 @@ sealed interface VoiceEnd {
  * Turns what the user says into text with Android's [SpeechRecognizer], one phrase at a time. It
  * listens on the phone itself when the phone can, on Android 12 and later, so the sound stays on
  * the phone. Otherwise it uses the phone's speech service, which may send the sound away; the
- * caller asks the user before the first use and records the answer in [networkAllowed].
+ * caller asks the user before the first use and records the answer in [networkAllowed], which is
+ * kept with the app's [settings], where the user can take it back.
  *
  * The text only goes back to the caller, for the user to check before anything is sent. Use it on
  * the main thread, as the recognizer must be.
  */
-class VoiceInput(context: Context) {
+class VoiceInput(context: Context, private val settings: SettingsStore) {
 
     private val context: Context = context.applicationContext
-    private val preferences = this.context.getSharedPreferences("voice", Context.MODE_PRIVATE)
 
     /** The recognizer listening now; null while nothing is. */
     private var recognizer: SpeechRecognizer? = null
@@ -79,10 +79,10 @@ class VoiceInput(context: Context) {
             else -> VoiceSupport.NONE
         }
 
-    /** Whether the user agreed that the phone's speech service hears them. It is asked once and remembered. */
+    /** Whether the user agreed that the phone's speech service hears them. It is asked once and remembered, until Settings takes it back. */
     var networkAllowed: Boolean
-        get() = preferences.getBoolean(KEY_NETWORK_ALLOWED, false)
-        set(value) = preferences.edit { putBoolean(KEY_NETWORK_ALLOWED, value) }
+        get() = settings.settings.value.speechServiceAllowed
+        set(value) = settings.allowSpeechService(value)
 
     val hasPermission: Boolean
         get() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -165,8 +165,6 @@ class VoiceInput(context: Context) {
     }
 
     private companion object {
-        const val KEY_NETWORK_ALLOWED = "network_allowed"
-
         fun textOf(results: Bundle?): String? =
             results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()?.ifEmpty { null }
 

@@ -20,6 +20,7 @@ import com.dantech.splitvibe.assistant.TestVoice
 import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.ocr.BillTextRecognizer
@@ -76,7 +77,7 @@ class AssistantListeningTest {
         val assistant = SplitAssistantViewModel(
             host = split,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
-            voice = VoiceInput(context),
+            voice = VoiceInput(context, SettingsStore(context)),
             settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
             account = proxy.account.account,
         )

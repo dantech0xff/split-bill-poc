@@ -41,6 +41,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
@@ -101,7 +102,16 @@ class ScreenGalleryTest {
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
 
-    private enum class Screen { HOME, SPLIT, SPLIT_WITHOUT_AI, SETTINGS, SETTINGS_SIGNED_IN, SETTINGS_SIGN_IN_EXPIRED, HISTORY }
+    private enum class Screen {
+        HOME,
+        SPLIT,
+        SPLIT_WITHOUT_AI,
+        SETTINGS,
+        SETTINGS_SIGNED_IN,
+        SETTINGS_SIGN_IN_EXPIRED,
+        SETTINGS_SPEECH_SERVICE,
+        HISTORY,
+    }
 
     private var screen by mutableStateOf(Screen.HOME)
 
@@ -158,6 +168,17 @@ class ScreenGalleryTest {
     fun `the assistant on the result screen in the dark theme`() {
         suffix = "-dark"
         assistantScreens()
+    }
+
+    /** Settings once the user let the phone's speech service hear them, which they can take back there. */
+    @Test
+    fun `settings once the phone's speech service was allowed`() = speechServiceSettings()
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_AT_NIGHT)
+    fun `settings once the phone's speech service was allowed, in the dark theme`() {
+        suffix = "-dark"
+        speechServiceSettings()
     }
 
     /** Text at twice its size must still fit: nothing may be cut off on the four main screens. */
@@ -315,6 +336,12 @@ class ScreenGalleryTest {
         shot("31-assistant-proposal")
     }
 
+    private fun speechServiceSettings() {
+        start(answerDelaySeconds = 0)
+        show(Screen.SETTINGS_SPEECH_SERVICE)
+        shot("32-settings-speech-service")
+    }
+
     private fun wholeResultPage() {
         val viewModel = start(answerDelaySeconds = 0)
         show(Screen.SPLIT)
@@ -343,7 +370,7 @@ class ScreenGalleryTest {
         assistant = SplitAssistantViewModel(
             host = viewModel,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
-            voice = VoiceInput(context),
+            voice = VoiceInput(context, SettingsStore(context)),
             settings = MutableStateFlow(settings),
             account = proxy.account.account,
         )
@@ -389,6 +416,19 @@ class ScreenGalleryTest {
                             onSave = { _, _ -> },
                             onOpenPaymentMethods = {},
                             onBack = {},
+                        )
+
+                        // The user let the phone's speech service hear them when they first said a change.
+                        Screen.SETTINGS_SPEECH_SERVICE -> SettingsScreen(
+                            settings = settings.copy(speechServiceAllowed = true),
+                            account = SIGNED_OUT,
+                            accountUi = AccountUiState(),
+                            canSignIn = true,
+                            actions = NO_ACTIONS,
+                            onSave = { _, _ -> },
+                            onOpenPaymentMethods = {},
+                            onBack = {},
+                            onAllowSpeechService = {},
                         )
 
                         // The session ran out: sign in again, or sign out to use this phone's free calls.
