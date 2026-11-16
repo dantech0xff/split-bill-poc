@@ -3,6 +3,8 @@ package com.dantech.splitvibe.llm
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.SplitPlan
+import com.dantech.splitvibe.domain.codePointLength
+import com.dantech.splitvibe.domain.oneLine
 import com.dantech.splitvibe.domain.wireName
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -32,13 +34,22 @@ object SplitRevisionRequest {
     private val json = Json { encodeDefaults = true }
 
     /**
-     * @param instruction what the user typed or said, which trimmed is 1 to [MAX_INSTRUCTION_CODE_POINTS] code points.
+     * What [typed] goes as: on one line, as the proxy takes no line break, tab or other control
+     * character in an instruction. Each of them is a space and each run of spaces one, the invisible
+     * formatting characters the proxy takes out go, and the ends are trimmed; empty when nothing is
+     * left to send. The field it was typed in may hold several lines.
+     */
+    fun instructionOf(typed: String): String = typed.oneLine(Int.MAX_VALUE)
+
+    /**
+     * @param instruction what the user typed or said, which as it goes ([instructionOf]) is 1 to
+     *   [MAX_INSTRUCTION_CODE_POINTS] code points.
      * @param meName the user's own name, sent as the name of the participant "me".
-     * @throws IllegalArgumentException when [instruction] is blank or too long.
+     * @throws IllegalArgumentException when nothing of [instruction] is left to send, or it is too long.
      */
     fun body(instruction: String, bill: Bill, plan: SplitPlan, meName: String): JsonObject {
-        val text = instruction.trim()
-        require(text.codePointCount(0, text.length) in 1..MAX_INSTRUCTION_CODE_POINTS) {
+        val text = instructionOf(instruction)
+        require(text.codePointLength() in 1..MAX_INSTRUCTION_CODE_POINTS) {
             "An instruction is 1 to $MAX_INSTRUCTION_CODE_POINTS characters long"
         }
         val itemIds = bill.items.map { it.id }.toSet()

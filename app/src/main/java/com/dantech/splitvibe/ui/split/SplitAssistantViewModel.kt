@@ -164,7 +164,8 @@ class SplitAssistantViewModel(
     fun send() {
         val current = draft.value
         val saved = host.billOnScreen.value ?: return
-        val typed = current.text.trim()
+        // What goes is one line, which the field may not be.
+        val typed = SplitRevisionRequest.instructionOf(current.text)
         if (current.working || typed.isEmpty() || account.value.ai == AiStatus.NOT_SET_UP) return
         val instruction = current.question?.let { followUp(it, typed) } ?: typed
         voice.cancel()
@@ -323,7 +324,11 @@ class SplitAssistantViewModel(
             errorOpensSettings = draft.errorOpensSettings,
             notice = notice,
             // When AI is only switched off, the request still goes out: the proxy may have turned it back on.
-            canSend = saved != null && !draft.working && !draft.listening && draft.text.isNotBlank() && account.ai != AiStatus.NOT_SET_UP,
+            canSend = saved != null &&
+                !draft.working &&
+                !draft.listening &&
+                SplitRevisionRequest.instructionOf(draft.text).isNotEmpty() &&
+                account.ai != AiStatus.NOT_SET_UP,
             voice = VoiceUi(
                 available = draft.voiceAvailable && account.ai != AiStatus.NOT_SET_UP,
                 listening = draft.listening,

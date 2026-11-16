@@ -238,6 +238,20 @@ class SplitAssistantFlowTest {
     }
 
     @Test
+    fun `a change typed on two lines goes as one line, and text with nothing to send is not sent`() {
+        ask("Lan didn't have beer\nadd a 10% tip", answer(LAN_NO_BEER))
+
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals("Lan didn't have beer add a 10% tip", sent.getValue("instruction").jsonPrimitive.content)
+        assertEquals("Lan didn't have beer add a 10% tip", assistant.ui().proposal?.instruction)
+
+        assistant.onTextChanged("\u0007\u200B")
+        assertFalse(assistant.ui().canSend)
+        assistant.send()
+        assertEquals("nothing went out", 1, server.requestCount)
+    }
+
+    @Test
     fun `with no calls left nothing changes, and signing in is offered before anyone has signed in`() {
         val before = onScreen()
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))

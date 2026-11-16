@@ -39,8 +39,8 @@ class SplitAssistant(
      * instruction stand for.
      *
      * @throws BillAnalyzerException when the proxy could not be reached, refused, or gave no answer the app can use.
-     * @throws IllegalArgumentException when [instruction], trimmed, is empty or longer than
-     *   [SplitRevisionRequest.MAX_INSTRUCTION_CODE_POINTS].
+     * @throws IllegalArgumentException when nothing of [instruction] is left to send
+     *   ([SplitRevisionRequest.instructionOf]), or it is longer than [SplitRevisionRequest.MAX_INSTRUCTION_CODE_POINTS].
      */
     suspend fun revise(instruction: String, bill: Bill, plan: SplitPlan, meName: String): SplitRevision = call.ask(
         content = { SplitRevisionRequest.body(instruction, bill, plan, meName) },

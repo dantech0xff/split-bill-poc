@@ -124,6 +124,16 @@ class SplitRevisionRequestTest {
     }
 
     @Test
+    fun `an instruction goes on one line, as the proxy takes no line break or tab in it`() {
+        val body = SplitRevisionRequest.body("Lan didn't have beer\n\tand add  a 10% tip \r\n", bill, plan, "Dana")
+
+        assertEquals(JsonPrimitive("Lan didn't have beer and add a 10% tip"), body["instruction"])
+        // Nothing but control and invisible characters is nothing to send.
+        assertEquals("", SplitRevisionRequest.instructionOf("\u0007\u200B \n"))
+        assertThrows(IllegalArgumentException::class.java) { SplitRevisionRequest.body("\u0007\u200B", bill, plan, "Dana") }
+    }
+
+    @Test
     fun `an instruction is one to five hundred characters, an emoji counting as one`() {
         val emoji = "🍺"
 
