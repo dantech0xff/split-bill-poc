@@ -103,8 +103,28 @@ class VoiceInputTest {
         TestVoice.latest().triggerOnError(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
         idle()
 
-        assertEquals(VoiceEnd.LanguageUnavailable, end)
+        assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = true), end)
         assertEquals(VoiceSupport.NETWORK, voice.support)
+        // The next screen tries the phone's own recognizer first again.
+        assertEquals(VoiceSupport.ON_DEVICE, VoiceInput(context).support)
+    }
+
+    @Test
+    fun `when the speech service cannot take the phone's language either, nothing more is offered for it`() {
+        TestVoice.recognizeOnDevice(false)
+        TestVoice.installSpeechService(context)
+
+        assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = false), endOfLanguageUnavailable(VoiceInput(context)))
+    }
+
+    @Test
+    fun `when the phone's own recognizer cannot take its language and it has no speech service, the mic goes`() {
+        TestVoice.recognizeOnDevice()
+        val voice = VoiceInput(context)
+        assertEquals(VoiceSupport.ON_DEVICE, voice.support)
+
+        assertEquals(VoiceEnd.LanguageUnavailable(speechServiceNext = false), endOfLanguageUnavailable(voice))
+        assertEquals(VoiceSupport.NONE, voice.support)
     }
 
     @Test
@@ -118,6 +138,15 @@ class VoiceInputTest {
 
         assertTrue(voice.hasPermission)
         assertTrue("remembered for the next screen", VoiceInput(context).networkAllowed)
+    }
+
+    /** How listening ends when the recognizer reports that it cannot take the phone's language. */
+    private fun endOfLanguageUnavailable(voice: VoiceInput): VoiceEnd? {
+        var end: VoiceEnd? = null
+        voice.listen(onPartial = {}, onEnd = { end = it })
+        TestVoice.latest().triggerOnError(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+        idle()
+        return end
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()

@@ -320,7 +320,7 @@ class SplitAssistantViewModel(
                         is VoiceEnd.Heard -> ended.copy(text = joined(before, end.text))
                         VoiceEnd.NothingHeard -> ended.copy(text = before, voiceNote = NOTHING_HEARD)
                         VoiceEnd.NoPermission -> ended.copy(text = before, voiceNote = NO_MICROPHONE)
-                        VoiceEnd.LanguageUnavailable -> ended.copy(text = before, voiceNote = LANGUAGE_UNAVAILABLE)
+                        is VoiceEnd.LanguageUnavailable -> ended.copy(text = before, voiceNote = noteOf(end))
                         VoiceEnd.Failed -> ended.copy(text = before, voiceNote = NOT_TURNED_INTO_TEXT)
                     }
                 }
@@ -520,8 +520,12 @@ class SplitAssistantViewModel(
 
         const val NO_MICROPHONE = "To speak a change, allow the microphone for Split Vibe in the phone's settings. You can type it instead."
         const val NOTHING_HEARD = "Nothing was heard. Tap the mic to try again, or type the change."
-        const val LANGUAGE_UNAVAILABLE =
+        const val TRY_SPEECH_SERVICE =
             "This phone cannot turn speech in its language into text by itself. Tap the mic to try its speech service, or type the change."
+        const val LANGUAGE_UNAVAILABLE = "This phone cannot turn speech in its language into text. Type the change instead."
+
+        /** What to tell the user when the recognizer cannot take the phone's language: whether the speech service is worth a try. */
+        fun noteOf(end: VoiceEnd.LanguageUnavailable): String = if (end.speechServiceNext) TRY_SPEECH_SERVICE else LANGUAGE_UNAVAILABLE
         const val NOT_TURNED_INTO_TEXT = "Speech could not be turned into text just now. Type the change instead."
 
         /**

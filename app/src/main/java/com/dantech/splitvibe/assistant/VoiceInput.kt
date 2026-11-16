@@ -35,8 +35,11 @@ sealed interface VoiceEnd {
     /** The microphone is not allowed. */
     data object NoPermission : VoiceEnd
 
-    /** The phone cannot recognize its language by itself. Its speech service may still, and is offered next. */
-    data object LanguageUnavailable : VoiceEnd
+    /**
+     * The recognizer cannot take the phone's language. When it was the phone's own and the phone has
+     * a speech service, which may take it, [speechServiceNext] is true: the speech service listens next.
+     */
+    data class LanguageUnavailable(val speechServiceNext: Boolean) : VoiceEnd
 
     /** The recognizer failed, for example without a connection it needed. */
     data object Failed : VoiceEnd
@@ -59,7 +62,11 @@ class VoiceInput(context: Context) {
     /** The recognizer listening now; null while nothing is. */
     private var recognizer: SpeechRecognizer? = null
 
-    /** The phone's own recognizer did not take its language, so the speech service is used from now on. */
+    /**
+     * The phone's own recognizer did not take its language, so the speech service listens in its
+     * place for as long as this screen lasts. The next screen tries the phone's own first again: once
+     * the phone has the language, for example after downloading it, the sound stays on the phone.
+     */
     private var onDeviceUnusable = false
 
     val support: VoiceSupport
@@ -149,7 +156,10 @@ class VoiceInput(context: Context) {
             // A recognizer that was cancelled or replaced says nothing more.
             if (recognizer !== owner) return
             cancel()
-            if (onDevice && end == VoiceEnd.LanguageUnavailable) onDeviceUnusable = true
+            if (onDevice && end is VoiceEnd.LanguageUnavailable) {
+                onDeviceUnusable = true
+                return onEnd(VoiceEnd.LanguageUnavailable(speechServiceNext = support == VoiceSupport.NETWORK))
+            }
             onEnd(end)
         }
     }
@@ -170,7 +180,7 @@ class VoiceInput(context: Context) {
 
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED || error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) ->
-                VoiceEnd.LanguageUnavailable
+                VoiceEnd.LanguageUnavailable(speechServiceNext = false)
 
             else -> VoiceEnd.Failed
         }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.graphics.Bitmap
 import android.os.Looper
+import android.speech.SpeechRecognizer
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.NeverAsked
@@ -434,6 +435,21 @@ class SplitAssistantFlowTest {
         // Asked once: the next tap listens at once.
         assistant.onMic()
         assertTrue(assistant.ui().voice.listening)
+    }
+
+    @Test
+    fun `a speech service that cannot take the phone's language is not offered again for it`() {
+        TestVoice.recognizeOnDevice(false)
+        TestVoice.installSpeechService(context)
+        showBill()
+        shadowOf(context).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        assistant.onMic()
+        assistant.onNetworkVoice(allowed = true)
+
+        TestVoice.latest().triggerOnError(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+        awaitOnMain { !assistant.ui().voice.listening }
+
+        assertEquals("This phone cannot turn speech in its language into text. Type the change instead.", assistant.ui().voice.note)
     }
 
     /** Opens a bill typed in by hand, and an assistant for the split screen it is on. */
