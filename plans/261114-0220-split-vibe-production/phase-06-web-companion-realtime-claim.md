@@ -192,7 +192,7 @@ Sửa:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-06-web-companion-realtime-claim, chưa merge vào main -->
+<!-- Updated: thực hiện ngày 15/11/2026 trên nhánh feat/phase-06-web-companion-realtime-claim, đã fast-forward vào main ngày 16/11/2026 -->
 Chín trên mười tiêu chí đạt và có bằng chứng. Tiêu chí ba thiết bị cùng mở một link mới đạt một phần: hai trình duyệt đã được đo, còn app Android chỉ mới chạy với proxy giả, vì bản thật chưa đăng nhập được khi `GOOGLE_CLIENT_ID` còn trống.
 
 | Tiêu chí | Kết quả | Bằng chứng |
