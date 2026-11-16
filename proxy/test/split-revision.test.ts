@@ -320,7 +320,7 @@ describe("what the app sends as its user and its bill read left it", () => {
   }
 
   it("takes an instruction of several lines, as its box has four, with each run of line breaks and tabs as one space", async () => {
-    const body = changed((sample) => (sample.instruction = "Lan không uống bia\nthêm tip 10%\r\n\tcảm ơn "));
+    const body = changed((sample) => (sample.instruction = "Lan không uống bia\nthêm tip 10%\r\n\tcảm ơn\u2028"));
 
     expect(await promptSent(body)).toContain('<instruction>\n"Lan không uống bia thêm tip 10% cảm ơn"\n</instruction>');
   });

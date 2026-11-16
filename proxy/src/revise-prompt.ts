@@ -68,7 +68,7 @@ export function revisionMessage(request: RevisionRequest): string {
 
 /**
  * [value] as JSON that holds no `<`, `>` or `&`: each is written as its JSON escape, such as
- * `<`, which reads back as the same character. So no name and no instruction can close one of
+ * `\u003c`, which reads back as the same character. So no name and no instruction can close one of
  * the message's tags or open another.
  */
 function dataOf(value: unknown): string {
