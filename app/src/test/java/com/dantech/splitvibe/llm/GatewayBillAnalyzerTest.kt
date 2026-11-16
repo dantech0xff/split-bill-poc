@@ -15,6 +15,7 @@ import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrResult
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -67,7 +68,7 @@ class GatewayBillAnalyzerTest {
         assertEquals(902_664L, analysis.bill.totalMinor)
         assertEquals(7, analysis.bill.items.size)
         assertEquals(
-            CallsLeft(limit = 3, used = 1, remaining = 2, period = "trial", resetsAt = null),
+            CallsLeft(limit = BigDecimal(3), used = BigDecimal(1), remaining = BigDecimal(2), period = "trial", resetsAt = null),
             proxy.account.account.value.callsLeft,
         )
 
@@ -100,7 +101,18 @@ class GatewayBillAnalyzerTest {
             Case(
                 refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""),
                 Kind.QUOTA_EXHAUSTED,
-                "You have used your 3 free reads",
+                "You have used your 3 free calls",
+            ),
+            // Changes of a split took part of a call, and what is left is not a whole one.
+            Case(
+                refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_PART_LEFT}"""),
+                Kind.QUOTA_EXHAUSTED,
+                "Reading a bill takes a whole call, and 0.8 of your 3 free calls are left. Sign in with Google",
+            ),
+            Case(
+                refusal(429, """{"error":"quota_exhausted","usage":$MONTH_PART_LEFT}"""),
+                Kind.QUOTA_EXHAUSTED,
+                "0.4 of this month's 10 calls are left. They come back on 1 December",
             ),
             Case(
                 refusal(429, """{"error":"quota_exhausted","usage":$MONTH_USED_UP}"""),
@@ -146,7 +158,21 @@ class GatewayBillAnalyzerTest {
 
         failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
-        assertEquals(2, proxy.account.account.value.callsLeft?.remaining)
+        assertEquals(BigDecimal(2), proxy.account.account.value.callsLeft?.remaining)
+    }
+
+    @Test
+    fun `the calls left after a read can hold part of a call`() = runBlocking {
+        val answer = Json.parseToJsonElement(Fixtures.text("sample_bill_answer.json"))
+        val usage = """{"limit":3,"used":1.2,"remaining":1.8,"period":"trial","resetsAt":null}"""
+        server.enqueue(ndjson("""{"type":"result","answer":$answer,"usage":$usage}"""))
+
+        proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND")
+
+        val calls = checkNotNull(proxy.account.account.value.callsLeft)
+        assertEquals(BigDecimal("1.8"), calls.remaining)
+        assertEquals(BigDecimal("1.2"), calls.used)
+        assertEquals("1.8", CallsLeft.text(calls.remaining))
     }
 
     @Test
@@ -311,7 +337,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
-        assertEquals("You have used your 3 free reads.", failure.message)
+        assertEquals("You have used your 3 free calls.", failure.message)
     }
 
     @Test
@@ -367,6 +393,8 @@ class GatewayBillAnalyzerTest {
         const val TRIAL_USED_UP = """{"limit":3,"used":3,"remaining":0,"period":"trial","resetsAt":null}"""
         const val MONTH_USED_UP = """{"limit":10,"used":10,"remaining":0,"period":"2026-11","resetsAt":1796083200000}"""
         const val ONE_USED = """{"limit":3,"used":1,"remaining":2,"period":"trial","resetsAt":null}"""
+        const val TRIAL_PART_LEFT = """{"limit":3,"used":2.2,"remaining":0.8,"period":"trial","resetsAt":null}"""
+        const val MONTH_PART_LEFT = """{"limit":10,"used":9.6,"remaining":0.4,"period":"2026-11","resetsAt":1796083200000}"""
         val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     }
 }

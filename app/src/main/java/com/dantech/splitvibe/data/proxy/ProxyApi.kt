@@ -7,6 +7,7 @@ import com.dantech.splitvibe.data.fx.DayRate
 import com.dantech.splitvibe.data.fx.FxSnapshot
 import java.io.IOException
 import java.io.InterruptedIOException
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -18,7 +19,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.Call
@@ -233,15 +233,34 @@ private fun parse(text: String): JsonObject? = try {
 private fun callsLeftOf(element: JsonElement): CallsLeft? {
     val usage = element as? JsonObject ?: return null
     return CallsLeft(
-        limit = usage.int("limit") ?: return null,
-        used = usage.int("used") ?: return null,
-        remaining = usage.int("remaining") ?: return null,
+        limit = usage.calls("limit") ?: return null,
+        used = usage.calls("used") ?: return null,
+        remaining = usage.calls("remaining") ?: return null,
         period = usage.text("period") ?: return null,
         resetsAt = usage.long("resetsAt"),
     )
 }
 
 // Fields of the wrong shape read as missing, so a broken answer is a bad response rather than a crash.
+
+/**
+ * A count of calls: a JSON number from 0 with at most two decimals, such as 3, 0.2 or 2.8, read from
+ * the number as written and never through a floating-point value. A proxy from before calls could
+ * weigh less than one wrote whole numbers, which read the same. The value comes back without
+ * trailing zeros, so 2.80 and 2.8 are equal.
+ */
+private fun JsonObject.calls(key: String): BigDecimal? {
+    val number = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.content?.toBigDecimalOrNull() ?: return null
+    // Bounded before anything else is done with it: 1e999999999 is a number too.
+    if (number.signum() < 0 || number > MAX_CALLS) return null
+    val exact = number.stripTrailingZeros()
+    if (exact.scale() > CALL_DECIMALS) return null
+    return if (exact.scale() < 0) exact.setScale(0) else exact
+}
+
+/** Far more calls than anyone is given, and few enough to write out. */
+private val MAX_CALLS = BigDecimal(1_000_000)
+private const val CALL_DECIMALS = 2
 
 /** The rates in a `GET /v1/fx-rates` answer; a rate that is not a positive number with a day is left out. */
 private fun fxSnapshotOf(body: JsonObject): FxSnapshot? {
@@ -260,8 +279,6 @@ private fun fxSnapshotOf(body: JsonObject): FxSnapshot? {
 }
 
 private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
-
-private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
 
 private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
 

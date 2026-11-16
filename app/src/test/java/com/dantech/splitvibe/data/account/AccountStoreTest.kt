@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.PlainCipher
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -73,7 +74,7 @@ class AccountStoreTest {
     fun `a session the proxy refused is kept as a sign-in that has run out`() {
         val store = store()
         store.saveSession(Session("signed-session", expiresAt = now + 60_000), signedInAs = "minh.tran@example.com")
-        store.onCallsLeft(CallsLeft(limit = 10, used = 4, remaining = 6, period = "2026-11", resetsAt = 1_796_083_200_000))
+        store.onCallsLeft(CallsLeft(BigDecimal(10), BigDecimal("4.2"), BigDecimal("5.8"), period = "2026-11", resetsAt = 1_796_083_200_000))
 
         store.expireSession()
 
@@ -129,7 +130,7 @@ class AccountStoreTest {
     fun `signing out forgets the session and the calls left that went with it`() {
         val store = store()
         store.saveSession(Session("signed-session", expiresAt = now + 60_000))
-        store.onCallsLeft(CallsLeft(limit = 10, used = 4, remaining = 6, period = "2026-11", resetsAt = 1_796_083_200_000))
+        store.onCallsLeft(CallsLeft(BigDecimal(10), BigDecimal("4.2"), BigDecimal("5.8"), period = "2026-11", resetsAt = 1_796_083_200_000))
 
         store.clearSession()
 

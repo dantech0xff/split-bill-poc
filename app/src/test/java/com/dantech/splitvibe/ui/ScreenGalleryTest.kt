@@ -52,6 +52,7 @@ import com.dantech.splitvibe.ui.split.SplitScreen
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockWebServer
@@ -326,7 +327,7 @@ class ScreenGalleryTest {
                             onBack = {},
                         )
 
-                        // The session ran out: sign in again, or sign out to use this phone's free reads.
+                        // The session ran out: sign in again, or sign out to use this phone's free calls.
                         Screen.SETTINGS_SIGN_IN_EXPIRED -> SettingsScreen(
                             settings = settings,
                             account = SIGNED_IN.copy(session = null, callsLeft = null, signInExpired = true),
@@ -386,7 +387,7 @@ private const val HALFWAY_TO_SENT_MS = 200L
 private val SIGNED_OUT = Account(
     installId = "gallery-install",
     session = null,
-    callsLeft = CallsLeft(limit = 3, used = 1, remaining = 2, period = "trial", resetsAt = null),
+    callsLeft = CallsLeft(BigDecimal(3), used = BigDecimal("1.2"), remaining = BigDecimal("1.8"), period = "trial", resetsAt = null),
     ai = AiStatus.AVAILABLE,
 )
 
@@ -394,7 +395,7 @@ private val SIGNED_IN = SIGNED_OUT.copy(
     session = Session("gallery-session", expiresAt = Long.MAX_VALUE),
     signedInAs = "minh.tran@example.com",
     // 1 December 2026, in UTC.
-    callsLeft = CallsLeft(limit = 10, used = 1, remaining = 9, period = "2026-11", resetsAt = 1_796_083_200_000),
+    callsLeft = CallsLeft(BigDecimal(10), BigDecimal(1), BigDecimal(9), period = "2026-11", resetsAt = 1_796_083_200_000),
 )
 
 private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {})

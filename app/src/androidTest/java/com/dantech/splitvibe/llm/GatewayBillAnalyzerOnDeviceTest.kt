@@ -8,6 +8,7 @@ import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrResult
+import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -75,7 +76,7 @@ class GatewayBillAnalyzerOnDeviceTest {
         analysis as BillAnalysis.Ready
         assertEquals(65_000L, analysis.bill.totalMinor)
         assertEquals(listOf("Minh"), analysis.splitHint.people)
-        assertEquals(9, restarted.account.value.callsLeft?.remaining)
+        assertEquals(BigDecimal(9), restarted.account.value.callsLeft?.remaining)
         val request = server.takeRequest()
         assertEquals("/v1/bill-analysis", request.requestUrl?.encodedPath)
         assertEquals("Bearer signed-session", request.getHeader("Authorization"))

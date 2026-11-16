@@ -29,7 +29,7 @@ const val MAX_INSTRUCTION_CHARS = 1_000
 class GatewayBillAnalyzer(
     private val api: ProxyApi,
     private val account: AccountStore,
-    /** Whether this build can sign in with Google, which is how a person gets more reads. */
+    /** Whether this build can sign in with Google, which is how a person gets more calls. */
     private val canSignIn: Boolean,
 ) : BillAnalyzer {
 
@@ -85,7 +85,7 @@ class GatewayBillAnalyzer(
 
         ProxyApi.SESSION_REFUSED -> {
             account.expireSession()
-            BillAnalyzerException(Kind.SIGN_IN_EXPIRED, "Your sign-in has run out. Sign in again in Settings to use your monthly reads.", e)
+            BillAnalyzerException(Kind.SIGN_IN_EXPIRED, "Your sign-in has run out. Sign in again in Settings to use your monthly calls.", e)
         }
 
         "ai_off" -> {
@@ -116,12 +116,22 @@ class GatewayBillAnalyzer(
         else -> BillAnalyzerException(Kind.SERVICE_ERROR, "Split Vibe's server had a problem. Try again in a moment.", e)
     }
 
+    /**
+     * That the calls are used up, or that too little of one is left for a read: a read takes a whole
+     * one, so a part left over from changes of a split is not enough for it.
+     */
     private fun quotaMessage(callsLeft: CallsLeft?): String {
-        val date = callsLeft?.comesBackOn
-        if (callsLeft != null && date != null) return "You have used this month's ${callsLeft.limit} reads. They come back on $date."
-        val free = callsLeft?.limit?.let { "$it " }.orEmpty()
         val more = if (canSignIn) " Sign in with Google in Settings to get more each month." else ""
-        return "You have used your ${free}free reads.$more"
+        if (callsLeft == null) return "You have used your free calls.$more"
+        val limit = CallsLeft.text(callsLeft.limit)
+        val left = callsLeft.remaining.takeIf { it.signum() > 0 }?.let(CallsLeft::text)
+        val date = callsLeft.comesBackOn
+        return when {
+            date != null && left == null -> "You have used this month's $limit calls. They come back on $date."
+            date != null -> "Reading a bill takes a whole call, and $left of this month's $limit calls are left. They come back on $date."
+            left == null -> "You have used your $limit free calls.$more"
+            else -> "Reading a bill takes a whole call, and $left of your $limit free calls are left.$more"
+        }
     }
 
     private fun waitHint(seconds: Long?): String {

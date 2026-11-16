@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
+import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -42,7 +43,7 @@ class ProxyApiTest {
         val (session, callsLeft) = proxy.api.startSession("google-id-token")
 
         assertEquals(Session("signed-session", 1_798_761_600_000), session)
-        assertEquals(CallsLeft(limit = 10, used = 0, remaining = 10, period = "2026-11", resetsAt = 1_796_083_200_000), callsLeft)
+        assertEquals(CallsLeft(BigDecimal(10), BigDecimal(0), BigDecimal(10), period = "2026-11", resetsAt = 1_796_083_200_000), callsLeft)
         val request = server.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/v1/session", request.requestUrl?.encodedPath)
@@ -69,7 +70,7 @@ class ProxyApiTest {
 
         val usage = proxy.api.usage()
 
-        assertEquals(10, usage.callsLeft.remaining)
+        assertEquals(BigDecimal(10), usage.callsLeft.remaining)
         assertFalse(usage.aiEnabled)
         val request = server.takeRequest()
         assertEquals("GET", request.method)
@@ -92,11 +93,39 @@ class ProxyApiTest {
     }
 
     @Test
+    fun `calls are read with their decimals, from the number as written`() = runBlocking {
+        val usages = listOf(
+            """{"limit":3,"used":0.2,"remaining":2.8,"period":"trial","resetsAt":null}""" to listOf("3", "0.2", "2.8"),
+            // A proxy from before calls could weigh less than one wrote whole numbers.
+            """{"limit":10,"used":1,"remaining":9,"period":"2026-11","resetsAt":1796083200000}""" to listOf("10", "1", "9"),
+            // The same number written another way is the same count.
+            """{"limit":10.00,"used":0.20,"remaining":9.80,"period":"2026-11","resetsAt":1796083200000}""" to listOf("10", "0.2", "9.8"),
+            """{"limit":1e1,"used":2E-1,"remaining":0.098e2,"period":"2026-11","resetsAt":1796083200000}""" to listOf("10", "0.2", "9.8"),
+        )
+        for ((usage, expected) in usages) {
+            server.enqueue(json(200, """{"usage":$usage,"aiEnabled":true}"""))
+
+            val calls = proxy.api.usage().callsLeft
+
+            assertEquals(usage, expected.map(::BigDecimal), listOf(calls.limit, calls.used, calls.remaining))
+            assertEquals(usage, expected, listOf(calls.limit, calls.used, calls.remaining).map(CallsLeft::text))
+        }
+    }
+
+    @Test
     fun `an answer of the wrong shape is a bad response, not a crash`() = runBlocking {
         val answers = listOf(
             """{"usage":{"limit":"ten","used":0,"remaining":10,"period":"2026-11"},"aiEnabled":true}""",
             """{"usage":[10],"aiEnabled":true}""",
             """["usage"]""",
+            // A count is a number of calls from zero, in hundredths at most, and never a string of one.
+            """{"usage":{"limit":3,"used":0.2,"remaining":"2.8","period":"trial"},"aiEnabled":true}""",
+            """{"usage":{"limit":3,"used":3.2,"remaining":-0.2,"period":"trial"},"aiEnabled":true}""",
+            """{"usage":{"limit":3,"used":0.195,"remaining":2.805,"period":"trial"},"aiEnabled":true}""",
+            """{"usage":{"limit":3,"used":0,"remaining":true,"period":"trial"},"aiEnabled":true}""",
+            // Far too large to be a count, and far too large to write out, which must not be tried.
+            """{"usage":{"limit":1e999999999,"used":0,"remaining":3,"period":"trial"},"aiEnabled":true}""",
+            """{"usage":{"limit":3,"used":1e-999999999,"remaining":3,"period":"trial"},"aiEnabled":true}""",
         )
         for (answer in answers) {
             server.enqueue(json(200, answer))

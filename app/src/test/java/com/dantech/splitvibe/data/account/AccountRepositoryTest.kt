@@ -9,6 +9,7 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
+import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -58,7 +59,7 @@ class AccountRepositoryTest {
         val account = proxy.account.account.value
         assertEquals(Session("signed-session", FAR_FUTURE), account.session)
         assertEquals("minh.tran@example.com", account.signedInAs)
-        assertEquals(10, account.callsLeft?.remaining)
+        assertEquals(BigDecimal(10), account.callsLeft?.remaining)
     }
 
     @Test
@@ -154,7 +155,7 @@ class AccountRepositoryTest {
     }
 
     @Test
-    fun `signing out after the sign-in ran out goes back to this phone's free reads`() = runBlocking {
+    fun `signing out after the sign-in ran out goes back to this phone's free calls`() = runBlocking {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE))
         proxy.account.expireSession()
         server.enqueue(json(200, """{"usage":{"limit":3,"used":1,"remaining":2,"period":"trial","resetsAt":null},"aiEnabled":true}"""))
@@ -164,7 +165,7 @@ class AccountRepositoryTest {
 
         assertFalse(proxy.account.account.value.signInExpired)
         assertNull("the count is the install's", server.takeRequest().getHeader("Authorization"))
-        assertEquals(2, proxy.account.account.value.callsLeft?.remaining)
+        assertEquals(BigDecimal(2), proxy.account.account.value.callsLeft?.remaining)
     }
 
     @Test
@@ -173,7 +174,7 @@ class AccountRepositoryTest {
 
         repository.refresh()
 
-        assertEquals(2, proxy.account.account.value.callsLeft?.remaining)
+        assertEquals(BigDecimal(2), proxy.account.account.value.callsLeft?.remaining)
         assertEquals(AiStatus.OFF, proxy.account.account.value.ai)
     }
 

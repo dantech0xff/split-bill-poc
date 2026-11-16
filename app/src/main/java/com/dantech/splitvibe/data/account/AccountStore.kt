@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 import com.dantech.splitvibe.data.settings.KeystoreCipher
 import com.dantech.splitvibe.data.settings.TextCipher
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -18,15 +19,28 @@ import kotlinx.coroutines.flow.update
 data class Session(val token: String, val expiresAt: Long)
 
 /**
- * The AI calls left, as the proxy last counted them. [period] is "trial" for the calls an install
- * gets before signing in, which never come back, or the calendar month in UTC such as "2026-11".
+ * The AI calls left, as the proxy last counted them. A call can take part of one: reading a bill
+ * takes [READ] and changing a split by a sentence [REVISION], so the counts have decimals, such as
+ * 2.8. [period] is "trial" for the calls an install gets before signing in, which never come back,
+ * or the calendar month in UTC such as "2026-11".
  */
-data class CallsLeft(val limit: Int, val used: Int, val remaining: Int, val period: String, val resetsAt: Long?) {
+data class CallsLeft(val limit: BigDecimal, val used: BigDecimal, val remaining: BigDecimal, val period: String, val resetsAt: Long?) {
     /** The day the monthly calls come back, such as "1 December", or null for a trial. */
     val comesBackOn: String?
         get() = resetsAt?.let {
             DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH).format(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC))
         }
+
+    companion object {
+        /** What reading a bill takes of the calls. The proxy decides it; the app only says it. */
+        val READ: BigDecimal = BigDecimal.ONE
+
+        /** What changing a split by a sentence takes, as `revisionWeight` in the proxy's `policy.ts` sets it. */
+        val REVISION: BigDecimal = BigDecimal("0.2")
+
+        /** [calls] as the app writes a number of calls, without zeros that say nothing: "2.8", "3", "0.2". */
+        fun text(calls: BigDecimal): String = calls.stripTrailingZeros().toPlainString()
+    }
 }
 
 /** Whether bills can be read with AI, and what to tell the person when they cannot. */

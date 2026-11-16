@@ -56,7 +56,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 /** What the account part of Settings can do. */
 class AccountActions(val onSignIn: () -> Unit, val onSignOut: () -> Unit, val onDeleteAccount: () -> Unit)
 
-/** The app's own settings: the AI reads left and the Google account behind them, and the currency the app works in. */
+/** The app's own settings: the AI calls left and the Google account behind them, and the currency the app works in. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -154,19 +154,22 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
 
     SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-            Text("Reading bills with AI", style = MaterialTheme.typography.titleMedium)
+            Text("AI calls", style = MaterialTheme.typography.titleMedium)
 
             account.callsLeft?.let { Text(callsLeftText(it), style = MaterialTheme.typography.bodyLarge) }
+            if (account.ai != AiStatus.NOT_SET_UP) {
+                Text(CALL_COSTS, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
 
             val about = when {
                 account.ai == AiStatus.NOT_SET_UP -> account.ai.notice
 
                 account.signInExpired ->
-                    "Your sign-in${account.signedInAs?.let { " as $it" }.orEmpty()} has run out. Sign in again to use your monthly reads."
+                    "Your sign-in${account.signedInAs?.let { " as $it" }.orEmpty()} has run out. Sign in again to use your monthly calls."
 
                 signedIn -> "Signed in with Google as ${account.signedInAs ?: "your Google account"}."
 
-                canSignIn -> "Sign in with Google to get reads every month."
+                canSignIn -> "Sign in with Google to get calls every month."
 
                 else -> "Signing in is not set up in this build of the app."
             }
@@ -220,7 +223,7 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
             text = {
                 Text(
                     "Split Vibe's server deletes what it keeps about your Google account, which is the count of " +
-                        "your reads. Bills on this phone stay as they are.",
+                        "your calls. Bills on this phone stay as they are.",
                 )
             },
             confirmButton = {
@@ -242,11 +245,13 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
 /** Read out by TalkBack when it appears or changes: the outcome of what the person just did. */
 private val announced = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
 
-private fun callsLeftText(calls: CallsLeft): String {
+/** The calls left, such as "2.8 of 3 free calls left on this phone." */
+internal fun callsLeftText(calls: CallsLeft): String {
+    val left = "${CallsLeft.text(calls.remaining)} of ${CallsLeft.text(calls.limit)}"
     val date = calls.comesBackOn
-    return if (date == null) {
-        "${calls.remaining} of ${calls.limit} free reads left on this phone."
-    } else {
-        "${calls.remaining} of ${calls.limit} reads left this month. They come back on $date."
-    }
+    return if (date == null) "$left free calls left on this phone." else "$left calls left this month. They come back on $date."
 }
+
+/** What each use of the AI takes of the calls. */
+internal val CALL_COSTS = "Reading a bill takes ${CallsLeft.text(CallsLeft.READ)} call, " +
+    "and changing a split by a sentence takes ${CallsLeft.text(CallsLeft.REVISION)}."

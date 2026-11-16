@@ -9,6 +9,7 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -66,11 +67,11 @@ class SettingsViewModelTest {
         assertTrue(viewModel.ui.value.working)
         awaitOnMain { !viewModel.ui.value.working }
 
-        assertEquals(10, proxy.account.account.value.callsLeft?.remaining)
+        assertEquals(BigDecimal(10), proxy.account.account.value.callsLeft?.remaining)
         // Long enough for the install's count to have arrived, had it not been stopped.
         val stillThere = System.currentTimeMillis() + 1_500
         awaitOnMain { System.currentTimeMillis() > stillThere }
-        assertEquals("the account's count stays", 10, proxy.account.account.value.callsLeft?.remaining)
+        assertEquals("the account's count stays", BigDecimal(10), proxy.account.account.value.callsLeft?.remaining)
         assertNull(viewModel.ui.value.message)
     }
 
