@@ -20,6 +20,8 @@ import com.dantech.splitvibe.TestClock
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.bills.BillRepository
+import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.data.recurring.RecurringBill
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.Frequency
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -64,7 +67,8 @@ class RecurringBillWorkerTest {
             Configuration.Builder().setMinimumLoggingLevel(Log.DEBUG).setExecutor(SynchronousExecutor()).build(),
         )
         // The worker takes its objects from the app's Koin: these take the place of the phone's.
-        val drafts = RecurringDrafts(recurring, bills, notify = { Notices.showDraft(context, it) }, clock = clock)
+        val notify = { template: RecurringBill, made: List<SavedBill> -> Notices.showDrafts(context, template.name, made) }
+        val drafts = RecurringDrafts(recurring, bills, notify, clock = clock)
         loadKoinModules(module { single { drafts } })
         shadowOf(context as Application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
@@ -81,30 +85,41 @@ class RecurringBillWorkerTest {
     }
 
     @Test
-    fun `the work makes the drafts that are due, each with one notice that opens it`() {
+    fun `the drafts a run makes come in one notice that names the recurring bill off the lock screen and opens the newest`() {
         val template = weeklyRent()
-        clock.moveTo(LocalDate.of(2026, 11, 24))
-
+        clock.moveTo(LocalDate.of(2026, 11, 17))
         val first = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
+        // Two weeks away: one run catches up both Tuesdays, and the next finds nothing new.
+        clock.moveTo(LocalDate.of(2026, 12, 1))
         val second = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
+        val third = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
 
-        assertEquals(ListenableWorker.Result.success(), first)
-        assertEquals(ListenableWorker.Result.success(), second)
-        val ids = listOf(17, 24).map { Recurrence.draftId(template.id, LocalDate.of(2026, 11, it)) }
-        val posted = shadowOf(notifications).allNotifications
-        // One notice for each draft, and none again for a draft made before.
-        assertEquals(2, posted.size)
+        listOf(first, second, third).forEach { assertEquals(ListenableWorker.Result.success(), it) }
+        val ids = listOf("2026-11-17", "2026-11-24", "2026-12-01").map { Recurrence.draftId(template.id, LocalDate.parse(it)) }
+        ids.forEach { assertNotNull(runBlocking { bills.get(it) }) }
+        // One notice for each run that made drafts, tagged with the newest of them.
+        assertEquals(2, shadowOf(notifications).allNotifications.size)
         assertEquals("Recurring bills", notifications.getNotificationChannel(Notices.DRAFTS_CHANNEL).name)
-        ids.forEach { id ->
-            val notice = checkNotNull(shadowOf(notifications).getNotification(id, 1)) { "No notice for $id" }
+        val single = notice(ids[0])
+        val caughtUp = notice(ids[2])
+        assertEquals("Rent" to "Its draft for Nov 17, 2026 is ready to check and finish.", words(single))
+        assertEquals("Rent" to "2 drafts are ready to check and finish, the newest for Dec 1, 2026.", words(caughtUp))
+        listOf(single to ids[0], caughtUp to ids[2]).forEach { (notice, id) ->
             assertEquals(Notices.DRAFTS_CHANNEL, notice.channelId)
-            val opened = shadowOf(notice.contentIntent).savedIntent
-            assertEquals(AppLink.OpenBill(id), AppLink.of(opened, "https://split-vibe-proxy.example.workers.dev"))
+            // Each notice keeps its own tap, which opens its newest draft.
+            assertEquals(AppLink.OpenBill(id), AppLink.of(shadowOf(notice.contentIntent).savedIntent, PROXY_URL))
+            // A lock screen that hides private notices says that a recurring bill is due, not which.
+            assertEquals(Notification.VISIBILITY_PRIVATE, notice.visibility)
+            assertEquals("A recurring bill is due" to null, words(checkNotNull(notice.publicVersion)))
         }
-        assertEquals(
-            "Its draft for Nov 17, 2026 is ready to check and finish.",
-            shadowOf(notifications).getNotification(ids[0], 1).extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
-        )
+    }
+
+    private fun notice(id: String): Notification = checkNotNull(shadowOf(notifications).getNotification(id, 1)) { "No notice for $id" }
+
+    /** The title and the text of [notice]. */
+    private fun words(notice: Notification): Pair<String?, String?> {
+        val extras = notice.extras
+        return extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() to extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
     }
 
     @Test
@@ -149,5 +164,9 @@ class RecurringBillWorkerTest {
         // Keeping the daily run, as every start of the app does, keeps the one there is.
         RecurringBillWorker.keepDaily(context)
         assertEquals(daily.id, daily().id)
+    }
+
+    private companion object {
+        const val PROXY_URL = "https://split-vibe-proxy.example.workers.dev"
     }
 }

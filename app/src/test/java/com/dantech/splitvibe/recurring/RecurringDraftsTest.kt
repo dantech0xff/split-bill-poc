@@ -51,9 +51,9 @@ class RecurringDraftsTest {
     private val bills = BillRepository(storage.database, storage.people, storage.pages) { clock.millis() }
     private val recurring = RecurringBillRepository(storage.database, clock)
 
-    /** The drafts a notice was posted for, in order; the runs at once post from two threads. */
-    private val notices: MutableList<String> = Collections.synchronizedList(mutableListOf())
-    private val drafts = RecurringDrafts(recurring, bills, notify = { notices += it.id }, clock = clock)
+    /** The drafts of each notice, in the order the notices were posted; the runs at once post from two threads. */
+    private val notices: MutableList<List<String>> = Collections.synchronizedList(mutableListOf())
+    private val drafts = RecurringDrafts(recurring, bills, notify = { _, made -> notices += made.map { it.id } }, clock = clock)
 
     /** The rent, finished, with what belongs to its one occasion: photos, read text, an instruction, a link and a group. */
     private val rent: SavedBill = runBlocking {
@@ -109,7 +109,7 @@ class RecurringDraftsTest {
         assertEquals((ids + rent.id).sorted(), stored().map { it.id }.sorted())
         // Every draft has an id the proxy takes, so a finished one can go to a group, a request or a link.
         ids.forEach { UUID.fromString(it) }
-        assertEquals(ids, notices)
+        assertEquals(ids.map(::listOf), notices)
     }
 
     @Test
@@ -194,7 +194,7 @@ class RecurringDraftsTest {
     }
 
     @Test
-    fun `two runs at once make each draft once, with one notice each`() {
+    fun `two runs at once make each draft once, and tell of each in one notice`() {
         repeat(20) { round ->
             clock.moveTo(LocalDate.of(2026, 11, 16))
             val template = makeRecurring(Frequency.WEEKLY, "2026-11-17")
@@ -207,14 +207,14 @@ class RecurringDraftsTest {
 
             val ids = (0L until 10L).map { Recurrence.draftId(template.id, LocalDate.of(2026, 11, 17).plusWeeks(it)) }
             assertEquals("round $round", ids.sorted(), made.map { it.id }.sorted())
-            assertEquals("round $round", ids.sorted(), notices.filter { it in ids }.sorted())
+            assertEquals("round $round", ids.sorted(), notices.flatten().filter { it in ids }.sorted())
             ids.forEach { assertNotNull("round $round", runBlocking { bills.get(it) }) }
             runBlocking { recurring.delete(template.id) }
         }
     }
 
     @Test
-    fun `the periods missed while the work did not run are made at the next run, and only once`() {
+    fun `the periods missed while the work did not run are made at the next run, only once, with one notice for them all`() {
         val template = makeRecurring(Frequency.MONTHLY, "2026-12-01")
         // The phone stays off from December to the middle of March.
         clock.moveTo(LocalDate.of(2027, 3, 15))
@@ -226,7 +226,7 @@ class RecurringDraftsTest {
         assertEquals(days.map { Recurrence.draftId(template.id, it) }, caughtUp.map { it.id })
         assertEquals(days.map(LocalDate::toString), caughtUp.map { it.bill.date })
         assertTrue(again.isEmpty())
-        assertEquals(4, notices.size)
+        assertEquals(listOf(days.map { Recurrence.draftId(template.id, it) }), notices)
         assertEquals(LocalDate.of(2027, 4, 1), runBlocking { recurring.all.first() }.single().nextDraft())
     }
 
@@ -244,6 +244,22 @@ class RecurringDraftsTest {
         // Only the Tuesdays from the day it was resumed: 8 and 15 December.
         assertEquals(listOf(LocalDate.of(2026, 12, 8), LocalDate.of(2026, 12, 15)), made.keys.toList())
         assertEquals(2, notices.size)
+    }
+
+    @Test
+    fun `a notice that cannot be shown stops nothing, and every recurring bill's drafts are made once`() {
+        makeRecurring(Frequency.WEEKLY, "2026-11-17")
+        makeRecurring(Frequency.MONTHLY, "2026-11-20")
+        clock.moveTo(LocalDate.of(2026, 11, 24))
+        val failing = RecurringDrafts(recurring, bills, notify = { _, _ -> throw SecurityException("No notices here") }, clock = clock)
+
+        val made = runBlocking { failing.makeDue() }
+        val again = runBlocking { failing.makeDue() }
+
+        // Two Tuesdays of the weekly bill and the monthly bill's first draft.
+        assertEquals(3, made.size)
+        made.forEach { assertNotNull(runBlocking { bills.get(it.id) }) }
+        assertTrue(again.isEmpty())
     }
 
     @Test

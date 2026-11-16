@@ -23,7 +23,12 @@ val spendingModule = module {
     single { RecurringBillRepository(database = get(), clock = PhoneClock) }
     single {
         val context = androidContext()
-        RecurringDrafts(recurring = get(), bills = get(), notify = { draft -> Notices.showDraft(context, draft) }, clock = PhoneClock)
+        RecurringDrafts(
+            recurring = get(),
+            bills = get(),
+            notify = { template, drafts -> Notices.showDrafts(context, template.name, drafts) },
+            clock = PhoneClock,
+        )
     }
     single { Exporter(androidContext()) }
 

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -14,15 +15,15 @@ import androidx.core.content.ContextCompat
 import com.dantech.splitvibe.MainActivity
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.SavedBill
-import java.time.LocalDate
+import com.dantech.splitvibe.data.bills.dayOf
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.time.format.FormatStyle
 
 /**
- * The notices the app shows: the push notices the proxy sends, and one for each draft a recurring
- * bill makes. Their words are the app's own, chosen by the kind of notice; nothing anyone typed,
- * such as a name, a merchant or a link, ever comes in a notice.
+ * The notices the app shows: the push notices the proxy sends, and one for the drafts a recurring
+ * bill makes. The push notices' words are the app's own, chosen by the kind of notice, and nothing
+ * anyone typed, such as a name, a merchant or a link, comes in them. A recurring bill's notice names
+ * it as the user called it, which a lock screen that hides private notices leaves out.
  */
 object Notices {
 
@@ -68,11 +69,7 @@ object Notices {
     fun show(context: Context, data: Map<String, String>) {
         val kind = data["type"]
         val (title, text) = textOf(kind) ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
+        if (!allowed(context)) return
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra(EXTRA_KIND, kind)
@@ -95,16 +92,14 @@ object Notices {
     }
 
     /**
-     * Tells the user that [draft], made by a recurring bill on its day, is waiting to be checked
-     * and finished, when the user allows notices. Tapping the notice opens the draft. Each draft
-     * has a notice of its own, so another one never takes its place.
+     * Tells the user that the recurring bill called [name] made [drafts], earliest first, and that
+     * they wait to be checked and finished, when the user allows notices. However long the app was
+     * away, that is one notice, and tapping it opens the newest draft. A later run's notice is one of
+     * its own, so it never takes this one's place.
      */
-    fun showDraft(context: Context, draft: SavedBill) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
+    fun showDrafts(context: Context, name: String, drafts: List<SavedBill>) {
+        val newest = drafts.lastOrNull() ?: return
+        if (!allowed(context)) return
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(DRAFTS_CHANNEL, "Recurring bills", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "When a recurring bill, such as the rent, is due and its draft is ready to check."
@@ -112,33 +107,47 @@ object Notices {
         )
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            // The system tells pending intents apart by their address, never by their extras, so
+            // each notice's has its draft's: two notices never share one tap.
+            data = Uri.fromParts(DRAFT_SCHEME, newest.id, null)
             putExtra(EXTRA_KIND, KIND_DRAFT)
-            putExtra(EXTRA_BILL_ID, draft.id)
+            putExtra(EXTRA_BILL_ID, newest.id)
         }
-        val tap = PendingIntent.getActivity(
-            context,
-            draft.id.hashCode(),
-            open,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val day = draft.bill.date?.let { date ->
-            try {
-                DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(LocalDate.parse(date))
-            } catch (e: DateTimeParseException) {
-                null
-            }
+        val tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val day = dayOf(newest.bill.date)?.let { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(it) }
+        val text = when {
+            drafts.size == 1 && day != null -> "Its draft for $day is ready to check and finish."
+            drafts.size == 1 -> "Its draft is ready to check and finish."
+            day != null -> "${drafts.size} drafts are ready to check and finish, the newest for $day."
+            else -> "${drafts.size} drafts are ready to check and finish."
         }
-        val text = if (day == null) "Its draft is ready to check and finish." else "Its draft for $day is ready to check and finish."
+        // What a lock screen that hides private notices shows instead: nothing the user typed.
+        val hidden = NotificationCompat.Builder(context, DRAFTS_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(DRAFTS_DUE)
+            .build()
         val notice = NotificationCompat.Builder(context, DRAFTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("A recurring bill is due")
+            .setContentTitle(name)
             .setContentText(text)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(hidden)
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
-        NotificationManagerCompat.from(context).notify(draft.id, DRAFT_NOTICE, notice)
+        NotificationManagerCompat.from(context).notify(newest.id, DRAFT_NOTICE, notice)
     }
 
-    /** The id of every draft's notice, which its tag, the draft's id, tells apart. */
+    /** Whether the user lets the app show notices, which Android 13 and later ask leave for. */
+    private fun allowed(context: Context): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /** What the notice of a recurring bill's drafts says where private notices are hidden. */
+    private const val DRAFTS_DUE = "A recurring bill is due"
+
+    /** The scheme of the address that tells apart the taps of the drafts' notices; nothing opens it. */
+    private const val DRAFT_SCHEME = "splitvibe-draft"
+
+    /** The id of every drafts' notice, which its tag, the newest draft's id, tells apart. */
     private const val DRAFT_NOTICE = 1
 }
