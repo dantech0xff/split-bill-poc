@@ -36,11 +36,20 @@ type RequestEntry = { heldAt: number; runs: number; active: number; committedAt:
 type Book = { period: string; hundredths: number };
 
 /**
- * How storage held a count before calls had weights: in whole calls, with request ids that have
- * no weight and hold one call each.
+ * A [Book] as this code writes it, with `used`: the same count in whole calls, rounded up. The code
+ * deployed before calls had weights reads `used` alone, as after a rollback, so that code never
+ * hands out a call that is not left.
  */
-type WholeCallBook = { period: string; used: number };
-type WholeCallEntry = Omit<RequestEntry, "weight">;
+type WrittenBook = Book & { used: number };
+
+/**
+ * What storage may hold as the book. Before calls had weights it held `used` alone, in whole calls,
+ * and request ids had no weight, each holding one call. That code still runs on this storage after
+ * a rollback: it reads `used`, charges each call it makes as one more, and writes the book back with
+ * whatever else it held.
+ */
+type StoredBook = { period: string; hundredths?: unknown; used?: unknown };
+type StoredEntry = Omit<RequestEntry, "weight"> & { weight?: unknown };
 
 const BOOK = "book";
 const REQUEST = "request:";
@@ -112,8 +121,8 @@ export class QuotaBook extends DurableObject {
     entry.active = Math.max(0, entry.active - 1);
     if (entry.committedAt === null) {
       entry.committedAt = now;
-      book.hundredths += entry.weight;
-      await this.ctx.storage.put({ [BOOK]: book, [REQUEST + requestId]: entry });
+      book.hundredths += weightOf(entry.weight);
+      await this.ctx.storage.put({ [BOOK]: written(book), [REQUEST + requestId]: entry });
     } else {
       await this.ctx.storage.put(REQUEST + requestId, entry);
     }
@@ -156,19 +165,25 @@ export class QuotaBook extends DurableObject {
   }
 
   /**
-   * Before calls had weights, storage counted whole calls: the book as `used`, and request ids
-   * without a weight, each holding one call. The first time anything asks after the deploy, this
-   * writes them in hundredths of a call, so that nobody gains or loses anything. It leaves what was
-   * written since as it is, so it can run again safely, and the object looks only once while it
-   * runs. Each record is converted on its own, so a write cut off half way loses nothing either.
+   * Puts what the code deployed before calls had weights wrote into this code's form, the first
+   * time anything asks after this code starts: the book as [bookOf] counts it, with the calls that
+   * code charged, and each request id without a weight as one that holds a whole call. That code
+   * wrote such records before weights were first deployed, and writes them again after any rollback
+   * to it. Records already in this form are left as they are, so this can run again safely, and the
+   * object looks only once while it runs. Each record is written on its own, so a write cut off half
+   * way loses nothing.
    */
   private async upgrade(): Promise<void> {
     if (this.upgraded) return;
-    const changes: Array<[string, Book | RequestEntry]> = [];
-    const book = await this.ctx.storage.get<Book | WholeCallBook>(BOOK);
-    if (book !== undefined && !("hundredths" in book)) changes.push([BOOK, { period: book.period, hundredths: book.used * PER_CALL }]);
-    for (const [key, entry] of await this.ctx.storage.list<RequestEntry | WholeCallEntry>({ prefix: REQUEST })) {
-      if (!("weight" in entry)) changes.push([key, { ...entry, weight: PER_CALL }]);
+    const changes: Array<[string, WrittenBook | RequestEntry]> = [];
+    const stored = await this.ctx.storage.get<StoredBook>(BOOK);
+    if (stored !== undefined) {
+      const book = written(bookOf(stored));
+      if (book.hundredths !== stored.hundredths || book.used !== stored.used) changes.push([BOOK, book]);
+    }
+    for (const [key, entry] of await this.ctx.storage.list<StoredEntry>({ prefix: REQUEST })) {
+      const weight = weightOf(entry.weight);
+      if (entry.weight !== weight) changes.push([key, { ...entry, weight }]);
     }
     for (let start = 0; start < changes.length; start += MAX_PUT_KEYS) {
       await this.ctx.storage.put(Object.fromEntries(changes.slice(start, start + MAX_PUT_KEYS)));
@@ -179,8 +194,8 @@ export class QuotaBook extends DurableObject {
   /** The count of the current period. A new calendar month starts a monthly count from zero. */
   private async currentBook(now: number, allowance: Allowance): Promise<Book> {
     const period = periodOf(allowance, now);
-    const stored = await this.ctx.storage.get<Book>(BOOK);
-    return stored && stored.period === period ? stored : { period, hundredths: 0 };
+    const stored = await this.ctx.storage.get<StoredBook>(BOOK);
+    return stored && stored.period === period ? bookOf(stored) : { period, hundredths: 0 };
   }
 
   /** Request ids that still matter: uncharged holds not yet given back, and charged ones still remembered. */
@@ -214,10 +229,41 @@ export class QuotaBook extends DurableObject {
 /**
  * [weight] when it is a whole number of hundredths above zero, as every route sends. A Worker
  * deployed before calls had weights, still finishing a bill read while the new one starts, sends
- * none: its call is a whole one.
+ * none, and the request ids it wrote have none: their call is a whole one, as is that of anything
+ * else, so that no count can become NaN.
  */
-function weightOf(weight: number | undefined): number {
+function weightOf(weight: unknown): number {
   return typeof weight === "number" && Number.isSafeInteger(weight) && weight > 0 ? weight : PER_CALL;
+}
+
+/** [value] when it is a whole number of zero or more, as every count storage holds should be; null otherwise, NaN among them. */
+function wholeCountOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * The count [stored] holds, in hundredths of a call. A book written before calls had weights has
+ * whole calls only. A book this code wrote has both; when its whole calls are more than its
+ * hundredths come to, the code before weights ran on it since, after a rollback, and charged each
+ * call it made as a whole one, so those calls are counted too, and nobody gains one by a rollback.
+ * A count that is not a whole number of zero or more counts as none, so that none becomes NaN.
+ */
+function bookOf(stored: StoredBook): Book {
+  const calls = wholeCountOf(stored.used);
+  const hundredths = wholeCountOf(stored.hundredths);
+  if (hundredths === null) return { period: stored.period, hundredths: (calls ?? 0) * PER_CALL };
+  const chargedSince = Math.max(0, (calls ?? 0) - wholeCallsOf(hundredths));
+  return { period: stored.period, hundredths: hundredths + chargedSince * PER_CALL };
+}
+
+/** [book] as storage keeps it: with its count in whole calls too, for the code before weights. */
+function written(book: Book): WrittenBook {
+  return { ...book, used: wholeCallsOf(book.hundredths) };
+}
+
+/** [hundredths] in whole calls, rounded up, so that a part of a call counts as a whole one. */
+function wholeCallsOf(hundredths: number): number {
+  return Math.ceil(hundredths / PER_CALL);
 }
 
 function forgetAt(entry: RequestEntry): number {
@@ -226,7 +272,7 @@ function forgetAt(entry: RequestEntry): number {
 
 /** The allowance, what was charged and what is left, in hundredths of a call. A call still held counts as used. */
 function countOf(book: Book, requests: Map<string, RequestEntry>, allowance: Allowance): { limit: number; used: number; remaining: number } {
-  const holding = [...requests.values()].reduce((sum, entry) => (entry.committedAt === null ? sum + entry.weight : sum), 0);
+  const holding = [...requests.values()].reduce((sum, entry) => (entry.committedAt === null ? sum + weightOf(entry.weight) : sum), 0);
   const limit = hundredthsOf(allowance.limit);
   return { limit, used: book.hundredths, remaining: Math.max(0, limit - book.hundredths - holding) };
 }

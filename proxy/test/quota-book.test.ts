@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { WEIGHTS } from "../src/identity";
 import { POLICY } from "../src/policy";
-import { nextMonthStart, type Allowance } from "../src/quota-book";
+import { nextMonthStart, periodOf, type Allowance } from "../src/quota-book";
 
 // Times are taken from the real clock: the object's alarm runs on it, and a time in the past would
 // let the alarm clear a hold in the middle of a test.
@@ -20,6 +20,20 @@ function book() {
 }
 
 type Book = ReturnType<typeof book>;
+
+/** A fresh object whose storage holds [entries], as another version of the code may have written them. */
+async function bookWith(entries: Record<string, unknown>): Promise<Book> {
+  const stub = book();
+  await runInDurableObject(stub, async (_, state) => {
+    await state.storage.put(entries);
+  });
+  return stub;
+}
+
+/** Everything the object's storage holds, by key. */
+function storageOf(stub: Book): Promise<Record<string, unknown>> {
+  return runInDurableObject(stub, async (_, state) => Object.fromEntries(await state.storage.list()));
+}
 
 /** One call that the model answered: held, then charged. */
 async function call(stub: Book, now: number, allowance: Allowance, requestId: string = crypto.randomUUID(), weight: number = READ) {
@@ -257,33 +271,22 @@ describe("a held call", () => {
 });
 
 describe("storage written before calls had weights", () => {
-  /** Writes [entries] into a fresh object as the proxy wrote them while it counted whole calls. */
-  async function oldBook(entries: Record<string, unknown>): Promise<Book> {
-    const stub = book();
-    await runInDurableObject(stub, async (_, state) => {
-      await state.storage.put(entries);
-    });
-    return stub;
-  }
-
   it("is turned into hundredths at the first call, so that nobody gains or loses anything", async () => {
     const now = Date.now();
     const charged = crypto.randomUUID();
     const held = crypto.randomUUID();
-    const stub = await oldBook({
+    const stub = await bookWith({
       book: { period: "trial", used: 1 },
       [`request:${charged}`]: { heldAt: now, runs: 1, active: 0, committedAt: now, digest: BILL },
       [`request:${held}`]: { heldAt: now, runs: 1, active: 1, committedAt: null, digest: BILL },
     });
 
     expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 1, remaining: 1, period: "trial", resetsAt: null });
-    const stored = await runInDurableObject(stub, async (_, state) => Object.fromEntries(await state.storage.list()));
-    expect(stored).toMatchObject({
-      book: { period: "trial", hundredths: 100 },
+    expect(await storageOf(stub)).toMatchObject({
+      book: { period: "trial", hundredths: 100, used: 1 },
       [`request:${charged}`]: { committedAt: now, weight: 100 },
       [`request:${held}`]: { committedAt: null, weight: 100 },
     });
-    expect(stored.book).not.toHaveProperty("used");
 
     // The call held before the deploy is charged as the whole call it held; the charged one stays charged once.
     expect(await stub.commit(now, held, TRIAL, BILL, EDIT)).toMatchObject({ used: 2, remaining: 1 });
@@ -296,7 +299,7 @@ describe("storage written before calls had weights", () => {
   it("gives back a call held before the deploy when its run fails after it", async () => {
     const now = Date.now();
     const held = crypto.randomUUID();
-    const stub = await oldBook({
+    const stub = await bookWith({
       book: { period: "trial", used: 2 },
       [`request:${held}`]: { heldAt: now, runs: 1, active: 1, committedAt: null, digest: BILL },
     });
@@ -308,15 +311,15 @@ describe("storage written before calls had weights", () => {
 
   it("keeps an account's count of the month it was written in", async () => {
     const now = Date.now();
-    const stub = await oldBook({ book: { period: `${new Date(now).toISOString().slice(0, 7)}`, used: 7 } });
+    const stub = await bookWith({ book: { period: `${new Date(now).toISOString().slice(0, 7)}`, used: 7 } });
 
     expect(await stub.usage(now, MONTHLY)).toMatchObject({ used: 7, remaining: 3 });
     expect(await stub.usage(nextMonthStart(now), MONTHLY)).toMatchObject({ used: 0, remaining: 10 });
   });
 
-  it("is left as it is once it was written in hundredths", async () => {
+  it("keeps a count already written in hundredths as it is", async () => {
     const now = Date.now();
-    const stub = await oldBook({
+    const stub = await bookWith({
       book: { period: "trial", hundredths: 20 },
       [`request:${crypto.randomUUID()}`]: { heldAt: now, runs: 1, active: 1, committedAt: null, digest: BILL, weight: 20 },
     });
@@ -334,6 +337,113 @@ describe("storage written before calls had weights", () => {
     await stub.hold(now, id, TRIAL, BILL, noWeight);
 
     expect(await stub.commit(now, id, TRIAL, BILL, noWeight)).toMatchObject({ used: 1, remaining: 2 });
+  });
+});
+
+describe("a rollback to the code deployed before calls had weights", () => {
+  type OldBook = { period: string; used: number };
+
+  /**
+   * What that code does with the storage it finds, copied from it: it reads the count as `used`, in
+   * whole calls, counts each request id not yet charged as one call held, refuses a call only when
+   * nothing is left, and charges each call it makes as one more, writing the book back with
+   * whatever else it held. [storage] is changed in place, as that code would change it.
+   */
+  function codeBeforeWeights(storage: Record<string, unknown>, allowance: Allowance, now: number) {
+    const period = periodOf(allowance, now);
+    const currentBook = (): OldBook => {
+      const stored = storage.book as OldBook | undefined;
+      return stored && stored.period === period ? stored : { period, used: 0 };
+    };
+    const usage = () => {
+      const holding = Object.entries(storage).filter(([key, entry]) => key.startsWith("request:") && (entry as { committedAt: number | null }).committedAt === null).length;
+      const { used } = currentBook();
+      return { limit: allowance.limit, used, remaining: Math.max(0, allowance.limit - used - holding) };
+    };
+    /** A bill read the model answered, held and then charged; false when that code refuses it. */
+    const call = (requestId: string): boolean => {
+      if (usage().remaining <= 0) return false;
+      const book = currentBook();
+      book.used += 1;
+      storage.book = book;
+      storage[`request:${requestId}`] = { heldAt: now, runs: 1, active: 0, committedAt: now, digest: BILL };
+      return true;
+    };
+    return { usage, call };
+  }
+
+  it("reads counts in whole calls, rounded up, so that it never hands out a call that is not left", async () => {
+    const stub = book();
+    const now = Date.now();
+    await call(stub, now, TRIAL);
+    await call(stub, now, TRIAL, crypto.randomUUID(), EDIT);
+    const held = crypto.randomUUID();
+    await stub.hold(now, held, TRIAL, BILL, EDIT);
+
+    // 1.2 calls are charged and 0.2 held, which leaves 1.6. That code reads two calls charged, and
+    // the hold as a whole call: it may hand out less than is left, but never more.
+    const storage = await storageOf(stub);
+    expect(storage.book).toEqual({ period: "trial", hundredths: 120, used: 2 });
+    const before = codeBeforeWeights(storage, TRIAL, now);
+    expect(JSON.stringify(before.usage())).toBe('{"limit":3,"used":2,"remaining":0}');
+    expect(before.call(crypto.randomUUID())).toBe(false);
+
+    await stub.release(now, held);
+    const afterRelease = codeBeforeWeights(await storageOf(stub), TRIAL, now);
+    expect(afterRelease.usage()).toEqual({ limit: 3, used: 2, remaining: 1 });
+    expect(afterRelease.call(crypto.randomUUID())).toBe(true);
+    expect(afterRelease.call(crypto.randomUUID())).toBe(false);
+  });
+
+  it("is taken back once this code runs again: what that code charged counts, and nobody gains a call", async () => {
+    const stub = book();
+    const now = Date.now();
+    for (let edit = 0; edit < 3; edit++) await call(stub, now, TRIAL, crypto.randomUUID(), EDIT);
+    const storage = await storageOf(stub);
+    const before = codeBeforeWeights(storage, TRIAL, now);
+    expect(before.usage()).toEqual({ limit: 3, used: 1, remaining: 2 });
+    const read = crypto.randomUUID();
+    expect(before.call(read)).toBe(true);
+    expect(before.call(crypto.randomUUID())).toBe(true);
+    expect(before.call(crypto.randomUUID())).toBe(false);
+
+    // The object starts again on this code, with what that code left.
+    const restarted = await bookWith(storage);
+
+    expect(await restarted.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.6, remaining: 0.4, period: "trial", resetsAt: null });
+    expect(await storageOf(restarted)).toMatchObject({ book: { period: "trial", hundredths: 260, used: 3 }, [`request:${read}`]: { weight: 100 } });
+    // A read that code charged is not charged again when it runs once more.
+    expect(await call(restarted, now, TRIAL, read)).toMatchObject({ ok: true });
+    expect(await restarted.usage(now, TRIAL)).toMatchObject({ used: 2.6, remaining: 0.4 });
+    // A second rollback finds the count it left, and hands out nothing more.
+    expect(codeBeforeWeights(await storageOf(restarted), TRIAL, now).usage()).toEqual({ limit: 3, used: 3, remaining: 0 });
+  });
+
+  it("starts the count of a new month from what that code wrote in it", async () => {
+    const now = Date.now();
+    const lastMonth = periodOf(MONTHLY, now - 32 * POLICY.dayMs);
+    const storage: Record<string, unknown> = { book: { period: lastMonth, hundredths: 940, used: 10 } };
+    // The month turned while that code ran, so it started the count again in whole calls.
+    codeBeforeWeights(storage, MONTHLY, now).call(crypto.randomUUID());
+    expect(storage.book).toEqual({ period: periodOf(MONTHLY, now), used: 1 });
+
+    expect(await (await bookWith(storage)).usage(now, MONTHLY)).toMatchObject({ used: 1, remaining: 9 });
+  });
+
+  it("counts what is not a whole number, as a write cut off may leave, as nothing, so that no count becomes NaN", async () => {
+    const now = Date.now();
+    const notANumber = await bookWith({
+      book: { period: "trial", hundredths: "120", used: 2 },
+      [`request:${crypto.randomUUID()}`]: { heldAt: now, runs: 1, active: 1, committedAt: null, digest: BILL, weight: Number.NaN },
+    });
+    const neither = await bookWith({ book: { period: "trial", hundredths: Number.NaN, used: null } });
+    const noWhole = await bookWith({ book: { period: "trial", hundredths: 280, used: Number.NaN } });
+
+    // The whole calls stand in for the hundredths, and a hold with no weight holds a whole call.
+    expect(await notANumber.usage(now, TRIAL)).toEqual({ limit: 3, used: 2, remaining: 0, period: "trial", resetsAt: null });
+    expect(await neither.usage(now, TRIAL)).toEqual({ limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null });
+    expect(await noWhole.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.8, remaining: 0.2, period: "trial", resetsAt: null });
+    expect((await storageOf(noWhole)).book).toEqual({ period: "trial", hundredths: 280, used: 3 });
   });
 });
 
