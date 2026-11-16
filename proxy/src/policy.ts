@@ -11,6 +11,11 @@ export const POLICY = {
   trialCalls: 3,
   /** Calls a Google account may make in each calendar month, counted in UTC. */
   monthlyCalls: 10,
+  /**
+   * What an edit of a split by a sentence takes of the same allowance, in calls; a bill read takes
+   * one. Allowances are counted in hundredths of a call, so a weight has at most two decimals.
+   */
+  revisionWeight: 0.2,
   /** A held call that is neither committed nor released within this time is given back. */
   holdMs: 5 * 60 * 1000,
   /** The first run of a request plus two runs again with the same request id. */

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { callerOf, ledger, quotaBook } from "./identity";
+import { callerOf, ledger, quotaBook, WEIGHTS } from "./identity";
 import type { Env } from "./index";
 import { billRequestOf, byteLength, readJson } from "./input";
 import { clientIp, hashed, ipKey } from "./ledger";
@@ -60,7 +60,7 @@ export async function billAnalysis(request: Request, env: Env, ctx: ExecutionCon
   // Ties the request id to this bill, so that a run again under the same id is the same request.
   const digest = await hashed(prompt, env.HASH_SALT);
   const quota = quotaBook(env, caller.name);
-  const hold = await quota.hold(now, input.requestId, caller.allowance, digest);
+  const hold = await quota.hold(now, input.requestId, caller.allowance, digest, WEIGHTS.billAnalysis);
   if (!hold.ok) {
     if (hold.code === "request_mismatch") return refused(started, hold.code, errorResponse(400, "input"));
     return refused(started, hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
@@ -102,7 +102,7 @@ export async function billAnalysis(request: Request, env: Env, ctx: ExecutionCon
       answered = true;
       cost = costMicro(message);
       // The answer is paid for, so it goes out even if the count cannot be updated just now.
-      const usage = await quota.commit(Date.now(), input.requestId, caller.allowance, digest).catch((error: unknown) => {
+      const usage = await quota.commit(Date.now(), input.requestId, caller.allowance, digest, WEIGHTS.billAnalysis).catch((error: unknown) => {
         console.error(JSON.stringify({ event: "commit_failed", error: errorName(error) }));
         return undefined;
       });

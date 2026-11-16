@@ -2,7 +2,7 @@ import type { Env } from "./index";
 import { uuidOf } from "./input";
 import type { AbuseLedger } from "./ledger";
 import { POLICY } from "./policy";
-import type { Allowance, QuotaBook } from "./quota-book";
+import { type Allowance, hundredthsOf, PER_CALL, type QuotaBook } from "./quota-book";
 import { errorResponse } from "./respond";
 import { accountOfSession } from "./session";
 
@@ -13,6 +13,12 @@ export const ALLOWANCES = {
   trial: { kind: "trial", limit: POLICY.trialCalls },
   monthly: { kind: "monthly", limit: POLICY.monthlyCalls },
 } as const satisfies Record<string, Allowance>;
+
+/** What one call takes of the caller's allowance, in hundredths of a call: a bill read takes a whole call. */
+export const WEIGHTS = {
+  billAnalysis: PER_CALL,
+  splitRevision: hundredthsOf(POLICY.revisionWeight),
+} as const;
 
 /**
  * Who is calling, as far as allowances are concerned: an install that is not signed in, or a
