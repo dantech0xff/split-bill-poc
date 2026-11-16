@@ -8,6 +8,7 @@ import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.assistant.VoiceSupport
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
+import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.Bill
@@ -40,8 +41,12 @@ interface SplitOnScreen {
     /** The bill as it is on screen, or null when none is open. */
     val billOnScreen: StateFlow<SavedBill?>
 
-    /** Puts [bill], split as [plan], on screen in place of the bill and split there, as one change. */
-    fun replaceSplit(bill: Bill, plan: SplitPlan)
+    /**
+     * Puts [bill], split as [plan], on screen in place of the bill and split there, as one change,
+     * and finished or not as [status] says. A finished bill that the change leaves with a problem is
+     * a draft again.
+     */
+    fun replaceSplit(bill: Bill, plan: SplitPlan, status: BillStatus)
 }
 
 /** One edit the AI proposed, as the screen lists it. */
@@ -237,20 +242,24 @@ class SplitAssistantViewModel(
             return
         }
         if (result.bill == saved.bill && result.plan == saved.plan) return
-        host.replaceSplit(result.bill, result.plan)
+        host.replaceSplit(result.bill, result.plan, saved.status)
         val summary = proposal.explanation.ifBlank { "The split was changed." }
-        draft.update { it.copy(proposal = null, undo = Undo(saved.id, saved.bill, saved.plan, result.bill, result.plan, summary)) }
+        val undo = Undo(saved.id, saved.bill, saved.plan, saved.status, result.bill, result.plan, summary)
+        draft.update { it.copy(proposal = null, undo = undo) }
     }
 
     /** Puts the proposed changes aside without applying any of them. */
     fun discard() = draft.update { it.copy(proposal = null) }
 
-    /** Brings back the bill and split from before the last applied change, while nothing else changed them since. */
+    /**
+     * Brings back the bill and split from before the last applied change, finished again if it was,
+     * while nothing else changed them since.
+     */
     fun undo() {
         val undo = draft.value.undo ?: return
         val saved = host.billOnScreen.value ?: return
         if (!undo.holdsFor(saved)) return
-        host.replaceSplit(undo.bill, undo.plan)
+        host.replaceSplit(undo.bill, undo.plan, undo.status)
         draft.update { it.copy(undo = null) }
     }
 
@@ -479,11 +488,15 @@ class SplitAssistantViewModel(
         val kept: List<SplitEdit> get() = edits.filterIndexed { index, _ -> index !in dropped }
     }
 
-    /** The bill and split from before an applied change, offered back while the bill on screen is still what the change made it. */
+    /**
+     * The bill and split from before an applied change, and whether the bill was finished, offered
+     * back while the bill on screen is still what the change made it.
+     */
     private data class Undo(
         val billId: String,
         val bill: Bill,
         val plan: SplitPlan,
+        val status: BillStatus,
         val changedBill: Bill,
         val changedPlan: SplitPlan,
         val summary: String,

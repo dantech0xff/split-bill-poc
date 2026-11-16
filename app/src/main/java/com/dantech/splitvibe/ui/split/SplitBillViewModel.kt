@@ -502,8 +502,13 @@ class SplitBillViewModel(
 
     override fun applyPlan(plan: SplitPlan) = change { it.copy(plan = plan) }
 
-    /** What the assistant applies, or the bill and split from before it, which undoing it brings back exactly. */
-    override fun replaceSplit(bill: Bill, plan: SplitPlan) = change { it.copy(bill = bill, plan = plan) }
+    /**
+     * What the assistant applies, or the bill and split from before it, which undoing it brings back
+     * exactly, finished or not. A bill is finished again only when the split it gets back has no
+     * problem, as [change] sees to.
+     */
+    override fun replaceSplit(bill: Bill, plan: SplitPlan, status: BillStatus) =
+        change { it.copy(bill = bill, plan = plan, status = status) }
 
     override suspend fun storedBill(): SavedBill? {
         val id = mutableState.value.result?.saved?.id ?: return null

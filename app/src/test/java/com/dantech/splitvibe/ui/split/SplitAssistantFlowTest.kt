@@ -15,12 +15,14 @@ import com.dantech.splitvibe.assistant.VoiceInput
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ChargeKind
 import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.ME_ID
+import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitEdits
@@ -170,6 +172,30 @@ class SplitAssistantFlowTest {
         assertEquals(listOf(99_750L, 99_750L, 52_500L), checkNotNull(assistant.ui().proposal).shares.map { it.afterMinor })
         assistant.apply()
         assertEquals(mapOf("i1" to Division.Equally(among = setOf(ME_ID, "p1"))), onScreen().plan.setup.items)
+    }
+
+    @Test
+    fun `undoing a change that left a finished bill a draft brings it back finished`() {
+        // Two people paid, so a tip makes the payments short of the new total.
+        split.setPayments(listOf(Payment(ME_ID, 152_000), Payment("p1", 100_000)))
+        split.finish()
+        awaitStored { it.status == BillStatus.FINAL }
+        val finished = onScreen()
+
+        ask("Add a 10% tip", answer("[$TIP_EDIT]"))
+        assertEquals(1, checkNotNull(assistant.ui().proposal).problems.size)
+        assistant.apply()
+
+        assertEquals("a change with a problem leaves a draft", BillStatus.DRAFT, onScreen().status)
+        awaitStored { it.status == BillStatus.DRAFT }
+
+        assistant.undo()
+
+        assertEquals(finished.bill, onScreen().bill)
+        assertEquals(finished.plan, onScreen().plan)
+        assertEquals(BillStatus.FINAL, onScreen().status)
+        // Stored without the tip, and finished.
+        awaitStored { it.status == BillStatus.FINAL && it.bill == finished.bill }
     }
 
     @Test
