@@ -27,6 +27,7 @@ import com.dantech.splitvibe.domain.BillCategory.RENT
 import com.dantech.splitvibe.domain.BillCategory.SHOPPING
 import com.dantech.splitvibe.domain.BillCategory.TRANSPORT
 import com.dantech.splitvibe.domain.BillCategory.UTILITIES
+import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.InsightShare
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Spending
@@ -75,6 +76,10 @@ class InsightsViewModelTest {
     private val watching = MainScope()
     private lateinit var viewModel: InsightsViewModel
 
+    /** The fixture's groups as the statistics tell them apart, by their ids. */
+    private val flat = InsightGroup("group-$FLAT", FLAT)
+    private val trip = InsightGroup("group-$TRIP", TRIP)
+
     @Before
     fun setUp() = runBlocking {
         // Oldest first, so the first bill of the fixture is the one saved last, as the list has it.
@@ -122,7 +127,7 @@ class InsightsViewModelTest {
             month.insights.byCategory.toList(),
         )
         assertEquals(
-            listOf(FLAT to Spending(1, 9_000_000, 3_000_000), null to Spending(2, 900_000, 100_000)),
+            listOf(flat to Spending(1, 9_000_000, 3_000_000), null to Spending(2, 900_000, 100_000)),
             month.insights.byGroup.toList(),
         )
         assertEquals(
@@ -174,10 +179,10 @@ class InsightsViewModelTest {
         )
         assertEquals(
             listOf(
-                FLAT to Spending(2, 18_000_000, 6_000_000),
+                flat to Spending(2, 18_000_000, 6_000_000),
                 // 1, 4 and 10: 300,000 + 762,000 + 600,000; 100,000 + 381,000 + 0.
                 null to Spending(3, 1_662_000, 481_000),
-                TRIP to Spending(1, 800_000, 200_000),
+                trip to Spending(1, 800_000, 200_000),
             ),
             year.insights.byGroup.toList(),
         )
@@ -224,8 +229,8 @@ class InsightsViewModelTest {
         )
         assertEquals(
             listOf(
-                FLAT to Spending(3, 19_200_000, 6_400_000),
-                TRIP to Spending(2, 3_200_000, 800_000),
+                flat to Spending(3, 19_200_000, 6_400_000),
+                trip to Spending(2, 3_200_000, 800_000),
                 // 1, 4, 8 and 10: 300,000 + 762,000 + 500,000 + 600,000; 100,000 + 381,000 + 250,000 + 0.
                 null to Spending(4, 2_162_000, 731_000),
             ),
@@ -260,7 +265,7 @@ class InsightsViewModelTest {
 
         assertEquals("2025-12-05", counted.date)
         assertEquals(TRANSPORT, counted.category)
-        assertEquals(TRIP, counted.group)
+        assertEquals(trip, counted.group)
         assertEquals(800_000L, counted.totalMinor)
         assertEquals(200_000L, counted.myShareMinor)
         // The user is "me" on every bill, a person the phone remembers is that person, and someone who

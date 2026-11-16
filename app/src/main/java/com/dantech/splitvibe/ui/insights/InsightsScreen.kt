@@ -217,7 +217,7 @@ private fun LazyListScope.insights(state: InsightsState) {
         key = "group",
         title = "By group",
         lines = insights.byGroup.map { (group, spending) ->
-            SpendingLine(group ?: "", Exporter.groupName(group), spending.totalMinor, shareAndCount(spending, currency::format))
+            SpendingLine(group?.id.orEmpty(), Exporter.groupName(group), spending.totalMinor, shareAndCount(spending, currency::format))
         },
         format = currency::format,
     )

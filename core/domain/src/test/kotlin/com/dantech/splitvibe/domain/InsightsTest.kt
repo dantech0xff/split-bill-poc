@@ -26,7 +26,7 @@ class InsightsTest {
     private fun bill(
         date: String?,
         category: BillCategory,
-        group: String?,
+        group: InsightGroup?,
         currency: BillCurrency,
         total: Long,
         shares: Map<String, Long>,
@@ -58,8 +58,9 @@ class InsightsTest {
         bill("2026-10-15", TRANSPORT, TRIP, vnd, 800_000, mapOf(ME to 200_000, MINH to 200_000, LAN to 200_000, KHOA to 200_000)),
         bill("2026-10-16", LODGING, TRIP, vnd, 2_400_000, mapOf(ME to 600_000, MINH to 600_000, LAN to 600_000, KHOA to 600_000)),
         bill("2026-10-17", FOOD_AND_DRINK, TRIP, vnd, 1_000_000, mapOf(ME to 250_000, MINH to 250_000, LAN to 250_000, KHOA to 250_000)),
-        // 8: $12.00 at 25,350.5: the total is 304,206, the user's $5.00 is 126,752.5, which half to even
-        // makes 126,752 (half up would make 126,753), and Lan's $7.00 is 177,453.5, which makes 177,454.
+        // 8: $12.00 at 25,350.5: the total is 304,206, the user's $5.00 is 126,752.5, which half up makes
+        // 126,753 as the bill itself shows it (half to even would make 126,752), and Lan's $7.00 is
+        // 177,453.5, which makes 177,454. These parts add up to 304,207, a dong more than the total.
         bill("2026-10-20", ENTERTAINMENT, null, usd, 1_200, mapOf(ME to 500, LAN to 700), usdAt("25350.5")),
         // 9: $40.50 at 25,400 is 1,028,700, and each $20.25 is 514,350. This bill calls Minh by his full
         // name, but the first bill that has him named him first.
@@ -103,9 +104,9 @@ class InsightsTest {
         // The 17 bills left, totals and the user's parts:
         // 300,000 + 450,000 + 9,000,000 + 1,200,000 + 800,000 + 2,400,000 + 1,000,000 + 304,206 + 1,028,700
         //   + 700,250 + 210,000 + 90,000 + 600,000 + 9,000,000 + 1,350,000 + 500,000 + 120,000 = 29,053,156;
-        // 100,000 + 150,000 + 3,000,000 + 400,000 + 200,000 + 600,000 + 250,000 + 126,752 + 514,350
-        //   + 233,421 + 70,000 + 45,000 + 0 + 3,000,000 + 450,000 + 250,000 + 120,000 = 9,509,523.
-        assertEquals(Spending(17, 29_053_156, 9_509_523), insights.overall)
+        // 100,000 + 150,000 + 3,000,000 + 400,000 + 200,000 + 600,000 + 250,000 + 126,753 + 514,350
+        //   + 233,421 + 70,000 + 45,000 + 0 + 3,000,000 + 450,000 + 250,000 + 120,000 = 9,509,524.
+        assertEquals(Spending(17, 29_053_156, 9_509_524), insights.overall)
         // Bills 14 and 15: 210,000 + 90,000, and 70,000 + 45,000.
         assertEquals(Spending(2, 300_000, 115_000), insights.undated)
         assertEquals(
@@ -113,8 +114,8 @@ class InsightsTest {
                 // 1, 2, 3, 19: 300,000 + 450,000 + 9,000,000 + 500,000; 100,000 + 150,000 + 3,000,000 + 250,000.
                 YearMonth.of(2026, 9) to Spending(4, 10_250_000, 3_500_000),
                 // 4, 5, 6, 7, 8, 16: 1,200,000 + 800,000 + 2,400,000 + 1,000,000 + 304,206 + 600,000;
-                // 400,000 + 200,000 + 600,000 + 250,000 + 126,752 + 0.
-                YearMonth.of(2026, 10) to Spending(6, 6_304_206, 1_576_752),
+                // 400,000 + 200,000 + 600,000 + 250,000 + 126,753 + 0.
+                YearMonth.of(2026, 10) to Spending(6, 6_304_206, 1_576_753),
                 // 9, 10, 17, 18, 20: 1,028,700 + 700,250 + 9,000,000 + 1,350,000 + 120,000;
                 // 514,350 + 233,421 + 3,000,000 + 450,000 + 120,000.
                 YearMonth.of(2026, 11) to Spending(5, 12_198_950, 4_317_771),
@@ -130,8 +131,8 @@ class InsightsTest {
                 // 5, 6, 7, 16: 800,000 + 2,400,000 + 1,000,000 + 600,000; 200,000 + 600,000 + 250,000 + 0.
                 TRIP to Spending(4, 4_800_000, 1_050_000),
                 // 1, 8, 9, 10, 15, 19, 20: 300,000 + 304,206 + 1,028,700 + 700,250 + 90,000 + 500,000 + 120,000;
-                // 100,000 + 126,752 + 514,350 + 233,421 + 45,000 + 250,000 + 120,000.
-                null to Spending(7, 3_043_156, 1_389_523),
+                // 100,000 + 126,753 + 514,350 + 233,421 + 45,000 + 250,000 + 120,000.
+                null to Spending(7, 3_043_156, 1_389_524),
             ),
             insights.byGroup,
         )
@@ -142,7 +143,7 @@ class InsightsTest {
                 UTILITIES to Spending(2, 2_550_000, 850_000), // 4 and 18: 1,200,000 + 1,350,000; 400,000 + 450,000
                 LODGING to Spending(1, 2_400_000, 600_000), // 6; the euro bill 12 is left out
                 FOOD_AND_DRINK to Spending(3, 1_900_000, 350_000), // 1, 7, 16; the baht bill 11 is left out
-                ENTERTAINMENT to Spending(3, 1_504_456, 610_173), // 8, 10, 19: 304,206 + 700,250 + 500,000; 126,752 + 233,421 + 250,000
+                ENTERTAINMENT to Spending(3, 1_504_456, 610_174), // 8, 10, 19: 304,206 + 700,250 + 500,000; 126,753 + 233,421 + 250,000
                 SHOPPING to Spending(1, 1_028_700, 514_350), // 9; the dollar bill 13 is left out
                 TRANSPORT to Spending(3, 1_010_000, 365_000), // 5, 15, 20: 800,000 + 90,000 + 120,000; 200,000 + 45,000 + 120,000
                 GROCERIES to Spending(2, 660_000, 220_000), // 2 and 14: 450,000 + 210,000; 150,000 + 70,000
@@ -156,7 +157,7 @@ class InsightsTest {
         assertEquals(
             listOf(
                 // On all 17 bills; their own parts are the user's parts.
-                PersonSpending(ME, "Dana", 17, 29_053_156, 9_509_523, 9_509_523),
+                PersonSpending(ME, "Dana", 17, 29_053_156, 9_509_524, 9_509_524),
                 // 1 to 7, 9, 10, 14, 16, 17, 18. Totals: 300,000 + 450,000 + 9,000,000 + 1,200,000 + 800,000
                 // + 2,400,000 + 1,000,000 + 1,028,700 + 700,250 + 210,000 + 600,000 + 9,000,000 + 1,350,000.
                 // The user's parts: the same bills' 100,000 + 150,000 + 3,000,000 + 400,000 + 200,000 + 600,000
@@ -168,26 +169,45 @@ class InsightsTest {
                 // + 210,000 + 9,000,000 + 1,350,000; Khoa's parts are the user's on each of them.
                 PersonSpending(KHOA, "Khoa", 9, 25_410_000, 8_120_000, 8_120_000),
                 // 1, 5, 6, 7, 8, 10, 15, 16, 19: 300,000 + 800,000 + 2,400,000 + 1,000,000 + 304,206 + 700,250
-                // + 90,000 + 600,000 + 500,000. The user's: 100,000 + 200,000 + 600,000 + 250,000 + 126,752
+                // + 90,000 + 600,000 + 500,000. The user's: 100,000 + 200,000 + 600,000 + 250,000 + 126,753
                 // + 233,421 + 45,000 + 0 + 250,000. Lan's: 100,000 + 200,000 + 600,000 + 250,000 + 177,454
                 // + 233,414 + 45,000 + 300,000 + 250,000.
-                PersonSpending(LAN, "Lan", 9, 6_694_456, 1_805_173, 2_155_868),
+                PersonSpending(LAN, "Lan", 9, 6_694_456, 1_805_174, 2_155_868),
             ),
             insights.byPerson,
         )
-        // Everyone's parts come to a dong less than the totals: bill 10's parts, rounded one by one.
-        assertEquals(insights.overall.totalMinor - 1, insights.byPerson.sumOf { it.shareMinor })
+        // Everyone's parts come to the totals: rounded one by one, bill 8's parts are a dong more than
+        // its total and bill 10's a dong less.
+        assertEquals(insights.overall.totalMinor, insights.byPerson.sumOf { it.shareMinor })
     }
 
     @Test
-    fun `each bill is converted at its own rate, half to even, before the bills are added up`() {
-        val coffee = bill("2026-11-01", FOOD_AND_DRINK, null, usd, 50, mapOf(ME to 50), usdAt("25351"))
+    fun `each bill is converted at its own rate, half up as the bill shows it, before the bills are added up`() {
+        val coffee = bill("2026-11-01", FOOD_AND_DRINK, null, usd, 50, mapOf(ME to 50), usdAt("25349"))
 
         val insights = Insights.of(listOf(coffee, coffee.copy(date = "2026-11-02")), vnd)
 
-        // Each $0.50 at 25,351 is 12,675.5, which half to even makes 12,676: 25,352 for both, where
-        // their $1.00 converted at once would have made 25,351.
-        assertEquals(Spending(2, 25_352, 25_352), insights.overall)
+        // Each $0.50 at 25,349 is 12,674.5, which half up makes 12,675, as the bill shows it in dong:
+        // 25,350 for both, where half to even would have made 25,348, and their $1.00 converted at
+        // once 25,349.
+        assertEquals(Spending(2, 25_350, 25_350), insights.overall)
+        assertEquals(12_675L, usdAt("25349").convert(50, usd, vnd))
+    }
+
+    @Test
+    fun `groups are told apart by their id, so two of the same name stay apart and a renamed one stays one`() {
+        val work = InsightGroup("group-work", "Lunch club")
+        val friends = InsightGroup("group-friends", "Lunch club")
+        fun lunch(group: InsightGroup, total: Long) =
+            bill("2026-11-01", FOOD_AND_DRINK, group, vnd, total, mapOf(ME to total / 2, LAN to total / 2))
+
+        // Newest first. The last bill is in the same group as the first, from before it was called "Lunch club".
+        val insights = Insights.of(listOf(lunch(work, 100_000), lunch(friends, 250_000), lunch(work.copy(name = "Office"), 200_000)), vnd)
+
+        assertEquals(
+            listOf(work to Spending(2, 300_000, 150_000), friends to Spending(1, 250_000, 125_000)),
+            insights.byGroup.toList(),
+        )
     }
 
     @Test
@@ -252,7 +272,7 @@ class InsightsTest {
         const val MINH = "person-minh"
         const val LAN = "person-lan"
         const val KHOA = "person-khoa"
-        const val FLAT = "Flat 3B"
-        const val TRIP = "Da Lat trip"
+        val FLAT = InsightGroup("group-flat", "Flat 3B")
+        val TRIP = InsightGroup("group-trip", "Da Lat trip")
     }
 }

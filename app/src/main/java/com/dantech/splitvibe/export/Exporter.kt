@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.core.content.FileProvider
 import com.dantech.splitvibe.data.bills.SavedBill
+import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.Insights
 import java.io.File
 import java.io.IOException
@@ -135,6 +136,6 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         fun monthName(month: YearMonth): String = month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH))
 
         /** What a group's line of the totals is called: its name, or "No group" for bills in none. */
-        fun groupName(group: String?): String = group ?: "No group"
+        fun groupName(group: InsightGroup?): String = group?.name ?: "No group"
     }
 }

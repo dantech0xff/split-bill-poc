@@ -10,6 +10,7 @@ import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.InsightBill
+import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.InsightShare
 import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.ME_ID
@@ -215,7 +216,7 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String): InsightBill
     return InsightBill(
         date = bill.date,
         category = bill.category,
-        group = saved.group?.groupName,
+        group = saved.group?.let { InsightGroup(it.groupId, it.groupName) },
         currency = bill.currency,
         totalMinor = bill.totalMinor,
         shares = saved.shares.map { share ->

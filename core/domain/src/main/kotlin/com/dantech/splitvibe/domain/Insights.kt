@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeParseException
@@ -11,8 +10,8 @@ data class InsightBill(
     /** The day of the bill as yyyy-mm-dd; null, or anything else, when it is not known. */
     val date: String?,
     val category: BillCategory,
-    /** The name of the group the bill is in; null for a bill in no group. */
-    val group: String?,
+    /** The group the bill is in; null for a bill in no group. */
+    val group: InsightGroup?,
     val currency: BillCurrency,
     val totalMinor: Long,
     /** Each participant's part of the bill, in minor units of [currency]. */
@@ -25,6 +24,9 @@ data class InsightBill(
 
 /** One participant's part of a bill. [personKey] is the same for the same person on every bill; [name] is what to call them. */
 data class InsightShare(val personKey: String, val name: String, val amountMinor: Long)
+
+/** A group a bill is in: [id] tells it apart from every other group, also one of the same name, and [name] is what to call it. */
+data class InsightGroup(val id: String, val name: String)
 
 /** What some bills add up to in the local currency: how many there are, their totals, and the user's own part of them. */
 data class Spending(val bills: Int, val totalMinor: Long, val myShareMinor: Long)
@@ -47,8 +49,9 @@ data class PersonSpending(
  * local [currency].
  *
  * Each bill is converted on its own, at its own rate: its total, the user's part and each person's
- * part are each rounded to the nearest minor unit of the local currency, half to even, and only then
- * added up. So a bill's converted parts can differ from its converted total by a unit or two. A bill
+ * part are each rounded to the nearest minor unit of the local currency, half up as everywhere else
+ * the app converts an amount, and only then added up. So a bill's total here is the one the bill
+ * shows in the local currency, and its converted parts can differ from it by a unit or two. A bill
  * in another currency without a usable rate is left out of every sum and only counted, by currency,
  * in [withoutRate]. A bill without a usable date is in every sum except those by month, and
  * [undated] adds those bills up on their own.
@@ -60,8 +63,12 @@ data class Insights(
     val byMonth: Map<YearMonth, Spending>,
     /** Everyone on the bills, the user too, the largest own part first. */
     val byPerson: List<PersonSpending>,
-    /** By the group's name, null for bills in no group; the largest total first, bills in no group last of equals. */
-    val byGroup: Map<String?, Spending>,
+    /**
+     * By group, null for bills in no group, the largest total first and bills in no group last of
+     * equals. Groups are told apart by their id, so two groups of the same name are two lines, and
+     * one renamed between two bills is one, named as the first of the bills in it names it.
+     */
+    val byGroup: Map<InsightGroup?, Spending>,
     /** The categories that have bills, the largest total first. */
     val byCategory: Map<BillCategory, Spending>,
     val undated: Spending,
@@ -71,8 +78,8 @@ data class Insights(
     companion object {
 
         /**
-         * The statistics of [bills] in [localCurrency]. A person is named as the first of [bills]
-         * that has them names them, so newest first shows the name now in use.
+         * The statistics of [bills] in [localCurrency]. A person or a group is named as the first of
+         * [bills] that has them names them, so newest first shows the name now in use.
          *
          * @throws ArithmeticException when the amounts are too large to add up, which only amounts
          *   far beyond any real bills can cause.
@@ -85,12 +92,16 @@ data class Insights(
                 if (inLocal == null) withoutRate.merge(bill.currency.code, 1, Int::plus) else counted += inLocal
             }
             val dated = counted.mapNotNull { bill -> bill.month?.let { it to bill } }
+            // Each group as the first bill in it names it.
+            val groups = counted.mapNotNull { it.bill.group }.distinctBy { it.id }.associateBy { it.id }
             return Insights(
                 currency = localCurrency,
                 overall = spending(counted),
                 byMonth = dated.groupBy({ it.first }, { it.second }).toSortedMap().mapValues { spending(it.value) },
                 byPerson = people(counted),
-                byGroup = sums(counted, nullsLast()) { it.bill.group },
+                byGroup = sums(counted, nullsLast(compareBy<InsightGroup> { it.name }.thenBy { it.id })) { bill ->
+                    bill.bill.group?.let { groups.getValue(it.id) }
+                },
                 byCategory = sums(counted, naturalOrder()) { it.bill.category },
                 undated = spending(counted.filter { it.month == null }),
                 withoutRate = withoutRate,
@@ -116,7 +127,7 @@ data class Insights(
 
             fun convert(minor: Long): Long? {
                 if (rate == null) return minor
-                val converted = rate.convert(minor, bill.currency, local, RoundingMode.HALF_EVEN) ?: return null
+                val converted = rate.convert(minor, bill.currency, local) ?: return null
                 return converted.takeIf { Math.abs(it) <= BillCurrency.MAX_AMOUNT_MINOR }
             }
             return Counted(
