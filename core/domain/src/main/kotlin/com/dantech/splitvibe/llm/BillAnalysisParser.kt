@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.llm
 
+import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
@@ -23,6 +24,8 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -114,8 +117,18 @@ object BillAnalysisParser {
             charges = charges,
             printedTotalMinor = printedTotal,
             warnings = warnings,
-        )
+        ).copy(category = category(answer.category))
         return BillAnalysis.Ready(bill, splitHint(answer.split, items.size), answer.message.trim())
+    }
+
+    /**
+     * The category the answer names. It only sorts the bill for the statistics, so a missing one, or
+     * anything but one of the agreed values, makes the bill [BillCategory.OTHER] rather than spoiling
+     * a bill that was read well.
+     */
+    private fun category(value: JsonElement?): BillCategory {
+        val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return BillCategory.OTHER
+        return BillCategory.fromWire(text.trim().lowercase(Locale.ROOT)) ?: BillCategory.OTHER
     }
 
     private fun splitHint(split: SplitAnswer, itemCount: Int): SplitHint = SplitHint(
@@ -170,6 +183,8 @@ internal data class BillAnswer(
     val split: SplitAnswer = SplitAnswer(),
     val warnings: List<String> = emptyList(),
     val message: String = "",
+    // Read as any JSON value, so a category of the wrong type counts as none instead of failing the read.
+    val category: JsonElement? = null,
 )
 
 @Serializable

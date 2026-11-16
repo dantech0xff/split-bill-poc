@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.llm
 
+import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ChargeKind
 import com.dantech.splitvibe.domain.ItemAssignmentHint
@@ -31,13 +32,14 @@ class BillAnalysisParserTest {
               "total": 224640,
               "split": {"people": ["Minh"], "user_included": true, "people_count": null,
                         "item_assignments": [{"item_index": 1, "rule": "only", "people": ["Minh"], "includes_user": false}]},
-              "warnings": [], "message": "Đã đọc hóa đơn."
+              "warnings": [], "message": "Đã đọc hóa đơn.", "category": "food_and_drink"
             }
             """.trimIndent(),
         )
 
         val bill = analysis.bill
         assertEquals("Quán Ốc Đào", bill.merchant)
+        assertEquals(BillCategory.FOOD_AND_DRINK, bill.category)
         assertEquals(BillCurrency("VND", 0), bill.currency)
         assertEquals(listOf(120_000L, 88_000L), bill.items.map { it.amountMinor })
         assertEquals(BigDecimal(4), bill.items[1].quantity)
@@ -50,6 +52,28 @@ class BillAnalysisParserTest {
             analysis.splitHint,
         )
         assertEquals("Đã đọc hóa đơn.", analysis.message)
+    }
+
+    @Test
+    fun `a category that is missing or not one of the agreed values makes the bill other`() {
+        fun categoryOf(field: String): BillCategory = ready(
+            """
+            {"status": "ok", "currency": "USD", $field
+             "items": [{"name": "Hotel night", "quantity": 1, "unit_price": 120, "amount": 120}],
+             "charges": [], "total": 120,
+             "split": {"people": [], "user_included": true, "people_count": null, "item_assignments": []},
+             "warnings": [], "message": ""}
+            """.trimIndent(),
+        ).bill.category
+
+        assertEquals(BillCategory.LODGING, categoryOf(""""category": "lodging","""))
+        assertEquals("written in capitals or with spaces", BillCategory.RENT, categoryOf(""""category": " RENT ","""))
+        assertEquals(BillCategory.OTHER, categoryOf(""))
+        assertEquals(BillCategory.OTHER, categoryOf(""""category": "hotels","""))
+        assertEquals(BillCategory.OTHER, categoryOf(""""category": "Food & drink","""))
+        assertEquals(BillCategory.OTHER, categoryOf(""""category": null,"""))
+        assertEquals(BillCategory.OTHER, categoryOf(""""category": 3,"""))
+        assertEquals(BillCategory.OTHER, categoryOf(""""category": ["rent"],"""))
     }
 
     @Test
