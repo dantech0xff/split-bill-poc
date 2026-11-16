@@ -14,6 +14,7 @@ import java.math.BigDecimal
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -92,6 +93,15 @@ class SplitRevisionRequestTest {
             Json.parseToJsonElement("""{"type": "amount", "amounts": {"me": 100000, "p1": 54000}}"""),
             whole(Division.ByAmount(mapOf(ME_ID to 100_000L, "p1" to 54_000L))),
         )
+    }
+
+    @Test
+    fun `while the whole bill is divided, the divisions the screen remembers for its items are not sent`() {
+        val body = SplitRevisionRequest.body("x", bill, plan.withMode(SplitMode.EQUAL, bill), "Dana")
+
+        val split = body["split"]!!.jsonObject
+        assertEquals(Json.parseToJsonElement("""{"type": "equal", "among": [], "except": []}"""), split["whole"])
+        assertEquals(JsonObject(emptyMap()), split["items"])
     }
 
     @Test

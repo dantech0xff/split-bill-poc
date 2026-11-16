@@ -32,6 +32,7 @@ import java.math.BigDecimal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -92,7 +93,10 @@ class SplitAssistantFlowTest {
         ask("Lan không uống bia", answer(LAN_NO_BEER, explanation = "Lan không uống bia nên không chia tiền bia."))
 
         val proposal = checkNotNull(assistant.ui().proposal)
-        assertEquals(listOf(ProposedEdit(0, "Bia: shared by you and Minh", kept = true)), proposal.edits)
+        assertEquals(
+            listOf(ProposedEdit(0, "Bia: shared by you and Minh, and every other item by everyone", kept = true)),
+            proposal.edits,
+        )
         // The beer is 45,000 each for the user and Minh, the pho 50,000 each for all three: items of
         // 95,000, 95,000 and 50,000, and the service charge in proportion: 4,750, 4,750 and 2,500.
         assertEquals(
@@ -127,7 +131,10 @@ class SplitAssistantFlowTest {
 
         ask("Lan didn't have beer, and add a 10% tip", answer("[$LAN_NO_BEER_EDIT,$TIP_EDIT]"))
         val proposed = checkNotNull(assistant.ui().proposal)
-        assertEquals(listOf("Bia: shared by you and Minh", "Add a 10% tip (₫24,000)"), proposed.edits.map { it.text })
+        assertEquals(
+            listOf("Bia: shared by you and Minh, and every other item by everyone", "Add a 10% tip (₫24,000)"),
+            proposed.edits.map { it.text },
+        )
         assertEquals(276_000L, proposed.shares.sumOf { it.afterMinor ?: 0L })
 
         assistant.toggleEdit(1)
@@ -145,6 +152,24 @@ class SplitAssistantFlowTest {
 
         assertEquals(before.bill, onScreen().bill)
         assertEquals(before.plan, onScreen().plan)
+    }
+
+    @Test
+    fun `how an item was divided before the bill was split equally is neither sent nor brought back`() {
+        // Split by item once with the pho for Minh alone, then equally again: the screen remembers the pho's division.
+        split.setMode(SplitMode.BY_ITEM)
+        split.setItemSharers("i2", setOf("p1"))
+        split.setMode(SplitMode.EQUAL)
+        awaitOnMain { onScreen().plan.mode == SplitMode.EQUAL }
+
+        ask("Lan didn't have beer", answer(LAN_NO_BEER))
+
+        val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject.getValue("split").jsonObject
+        assertEquals(JsonObject(emptyMap()), sent["items"])
+        // As the sentence says: the beer for the user and Minh, and the pho for all three, not for Minh alone.
+        assertEquals(listOf(99_750L, 99_750L, 52_500L), checkNotNull(assistant.ui().proposal).shares.map { it.afterMinor })
+        assistant.apply()
+        assertEquals(mapOf("i1" to Division.Equally(among = setOf(ME_ID, "p1"))), onScreen().plan.setup.items)
     }
 
     @Test
@@ -234,7 +259,10 @@ class SplitAssistantFlowTest {
         val sent = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals("Lan không uống (Lan không uống món nào, bia hay nước? Bia)", sent.getValue("instruction").jsonPrimitive.content)
         assertNull(assistant.ui().question)
-        assertEquals(listOf("Bia: shared by you and Minh"), checkNotNull(assistant.ui().proposal).edits.map { it.text })
+        assertEquals(
+            listOf("Bia: shared by you and Minh, and every other item by everyone"),
+            checkNotNull(assistant.ui().proposal).edits.map { it.text },
+        )
     }
 
     @Test

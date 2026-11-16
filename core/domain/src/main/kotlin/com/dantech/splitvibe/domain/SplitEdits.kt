@@ -25,7 +25,9 @@ data class RejectedEdit(val index: Int, val edit: SplitEdit, val reason: String)
  * rejected when it names an item, a person or a ref that is not on the bill, carries a number that
  * cannot be right, takes the user off the bill, or gives parts that do not add up. Everything else
  * follows the rules the screens follow: [BillEditor] changes the bill, [SplitPlan] the split and
- * [Payments] who paid, and [SplitCalculator] works the shares out from them.
+ * [Payments] who paid, and [SplitCalculator] works the shares out from them. One rule is the AI's
+ * own: an edit of an item on a bill split as a whole starts from an even split by item, with every
+ * other item shared by everyone, where the screen would bring back how it last divided each item.
  */
 object SplitEdits {
 
@@ -81,7 +83,7 @@ object SplitEdits {
     private fun State.after(edit: SplitEdit): State = when (edit) {
         is SplitEdit.ItemSharers -> itemSharers(edit)
         is SplitEdit.ItemShares -> itemShares(edit)
-        is SplitEdit.SetMode -> copy(plan = plan.withMode(edit.mode, bill))
+        is SplitEdit.SetMode -> copy(plan = if (edit.mode == SplitMode.BY_ITEM) byItem() else plan.withMode(edit.mode, bill))
         is SplitEdit.WholeShares -> wholeShares(edit)
         is SplitEdit.WholePercent -> wholePercent(edit)
         is SplitEdit.WholeAmounts -> wholeAmounts(edit)
@@ -200,8 +202,15 @@ object SplitEdits {
         return copy(bill = changed, plan = plan.withBill(changed))
     }
 
-    /** The plan split item by item, as it is about to change how one item is split. */
-    private fun State.byItem(): SplitPlan = plan.withMode(SplitMode.BY_ITEM, bill)
+    /**
+     * The plan split item by item, as it is about to change how one item is split. A bill split as a
+     * whole starts from an even split by item, as the contract has it: every item shared by everyone.
+     * The screen remembers how each item was divided before the bill was split as a whole, but those
+     * divisions are not in effect, and neither the model nor the user reading the edits knows them,
+     * so they do not come back. The screen's own switch to by item still brings them back.
+     */
+    private fun State.byItem(): SplitPlan =
+        if (plan.mode == SplitMode.BY_ITEM) plan else plan.copy(setup = plan.setup.copy(whole = null, items = emptyMap()))
 
     private fun State.item(id: String): BillItem = findItem(id) ?: reject("That item is not on the bill.")
 
@@ -267,14 +276,17 @@ object SplitEdits {
             is SplitEdit.ItemSharers -> {
                 val people = edit.participantIds.distinct()
                 val who = if (people.size == 1) "only ${name(people.single())}" else "shared by ${list(people.map(::name))}"
-                "${item(edit.itemId)}: $who"
+                "${item(edit.itemId)}: $who${othersByEveryone(edit.itemId)}"
             }
 
-            is SplitEdit.ItemShares -> "${item(edit.itemId)}: in shares, ${parts(edit.shares) { it.toString() }}"
+            is SplitEdit.ItemShares -> {
+                val shares = parts(edit.shares) { it.toString() }
+                "${item(edit.itemId)}: in shares, $shares${othersByEveryone(edit.itemId)}"
+            }
 
             is SplitEdit.SetMode -> when (edit.mode) {
                 SplitMode.EQUAL -> "Split the whole bill equally"
-                SplitMode.BY_ITEM -> "Split the bill item by item"
+                SplitMode.BY_ITEM -> "Split the bill item by item" + if (splitAsWhole) ", every item shared by everyone" else ""
                 SplitMode.BY_SHARES -> "Split the whole bill in shares"
                 SplitMode.BY_PERCENT -> "Split the whole bill by percentage"
                 SplitMode.BY_AMOUNT -> "Split the whole bill by amount"
@@ -342,6 +354,15 @@ object SplitEdits {
         private fun item(id: String): String {
             val item = state.findItem(id) ?: return "an item that is not on the bill"
             return item.name.trim().ifEmpty { "an item" }
+        }
+
+        /** Whether the bill is split as a whole now, which an edit of one item turns into an even split by item. */
+        private val splitAsWhole: Boolean get() = state.plan.setup.whole != null
+
+        /** What becomes of the bill's other items when an edit of [itemId] splits it item by item: each is shared by everyone. */
+        private fun othersByEveryone(itemId: String): String {
+            val others = state.findItem(itemId) != null && state.bill.items.any { it.id != itemId }
+            return if (splitAsWhole && others) ", and every other item by everyone" else ""
         }
 
         private fun name(id: String): String {

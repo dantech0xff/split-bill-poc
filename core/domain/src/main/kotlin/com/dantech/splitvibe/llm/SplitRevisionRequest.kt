@@ -100,9 +100,13 @@ object SplitRevisionRequest {
                     }
                 }
                 put("whole", plan.setup.whole?.let(::division) ?: JsonNull)
-                // An item with no entry is shared equally by everyone; one no longer on the bill has nothing to say.
+                // An item with no entry is shared equally by everyone. While the whole bill is divided, the
+                // divisions the screen remembers for its items are not in effect, and one of an item no
+                // longer on the bill has nothing to say.
                 putJsonObject("items") {
-                    plan.setup.items.filterKeys { it in itemIds }.forEach { (itemId, division) -> put(itemId, division(division)) }
+                    if (plan.setup.whole == null) {
+                        plan.setup.items.filterKeys { it in itemIds }.forEach { (itemId, division) -> put(itemId, division(division)) }
+                    }
                 }
                 putJsonArray("notSharing") { plan.setup.notSharing.forEach { add(it) } }
                 putJsonArray("payments") {

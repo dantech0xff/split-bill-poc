@@ -98,12 +98,41 @@ class SplitEditsTest {
         val inShares = apply(ItemShares(pho, mapOf(ME_ID to 2L, khoa to 1L)), plan = equal)
 
         assertEquals(SplitMode.BY_ITEM, sharers.plan.mode)
-        assertEquals(Division.Equally(among = setOf(minh)), sharers.plan.setup.items[beer])
+        assertEquals(mapOf(beer to Division.Equally(among = setOf(minh))), sharers.plan.setup.items)
         assertEquals(SplitMode.BY_ITEM, inShares.plan.mode)
-        assertEquals(Division.ByShares(mapOf(ME_ID to 2L, khoa to 1L)), inShares.plan.setup.items[pho])
+        // How the beer was divided before the bill was split equally does not come back with the pho.
+        assertEquals(mapOf(pho to Division.ByShares(mapOf(ME_ID to 2L, khoa to 1L))), inShares.plan.setup.items)
         assertTrue(inShares.plan.problems(bill).isEmpty())
         // Naming everyone who shares the bill shares the item with everyone again.
         assertEquals(null, apply(ItemSharers(beer, listOf(ME_ID, minh, lan, khoa))).plan.setup.items[beer])
+    }
+
+    @Test
+    fun `an item edit on a bill split as a whole starts from an even split, without the divisions the screen remembers`() {
+        // Split by item once with the pho for Minh alone, then equally: the screen still remembers the pho's division.
+        val three = SplitPlan().withParticipantAdded("Minh").withParticipantAdded("Lan").withBill(bill)
+        val remembered = three.withMode(SplitMode.BY_ITEM, bill).withItemSharers(pho, setOf(minh)).withMode(SplitMode.EQUAL, bill)
+        val noBeerForLan = ItemSharers(beer, listOf(ME_ID, minh))
+
+        val result = apply(noBeerForLan, plan = remembered)
+
+        assertEquals(mapOf(beer to Division.Equally(among = setOf(ME_ID, minh))), result.plan.setup.items)
+        assertEquals("the same as on a plan that never had the pho's division", apply(noBeerForLan, plan = three).plan, result.plan)
+        // The beer is 45,000 each for the user and Minh, the pho a third each, and the service charge follows the items.
+        assertEquals(mapOf(ME_ID to 117_251L, minh to 117_250L, lan to 69_999L), shares(result.bill, result.plan))
+        assertEquals(
+            listOf("Beer: shared by Dana and Minh, and every other item by everyone"),
+            SplitEdits.describe(listOf(noBeerForLan), bill, remembered, "Dana", Locale.US),
+        )
+
+        // Split item by item outright, every item is shared by everyone, which is the even split it was.
+        val byItem = apply(SetMode(SplitMode.BY_ITEM), plan = remembered)
+        assertEquals(emptyMap<String, Division>(), byItem.plan.setup.items)
+        assertEquals(shares(bill, remembered), shares(byItem.bill, byItem.plan))
+        assertEquals(
+            "Split the bill item by item, every item shared by everyone",
+            SplitEdits.describe(SetMode(SplitMode.BY_ITEM), bill, remembered, "Dana", Locale.US),
+        )
     }
 
     @Test

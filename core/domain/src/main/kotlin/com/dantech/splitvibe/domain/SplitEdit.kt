@@ -34,7 +34,10 @@ sealed interface SplitEdit {
     @SerialName("item_shares")
     data class ItemShares(val itemId: String, val shares: Map<String, Long>) : SplitEdit
 
-    /** The whole bill is split this way, starting from an even split, or the bill is split item by item. */
+    /**
+     * The whole bill is split this way, starting from an even split, or the bill is split item by
+     * item, each item shared by everyone to start with.
+     */
     @Serializable
     @SerialName("split_mode")
     data class SetMode(@Serializable(with = SplitModeAsWire::class) val mode: SplitMode) : SplitEdit

@@ -49,6 +49,8 @@ class SplitEditPropertyTest {
             if (result.rejected.any { it.index == index }) {
                 assertEquals(step, before.bill, after.bill)
                 assertEquals(step, before.plan, after.plan)
+            } else {
+                assertStartsEvenly(step, edits[index], before.plan, after.plan)
             }
             assertHoldsTogether(step, after.bill, after.plan)
             before = after
@@ -102,6 +104,21 @@ class SplitEditPropertyTest {
         } else {
             assertTrue(case, result.shares.isEmpty() || result.totalMinor == bill.totalMinor)
         }
+    }
+
+    /**
+     * An item edit or a split by item on a bill split as a whole starts from an even split by item:
+     * no division the plan kept for another item comes back with it.
+     */
+    private fun assertStartsEvenly(case: String, edit: SplitEdit, before: SplitPlan, after: SplitPlan) {
+        if (before.setup.whole == null) return
+        val divided = when {
+            edit is ItemSharers -> setOf(edit.itemId)
+            edit is ItemShares -> setOf(edit.itemId)
+            edit is SetMode && edit.mode == SplitMode.BY_ITEM -> emptySet()
+            else -> return
+        }
+        assertTrue(case, divided.containsAll(after.setup.items.keys))
     }
 
     private fun namedIn(division: Division): Set<String> = when (division) {
