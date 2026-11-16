@@ -44,8 +44,8 @@ class ProxyException(val status: Int, val code: String, val retryAfterSeconds: L
 /** The proxy answered, but the rest of its answer did not come in time. */
 class AnswerTimeoutException(cause: InterruptedIOException) : IOException("The answer stopped coming before it was complete", cause)
 
-/** The model's answer to a bill read, and the calls left after it. */
-data class BillReply(val answer: JsonObject, val callsLeft: CallsLeft?)
+/** The model's final answer to a bill read or to a change of a split, and the calls left after it. */
+data class ModelReply(val answer: JsonObject, val callsLeft: CallsLeft?)
 
 /** What `GET /v1/usage` says. */
 data class Usage(val callsLeft: CallsLeft, val aiEnabled: Boolean)
@@ -69,10 +69,7 @@ class ProxyApi(
     val isSetUp: Boolean get() = base != null
 
     /** `POST /v1/bill-analysis`: reads the streamed reply up to the line with the answer. */
-    suspend fun readBill(body: JsonObject): BillReply = send(post("v1/bill-analysis", body)) { response ->
-        if (!response.isSuccessful) throw failureOf(response)
-        readAnswer(response)
-    }
+    suspend fun readBill(body: JsonObject): ModelReply = askModel("v1/bill-analysis", body)
 
     /** `POST /v1/session`: trades the ID token Google gave at sign-in for the proxy's session. */
     suspend fun startSession(idToken: String): Pair<Session, CallsLeft?> =
@@ -159,7 +156,13 @@ class ProxyApi(
 
     private suspend fun <T> send(request: Request, read: (Response) -> T): T = client.newCall(request).await(read)
 
-    private fun readAnswer(response: Response): BillReply {
+    /** A route that asks the model: refused before it starts, or wait lines and then one line with the answer or an error. */
+    private suspend fun askModel(path: String, body: JsonObject): ModelReply = send(post(path, body)) { response ->
+        if (!response.isSuccessful) throw failureOf(response)
+        readAnswer(response)
+    }
+
+    private fun readAnswer(response: Response): ModelReply {
         val source = checkNotNull(response.body).source()
         while (true) {
             val line = try {
@@ -173,7 +176,7 @@ class ProxyApi(
             when (message.text("type")) {
                 "result" -> {
                     val answer = message["answer"] as? JsonObject ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
-                    return BillReply(answer, message["usage"]?.let(::callsLeftOf))
+                    return ModelReply(answer, message["usage"]?.let(::callsLeftOf))
                 }
 
                 "error" -> throw ProxyException(

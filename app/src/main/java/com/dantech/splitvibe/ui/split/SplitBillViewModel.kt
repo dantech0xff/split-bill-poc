@@ -35,6 +35,7 @@ import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
+import com.dantech.splitvibe.llm.signInHelps
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
@@ -734,11 +735,7 @@ class SplitBillViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BillAnalyzerException) {
-                val signInHelps = canSignIn &&
-                    (
-                        e.kind == BillAnalyzerException.Kind.SIGN_IN_EXPIRED ||
-                            (e.kind == BillAnalyzerException.Kind.QUOTA_EXHAUSTED && account.value.session == null)
-                        )
+                val signInHelps = e.signInHelps(canSignIn, signedIn = account.value.session != null)
                 showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps)
             } catch (e: IOException) {
                 showError("That image could not be opened. Try another photo.")
