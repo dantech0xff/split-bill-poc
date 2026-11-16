@@ -7,6 +7,8 @@ import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.domain.Recurrence
 import java.time.Clock
 import java.time.LocalDate
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 /**
  * Makes the drafts of the recurring bills that are due: one for every occurrence up to today that
@@ -18,7 +20,8 @@ import java.time.LocalDate
  * mark that it did ([RecurringBillRepository.makeDraft]). A run that is repeated, or two runs at
  * once, therefore make each draft once, and only the run that made a draft tells the user of it,
  * through [notify]: once for all the drafts a recurring bill made in the run, earliest first, however
- * many periods it caught up.
+ * many periods it caught up. A run is never stopped half way, such as when the user leaves the app
+ * during it, as a draft it made would then never get its notice.
  */
 class RecurringDrafts(
     private val recurring: RecurringBillRepository,
@@ -27,7 +30,7 @@ class RecurringDrafts(
     private val clock: Clock,
 ) {
     /** Makes every draft that is due and returns the ones this run made, earliest first for each recurring bill. */
-    suspend fun makeDue(): List<SavedBill> {
+    suspend fun makeDue(): List<SavedBill> = withContext(NonCancellable) {
         val today = LocalDate.now(clock)
         val made = mutableListOf<SavedBill>()
         for (template in recurring.active()) {
@@ -43,7 +46,7 @@ class RecurringDrafts(
                 // recurring bill's: only this notice is missing, and the drafts are in the bills.
             }
         }
-        return made
+        made
     }
 
     /** Whether a recurring bill is there to make drafts, which the daily work is only needed for. */

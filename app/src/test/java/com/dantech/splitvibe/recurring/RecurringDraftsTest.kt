@@ -22,10 +22,12 @@ import com.dantech.splitvibe.ui.recurring.suggestedSchedule
 import java.time.LocalDate
 import java.util.Collections
 import java.util.UUID
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -234,6 +236,23 @@ class RecurringDraftsTest {
         assertTrue(again.isEmpty())
         assertEquals(listOf(days.map { Recurrence.draftId(template.id, it) }), notices)
         assertEquals(LocalDate.of(2027, 4, 1), runBlocking { recurring.all.first() }.single().nextDraft())
+    }
+
+    @Test
+    fun `a run stopped on the way, as when the user leaves the app, still makes every draft due and tells of them`() {
+        val template = makeRecurring(Frequency.WEEKLY, "2026-11-17")
+        clock.moveTo(LocalDate.of(2026, 12, 1))
+
+        runBlocking {
+            // Under way, and waiting for the database, when the app stops it.
+            val run = launch(start = CoroutineStart.UNDISPATCHED) { drafts.makeDue() }
+            run.cancel()
+            run.join()
+        }
+
+        val ids = listOf("2026-11-17", "2026-11-24", "2026-12-01").map { Recurrence.draftId(template.id, LocalDate.parse(it)) }
+        ids.forEach { assertNotNull(runBlocking { bills.get(it) }) }
+        assertEquals(listOf(ids), notices)
     }
 
     @Test
