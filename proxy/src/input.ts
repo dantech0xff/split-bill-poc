@@ -142,25 +142,34 @@ export function linesOf<T>(value: unknown, min: number, max: number, entryOf: (e
   return entries;
 }
 
-/** An item: a name of 1 to 80 characters, a quantity that is null or a decimal written as text, and a line total of 0 or more. */
-export function billItemOf(entry: Record<string, unknown>, id: string): BillItem | null {
-  const name = textOf(entry.name, 1, 80);
+/** How long a name or a label may be, in code points. */
+export type NameLength = { min: number; max: number };
+/** A name or a label on a bill link: 1 to 80 characters. */
+const LINK_NAME: NameLength = { min: 1, max: 80 };
+
+/** An item: a name of [length], a quantity that is null or a decimal written as text, and a line total of 0 or more. */
+export function billItemOf(entry: Record<string, unknown>, id: string, length: NameLength = LINK_NAME): BillItem | null {
+  const name = textOf(entry.name, length.min, length.max);
   const quantity = optional(entry.quantity, (text) => (typeof text === "string" && QUANTITY.test(text) ? text : null));
   const amountMinor = moneyOf(entry.amountMinor);
   return name === null || quantity === undefined || amountMinor === null ? null : { id, name, quantity, amountMinor };
 }
 
-/** A charge: a label of 1 to 80 characters and an amount that may take money off, as a discount does. */
-export function billChargeOf(entry: Record<string, unknown>, id: string): BillCharge | null {
-  const label = textOf(entry.label, 1, 80);
+/** A charge: a label of [length] and an amount that may take money off, as a discount does. */
+export function billChargeOf(entry: Record<string, unknown>, id: string, length: NameLength = LINK_NAME): BillCharge | null {
+  const label = textOf(entry.label, length.min, length.max);
   const amount = entry.amountMinor;
   const amountMinor = typeof amount === "number" && Number.isInteger(amount) && Math.abs(amount) <= POLICY.maxAmountMinor ? amount : null;
   return label === null || amountMinor === null ? null : { id, label, amountMinor };
 }
 
-/** A participant: a name of 1 to 60 characters, which may be empty for `me`. */
-export function participantOf(entry: Record<string, unknown>, id: string): Participant | null {
-  const name = textOf(entry.name, id === OWNER_PARTICIPANT ? 0 : 1, 60);
+/** A participant: a name of [length], on a bill link 1 to 60 characters, which may be empty for `me`. */
+export function participantOf(
+  entry: Record<string, unknown>,
+  id: string,
+  length: NameLength = { min: id === OWNER_PARTICIPANT ? 0 : 1, max: 60 },
+): Participant | null {
+  const name = textOf(entry.name, length.min, length.max);
   return name === null ? null : { id, name };
 }
 

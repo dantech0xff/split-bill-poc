@@ -12,10 +12,9 @@ import {
   isLineId,
   isRecord,
   linesOf,
-  MAX_BILL_CHARGES,
   MAX_BILL_ITEMS,
-  MAX_BILL_PARTICIPANTS,
   moneyOf,
+  type NameLength,
   optional,
   type Participant,
   participantOf,
@@ -33,12 +32,22 @@ export const EVAL_MODEL_HEADER = "X-SplitVibe-Eval-Model";
 
 /** The longest instruction, in code points, as the contract says. */
 const MAX_INSTRUCTION_CHARS = 500;
+/**
+ * What a bill to edit may hold. It comes as the app holds it, so these take any bill the app can
+ * make, unlike a bill link's: as many items as a link, more charges, as many participants as a
+ * group has members, and names of up to 200 characters, which may be empty where the app lets its
+ * user clear one. The size of the body bounds them all together.
+ */
+const MAX_CHARGES = 50;
+const MAX_PARTICIPANTS = POLICY.maxMembers;
+const NAME: NameLength = { min: 0, max: 200 };
+const MERCHANT: NameLength = { min: 1, max: 200 };
 /** The most edits an answer holds, and the longest explanation and question, in code points. */
 const MAX_EDITS = 20;
 const MAX_EXPLANATION_CHARS = 200;
 const MAX_QUESTION_CHARS = 200;
 /** The most people one edit names: everyone a bill holds, and the nine an answer may add. */
-const MAX_PEOPLE_IN_EDIT = MAX_BILL_PARTICIPANTS + PERSON_REFS.length;
+const MAX_PEOPLE_IN_EDIT = MAX_PARTICIPANTS + PERSON_REFS.length;
 /** The largest share an answer gives, so that the app never gets a number past what it counts with. */
 const MAX_SHARES = 1_000;
 /** 100%, in basis points. */
@@ -153,8 +162,9 @@ function modelOf(request: Request): { model: string; report: boolean } | null {
 /**
  * The request when [body] follows the contract, or null. Fields the contract does not name are
  * ignored, and the lists and maps of the split that are empty may be left out; `whole` may not,
- * as null there means splitting by item. Names and labels are read as on a bill link: without
- * invisible formatting characters but the joiners, trimmed, and without control characters.
+ * as null there means splitting by item. Names and labels lose invisible formatting characters but
+ * the joiners and are trimmed, as everywhere, and hold no control characters; so does the
+ * instruction, which is 1 to [MAX_INSTRUCTION_CHARS] code points.
  */
 export function revisionRequestOf(body: unknown): RevisionRequest | null {
   if (!isRecord(body)) return null;
@@ -168,25 +178,25 @@ export function revisionRequestOf(body: unknown): RevisionRequest | null {
 
 function billOf(value: unknown): RevisionBill | null {
   if (!isRecord(value)) return null;
-  const merchant = optional(value.merchant, (text) => textOf(text, 1, 80));
+  const merchant = optional(value.merchant, (text) => textOf(text, MERCHANT.min, MERCHANT.max));
   const currency = currencyOf(value.currency);
   // A bill entered by hand may have no items, only its total.
-  const items = linesOf(value.items, 0, MAX_BILL_ITEMS, billItemOf);
-  const charges = linesOf(value.charges, 0, MAX_BILL_CHARGES, chargeOf);
+  const items = linesOf(value.items, 0, MAX_BILL_ITEMS, (entry, id) => billItemOf(entry, id, NAME));
+  const charges = linesOf(value.charges, 0, MAX_CHARGES, chargeOf);
   const totalMinor = moneyOf(value.totalMinor);
   if (merchant === undefined || currency === null || items === null || charges === null || totalMinor === null) return null;
   return { merchant, currency, items, charges, totalMinor };
 }
 
 function chargeOf(entry: Record<string, unknown>, id: string): RevisionBill["charges"][number] | null {
-  const charge = billChargeOf(entry, id);
+  const charge = billChargeOf(entry, id, NAME);
   const kind = CHARGE_KINDS.find((one) => one === entry.kind) ?? null;
   return charge === null || kind === null ? null : { id, label: charge.label, kind, amountMinor: charge.amountMinor };
 }
 
 function splitOf(value: unknown): RevisionSplit | null {
   if (!isRecord(value) || value.whole === undefined) return null;
-  const participants = linesOf(value.participants, 1, MAX_BILL_PARTICIPANTS, participantOf);
+  const participants = linesOf(value.participants, 1, MAX_PARTICIPANTS, (entry, id) => participantOf(entry, id, NAME));
   const whole = optional(value.whole, divisionOf);
   const items = value.items === undefined ? {} : itemDivisionsOf(value.items);
   const notSharing = value.notSharing === undefined ? [] : idListOf(value.notSharing);
@@ -208,7 +218,8 @@ function divisionOf(value: unknown): Division | null {
       return shares === null ? null : { type: "shares", shares };
     }
     case "percent": {
-      const basisPoints = perPersonOf(value.basisPoints, (number) => wholeNumberOf(number, 0, FULL));
+      // Not necessarily 100% in all, nor each at most 100%, while the user is still at it.
+      const basisPoints = perPersonOf(value.basisPoints, countOf);
       return basisPoints === null ? null : { type: "percent", basisPoints };
     }
     case "amount": {
@@ -220,7 +231,7 @@ function divisionOf(value: unknown): Division | null {
   }
 }
 
-/** [value] as numbers [read] takes, keyed by the ids of at most [MAX_BILL_PARTICIPANTS] people; null otherwise. */
+/** [value] as numbers [read] takes, keyed by the ids of at most [MAX_PARTICIPANTS] people; null otherwise. */
 function perPersonOf(value: unknown, read: (number: unknown) => number | null): Record<string, number> | null {
   if (!isRecord(value)) return null;
   const entries: Array<[string, number]> = [];
@@ -230,7 +241,7 @@ function perPersonOf(value: unknown, read: (number: unknown) => number | null): 
     entries.push([id, number]);
   }
   // Built from entries, so that an id such as `__proto__` stays an id.
-  return entries.length <= MAX_BILL_PARTICIPANTS ? Object.fromEntries(entries) : null;
+  return entries.length <= MAX_PARTICIPANTS ? Object.fromEntries(entries) : null;
 }
 
 function itemDivisionsOf(value: unknown): Record<string, Division> | null {
@@ -244,15 +255,15 @@ function itemDivisionsOf(value: unknown): Record<string, Division> | null {
   return entries.length <= MAX_BILL_ITEMS ? Object.fromEntries(entries) : null;
 }
 
-/** [value] as the ids of at most [MAX_BILL_PARTICIPANTS] people, each once; null otherwise. */
+/** [value] as the ids of at most [MAX_PARTICIPANTS] people, each once; null otherwise. */
 function idListOf(value: unknown): string[] | null {
-  if (!Array.isArray(value) || value.length > MAX_BILL_PARTICIPANTS) return null;
+  if (!Array.isArray(value) || value.length > MAX_PARTICIPANTS) return null;
   if (!value.every(isLineId) || new Set(value).size !== value.length) return null;
   return value;
 }
 
 function paymentsOf(value: unknown): RevisionSplit["payments"] | null {
-  if (!Array.isArray(value) || value.length > MAX_BILL_PARTICIPANTS) return null;
+  if (!Array.isArray(value) || value.length > MAX_PARTICIPANTS) return null;
   const payments: RevisionSplit["payments"] = [];
   for (const entry of value) {
     const amountMinor = isRecord(entry) ? moneyOf(entry.amountMinor) : null;
@@ -320,7 +331,7 @@ function editOf(value: unknown): Edit | null {
     }
     case "add_person": {
       const ref = oneOf(value.ref, PERSON_REFS);
-      const name = answerTextOf(value.name, 1, 60);
+      const name = answerTextOf(value.name, 1, NAME.max);
       return ref === null || name === null ? null : { op, ref, name };
     }
     case "remove_person":
@@ -352,7 +363,7 @@ function editOf(value: unknown): Edit | null {
 /** A new charge, with exactly one of an amount of 1 or more and a percentage of 1 to 10000 basis points. */
 function chargeEditOf(value: Record<string, unknown>): Edit | null {
   const kind = oneOf(value.kind, CHARGE_KINDS);
-  const label = answerTextOf(value.label, 1, 80);
+  const label = answerTextOf(value.label, 1, NAME.max);
   const byAmount = value.amountMinor !== undefined && value.amountMinor !== null;
   const byPercent = value.percentBasisPoints !== undefined && value.percentBasisPoints !== null;
   if (kind === null || label === null || byAmount === byPercent) return null;

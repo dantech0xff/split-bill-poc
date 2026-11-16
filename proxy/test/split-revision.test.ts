@@ -175,29 +175,29 @@ describe("an edit of a split", () => {
       changed((body) => (body.instruction = "Lan\nkhông uống bia")),
       changed((body) => Reflect.deleteProperty(body, "bill")),
       changed((body) => (body.bill.merchant = "")),
-      changed((body) => (body.bill.merchant = "x".repeat(81))),
+      changed((body) => (body.bill.merchant = "x".repeat(201))),
       changed((body) => (body.bill.currency = { code: "vnd", fractionDigits: 0 })),
       changed((body) => (body.bill.items = Array.from({ length: 201 }, (_, index) => item(`i${index}`)))),
       changed((body) => (body.bill.items = [item("i1"), item("i1")])),
       changed((body) => (items(body)[0].id = "i 1")),
-      changed((body) => (items(body)[0].name = "x".repeat(81))),
+      changed((body) => (items(body)[0].name = "x".repeat(201))),
       changed((body) => (items(body)[0].quantity = "1e3")),
       changed((body) => (items(body)[0].amountMinor = -1)),
       changed((body) => (items(body)[0].amountMinor = 1.5)),
-      changed((body) => (body.bill.charges = Array.from({ length: 21 }, (_, index) => ({ id: `c${index}`, label: "Fee", kind: "other", amountMinor: 1 })))),
+      changed((body) => (body.bill.charges = Array.from({ length: 51 }, (_, index) => ({ id: `c${index}`, label: "Fee", kind: "other", amountMinor: 1 })))),
       changed((body) => (charges(body)[0].kind = "fee")),
       changed((body) => Reflect.deleteProperty(charges(body)[0], "kind")),
       changed((body) => (charges(body)[0].amountMinor = POLICY.maxAmountMinor + 1)),
       changed((body) => Reflect.deleteProperty(body.bill, "totalMinor")),
       changed((body) => Reflect.deleteProperty(body, "split")),
       changed((body) => (body.split.participants = [])),
-      changed((body) => (body.split.participants = Array.from({ length: 31 }, (_, index) => ({ id: `p${index}`, name: "Lan" })))),
-      changed((body) => (participants(body)[1].name = "")),
+      changed((body) => (body.split.participants = Array.from({ length: POLICY.maxMembers + 1 }, (_, index) => ({ id: `p${index}`, name: "Lan" })))),
+      changed((body) => (participants(body)[1].name = "x".repeat(201))),
       changed((body) => (participants(body)[1].id = "me")),
       changed((body) => Reflect.deleteProperty(body.split, "whole")),
       changed((body) => (body.split.whole = { type: "thirds" })),
       changed((body) => (body.split.whole = { type: "shares", shares: { me: -1 } })),
-      changed((body) => (body.split.whole = { type: "percent", basisPoints: { me: 10001 } })),
+      changed((body) => (body.split.whole = { type: "percent", basisPoints: { me: -1 } })),
       changed((body) => (body.split.whole = { type: "amount", amounts: { me: 0.5 } })),
       changed((body) => (body.split.whole = { type: "equal", among: ["me", "me"], except: [] })),
       changed((body) => (body.split.items = { "i 1": { type: "equal" } })),
@@ -205,7 +205,7 @@ describe("an edit of a split", () => {
       changed((body) => (body.split.notSharing = "p1")),
       changed((body) => (body.split.notSharing = ["p1", "p1"])),
       changed((body) => (body.split.payments = [{ participantId: "me" }])),
-      changed((body) => (body.split.payments = Array.from({ length: 31 }, () => ({ participantId: "me", amountMinor: 1 })))),
+      changed((body) => (body.split.payments = Array.from({ length: POLICY.maxMembers + 1 }, () => ({ participantId: "me", amountMinor: 1 })))),
       // Follows the contract, but is longer than any edit needs to be.
       JSON.stringify({ ...sampleRevision(), padding: "x".repeat(POLICY.maxRevisionBodyBytes) }),
     ];
@@ -220,7 +220,7 @@ describe("an edit of a split", () => {
     expect(await spendOf(await ipName(IP))).toBeUndefined();
   });
 
-  it("takes what the contract allows: no merchant, no items, a whole bill split in each way, and empty lists left out", async () => {
+  it("takes any bill the app can hold: no merchant, no items, names cleared or long, a split by the whole bill in each way, and empty lists left out", async () => {
     const seen = model(modelRevision(SAMPLE_REVISION));
     const accepted: RevisionBody[] = [
       changed((body) => {
@@ -247,6 +247,17 @@ describe("an edit of a split", () => {
         body.split.notSharing = ["p1"];
         body.split.items = { i1: { type: "shares", shares: { me: 1 } } };
         (body.bill.charges as Array<Record<string, unknown>>)[0].amountMinor = -14000;
+      }),
+      changed((body) => {
+        (body.bill.items as Array<Record<string, unknown>>)[0].name = "";
+        (body.split.participants as Array<Record<string, unknown>>)[1].name = "";
+        body.bill.merchant = "M".repeat(200);
+        // A percentage the user is still typing.
+        body.split.whole = { type: "percent", basisPoints: { me: 12000, p1: 0 } };
+      }),
+      changed((body) => {
+        body.split.participants = Array.from({ length: POLICY.maxMembers }, (_, index) => ({ id: index === 0 ? "me" : `p${index}`, name: "Lan" }));
+        body.bill.charges = Array.from({ length: 50 }, (_, index) => ({ id: `c${index}`, label: "Phí", kind: "other", amountMinor: 1 }));
       }),
     ];
 
@@ -381,7 +392,8 @@ describe("the check of the model's answer", () => {
     ["an empty id", edit({ op: "set_payer", participantId: "" })],
     ["an id of 65 characters", edit({ op: "remove_person", participantId: "p".repeat(65) })],
     ["a ref past new9", edit({ op: "add_person", ref: "new10", name: "Hùng" })],
-    ["a name of 61 characters", edit({ op: "add_person", ref: "new1", name: "x".repeat(61) })],
+    ["a name of 201 characters", edit({ op: "add_person", ref: "new1", name: "x".repeat(201) })],
+    ["a label of 201 characters", edit({ op: "add_charge", kind: "tip", label: "x".repeat(201), amountMinor: 1000 })],
     ["a charge with both an amount and a percentage", edit({ op: "add_charge", kind: "tip", label: "Tip", amountMinor: 1000, percentBasisPoints: 1000 })],
     ["a charge with neither", edit({ op: "add_charge", kind: "tip", label: "Tip" })],
     ["a charge of 0", edit({ op: "add_charge", kind: "tip", label: "Tip", amountMinor: 0 })],
