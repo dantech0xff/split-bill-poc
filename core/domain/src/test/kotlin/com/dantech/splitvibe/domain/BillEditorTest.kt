@@ -48,6 +48,22 @@ class BillEditorTest {
     }
 
     @Test
+    fun `a unit price is worked out exactly, and only when a bill can hold it`() {
+        fun priceOf(quantity: String, amount: Long): Long? {
+            val bought = bill.copy(items = listOf(BillItem("i1", "Saffron", BigDecimal(quantity), null, 1)))
+            return BillEditor.withItemAmount(bought, "i1", amount).items.single().unitPriceMinor
+        }
+
+        // 999,999,999,999,999 for 1.000001 units is 999,999,000,000,998.999... each, which 16 digits round to a whole number.
+        assertNull(priceOf("1.000001", 999_999_999_999_999))
+        // The most a bill holds, for 0.0001 units or a millionth of one, is far more than a bill holds each.
+        assertNull(priceOf("0.0001", BillCurrency.MAX_AMOUNT_MINOR))
+        assertNull(priceOf("0.000001", 10_000_000_000_000))
+        assertEquals(500_000_000L, priceOf("0.0001", 50_000))
+        assertEquals(BillCurrency.MAX_AMOUNT_MINOR, priceOf("1", BillCurrency.MAX_AMOUNT_MINOR))
+    }
+
+    @Test
     fun `a quantity or price that makes a line too large to hold changes nothing`() {
         val huge = BigDecimal("99999999999999999999")
 

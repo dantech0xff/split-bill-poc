@@ -409,6 +409,29 @@ class SplitEditsTest {
     }
 
     @Test
+    fun `a large amount for a tiny quantity is applied or rejected, and never throws`() {
+        // Both are edits the proxy takes: a quantity with six decimals, and an amount below its largest.
+        val tiny = listOf(ItemQuantity(beer, BigDecimal("0.000001")), ItemAmount(beer, 10_000_000_000_000))
+        val typed = bill.copy(printedTotalMinor = null)
+
+        val printed = SplitEdits.apply(bill, plan, tiny)
+        val lines = SplitEdits.apply(typed, plan.withBill(typed), tiny + ItemAmount(pho, BillCurrency.MAX_AMOUNT_MINOR))
+
+        // The printed total stays, as the editor keeps it, and the line has no unit price it could hold.
+        assertEquals(tiny, printed.applied)
+        assertEquals(BillItem(beer, "Beer", BigDecimal("0.000001"), null, 10_000_000_000_000), printed.bill.items[0])
+        assertEquals(304_500L, shares(printed.bill, printed.plan).values.sum())
+        assertEquals(2, SplitEdits.describe(tiny, bill, plan, "Dana", Locale.US).size)
+        // Without one, the lines make the total, and the most a bill holds on top of them is too much.
+        assertEquals(tiny, lines.applied)
+        assertEquals(listOf("That is more than a bill can hold."), lines.rejected.map { it.reason })
+        // Bought by the ten-thousandth, the most a bill holds for one item alone fits, but has no unit price.
+        val grams = typed.copy(items = listOf(BillItem(beer, "Saffron", BigDecimal("0.0001"), null, 50_000)), charges = emptyList())
+        val most = SplitEdits.apply(grams, plan.withBill(grams), listOf(ItemAmount(beer, BillCurrency.MAX_AMOUNT_MINOR)))
+        assertEquals(BillItem(beer, "Saffron", BigDecimal("0.0001"), null, BillCurrency.MAX_AMOUNT_MINOR), most.bill.items.single())
+    }
+
+    @Test
     fun `a quantity equal to the one on the bill changes nothing, and another is kept without trailing zeros`() {
         val same = apply(ItemQuantity(beer, BigDecimal("3.000000")))
         val half = apply(ItemQuantity(beer, BigDecimal("2.500")))

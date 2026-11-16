@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
-import java.math.MathContext
 import java.math.RoundingMode
 
 /**
@@ -130,11 +129,17 @@ object BillEditor {
         return amount.takeIf { it.abs() <= BigDecimal.valueOf(BillCurrency.MAX_AMOUNT_MINOR) }?.longValueExact()
     }
 
-    /** The unit price of [quantity] units costing [amountMinor] together, when it is a whole number of minor units. */
+    /**
+     * The unit price of [quantity] units costing [amountMinor] together, when it is a whole number of
+     * minor units that a bill can hold. The division is exact, so a price is never rounded into a
+     * whole number it is not, and the price is checked before it is taken as a number of minor units:
+     * a large amount for a tiny quantity, such as 0.000001, is more than any bill holds.
+     */
     private fun evenUnitPrice(amountMinor: Long, quantity: BigDecimal): Long? {
         if (quantity.signum() <= 0) return null
-        val price = BigDecimal.valueOf(amountMinor).divide(quantity, MathContext.DECIMAL64)
-        return price.takeIf { it.stripTrailingZeros().scale() <= 0 }?.longValueExact()
+        val (price, rest) = BigDecimal.valueOf(amountMinor).divideAndRemainder(quantity)
+        if (rest.signum() != 0 || price > BigDecimal.valueOf(BillCurrency.MAX_AMOUNT_MINOR)) return null
+        return price.longValueExact()
     }
 
     private fun updateItem(bill: Bill, itemId: String, change: (BillItem) -> BillItem): Bill =

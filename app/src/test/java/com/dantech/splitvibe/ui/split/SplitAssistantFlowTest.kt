@@ -257,7 +257,8 @@ class SplitAssistantFlowTest {
         ask("The beer comes to 1,000,000,000,000,000", answer("""[{"op":"item_amount","itemId":"i1","amountMinor":1000000000000000}]"""))
 
         val proposal = checkNotNull(assistant.ui().proposal)
-        assertEquals(ProposalOutcome.NOT_WORKED_OUT, proposal.outcome)
+        assertEquals(listOf("That is more than a bill can hold."), proposal.edits.map { it.reason })
+        assertEquals(ProposalOutcome.NONE_APPLIES, proposal.outcome)
         assertFalse(proposal.canApply)
         assistant.apply()
         assertEquals(before, onScreen())

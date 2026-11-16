@@ -151,9 +151,9 @@ class SplitEditPropertyTest {
     private fun randomBill(): Bill {
         val currency = if (random.nextBoolean()) BillCurrency("USD", 2) else BillCurrency("VND", 0)
         val items = List(random.nextInt(0, 8)) { i ->
-            val quantity = BigDecimal(random.nextInt(1, 5))
+            val quantity = BigDecimal(BILL_QUANTITIES.random(random))
             val price = if (random.nextBoolean()) random.nextLong(0, 1_000_000) else null
-            val amount = price?.let { it * quantity.toLong() } ?: random.nextLong(0, 3_000_000)
+            val amount = price?.let { BillEditor.lineAmount(quantity, it) } ?: random.nextLong(0, 3_000_000)
             BillItem("i${i + 1}", "Item ${i + 1}", quantity, price, amount)
         }
         val charges = List(random.nextInt(0, 3)) { i ->
@@ -208,11 +208,15 @@ class SplitEditPropertyTest {
         }
         fun some() = List(random.nextInt(1, 4)) { person() }.distinct()
         fun share(least: Long) = if (random.nextInt(8) == 0) random.nextLong(-1, least) else random.nextLong(least, 4)
-        fun amount() = when (random.nextInt(8)) {
+
+        /** Some are as much as a bill holds, or nearly, which divided by a tiny quantity is more than a Long holds. */
+        fun amount() = when (random.nextInt(10)) {
             0 -> -random.nextLong(1, 100_000)
             1 -> 0L
             2 -> Long.MAX_VALUE
             3 -> BillCurrency.MAX_AMOUNT_MINOR + 1
+            4 -> BillCurrency.MAX_AMOUNT_MINOR - random.nextLong(0, 2)
+            5 -> random.nextLong(1_000_000_000_000, BillCurrency.MAX_AMOUNT_MINOR)
             else -> random.nextLong(1, 2_000_000)
         }
 
@@ -241,7 +245,7 @@ class SplitEditPropertyTest {
             9 -> randomCharge(amount())
             10 -> SetPayer(person())
             11 -> ItemAmount(item(), amount())
-            else -> ItemQuantity(item(), listOf("0", "-1", "0.5", "3", "2.25", "1E+9", "1E-12", "999999").random(random).let(::BigDecimal))
+            else -> ItemQuantity(item(), EDIT_QUANTITIES.random(random).let(::BigDecimal))
         }
     }
 
@@ -261,6 +265,14 @@ class SplitEditPropertyTest {
     }
 
     private companion object {
+        /** Quantities a bill holds, from a millionth of a unit, as a receipt by weight prints it, to many. */
+        val BILL_QUANTITIES = listOf("1", "2", "3", "4", "0.5", "0.0001", "0.000001", "999999")
+
+        /** Quantities an edit sets: tiny, huge, written with trailing zeros, and some that are no quantity at all. */
+        val EDIT_QUANTITIES = listOf(
+            "0", "-1", "0.5", "3", "3.000000", "2.25", "0.000001", "0.0001", "999999.999999", "1E+9", "1E-12", "999999",
+        )
+
         const val UNKNOWN_ITEM = "i404"
         val REFS = listOf("new1", "new2", "new3")
 

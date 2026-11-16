@@ -71,6 +71,10 @@ object SplitEdits {
             } catch (e: Rejection) {
                 visit(index, edit, state, e.reason)
                 null
+            } catch (e: ArithmeticException) {
+                // A number past what the arithmetic holds, which the checks before it are to keep out.
+                visit(index, edit, state, TOO_LARGE)
+                null
             }
             if (next != null) {
                 visit(index, edit, state, null)
