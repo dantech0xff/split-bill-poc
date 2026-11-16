@@ -9,7 +9,7 @@ import { holdMicro } from "../src/spend";
 import { type Edit, EVAL_MODEL_HEADER, type Revision, revisionRequestOf, splitRevision } from "../src/split-revision";
 import { apiError, type Reply, serverSentEvents, stalled } from "./fake-model";
 import { network } from "./network";
-import { billRequest, IP, ipName, last, model, quotaOf, sampleRequest, send, type Sent, spendOf } from "./requests";
+import { billRequest, type Caller, IP, ipName, last, model, quotaOf, sampleRequest, send, type Sent, spendOf } from "./requests";
 import { modelEdit, modelRevision, type RevisionBody, revisionRequest, SAMPLE_REVISION, sampleRevision } from "./revisions";
 
 const TRIAL_AFTER_ONE_EDIT = { limit: 3, used: 0.2, remaining: 2.8, period: "trial", resetsAt: null };
@@ -28,10 +28,13 @@ function promptOf(body: RevisionBody): string {
   return revisionMessage(request);
 }
 
-/** What an edit's call holds against the spend caps for [body]: what is counted as spent when the model was reached but did not answer. */
-function holdOf(body: RevisionBody): number {
+/**
+ * What an edit's call holds against the spend caps for [body], at the price of [model], the only
+ * one that can answer it: what is counted as spent when the model was reached but did not answer.
+ */
+function holdOf(body: RevisionBody, model: string = POLICY.revisionModel): number {
   const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
-  return holdMicro(bytes(REVISE_SYSTEM_PROMPT) + bytes(promptOf(body)) + bytes(JSON.stringify(REVISION_SCHEMA)), POLICY.revisionMaxTokens);
+  return holdMicro(bytes(REVISE_SYSTEM_PROMPT) + bytes(promptOf(body)) + bytes(JSON.stringify(REVISION_SCHEMA)), POLICY.revisionMaxTokens, model);
 }
 
 /** Sends [request] straight to the route with [timing], and reads the whole reply once the work is done. */
@@ -637,16 +640,25 @@ describe("what an edit shares with a bill read", () => {
     expect(await spendOf("global")).toMatchObject(cost);
   });
 
-  it("keeps the whole hold as spent when the model had started but took too long", async () => {
+  it("keeps the whole hold, at the price of the model it asked, as spent when the model had started but took too long", async () => {
     model((request) => stalled(serverSentEvents(modelRevision(SAMPLE_REVISION)).split("event: content_block_start")[0], request.signal));
-    const install = crypto.randomUUID();
     const body = sampleRevision();
+    const asked: Array<[string, Caller]> = [
+      [POLICY.revisionModel, {}],
+      // The model the evaluation names on a computer is then the one called.
+      ["claude-sonnet-5-5", { origin: "http://127.0.0.1:8787", headers: { [EVAL_MODEL_HEADER]: "claude-sonnet-5-5" } }],
+    ];
 
-    const sent = await sendTimed(revisionRequest({ install, body }), { modelDeadlineMs: 100 });
+    for (const [name, caller] of asked) {
+      const install = crypto.randomUUID();
+      const sent = await sendTimed(revisionRequest({ ...caller, install, body: { ...body, requestId: crypto.randomUUID() } }), { modelDeadlineMs: 100 });
 
-    expect(last(sent)).toEqual({ type: "error", code: "timeout" });
-    expect(await quotaOf(install)).toMatchObject({ used: 0, remaining: 3 });
-    expect(await spendOf(`install:${install}`)).toMatchObject({ spent: holdOf(body), held: 0 });
+      expect(last(sent), name).toEqual({ type: "error", code: "timeout" });
+      expect(await quotaOf(install), name).toMatchObject({ used: 0, remaining: 3 });
+      expect(await spendOf(`install:${install}`), name).toMatchObject({ spent: holdOf(body, name), held: 0 });
+    }
+    // Haiku's price holds about half a cent, where the dearest in the table would hold over a quarter of a dollar.
+    expect(holdOf(body)).toBeLessThan(10_000);
   });
 
   it("counts against the same limit of its IP as bill reads", async () => {

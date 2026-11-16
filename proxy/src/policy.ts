@@ -32,9 +32,11 @@ export const POLICY = {
   ip: { perMinute: 10, perDay: 100 },
   /**
    * Spend over each fixed 24 hour window: for one caller, for one IP, and for the whole proxy. A
-   * call holds the most it could cost (nearly half a dollar with the dearest model and a full
-   * answer) while it runs, though a bill should cost far less. So the caller's cap leaves room for
-   * a day's worth of real calls plus one hold, and the IP's cap for its 100 requests a day.
+   * call holds the most it could cost while it runs: a bill read, which a refusal can move to
+   * another model, nearly half a dollar at the dearest price with a full answer, though a bill
+   * should cost far less; an edit at the price of its own model, half a cent to 1.3 cents for
+   * Haiku. So the caller's cap leaves room for a day's worth of real calls plus one hold, and the
+   * IP's cap for its 100 requests a day.
    */
   callerCapMicro: 3_000_000,
   ipCapMicro: 6_000_000,

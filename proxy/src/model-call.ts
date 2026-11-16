@@ -120,7 +120,12 @@ export async function callModel<Input extends { requestId: string }>(
     return refused(hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
   }
 
-  const held = holdMicro(byteLength(task.system) + byteLength(prompt) + byteLength(JSON.stringify(task.schema)), settings.maxTokens);
+  // A call without a fallback is answered by its own model only, and held at that model's price.
+  const held = holdMicro(
+    byteLength(task.system) + byteLength(prompt) + byteLength(JSON.stringify(task.schema)),
+    settings.maxTokens,
+    settings.fallback ? undefined : settings.model,
+  );
   const caps: SpendCap[] = [
     { ledger: ledger(env, caller.name), cap: POLICY.callerCapMicro, code: "spend_limited" },
     { ledger: ipLedger, cap: POLICY.ipCapMicro, code: "spend_limited" },

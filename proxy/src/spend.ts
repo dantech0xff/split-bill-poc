@@ -41,12 +41,17 @@ const CACHE_FACTOR = 1.25;
 /**
  * The most a call can cost, held against the spend caps before the model runs. Each token covers
  * at least one byte of UTF-8, whatever the model's tokenizer, so the byte length of the prompt
- * bounds its tokens, and the answer, thinking included, is bounded by [maxTokens]. A refusal
- * fallback runs a second attempt, which the hold does not cover: the settle then counts both, so a
- * cap can be passed by that second attempt of a call in flight.
+ * bounds its tokens, and the answer, thinking included, is bounded by [maxTokens].
+ *
+ * [model] is the model a call without a fallback asks, which alone can answer it: its price, or the
+ * price of a model missing from the table, bounds the cost. Without it, as for a call a refusal can
+ * move to another model, the dearest price in the table is held. That fallback runs a second
+ * attempt, which the hold does not cover: the settle then counts both, so a cap can be passed by
+ * that second attempt of a call in flight.
  */
-export function holdMicro(promptBytes: number, maxTokens: number): number {
-  return Math.ceil((promptBytes + OVERHEAD_TOKENS) * DEAREST.input + maxTokens * DEAREST.output);
+export function holdMicro(promptBytes: number, maxTokens: number, model?: string): number {
+  const price = model === undefined ? DEAREST : (PRICES[model] ?? UNLISTED);
+  return Math.ceil((promptBytes + OVERHEAD_TOKENS) * price.input + maxTokens * price.output);
 }
 
 /**
