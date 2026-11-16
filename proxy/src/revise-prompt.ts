@@ -54,13 +54,23 @@ The split:
 - explanation is one short sentence, at most 200 characters, in the language of the instruction, that says what the edits change, such as "Lan no longer shares the beer." It never says what anyone owes. When you ask a question, leave it empty.`;
 
 /**
- * The one user message of an edit: the bill, its split and the instruction, each written as JSON,
- * so that nothing in a name or in the instruction can pass for the message's own structure.
+ * The one user message of an edit: the bill, its split and the instruction, each written as JSON
+ * inside its tag, so that nothing in a name or in the instruction can pass for the message's own
+ * structure.
  */
 export function revisionMessage(request: RevisionRequest): string {
   return [
-    `<bill>\n${JSON.stringify(request.bill)}\n</bill>`,
-    `<split>\n${JSON.stringify(request.split)}\n</split>`,
-    `<instruction>\n${JSON.stringify(request.instruction)}\n</instruction>`,
+    `<bill>\n${dataOf(request.bill)}\n</bill>`,
+    `<split>\n${dataOf(request.split)}\n</split>`,
+    `<instruction>\n${dataOf(request.instruction)}\n</instruction>`,
   ].join("\n\n");
+}
+
+/**
+ * [value] as JSON that holds no `<`, `>` or `&`: each is written as its JSON escape, such as
+ * `<`, which reads back as the same character. So no name and no instruction can close one of
+ * the message's tags or open another.
+ */
+function dataOf(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
