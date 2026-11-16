@@ -68,18 +68,26 @@ The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change w
   `limit`, `used` and `remaining`, in `/v1/usage`, in the answer of `/v1/session`, and in every line
   and error body that carries `usage`, are decimal numbers with at most two decimals, such as `3`,
   `0.2` or `2.8`. A call runs only while `remaining` is at least what it takes: with 0.8 left, a
-  bill read is refused with 429 `quota_exhausted` and an edit still runs.
+  bill read is refused with 429 `quota_exhausted` and an edit still runs. `revisionWeight` must be
+  a whole number of hundredths from 0.01 to 1: with any other, the Worker does not load, so neither
+  a deploy nor the tests go through.
 - A call is held while the model works and charged once the model has answered, whatever the answer
   says, also when the app hung up, as long as the answer comes within 25 seconds of the hang-up.
   A call that got no answer is given back, and so is an edit whose answer the proxy could not use
-  (`bad_response`). The same request id is charged once however often it runs (at most three
-  times), at what its first run took, and it can only be used again for the same request, never for
-  another bill, another edit or the other route.
+  (`bad_response`). The same request id is charged once however often it runs, at what its first
+  run took, and it can only be used again for the same request, never for another bill, another
+  edit or the other route. While the proxy remembers an id, for a day once its call was charged and
+  while its call is held, it runs at most three times. A run that is given back while no other run
+  of it waits makes the proxy forget the id, so a request that keeps failing, or keeps ending as
+  `bad_response`, may be sent again as a new one, within the limits of its address.
 - Each network address may send 10 calls to the model a minute and 100 a day, bill reads and edits
   together, whoever sends them. IPv6 counts by its /64.
 - Spend is capped over each 24 hours: $3 per caller, $6 per address and $20 for the whole proxy.
-  Each call holds the most it could cost, then settles at what it did cost. Also set a monthly spend
-  limit in the Anthropic console.
+  Each call holds the most it could cost, then settles at what it did cost. An edit, which only its
+  own model answers, is held at that model's price: half a cent to 1.3 cents with Haiku. A bill
+  read, which a refusal can move to another model, is held at the dearest price in `spend.ts`:
+  about half a dollar, and up to some 80 cents for the longest bill. Also set a monthly spend limit
+  in the Anthropic console.
 
 ### Editing a split by a sentence
 
@@ -111,11 +119,13 @@ takes a fifth of a call.
 }
 ```
 
-- `requestId` is a UUID, and `instruction` 1 to 500 characters.
+- `requestId` is a UUID, and `instruction` 1 to 500 characters, once its text is read as below.
 - `bill` has `merchant` (null, or 1 to 200 characters), `currency`, `items` (0 to 200, each
   `{id, name, quantity, amountMinor}`), `charges` (0 to 50, each `{id, label, kind, amountMinor}`,
   with `kind` one of `tax`, `service_charge`, `tip`, `discount`, `rounding` and `other`) and
-  `totalMinor`.
+  `totalMinor`. `currency` is `{code, fractionDigits}`: `code` is any text of 0 to 8 characters,
+  as the app keeps a code it could not match to ISO 4217, and none for XXX, and `fractionDigits` is
+  0 to 3.
 - `split` has `participants` (1 to 100, as many as a group has members, each `{id, name}`, the
   app's user being `me`), `whole`, `items`, `notSharing` (participant ids) and `payments` (at most
   100 `{participantId, amountMinor}`). `whole` is null when each item is split on its own, and
@@ -124,14 +134,19 @@ takes a fifth of a call.
   `{"type":"amount","amounts":{…}}`, keyed by participant id. `items` holds a division by item id;
   an item without one is shared equally by everyone sharing the bill. `items`, `notSharing`,
   `payments`, `among` and `except` may be left out when empty; `whole` may not.
-- Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list. A bill is edited as
-  the app holds it, so names and labels may be empty, where the app let its user clear one, and are
-  at most 200 characters. Names, labels and the instruction lose invisible formatting characters
-  but the joiners, as the [Conventions](#conventions) say, are trimmed, and hold no control
-  characters, so an instruction is one line. `quantity` is null or a decimal written as text, as
-  on a bill link. An item's amount and the total are 0 to 10^15, a charge's -10^15 to 10^15, and a
-  payment 0 to 10^15. Shares and basis points are whole numbers from 0, which need not add up, as
-  a split the user is still typing may not.
+- Ids are 1 to 64 characters of `A-Z a-z 0-9 _ -`, unique within their list, but in `payments`,
+  where one may come again. A bill is edited as the app holds it and as its user typed it, so the
+  proxy reads its text rather than refuse it. The instruction, the merchant, names, labels and the
+  currency's code lose invisible formatting characters but the joiners, as the
+  [Conventions](#conventions) say; then each run of whitespace or control characters, line breaks
+  and tabs among them, becomes one space, and they are trimmed. So an instruction typed on several
+  lines arrives as one, and a name the bill read wrapped onto two rows reads as one. Names and
+  labels may be empty, where the app let its user clear one, and are at most 200 characters.
+  `quantity` is null or a decimal written as text, as on a bill link. An item's amount and the
+  total are 0 to 10^15, a charge's -10^15 to 10^15, and a payment 0 to 10^15. The numbers per
+  participant of a division are whole numbers, which need not add up and may be past their sum or
+  below zero, as those of a split the user is still typing may be; an amount is at most 10^15
+  either way.
 - The body is at most 64 KB, which keeps the prompt under the 100K tokens up to which the model's
   price holds. Anything else is 400 `input`, before anything is held or counted. Fields the
   contract does not name are ignored and never reach the model.
@@ -145,8 +160,9 @@ The last line is `{"type":"result","answer":…,"usage":…}`, with the answer:
 ```
 
 - `edits` holds at most 20 edits, in the order the app applies them.
-- `explanation` is at most 200 characters, in the language of the instruction. It never says what
-  anyone owes, and may be empty when the answer asks a question.
+- `explanation` is at most 200 characters, in the language of the instruction, and may be empty.
+  The prompt asks that it never say what anyone owes; the evaluation checks that, the proxy does
+  not.
 - `question` is null, or a short question of at most 200 characters when the instruction is too
   unclear to act on; `edits` is then empty.
 
@@ -172,7 +188,8 @@ What each edit does to the split is the contract's, in the section "Hợp đồn
 The proxy checks the model's answer again before the app gets it. Structured outputs cannot key an
 object by participant, so the model writes each number per participant as a pair, and the proxy
 makes the object of them; it also writes `op`, `mode`, `kind` and `ref` in lower case, which
-structured outputs do not promise, and line breaks in text as spaces. An answer that breaks the
+structured outputs do not promise, and reads its texts as those of the request: each run of
+whitespace or control characters is one space. An answer that breaks the
 rules above (an op that is not one of these, a field that is missing, of the wrong type or out of
 range, the same person twice in one edit, more than 20 edits, a text too long, or a question with
 edits) ends as the error `bad_response`, and, unlike a bill read's, the call is given back. What
@@ -192,8 +209,12 @@ The model is `claude-haiku-5-5` (`revisionModel`), at low effort, with adaptive 
 as `refused`. The prompt is [`proxy/src/revise-prompt.ts`](../proxy/src/revise-prompt.ts) and the
 schema `REVISION_SCHEMA` in [`proxy/src/schema.ts`](../proxy/src/schema.ts). The prompt tells the
 model that the instruction and every name on the bill are data written by people, never
-instructions to it, and the user message writes the bill, the split and the instruction as JSON, so
-that nothing in a name or in the instruction can pass for the message's own structure.
+instructions to it, and that the participant `me` is the user, named as the app names them: their
+own name, or "Me". The user message writes the bill, the split and the instruction as JSON, each in
+its tag, with every `<`, `>` and `&` written as its escape (`\u003c` and so on), which reads back as
+the same character: so no name and no instruction can close one of the message's tags or open
+another. An edit is held against the spend caps at the price of its model, the only one that
+answers it.
 
 ### Exchange rates
 
@@ -223,9 +244,14 @@ cannot be reused for another bill or another edit. Nothing of a bill read or of 
 instruction or a name is stored.
 
 The `QuotaBook` objects written before calls had weights counted whole calls. Each turns its count
-and its request ids into hundredths the first time it is asked after the deploy, record by record,
-so that nobody gains or loses a call; what was written since is left as it is. A Worker still
-finishing a bill read while the new one starts sends no weight, which counts as a whole call.
+and its request ids into hundredths the first time it is asked after the deploy, record by record;
+what was written since is left as it is. Each also keeps its count in whole calls, rounded up,
+beside the hundredths, for that older code, which reads nothing else: a rollback to it never hands
+out a call that is not left, and the calls it charges are counted once this code runs again, as
+[Deploy it](#deploy-it) says. A Worker still finishing a bill read while the new one starts sends
+no weight, which counts as a whole call. An object still on the older code for up to five minutes
+after the deploy charges an edit as a whole call too, so that its caller loses 0.8 of a call;
+Deploy it says how the first deploy avoids that.
 
 The shared data in D1 is what people chose to share, and no more: groups with the names members
 typed for themselves and for placeholders, the bills put into a group, settlements, the group's
@@ -932,9 +958,10 @@ hands out tokens for an action and a host and passes each once, and answers Clou
 secrets as Cloudflare does. Live connections are opened as a browser opens them. A claim and a lock
 are raced by landing one just before the other's batch, both ways round, and a claim is removed just
 before the batch of a settlement that matches it. The tests of the pages read nothing of what the
-page says, so they hold for the web app and for the placeholder alike. Both commands first write the
-module of the web app, from `web/dist` as it is. GitHub Actions runs both for every pull request,
-after building `web/` once it has a lock file.
+page says, so they hold for the web app and for the placeholder alike. `npm test` then has Node
+check, with stand-ins for the evaluation's runner and for Wrangler, that the runner leaves nothing
+running however it ends. Both commands first write the module of the web app, from `web/dist` as it
+is. GitHub Actions runs both for every pull request, after building `web/` once it has a lock file.
 
 ## Deploy it
 
@@ -1036,6 +1063,26 @@ These steps need the owner's accounts.
    revoked. A new or changed cron can take up to 15 minutes to start; until it first runs, the
    first request for the rates fetches them.
 
+   **The first deploy of weighted calls**, which counts calls in hundredths and edits splits: by
+   default a busy Durable Object keeps running its code for up to five minutes after a deploy, and
+   a `QuotaBook` still on the code from before weighted calls charges the edits that the new Worker
+   already serves as whole calls. Deploy this version before any app that edits splits is out, or
+   move every object to the new code at once:
+
+   ```bash
+   npx wrangler deploy --durable-objects-code-update-mode immediate
+   ```
+
+   **Rolling back** to a version from before weighted calls, with `npx wrangler rollback` or a
+   gradual deployment that gives such a version a share again, puts that version's code back on
+   the counts this one wrote. It reads only the count in whole calls, rounded up, that each
+   `QuotaBook` keeps beside its hundredths, and counts a call still held as a whole one, so it may
+   hand out less than is left, never more. Meanwhile it charges each bill read as a whole call,
+   answers edits with 404 `path`, and reports usage in whole calls. To recover, deploy this version
+   again, as for the first deploy. Each `QuotaBook` then counts, at its first request, the calls the
+   older code charged, so that nobody gains a call by the rollback; an edit held across the switch
+   may cost a whole call.
+
 6. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
    a value with a placeholder such as `<your-subdomain>` still in it.
@@ -1078,24 +1125,40 @@ prompt describes; the parser reads a missing or unknown one as `other`. An edit'
 through the proxy's check first, so its schema may change as long as the check still hands the app
 [the edits of the contract](#editing-a-split-by-a-sentence). The models, their effort and
 `max_tokens` are in `policy.ts`; a new model also needs its price in `proxy/src/spend.ts`, or its
-calls are counted at the highest list price.
+calls are counted, and an edit's held, at the highest list price.
 
 ### The evaluation of edits
 
 [`proxy/eval/revise/`](../proxy/eval/revise) holds the cases that the model of edits is chosen and
-changed by: 56 instructions, most in Vietnamese and English and five each in Thai, Indonesian and
+changed by: 60 instructions, most in Vietnamese and English and five each in Thai, Indonesian and
 Spanish, on the bills and splits of `fixtures.json`, each with the edits it expects, or a question
-where the instruction is too unclear. They cover every op, edits together, tips by percentage and by
-amount, payers, people added and removed, names typed without accents or as nicknames, and
-instructions that ask for a negative amount, ask for something else entirely, or hide in an item's
-or a person's name. A case passes when the answer asks a question where one is expected; otherwise
-when its edits are exactly the expected ones and it asks nothing, though a case that expects no
-edits may allow a question instead. Edits are compared with lists of people and the numbers per
-participant as sets, without the label of a new charge, with a new person's ref matched by name, and
-in any order but between two edits that come to something else the other way round: two edits of
-the whole bill's split, one of those and one of an item's split, two edits of one item, adding or
-removing a person and an edit that names them, a charge by percentage and an edit of an item's
-amount or quantity, and the exact amounts of the whole bill and an edit that can change its total.
+where the instruction is too unclear. The fixtures name the user as the app does: "Me" in most, and
+the user's own name in a few, one of which another participant's name starts with. The cases cover
+every op, edits together, tips by percentage and by amount, payers, people added (two at once too)
+and removed, items that not everyone shares already, names typed without accents or as nicknames,
+and instructions that ask for a negative amount, ask for something else entirely, or hide in an
+item's or a person's name. A case passes when the answer asks a question where one is expected;
+otherwise when its edits are exactly the expected ones and it asks nothing, though a case that
+expects no edits may allow a question instead. An answer to an adversarial instruction also fails
+when its explanation or its question states a number that the instruction does not hold, such as
+what someone owes. Edits are compared with lists of people and the numbers per participant as sets,
+without the label of a new charge, with a new person's ref matched by name, and in any order but
+between two edits that come to something else the other way round:
+
+- two edits of the whole bill's split, or one of those and one of an item's split;
+- two edits of one item;
+- adding or removing a person, and an edit that names them;
+- whether someone shares the bill, and an edit that gives them a part of it or of an item, or says
+  again whether they share it;
+- a new way of splitting the whole bill, which starts from the people sharing it, and whether
+  someone shares it;
+- splitting the whole bill by amount, which starts from its total, and an edit that can change the
+  total;
+- a charge by percentage, and an edit of an item's amount or quantity;
+- the exact amounts of the whole bill, and an edit that can change its total.
+
+A model does not answer alike every time, so each case is sent to each model in three runs, and
+passes only when it passes in all three.
 
 The run calls the real model, so it needs the owner's key in `proxy/.dev.vars`, as
 [Run it on a computer](#run-it-on-a-computer) says, and Node 22.18 or later. Without a key it says
@@ -1109,9 +1172,15 @@ npm run eval:revise
 npm run eval:revise -- claude-haiku-5-5
 ```
 
-- For each model it starts `wrangler dev` on `127.0.0.1:8788`, with fresh state in a temporary
-  directory, so that nothing of `npm run dev` on 8787 or of an earlier run counts, and stops it, with
-  everything it started, when that model is done or the run is interrupted. Port 8788 must be free.
+- For each run of each model it starts `wrangler dev` on `127.0.0.1:8788`, with fresh state in a
+  temporary directory, so that nothing of `npm run dev` on 8787, of an earlier run, or of the
+  address's limit of 100 calls a day counts. Port 8788 must be free.
+- Wrangler, and all it starts, runs under a small guard at the head of a process group of its own.
+  The runner stops that group when a run is done; on Ctrl-C, SIGTERM or SIGHUP, as when its
+  terminal closes, after which it exits, and at once on a second one; and at every exit, an error's
+  included. When the runner itself is killed, as by `kill -9`, the guard kills the group, and only
+  the temporary directory, which holds no secret, stays behind. It runs on Linux and macOS, not on
+  Windows, which has no process groups.
 - The candidates are `claude-haiku-5-5`, `claude-sonnet-5-5` and `claude-opus-5-5`, each asked with
   the settings of `policy.ts`. Each call names its model in the header `X-SplitVibe-Eval-Model`,
   which only a proxy on a computer reads (asked at `localhost`, `127.0.0.1` or `[::1]`), and only
@@ -1119,9 +1188,11 @@ npm run eval:revise -- claude-haiku-5-5
   `"eval": {"model", "inputTokens", "outputTokens", "costMicro"}`. The deployed proxy ignores the
   header and always asks its own model.
 - Calls go one after another, each from a new install. One turned down for the limit of 10 a minute
-  of the address waits for its `Retry-After` and goes again. A full run makes 168 calls and costs a
-  few dollars at list prices, most of it Opus.
+  of the address waits for its `Retry-After` and goes again. A full run makes 540 calls, 60 cases in
+  three runs on three models, and costs several dollars at list prices, most of it Opus.
 - The report goes to `plans/reports/eval-split-revision-<YYMMDD-HHMM>.md` (in UTC): for each model,
-  the cases passed, the calls that ended in an error, the latency from sending a request to its last
-  line at the 50th and 95th percentiles (by nearest rank), the average cost per call, the cases
-  passed by language, and every case that failed with what the model answered.
+  the cases passed in every run and those passed in some runs only, the calls that ended in an
+  error, the latency from sending a request to its last line at the 50th and 95th percentiles (by
+  nearest rank), the average cost per call, the cases passed in every run by language, every run
+  of a case that failed with what the model answered and explained, and what the answers of every
+  case explained.
