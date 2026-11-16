@@ -133,7 +133,7 @@ class BillRepositoryTest {
     }
 
     @Test
-    fun `a bill made only if absent is made once, by the first of two writers, and the list shows its category`() = runBlocking {
+    fun `a bill made only if absent is made once, a second make leaves it as it was, and the list shows its category`() = runBlocking {
         val rent = draft("rent-dec", "Rent", 9_000_000).let { it.copy(bill = it.bill.copy(category = BillCategory.RENT)) }
 
         val made = bills.createIfAbsent(rent)

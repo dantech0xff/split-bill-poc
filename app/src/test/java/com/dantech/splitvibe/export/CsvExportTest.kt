@@ -1,5 +1,11 @@
 package com.dantech.splitvibe.export
 
+import com.dantech.splitvibe.SpendingFixtures
+import com.dantech.splitvibe.domain.Bill
+import com.dantech.splitvibe.domain.BillCharge
+import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.BillItem
+import com.dantech.splitvibe.domain.ChargeKind
 import java.io.File
 import java.math.BigDecimal
 import java.text.NumberFormat
@@ -53,6 +59,39 @@ class CsvExportTest {
         }
         val shares = rows(CsvExport.files(ExportFixtures.bills, CsvConvention.DECIMAL_POINT)[2], ',')
         assertEquals(listOf("You", "Minh", "Lan", "You", "Lan", "'=1+2", "You"), shares.drop(1).map { it[3] })
+    }
+
+    @Test
+    fun `text in every column of text starts with an apostrophe when a spreadsheet app would take it for a formula`() {
+        listOf('=', '+', '-', '@', '\t', '\r').forEach { start ->
+            val bill = SpendingFixtures.finished(
+                id = "${start}id",
+                bill = Bill(
+                    merchant = "${start}place",
+                    date = "${start}date",
+                    currency = BillCurrency("${start}C", 2),
+                    items = listOf(BillItem("i1", "${start}item", BigDecimal.ONE, null, 1_000)),
+                    charges = listOf(BillCharge("c1", "${start}charge", ChargeKind.TIP, 100)),
+                    printedTotalMinor = null,
+                ),
+                people = listOf("person"),
+                group = "${start}group",
+            )
+            // A bill keeps its people's names trimmed, so the guard is tried on a name set as it is.
+            val people = bill.plan.participants.map { if (it.isMe) it else it.copy(name = "${start}person") }
+            val named = bill.copy(plan = bill.plan.copy(participants = people))
+
+            val (bills, items, shares) = CsvExport.files(listOf(named), CsvConvention.DECIMAL_POINT).map { rows(it, ',') }
+
+            fun guarded(text: String) = "'$start$text"
+            val name = "start ${start.code}"
+            assertEquals(name, listOf("id", "date", "place", "group", "C").map(::guarded), bills[1].slice(listOf(0, 1, 2, 4, 5)))
+            listOf(items[1] to "item", items[2] to "charge").forEach { (row, line) ->
+                assertEquals(name, listOf("id", "date", "place", line, "C").map(::guarded), row.slice(listOf(0, 1, 2, 3, 8)))
+            }
+            // The user, then the person on the bill.
+            assertEquals(name, listOf("id", "date", "place", "person", "C").map(::guarded), shares[2].slice(listOf(0, 1, 2, 3, 6)))
+        }
     }
 
     private fun matchReferences(convention: CsvConvention, folder: String) {
