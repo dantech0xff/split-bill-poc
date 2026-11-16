@@ -6,7 +6,7 @@
   "scripts": {
     "build:web": "npm --prefix ../web run build && node scripts/embed-web.mjs",
     "bundle": "node scripts/bundle.mjs",
-    "test": "node scripts/embed-web.mjs && vitest run",
+    "test": "node scripts/embed-web.mjs && vitest run && node --test eval/revise/test/proxy-process.test.mjs",
     "typecheck": "node scripts/embed-web.mjs && wrangler types && tsc",
     "dev": "node scripts/embed-web.mjs && wrangler dev",
     "eval:revise": "node eval/revise/run.mjs"

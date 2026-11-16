@@ -8,7 +8,8 @@
 // as `npm run dev` reads it; without one it refuses to start. For each run of each model it starts
 // `wrangler dev` on 127.0.0.1:8788 with its own state in a temporary directory, so that the counts
 // of a run never mix with those of `npm run dev` on 8787 or of an earlier run, and stops it, with
-// everything it started, once that run is done or the evaluation is interrupted. The proxy takes the
+// everything it started, once that run is done, and however the evaluation ends, as
+// `proxy-process.mjs` says. It runs on Linux and macOS, not on Windows. The proxy takes the
 // model of each call from the header X-SplitVibe-Eval-Model, which only a proxy on a computer
 // reads, and reports that call's tokens and cost. Calls go one after another, each from a new
 // install, so that no call waits on another; one the proxy turns down for the per-minute limit of
@@ -16,12 +17,12 @@
 //
 // Node 22.18 or later runs `score.ts` as it is, its types stripped.
 
-import { execFileSync, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startProxy as startGuarded, stopProxy } from "./proxy-process.mjs";
 import { CANDIDATES, casesOf, fixturesOf, reportOf, requestOf, scoreAnswer } from "./score.ts";
 
 const PROXY = fileURLToPath(new URL("../../", import.meta.url));
@@ -39,9 +40,6 @@ const RATE_RETRIES = 5;
  * proxy of its own, as the limit of its address, 100 calls a day, would stop a second run.
  */
 const RUNS = 3;
-
-/** The proxy this run started and has not stopped yet, so that an interrupted run stops it too. */
-let running = null;
 
 function refuse(message) {
   console.error(message);
@@ -86,59 +84,20 @@ async function answers() {
   }
 }
 
-/** Sends [signal] to the process group of [child]: npx, Wrangler and the workerd it runs. */
-function signalGroup(child, signal) {
-  try {
-    process.kill(-child.pid, signal);
-    return true;
-  } catch {
-    // The group has no process left.
-    return false;
-  }
-}
-
 /** Starts `wrangler dev` on [ORIGIN] with fresh state, and waits until it answers. */
 async function startProxy() {
-  const state = await mkdtemp(join(tmpdir(), "split-vibe-eval-"));
-  const child = spawn("npx", ["wrangler", "dev", "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", state], {
-    cwd: PROXY,
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
-  });
-  running = { child, state };
-  let said = "";
-  const keep = (chunk) => {
-    said = (said + chunk).slice(-4_000);
-  };
-  child.stdout.on("data", keep);
-  child.stderr.on("data", keep);
-  const deadline = Date.now() + START_MS;
-  while (Date.now() < deadline && child.exitCode === null) {
-    if (await answers()) return running;
-    await sleep(500);
+  try {
+    await startGuarded({
+      command: "npx",
+      args: (state) => ["wrangler", "dev", "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", state],
+      cwd: PROXY,
+      env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
+      ready: answers,
+      startMs: START_MS,
+    });
+  } catch (error) {
+    refuse(`wrangler dev did not answer on ${ORIGIN}. ${error instanceof Error ? error.message : String(error)}`);
   }
-  await stopProxy();
-  refuse(`wrangler dev did not answer on ${ORIGIN}. What it said last:\n${said}`);
-}
-
-/** Stops the proxy this run started, everything it started with it, and deletes its state. */
-async function stopProxy() {
-  if (running === null) return;
-  const { child, state } = running;
-  running = null;
-  if (signalGroup(child, "SIGTERM")) {
-    const deadline = Date.now() + 10_000;
-    while (Date.now() < deadline && signalGroup(child, 0)) await sleep(200);
-    signalGroup(child, "SIGKILL");
-  }
-  await rm(state, { recursive: true, force: true });
-}
-
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.once(signal, () => {
-    stopProxy().finally(() => process.exit(130));
-  });
 }
 
 /** One case sent to [model] in [run], as an outcome for the report. */
@@ -201,6 +160,9 @@ function stamp(date) {
   return `${String(date.getUTCFullYear()).slice(2)}${two(date.getUTCMonth() + 1)}${two(date.getUTCDate())}-${two(date.getUTCHours())}${two(date.getUTCMinutes())}`;
 }
 
+if (process.platform === "win32") {
+  refuse("The evaluation runs on Linux and macOS: it stops Wrangler and all it started by their process group, which Windows does not have.");
+}
 const named = process.argv.slice(2);
 const models = named.length > 0 ? named : [...CANDIDATES];
 const unknown = models.filter((model) => !CANDIDATES.includes(model));
