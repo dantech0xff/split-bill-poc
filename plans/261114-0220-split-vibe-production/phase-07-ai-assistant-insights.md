@@ -181,7 +181,7 @@ Quy tắc áp thao tác, trong `:core:domain`:
 
 - Một lịch là hằng tuần (cùng thứ với ngày bắt đầu) hay hằng tháng (cùng ngày với ngày bắt đầu).
 - Ngày hằng tháng không có trong tháng thì lùi về ngày cuối tháng. Mỗi kỳ tính từ ngày bắt đầu, không từ kỳ trước, nên ngày 31 trở lại khi tháng có ngày 31.
-- Bản nháp của mỗi kỳ có mã `{templateId}_{ngày của kỳ theo ISO}` và chỉ được tạo khi chưa có.
+- Bản nháp của mỗi kỳ có mã là UUID dựng từ tên `{templateId}_{ngày của kỳ theo ISO}` (`Recurrence.draftId`), và chỉ được tạo khi chưa có. <!-- Updated: 16/11/2026 - proxy chỉ nhận mã hóa đơn dạng UUID khi hóa đơn vào nhóm, vào yêu cầu trả tiền hay lên link -->
 
 ## Files
 
