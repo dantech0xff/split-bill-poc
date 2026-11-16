@@ -9,8 +9,6 @@ import com.dantech.splitvibe.assistant.VoiceSupport
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.bills.SavedBill
-import com.dantech.splitvibe.data.proxy.codePointLength
-import com.dantech.splitvibe.data.proxy.takeCodePoints
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCurrency
@@ -18,6 +16,8 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitEdits
 import com.dantech.splitvibe.domain.SplitPlan
+import com.dantech.splitvibe.domain.codePointLength
+import com.dantech.splitvibe.domain.takeCodePoints
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.SplitRevision
 import com.dantech.splitvibe.llm.SplitRevisionRequest

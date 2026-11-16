@@ -168,6 +168,9 @@ class SplitRevisionParserTest {
                             edit("add_person", "ref" to "new3", "name" to "$family Mum"),
                             edit("add_person", "ref" to "new4", "name" to "a".repeat(100)),
                             edit("add_person", "ref" to "new5", "name" to "\u0007\u0008"),
+                            // Joiners alone show nothing, and a line separator breaks a line on screen.
+                            edit("add_person", "ref" to "new6", "name" to "\u200D\u200C"),
+                            edit("add_person", "ref" to "new7", "name" to "Lan\u2028Anh"),
                             edit("add_charge", "kind" to "tip", "label" to "Tip\r\n<b>", "amountMinor" to 100),
                         ),
                     ),
@@ -178,7 +181,7 @@ class SplitRevisionParserTest {
         )
 
         assertEquals(
-            listOf("Zo e Ann", "naz", "$family Mum", "a".repeat(80), ""),
+            listOf("Zo e Ann", "naz", "$family Mum", "a".repeat(80), "", "", "Lan Anh"),
             revision.edits.filterIsInstance<AddPerson>().map { it.name },
         )
         assertEquals("Tip <b>", (revision.edits.last() as AddCharge).label)

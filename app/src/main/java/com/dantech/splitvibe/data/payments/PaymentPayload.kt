@@ -1,8 +1,8 @@
 package com.dantech.splitvibe.data.payments
 
-import com.dantech.splitvibe.data.proxy.codePointLength
-import com.dantech.splitvibe.data.proxy.takeCodePoints
+import com.dantech.splitvibe.domain.codePointLength
 import com.dantech.splitvibe.domain.payments.PaymentRequest
+import com.dantech.splitvibe.domain.takeCodePoints
 import java.net.URI
 import kotlinx.serialization.Serializable
 

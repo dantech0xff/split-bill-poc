@@ -2,6 +2,7 @@ package com.dantech.splitvibe.llm
 
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitEdits
+import com.dantech.splitvibe.domain.oneLine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -74,8 +75,8 @@ object SplitRevisionParser {
             return null
         }
         return when (edit) {
-            is SplitEdit.AddPerson -> edit.copy(name = oneLine(edit.name, MAX_NAME))
-            is SplitEdit.AddCharge -> edit.copy(label = oneLine(edit.label, MAX_NAME))
+            is SplitEdit.AddPerson -> edit.copy(name = line(edit.name, MAX_NAME))
+            is SplitEdit.AddCharge -> edit.copy(label = line(edit.label, MAX_NAME))
             else -> edit
         }
     }
@@ -84,32 +85,26 @@ object SplitRevisionParser {
     private fun text(element: JsonElement?, max: Int): String? {
         val primitive = element as? JsonPrimitive ?: return null
         if (!primitive.isString) return null
-        return oneLine(primitive.content, max).ifEmpty { null }
+        return line(primitive.content, max).ifEmpty { null }
     }
 
     /**
-     * [text] on one line: control characters and line breaks become spaces, runs of spaces one, and
-     * invisible formatting characters, such as those that reverse the direction of text, and halves
-     * of broken characters go. The zero-width joiner and non-joiner stay: emoji and some scripts need
-     * them. Then at most [max] code points, so no emoji is cut in half.
+     * [text] on one line, as the proxy takes a name ([oneLine]): control characters and line breaks
+     * become spaces and runs of spaces one; invisible formatting characters, such as those that
+     * reverse the direction of text, go, while the zero-width joiner and non-joiner that emoji and
+     * some scripts need stay; at most [max] code points, so no emoji is cut in half; and empty when it
+     * would show nothing. What a model wrote is shown on the phone too, so every other space or line
+     * break a screen would show becomes a plain space as well, and halves of broken characters go.
      */
-    private fun oneLine(text: String, max: Int): String {
-        val kept = StringBuilder(text.length)
+    private fun line(text: String, max: Int): String {
+        val spaced = StringBuilder(text.length)
         text.codePoints().forEach { point ->
-            val type = Character.getType(point)
             when {
-                Character.isISOControl(point) || Character.isWhitespace(point) -> kept.append(' ')
-                type == Character.SURROGATE.toInt() -> Unit
-                type == Character.FORMAT.toInt() && point != ZERO_WIDTH_NON_JOINER && point != ZERO_WIDTH_JOINER -> Unit
-                else -> kept.appendCodePoint(point)
+                Character.isWhitespace(point) -> spaced.append(' ')
+                Character.getType(point) == Character.SURROGATE.toInt() -> Unit
+                else -> spaced.appendCodePoint(point)
             }
         }
-        val line = kept.replace(SPACES, " ").trim()
-        if (line.codePointCount(0, line.length) <= max) return line
-        return line.substring(0, line.offsetByCodePoints(0, max)).trimEnd()
+        return spaced.toString().oneLine(max)
     }
-
-    private val SPACES = Regex(" {2,}")
-    private const val ZERO_WIDTH_NON_JOINER = 0x200C
-    private const val ZERO_WIDTH_JOINER = 0x200D
 }
