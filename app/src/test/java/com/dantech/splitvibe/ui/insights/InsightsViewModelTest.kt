@@ -19,6 +19,7 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCategory.ENTERTAINMENT
 import com.dantech.splitvibe.domain.BillCategory.FOOD_AND_DRINK
@@ -29,6 +30,7 @@ import com.dantech.splitvibe.domain.BillCategory.TRANSPORT
 import com.dantech.splitvibe.domain.BillCategory.UTILITIES
 import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.InsightShare
+import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Spending
 import com.dantech.splitvibe.export.CsvExport
@@ -263,7 +265,6 @@ class InsightsViewModelTest {
     @Test
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
-        val minh = checkNotNull(saved.plan.participants.first { it.name == "Minh" }.personId)
 
         val counted = insightBillOf(saved, "VND")
 
@@ -272,13 +273,13 @@ class InsightsViewModelTest {
         assertEquals(trip, counted.group)
         assertEquals(800_000L, counted.totalMinor)
         assertEquals(200_000L, counted.myShareMinor)
-        // The user is "me" on every bill, a person the phone remembers is that person, and someone who
-        // joined from a link is their name without case or accents.
+        // The user is "me" on every bill, and everyone else their name without case or accents, the
+        // people the phone remembers as well as someone who joined from a link.
         assertEquals(
             listOf(
                 InsightShare(ME_ID, "You", 200_000),
-                InsightShare(minh, "Minh", 200_000),
-                InsightShare(checkNotNull(saved.plan.participants.first { it.name == "Lan" }.personId), "Lan", 200_000),
+                InsightShare("name:minh", "Minh", 200_000),
+                InsightShare("name:lan", "Lan", 200_000),
                 InsightShare("name:an", "An", 200_000),
             ),
             counted.shares,
@@ -287,6 +288,31 @@ class InsightsViewModelTest {
         assertEquals(SpendingFixtures.usdToVnd("25400"), insightBillOf(runBlocking { checkNotNull(bills.get("b4")) }, "VND").rate)
         // A rate from euros to dollars converts nothing into dong.
         assertNull(insightBillOf(runBlocking { checkNotNull(bills.get("b11")) }, "VND").rate)
+    }
+
+    @Test
+    fun `someone forgotten and added again, or of the same name from a link, is one person in the insights`() {
+        // Lan was forgotten, so the phone remembers her under a new id since, and "minh" joined the
+        // newer bill from its link; the older one is with the Minh the phone remembers.
+        val older = SpendingFixtures
+            .finished("f1", "2026-11-01", "Phở Thìn", FOOD_AND_DRINK, 300_000, listOf("Lan", "Minh"))
+            .withPersonIds("Lan" to "lan-forgotten", "Minh" to "minh-remembered")
+        val newer = SpendingFixtures
+            .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))
+            .withPersonIds("Lan" to "lan-again")
+
+        val people = Insights.of(listOf(newer, older).map { insightBillOf(it, "VND") }, SpendingFixtures.vnd).byPerson
+
+        // 100,000 + 70,000 each, and Minh named as the newer bill names him.
+        assertEquals(listOf("Lan", "You", "minh"), people.map { it.name })
+        assertEquals(listOf(2, 2, 2), people.map { it.bills })
+        assertEquals(listOf(170_000L, 170_000L, 170_000L), people.map { it.shareMinor })
+    }
+
+    /** This bill with the participants named in [ids] remembered by the phone under those ids. */
+    private fun SavedBill.withPersonIds(vararg ids: Pair<String, String>): SavedBill {
+        val byName = ids.toMap()
+        return copy(plan = plan.copy(participants = plan.participants.map { it.copy(personId = byName[it.name] ?: it.personId) }))
     }
 
     @Test

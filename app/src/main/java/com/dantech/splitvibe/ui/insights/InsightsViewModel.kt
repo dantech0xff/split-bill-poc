@@ -218,6 +218,10 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
  * [saved] as the statistics count it: its date, category, group, currency and total, each
  * participant's part under a key that is the same for the same person on every bill, the user's
  * own part, and its rate when that converts into [localCurrency].
+ *
+ * Everyone but the user is told apart by name, without case, accents or punctuation, as the phone
+ * tells the people it remembers apart. So is someone forgotten and added again, who is remembered
+ * under a new id, and someone of the same name who joined a bill from its link.
  */
 internal fun insightBillOf(saved: SavedBill, localCurrency: String): InsightBill {
     val bill = saved.bill
@@ -228,15 +232,13 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String): InsightBill
         currency = bill.currency,
         totalMinor = bill.totalMinor,
         shares = saved.shares.map { share ->
-            val participant = saved.plan.participant(share.personId)
-            val name = participant?.name?.trim().orEmpty()
-            // Someone the phone does not remember, such as a person added from a bill's link, is told
-            // apart by name, as the app does, without case, accents or punctuation.
-            val byName = NameMatcher.normalize(name).takeIf { it.isNotEmpty() }?.let { "name:$it" }
+            val name = saved.plan.participant(share.personId)?.name?.trim().orEmpty()
+            val key = NameMatcher.normalize(name).takeIf { it.isNotEmpty() }?.let { "name:$it" }
             if (share.personId == ME_ID) {
                 InsightShare(ME_ID, YOU, share.totalMinor)
             } else {
-                InsightShare(participant?.personId ?: byName ?: "${saved.id}/${share.personId}", name.ifEmpty { SOMEONE }, share.totalMinor)
+                // Someone without a name is someone of this bill alone.
+                InsightShare(key ?: "${saved.id}/${share.personId}", name.ifEmpty { SOMEONE }, share.totalMinor)
             }
         },
         myShareMinor = saved.shares.firstOrNull { it.personId == ME_ID }?.totalMinor ?: 0,
