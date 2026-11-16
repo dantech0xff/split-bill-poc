@@ -130,7 +130,8 @@ jobs:
       - name: Types
         run: npm run typecheck
 
-      # The Worker and its Durable Objects run in the workers runtime, against a fake model.
+      # The Worker and its Durable Objects run in the workers runtime, against a fake model. Node then
+      # runs the tests of the evaluation runner, which must never leave its local proxy running.
       - name: Tests
         run: npm test
 
