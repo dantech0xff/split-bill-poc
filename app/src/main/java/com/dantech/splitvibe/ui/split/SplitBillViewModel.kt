@@ -467,8 +467,13 @@ class SplitBillViewModel(
     /** Converts the bill at the day's rate again, in place of one the user typed in. */
     fun useDayRate() {
         val result = mutableState.value.result ?: return
-        if (result.saved.exchangeRate != null) change { it.copy(exchangeRate = null) }
-        lookUpDayRate(tellWhenMissing = true)
+        // A finished bill keeps the rate it is counted at, as finishing it keeps the day's rate.
+        val finished = result.saved.status == BillStatus.FINAL
+        val known = dayRate?.takeIf { it.from == result.bill.currency.code && it.to == result.localCurrency }
+        if (result.saved.exchangeRate != null || (finished && known != null)) {
+            change { it.copy(exchangeRate = if (finished) known else null) }
+        }
+        lookUpDayRate(tellWhenMissing = true, keepWhenFound = finished)
     }
 
     /**
@@ -580,9 +585,10 @@ class SplitBillViewModel(
      * Finds the day's rate for a bill on screen in another currency than the user's. It is only
      * shown: the bill is not changed, so opening a bill never rewrites it, and a rate the user typed
      * in stays first. Only finishing the split, which the user does, keeps it with the bill
-     * ([finish]). With [tellWhenMissing], the person hears when no rate can be found.
+     * ([finish]), or choosing the day's rate on a finished bill ([keepWhenFound]). With
+     * [tellWhenMissing], the person hears when no rate can be found.
      */
-    private fun lookUpDayRate(tellWhenMissing: Boolean = false) {
+    private fun lookUpDayRate(tellWhenMissing: Boolean = false, keepWhenFound: Boolean = false) {
         rateLookup?.cancel()
         val result = mutableState.value.result ?: return
         if (!result.needsRate) return
@@ -602,6 +608,9 @@ class SplitBillViewModel(
             }
             dayRate = found
             mutableState.update { state -> state.copy(result = state.result?.let { resultOf(it.saved) }) }
+            if (keepWhenFound && current.saved.status == BillStatus.FINAL && current.saved.exchangeRate == null) {
+                change { it.copy(exchangeRate = found) }
+            }
         }
     }
 
