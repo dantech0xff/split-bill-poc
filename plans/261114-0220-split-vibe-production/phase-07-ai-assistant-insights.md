@@ -127,7 +127,9 @@ Thân yêu cầu:
   - `{"type":"shares","shares":{...}}`;
   - `{"type":"percent","basisPoints":{...}}`;
   - `{"type":"amount","amounts":{...}}`.
-- `items` dùng cùng các dạng đó. Món vắng mặt trong `items` được mọi người chia đều.
+- `items` dùng cùng các dạng đó. Món vắng mặt trong `items` được mọi người chia đều. App chỉ gửi `items` khi `whole` là null, để model không thấy cách chia theo món đang không có hiệu lực.
+- App làm sạch chữ trước khi gửi như với link chia sẻ: ký tự điều khiển thành khoảng trắng, bỏ ký tự định dạng vô hình trừ ZWJ và ZWNJ, cắt còn 200 ký tự. Câu lệnh luôn đi thành một dòng.
+- Proxy cũng tự chuẩn hóa thay vì từ chối: mỗi đoạn khoảng trắng hay ký tự điều khiển thành một khoảng trắng; mã tiền tệ nhận chuỗi ngắn từ 0 đến 8 ký tự; con số của từng người trong cách chia có thể âm hay vượt tổng, vì người dùng có thể đang gõ dở. <!-- Updated: 16/11/2026 - theo review: app và proxy đều làm sạch, không bên nào phụ thuộc bên kia -->
 
 Câu trả lời cuối:
 
@@ -163,7 +165,8 @@ Các thao tác:
 
 Quy tắc áp thao tác, trong `:core:domain`:
 - Các thao tác được áp theo thứ tự. Mỗi thao tác hoặc được áp, hoặc bị loại kèm lý do: món, người hay `ref` không tồn tại; số không hợp lệ; bỏ `me`; tổng không khớp.
-- Một thao tác trên món, khi hóa đơn đang chia cả hóa đơn, chuyển sang chia theo món trước, như `split_mode` `by_item`.
+- `item_sharers` và `item_shares`, khi hóa đơn đang chia cả hóa đơn, chuyển sang chia theo món trước, như `split_mode` `by_item`: mọi món khác được mọi người chia đều, kể cả món màn hình từng nhớ cách chia. `item_amount` và `item_quantity` giữ nguyên cách chia. <!-- Updated: 16/11/2026 - theo review -->
+- `split_mode` sang đúng cách đang dùng thì không đổi gì.
 - `add_charge` cộng vào số đã trả: khi hóa đơn có tổng in trên bill, tổng đó cũng tăng (hay giảm, với `discount`) đúng bằng phụ phí.
 - `item_amount` và `item_quantity` theo `BillEditor`: tổng in trên bill giữ nguyên, phần chênh được chia theo tỷ lệ như hiện nay.
 - Người trả đi theo tổng mới như `SplitPlan.withBill` đang làm.
