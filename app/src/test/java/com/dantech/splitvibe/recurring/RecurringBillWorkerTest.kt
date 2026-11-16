@@ -36,11 +36,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.koin.core.context.loadKoinModules
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -134,36 +137,79 @@ class RecurringBillWorkerTest {
         assertEquals(clock.today.toString(), runBlocking { bills.get(Recurrence.draftId(template.id, clock.today)) }?.bill?.date)
     }
 
-    @Test
-    fun `scheduling runs the work now and then every day, and scheduling again keeps the daily run`() {
-        val template = weeklyRent()
-        clock.moveTo(LocalDate.of(2026, 11, 17))
-        val work = WorkManager.getInstance(context)
+    private val work get() = WorkManager.getInstance(context)
 
-        // Twice, as when two recurring bills are made one after the other.
+    private fun daily(): List<WorkInfo> = work.getWorkInfosForUniqueWork(RecurringBillWorker.DAILY).get()
+
+    /** Schedules the work as making a recurring bill does, and waits for the run it starts now. */
+    private fun scheduleAndRun() {
         RecurringBillWorker.schedule(context)
-        RecurringBillWorker.schedule(context)
-        fun daily() = work.getWorkInfosForUniqueWork(RecurringBillWorker.DAILY).get().single()
         awaitOnMain {
             work.getWorkInfosForUniqueWork(RecurringBillWorker.NOW).get().all { it.state == WorkInfo.State.SUCCEEDED } &&
-                daily().state == WorkInfo.State.ENQUEUED
+                daily().singleOrNull { !it.state.isFinished }?.state == WorkInfo.State.ENQUEUED
         }
+    }
 
-        val daily = daily()
+    @Test
+    fun `scheduling runs the work now and every day from tomorrow, and scheduling again keeps the daily run`() {
+        val template = weeklyRent()
+        clock.moveTo(LocalDate.of(2026, 11, 17))
+
+        // Twice, as when two recurring bills are made one after the other.
+        scheduleAndRun()
+        scheduleAndRun()
+
+        val daily = daily().single()
         assertEquals(TimeUnit.DAYS.toMillis(1), daily.periodicityInfo?.repeatIntervalMillis)
+        // Its first run is a day away, as the run now makes what is due today.
+        assertEquals(TimeUnit.DAYS.toMillis(1), daily.initialDelayMillis)
         val made = runBlocking { bills.listings().first() }.map { it.id } - "rent"
         assertEquals(listOf(Recurrence.draftId(template.id, clock.today)), made)
 
         // A week later, the daily run makes the next draft.
         clock.moveTo(LocalDate.of(2026, 11, 24))
-        checkNotNull(WorkManagerTestInitHelper.getTestDriver(context)).setPeriodDelayMet(daily.id)
+        checkNotNull(WorkManagerTestInitHelper.getTestDriver(context)).setInitialDelayMet(daily.id)
         awaitOnMain {
-            runBlocking { bills.get(Recurrence.draftId(template.id, clock.today)) } != null && daily().state == WorkInfo.State.ENQUEUED
+            runBlocking { bills.get(Recurrence.draftId(template.id, clock.today)) } != null &&
+                daily().single().state == WorkInfo.State.ENQUEUED
         }
 
-        // Keeping the daily run, as every start of the app does, keeps the one there is.
+        // Keeping the daily run, as the app does whenever it comes to the foreground, keeps the one there is.
         RecurringBillWorker.keepDaily(context)
-        assertEquals(daily.id, daily().id)
+        assertEquals(daily.id, daily().single().id)
+    }
+
+    @Test
+    fun `the daily run stops once no recurring bill is active, and comes back with the next one`() {
+        val template = weeklyRent()
+        scheduleAndRun()
+
+        runBlocking { recurring.pause(template.id) }
+        val run = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
+
+        assertEquals(ListenableWorker.Result.success(), run)
+        assertEquals(listOf(WorkInfo.State.CANCELLED), daily().map { it.state })
+
+        runBlocking { recurring.resume(template.id) }
+        scheduleAndRun()
+        assertEquals(WorkInfo.State.ENQUEUED, daily().single { !it.state.isFinished }.state)
+    }
+
+    @Test
+    fun `a run before the app has set up its objects is tried again later`() {
+        val template = weeklyRent()
+        clock.moveTo(LocalDate.of(2026, 11, 17))
+
+        // Before the app has started Koin, and while it has started it without its modules yet.
+        stopKoin()
+        val notStarted = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
+        startKoin { }
+        val notReady = runBlocking { TestListenableWorkerBuilder<RecurringBillWorker>(context).build().doWork() }
+        stopKoin()
+
+        assertEquals(ListenableWorker.Result.retry(), notStarted)
+        assertEquals(ListenableWorker.Result.retry(), notReady)
+        assertNull(runBlocking { bills.get(Recurrence.draftId(template.id, clock.today)) })
     }
 
     private companion object {
