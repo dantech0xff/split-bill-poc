@@ -92,8 +92,11 @@ data class SplitPlan(
     }
 
     /** The app's user shares the bill, or only takes part in it, for example as the one who paid. */
-    fun withMeSharingToggled(): SplitPlan {
-        val notSharing = if (ME_ID in setup.notSharing) setup.notSharing - ME_ID else setup.notSharing + ME_ID
+    fun withMeSharingToggled(): SplitPlan = withSharing(ME_ID, ME_ID in setup.notSharing)
+
+    /** Whether [participantId] shares the bill, or only takes part in it, for example as the one who paid. */
+    fun withSharing(participantId: String, sharing: Boolean): SplitPlan {
+        val notSharing = if (sharing) setup.notSharing - participantId else setup.notSharing + participantId
         return copy(setup = setup.copy(notSharing = notSharing))
     }
 
@@ -121,6 +124,9 @@ data class SplitPlan(
         }
         return copy(setup = setup.copy(whole = whole))
     }
+
+    /** Divides the whole bill by [division], whatever way it was split before. */
+    fun withWholeDivision(division: Division): SplitPlan = copy(setup = setup.copy(whole = division))
 
     /** How one item is divided; null shares it equally by everyone again. */
     fun withItemDivision(itemId: String, division: Division?): SplitPlan {

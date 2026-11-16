@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.domain
 
+import java.math.BigDecimal
 import java.math.BigInteger
 import kotlinx.serialization.Serializable
 
@@ -179,12 +180,6 @@ object SplitCalculator {
         return people.map { person -> sharing.indexOf(person).let { if (it < 0) 0L else parts[it] } }
     }
 
-    private fun percentText(basisPoints: Long): String {
-        val whole = basisPoints / 100
-        val fraction = Math.abs(basisPoints % 100)
-        return if (fraction == 0L) "$whole%" else "$whole.${fraction.toString().padStart(2, '0').trimEnd('0')}%"
-    }
-
     private fun incomplete(problem: String) = SplitResult(emptyList(), listOf(problem))
 
     private sealed interface Parts {
@@ -238,3 +233,6 @@ object SplitCalculator {
         return quotients.map { sign * it }
     }
 }
+
+/** Hundredths of a percent as people write a percentage: "10%", "33.33%", "0.5%". */
+internal fun percentText(basisPoints: Long): String = BigDecimal.valueOf(basisPoints, 2).stripTrailingZeros().toPlainString() + "%"
