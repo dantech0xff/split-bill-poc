@@ -47,8 +47,9 @@ object SplitRevisionParser {
         classDiscriminator = "op"
     }
 
-    /** The revision [text] holds, or null when [text] is not a JSON object at all. */
+    /** The revision [text] holds, or null when [text] is not a JSON object at all, or nests deeper than any answer ([JsonNesting]). */
     fun parse(text: String): SplitRevision? {
+        if (!JsonNesting.isWithin(text)) return null
         val answer = try {
             json.parseToJsonElement(text)
         } catch (e: IllegalArgumentException) { // includes SerializationException

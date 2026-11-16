@@ -35,6 +35,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -212,6 +213,20 @@ class SplitRevisionParserTest {
             SplitRevision(emptyList(), "", "Which beer, the Tiger or the Saigon?", 0),
             parse("""{"question": "Which beer, the Tiger or the Saigon?"}"""),
         )
+    }
+
+    @Test
+    fun `an answer nested deeper than any answer is no answer, and reading it does not run out of stack`() {
+        val deep = "[".repeat(100_000) + "]".repeat(100_000)
+
+        assertNull(SplitRevisionParser.parse("""{"edits": [$deep], "explanation": ""}"""))
+        assertNull(SplitRevisionParser.parse("""{"edits": [{"op": "item_sharers", "itemId": "i1", "participantIds": $deep}]}"""))
+        assertNull(SplitRevisionParser.parse("{".repeat(100_000)))
+        // Brackets in a string are only text, also after an escaped quote.
+        val named = parse("""{"edits": [{"op": "add_person", "ref": "new1", "name": "\"${"[".repeat(100)}"}]}""")
+        assertEquals("\"" + "[".repeat(80 - 1), (named.edits.single() as AddPerson).name)
+        assertTrue(JsonNesting.isWithin("[".repeat(JsonNesting.MAX_DEPTH)))
+        assertFalse(JsonNesting.isWithin("[".repeat(JsonNesting.MAX_DEPTH + 1)))
     }
 
     @Test
