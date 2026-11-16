@@ -165,6 +165,35 @@ class RecurringDraftsTest {
     }
 
     @Test
+    fun `a recurring bill leaves out who joined its bill from the link, and its reading's warnings, so no draft remembers them`() {
+        val dinner = runBlocking {
+            val read = SpendingFixtures.finished(
+                "dinner",
+                "2026-11-13",
+                "Bún chả",
+                BillCategory.FOOD_AND_DRINK,
+                300_000,
+                listOf("Minh"),
+                strangers = listOf("An"),
+            )
+            bills.save(read.copy(bill = read.bill.copy(warnings = listOf("The bill total could not be read."))))
+        }
+        val fridays = RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 13))
+        val template = runBlocking { recurring.create(dinner, "Friday dinner", fridays, LocalDate.of(2026, 11, 20)) }
+        clock.moveTo(LocalDate.of(2026, 11, 20))
+
+        val draft = runBlocking { drafts.makeDue() }.single()
+        runBlocking { bills.save(draft.copy(status = BillStatus.FINAL)) }
+
+        assertEquals(listOf("Minh"), template.plan.participants.filterNot { it.isMe }.map { it.name })
+        assertTrue(template.bill.warnings.isEmpty())
+        assertEquals(listOf(150_000L, 150_000L), draft.shares.map { it.totalMinor })
+        assertTrue(draft.bill.warnings.isEmpty())
+        // Finishing the draft remembers only the people the user split with, as the bills did: Minh and the rent's Khoa.
+        assertEquals(setOf("Minh", "Khoa"), runBlocking { storage.people.people.first() }.map { it.name }.toSet())
+    }
+
+    @Test
     fun `two runs at once make each draft once, with one notice each`() {
         repeat(20) { round ->
             clock.moveTo(LocalDate.of(2026, 11, 16))

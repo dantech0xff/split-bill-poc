@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
 /**
  * A bill that comes back, such as the rent: what each of its drafts starts from, and when they are
  * made. It is kept on the phone only, and nothing of one occasion is in it: no photos, read text,
- * instruction, link, group or shares.
+ * instruction, warnings, link, people who joined from the link, group or shares.
  */
 data class RecurringBill(
     val id: String,

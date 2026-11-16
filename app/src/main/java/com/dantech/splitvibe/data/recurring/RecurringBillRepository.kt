@@ -38,18 +38,23 @@ class RecurringBillRepository(
      * the rent it comes from, is back on the 31st after a first draft on the 30th of a shorter month.
      */
     suspend fun create(saved: SavedBill, name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate): RecurringBill {
-        val bill = RecurringBill(
+        // Nothing of the one occasion is kept: the reading's warnings were about that bill only, and
+        // the people who joined it from its link typed their own names, which are never suggested for
+        // later bills, as a draft would once it is finished.
+        val bill = saved.bill.copy(warnings = emptyList())
+        val strangers = saved.share?.added?.values.orEmpty()
+        val recurring = RecurringBill(
             id = newId(),
             name = name.trim().take(MAX_NAME).ifEmpty { saved.bill.merchant?.trim()?.take(MAX_NAME)?.ifEmpty { null } ?: DEFAULT_NAME },
             schedule = schedule,
-            bill = saved.bill,
-            plan = saved.plan,
+            bill = bill,
+            plan = strangers.fold(saved.plan) { plan, id -> plan.withParticipantRemoved(id, bill) },
             paused = false,
             createdAt = clock.millis(),
             madeThrough = maxOf(LocalDate.now(clock), firstDraft).minusDays(1),
         )
-        dao.insert(bill.toEntity())
-        return bill
+        dao.insert(recurring.toEntity())
+        return recurring
     }
 
     suspend fun pause(id: String) = dao.pause(id)
