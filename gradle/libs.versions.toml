@@ -16,6 +16,7 @@ serializationJson = "1.10.0"
 mlkitTextRecognition = "16.0.1"
 mlkitDocumentScanner = "16.0.0"
 room = "2.8.5"
+work = "2.12.0"
 ksp = "2.3.12"
 credentials = "1.6.0"
 googleid = "1.2.1"
@@ -67,6 +68,8 @@ mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }

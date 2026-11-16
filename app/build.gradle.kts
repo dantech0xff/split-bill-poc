@@ -234,6 +234,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+    // Makes the drafts of recurring bills on their days, also while the app is closed.
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Talks to the AI proxy; the answer streams in as lines of JSON.
     implementation(libs.okhttp)
@@ -255,6 +257,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.roborazzi)
     testImplementation(libs.koin.test)
+    testImplementation(libs.androidx.work.testing)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
