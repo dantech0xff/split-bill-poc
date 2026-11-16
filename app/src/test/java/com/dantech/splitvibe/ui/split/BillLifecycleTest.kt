@@ -262,7 +262,8 @@ class BillLifecycleTest {
         // Choosing the day's rate again on the finished bill keeps the day's rate with it, not none.
         viewModel.useDayRate()
         val dayAgain = awaitStored(typed.saved.id) { it.exchangeRate?.isByHand == false }
-        assertEquals(listOf("USD", "VND", "Frankfurter"), listOf(dayAgain.exchangeRate?.from, dayAgain.exchangeRate?.to, dayAgain.exchangeRate?.source))
+        val again = checkNotNull(dayAgain.exchangeRate)
+        assertEquals(listOf("USD", "VND", "Frankfurter"), listOf(again.from, again.to, again.source))
         assertEquals(BigDecimal("26000"), kept.exchangeRate?.rate)
     }
 
