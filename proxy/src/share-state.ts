@@ -1,5 +1,27 @@
 import type { Env } from "./index";
-import { byteLength, type Currency, currencyOf, isDay, isRecord, moneyOf, optionalPaymentOf, type PaymentPayload, textOf, TOO_LARGE } from "./input";
+import {
+  type BillCharge,
+  type BillItem,
+  billChargeOf,
+  billItemOf,
+  byteLength,
+  type Currency,
+  currencyOf,
+  isDay,
+  isRecord,
+  linesOf,
+  MAX_BILL_CHARGES,
+  MAX_BILL_ITEMS,
+  MAX_BILL_PARTICIPANTS,
+  moneyOf,
+  optional,
+  optionalPaymentOf,
+  type Participant,
+  participantOf,
+  type PaymentPayload,
+  textOf,
+  TOO_LARGE,
+} from "./input";
 import { tokenHash } from "./links";
 import { POLICY } from "./policy";
 import { errorResponse } from "./respond";
@@ -13,10 +35,10 @@ export type BillProjection = {
   merchant: string | null;
   date: string | null;
   currency: Currency;
-  items: Array<{ id: string; name: string; quantity: string | null; amountMinor: number }>;
-  charges: Array<{ id: string; label: string; amountMinor: number }>;
+  items: BillItem[];
+  charges: BillCharge[];
   totalMinor: number;
-  participants: Array<{ id: string; name: string }>;
+  participants: Participant[];
 };
 
 /** What each participant of a bill owes once its owner settled the split, and how to pay it, keyed by participant id. */
@@ -265,15 +287,6 @@ export function tell(env: Env, ctx: ExecutionContext, row: RoomName, update: Liv
   );
 }
 
-/** The most items a bill link's bill holds, and so the most a claim can take. */
-export const MAX_ITEMS = 200;
-/** An id of a line or a person on a bill. */
-const LINE_ID = /^[A-Za-z0-9_-]{1,64}$/;
-/** A quantity as the app writes a decimal number: without exponent, leading zeros or trailing dot. */
-const QUANTITY = /^-?(?:0|[1-9]\d{0,19})(?:\.\d{1,20})?$/;
-/** The participant who is the bill's owner; their name may be empty, and the page then calls them the bill's owner. */
-const OWNER_PARTICIPANT = "me";
-
 /**
  * The bill [value] holds, when it follows the contract's BillProjection; [TOO_LARGE] past
  * [POLICY.maxBillDocumentBytes] as stored; null otherwise. Only the fields the contract names are
@@ -284,9 +297,9 @@ export function billProjectionOf(value: unknown): ProjectedBill | typeof TOO_LAR
   const merchant = optional(value.merchant, (text) => textOf(text, 1, 80));
   const date = optional(value.date, (text) => (typeof text === "string" && isDay(text) ? text : null));
   const currency = currencyOf(value.currency);
-  const items = listOf(value.items, 1, MAX_ITEMS, itemOf);
-  const charges = listOf(value.charges, 0, 20, chargeOf);
-  const participants = listOf(value.participants, 1, 30, participantOf);
+  const items = linesOf(value.items, 1, MAX_BILL_ITEMS, billItemOf);
+  const charges = linesOf(value.charges, 0, MAX_BILL_CHARGES, billChargeOf);
+  const participants = linesOf(value.participants, 1, MAX_BILL_PARTICIPANTS, participantOf);
   const totalMinor = moneyOf(value.totalMinor);
   if (merchant === undefined || date === undefined || currency === null || totalMinor === null) return null;
   if (items === null || charges === null || participants === null) return null;
@@ -294,47 +307,6 @@ export function billProjectionOf(value: unknown): ProjectedBill | typeof TOO_LAR
   const json = JSON.stringify(bill);
   if (byteLength(json) > POLICY.maxBillDocumentBytes) return TOO_LARGE;
   return { bill, json, itemIds: items.map((item) => item.id) };
-}
-
-/** Null for null or a missing value; what [read] makes of anything else, or undefined when it makes nothing of it. */
-function optional<T>(value: unknown, read: (value: unknown) => T | null): T | null | undefined {
-  if (value === undefined || value === null) return null;
-  return read(value) ?? undefined;
-}
-
-/** [value] as a list of [min] to [max] entries that [entryOf] reads, each with an id unique within it; null otherwise. */
-function listOf<T>(value: unknown, min: number, max: number, entryOf: (entry: Record<string, unknown>, id: string) => T | null): T[] | null {
-  if (!Array.isArray(value) || value.length < min || value.length > max) return null;
-  const entries: T[] = [];
-  const ids = new Set<string>();
-  for (const entry of value) {
-    if (!isRecord(entry) || typeof entry.id !== "string" || !LINE_ID.test(entry.id) || ids.has(entry.id)) return null;
-    const read = entryOf(entry, entry.id);
-    if (read === null) return null;
-    ids.add(entry.id);
-    entries.push(read);
-  }
-  return entries;
-}
-
-function itemOf(entry: Record<string, unknown>, id: string): BillProjection["items"][number] | null {
-  const name = textOf(entry.name, 1, 80);
-  const quantity = optional(entry.quantity, (text) => (typeof text === "string" && QUANTITY.test(text) ? text : null));
-  const amountMinor = moneyOf(entry.amountMinor);
-  return name === null || quantity === undefined || amountMinor === null ? null : { id, name, quantity, amountMinor };
-}
-
-function chargeOf(entry: Record<string, unknown>, id: string): BillProjection["charges"][number] | null {
-  const label = textOf(entry.label, 1, 80);
-  const amount = entry.amountMinor;
-  // A charge may take money off, as a discount does.
-  const amountMinor = typeof amount === "number" && Number.isInteger(amount) && Math.abs(amount) <= POLICY.maxAmountMinor ? amount : null;
-  return label === null || amountMinor === null ? null : { id, label, amountMinor };
-}
-
-function participantOf(entry: Record<string, unknown>, id: string): BillProjection["participants"][number] | null {
-  const name = textOf(entry.name, id === OWNER_PARTICIPANT ? 0 : 1, 60);
-  return name === null ? null : { id, name };
 }
 
 /**

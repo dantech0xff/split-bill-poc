@@ -99,6 +99,71 @@ export function textOf(value: unknown, min = 1, max = 60): string | null {
   return length >= min && length <= max && !CONTROL.test(text) ? text : null;
 }
 
+/** The most items, charges and participants a bill holds, on a bill link and in an edit of its split. */
+export const MAX_BILL_ITEMS = 200;
+export const MAX_BILL_CHARGES = 20;
+export const MAX_BILL_PARTICIPANTS = 30;
+
+/** One purchased line of a bill, one of its charges, and one of its participants, as the app sends them. */
+export type BillItem = { id: string; name: string; quantity: string | null; amountMinor: number };
+export type BillCharge = { id: string; label: string; amountMinor: number };
+export type Participant = { id: string; name: string };
+
+/** An id of a line or a person on a bill. */
+const LINE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** A quantity as the app writes a decimal number: without exponent, leading zeros or trailing dot. */
+const QUANTITY = /^-?(?:0|[1-9]\d{0,19})(?:\.\d{1,20})?$/;
+/** The participant who is the app's user; their name may be empty, as the app stores none for them. */
+const OWNER_PARTICIPANT = "me";
+
+/** Whether [value] is the id of a line or a person on a bill: 1 to 64 of `A-Z a-z 0-9 _ -`. */
+export function isLineId(value: unknown): value is string {
+  return typeof value === "string" && LINE_ID.test(value);
+}
+
+/** Null for null or a missing value; what [read] makes of anything else, or undefined when it makes nothing of it. */
+export function optional<T>(value: unknown, read: (value: unknown) => T | null): T | null | undefined {
+  if (value === undefined || value === null) return null;
+  return read(value) ?? undefined;
+}
+
+/** [value] as a list of [min] to [max] entries that [entryOf] reads, each with an id unique within it; null otherwise. */
+export function linesOf<T>(value: unknown, min: number, max: number, entryOf: (entry: Record<string, unknown>, id: string) => T | null): T[] | null {
+  if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+  const entries: T[] = [];
+  const ids = new Set<string>();
+  for (const entry of value) {
+    if (!isRecord(entry) || !isLineId(entry.id) || ids.has(entry.id)) return null;
+    const read = entryOf(entry, entry.id);
+    if (read === null) return null;
+    ids.add(entry.id);
+    entries.push(read);
+  }
+  return entries;
+}
+
+/** An item: a name of 1 to 80 characters, a quantity that is null or a decimal written as text, and a line total of 0 or more. */
+export function billItemOf(entry: Record<string, unknown>, id: string): BillItem | null {
+  const name = textOf(entry.name, 1, 80);
+  const quantity = optional(entry.quantity, (text) => (typeof text === "string" && QUANTITY.test(text) ? text : null));
+  const amountMinor = moneyOf(entry.amountMinor);
+  return name === null || quantity === undefined || amountMinor === null ? null : { id, name, quantity, amountMinor };
+}
+
+/** A charge: a label of 1 to 80 characters and an amount that may take money off, as a discount does. */
+export function billChargeOf(entry: Record<string, unknown>, id: string): BillCharge | null {
+  const label = textOf(entry.label, 1, 80);
+  const amount = entry.amountMinor;
+  const amountMinor = typeof amount === "number" && Number.isInteger(amount) && Math.abs(amount) <= POLICY.maxAmountMinor ? amount : null;
+  return label === null || amountMinor === null ? null : { id, label, amountMinor };
+}
+
+/** A participant: a name of 1 to 60 characters, which may be empty for `me`. */
+export function participantOf(entry: Record<string, unknown>, id: string): Participant | null {
+  const name = textOf(entry.name, id === OWNER_PARTICIPANT ? 0 : 1, 60);
+  return name === null ? null : { id, name };
+}
+
 /** A currency as the shared data names it: an ISO 4217 code and the digits of its minor unit. */
 export type Currency = { code: string; fractionDigits: number };
 

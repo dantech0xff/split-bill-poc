@@ -1,6 +1,7 @@
 import type { Env } from "./index";
 import { isRecord, readJson } from "./input";
 import { errorName } from "./spend";
+import { servedLocally } from "./switches";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 /** The action the web page gives its Turnstile widget before a new claim. */
@@ -17,12 +18,10 @@ const TOKEN_FAULTS = new Set(["invalid-input-response", "timeout-or-duplicate"])
  * Cloudflare's secrets for testing, which pass every token, refuse every token, or find every
  * token spent. Siteverify answers them without an action and with `example.com` as the hostname,
  * so with one of them only its verdict can be checked. They are taken only on a computer (see
- * [LOCAL_HOSTS]); anywhere else a new claim is 503, so that one set on the deployed Worker by
+ * [servedLocally]); anywhere else a new claim is 503, so that one set on the deployed Worker by
  * mistake never lets every token pass.
  */
 const TEST_SECRETS = new Set(["1x0000000000000000000000000000000AA", "2x0000000000000000000000000000000AA", "3x0000000000000000000000000000000AA"]);
-/** The hostnames of a proxy that runs on a computer, as `wrangler dev` serves it; `URL.hostname` writes IPv6 in brackets. */
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 /** The most of a value Siteverify answered that a log line repeats. */
 const LOGGED_CHARS = 64;
 
@@ -38,7 +37,7 @@ function secretOf(env: Env): string {
 export function turnstileReady(env: Env, hostname: string): boolean {
   const secret = secretOf(env);
   if (secret === "") return false;
-  if (!TEST_SECRETS.has(secret) || LOCAL_HOSTS.has(hostname)) return true;
+  if (!TEST_SECRETS.has(secret) || servedLocally(hostname)) return true;
   console.error(JSON.stringify({ event: "turnstile_test_secret" }));
   return false;
 }

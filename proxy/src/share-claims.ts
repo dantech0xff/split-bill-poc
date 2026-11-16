@@ -1,5 +1,5 @@
 import type { Env } from "./index";
-import { idOf, inputOf, textOf } from "./input";
+import { idOf, inputOf, MAX_BILL_ITEMS, textOf } from "./input";
 import { bodyTokenOf, randomToken, tokenHash, tokenOf } from "./links";
 import { POLICY } from "./policy";
 import { addressOf, hourlyRefusal } from "./rate-limit";
@@ -11,7 +11,6 @@ import {
   guardStatement,
   itemsInBill,
   linkedShare,
-  MAX_ITEMS,
   publicView,
   type Share,
   SHARE_WRITE_ATTEMPTS,
@@ -64,7 +63,7 @@ function claimingOf(body: Record<string, unknown>): Claiming | null {
   const name = textOf(body.name, 1, POLICY.maxClaimNameChars);
   const itemIds = body.itemIds;
   const attempt = body.attempt === undefined || body.attempt === null ? null : idOf(body.attempt);
-  if (token === null || name === null || !Array.isArray(itemIds) || itemIds.length > MAX_ITEMS) return null;
+  if (token === null || name === null || !Array.isArray(itemIds) || itemIds.length > MAX_BILL_ITEMS) return null;
   if (!itemIds.every((id): id is string => typeof id === "string") || new Set(itemIds).size !== itemIds.length) return null;
   if (attempt === null && body.attempt !== undefined && body.attempt !== null) return null;
   return { token: token.token, key: tokenOf(body.key), attempt, name, itemIds, turnstile: turnstileTokenOf(body.turnstile) };
