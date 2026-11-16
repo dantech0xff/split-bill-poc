@@ -109,6 +109,20 @@ describe("the cases", () => {
     expect(CASES.some((evalCase) => evalCase.tags.includes("adversarial") && /-\$?\d/.test(evalCase.instruction))).toBe(true);
   });
 
+  it('name the user as the app does: "Me" in most, their own name in some, and in one a name another participant\'s starts with', () => {
+    const people = (fixture: string) => FIXTURES[fixture].split.participants as Array<{ id: string; name: string }>;
+    const userOf = (fixture: string) => people(fixture).find((participant) => participant.id === "me")?.name ?? "";
+    const fixtures = Object.keys(FIXTURES);
+    const named = fixtures.filter((fixture) => userOf(fixture) !== "Me");
+    const sharedName = named.filter((fixture) => people(fixture).some((participant) => participant.id !== "me" && participant.name.startsWith(userOf(fixture))));
+
+    expect(fixtures.filter((fixture) => userOf(fixture).trim() === "")).toEqual([]);
+    expect(named.length).toBeGreaterThanOrEqual(2);
+    expect(named.length).toBeLessThan(fixtures.length / 2);
+    // "Minh" may be the user or "Minh Anh": the answer has to ask.
+    expect(CASES.some((evalCase) => sharedName.includes(evalCase.fixture) && "question" in evalCase.expect)).toBe(true);
+  });
+
   it("are sent to models the proxy has a price for", () => {
     expect(CANDIDATES.every(isPriced)).toBe(true);
   });

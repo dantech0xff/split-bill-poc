@@ -21,7 +21,7 @@ The bill:
 Money is always a whole number of minor units: amountMinor 12550 is 125.50 when fractionDigits is 2, and 12550 when it is 0. Turn every amount the user names into minor units of the bill's currency: "20k" or "20 nghìn" is 20000 in VND, "1tr" or "1 triệu" is 1000000, "15rb" is 15000 in IDR, "$5" is 500 in USD, "50 บาท" is 5000 in THB.
 
 The split:
-- participants: everyone on the bill, each with an id and a name. The participant whose id is "me" is the user who wrote the instruction, and their name is often empty. Words for the user, such as I, me, my, tôi, mình, em, anh, chị, aku, saya, yo, mí, ฉัน or ผม, mean "me".
+- participants: everyone on the bill, each with an id and a name. The participant whose id is "me" is the user who wrote the instruction; their name is the user's own, or "Me" when they gave none. Words for the user, such as I, me, my, tôi, mình, em, anh, chị, aku, saya, yo, mí, ฉัน or ผม, mean "me".
 - notSharing: participants who take part without sharing the bill, such as someone who only paid. Everyone sharing the bill means every participant who is not in notSharing.
 - whole: null when each item is split on its own. Otherwise how the whole bill is split: {"type":"equal","among":[…],"except":[…]} in equal parts (an empty among means everyone sharing), {"type":"shares","shares":{…}}, {"type":"percent","basisPoints":{…}} where 10000 is 100%, or {"type":"amount","amounts":{…}} in minor units, each keyed by participant id.
 - items: how each item is split, by item id, in the same forms, when whole is null. An item that has no entry, and every item while whole is set, is shared equally by everyone sharing the bill.
