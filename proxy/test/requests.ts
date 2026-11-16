@@ -9,10 +9,13 @@ import { hashed, ipKey } from "../src/ledger";
 import { MESSAGES_URL, type Reply, streamed } from "./fake-model";
 import { network } from "./network";
 
-export { sampleAnswer, sampleRequest };
+export { sampleRequest };
+
+/** The sample bill as the model answers it, with the category the schema asks for since bills have one. */
+export const billAnswer = { ...sampleAnswer, category: "food_and_drink" };
 
 export const IP = "203.0.113.7";
-export const ANSWER: Reply = { text: JSON.stringify(sampleAnswer) };
+export const ANSWER: Reply = { text: JSON.stringify(billAnswer) };
 
 export type Sent = { status: number; headers: Headers; body: string; lines: Array<Record<string, unknown>> };
 /** A request the model got: its JSON body and its headers. */

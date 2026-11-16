@@ -4,12 +4,13 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { POLICY } from "../src/policy";
 import { SYSTEM_PROMPT, userMessage } from "../src/prompt";
-import { BILL_SCHEMA } from "../src/schema";
+import { BILL_CATEGORIES, BILL_SCHEMA } from "../src/schema";
 import { holdMicro } from "../src/spend";
 import { apiError, eventStream, type Reply, serverSentEvents, streamed } from "./fake-model";
 import { network } from "./network";
 import {
   ANSWER,
+  billAnswer,
   billRequest,
   fetchWorker,
   IP,
@@ -17,7 +18,6 @@ import {
   last,
   model,
   quotaOf,
-  sampleAnswer,
   sampleRequest,
   send,
   spendOf,
@@ -34,7 +34,7 @@ describe("a bill read", () => {
     expect(sent.lines[0]).toEqual({ type: "wait" });
     expect(last(sent)).toEqual({
       type: "result",
-      answer: sampleAnswer,
+      answer: billAnswer,
       usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null },
     });
   });
@@ -56,6 +56,27 @@ describe("a bill read", () => {
     });
     expect(seen[0].headers["anthropic-beta"]).toContain("server-side-fallback-2026-07-01");
     expect(seen[0].headers["x-api-key"] ?? seen[0].headers.authorization).toMatch(/^(Bearer )?test-anthropic-key$/);
+  });
+});
+
+describe("the category of a bill", () => {
+  it("is asked for as one of the nine of the contract, for the whole bill", () => {
+    const schema = BILL_SCHEMA as { properties: Record<string, unknown>; required: string[] };
+
+    expect(schema.properties.category).toEqual({
+      type: "string",
+      enum: ["food_and_drink", "groceries", "transport", "lodging", "entertainment", "shopping", "utilities", "rent", "other"],
+    });
+    expect(schema.required).toContain("category");
+    for (const category of BILL_CATEGORIES) expect(SYSTEM_PROMPT).toContain(`${category} (`);
+  });
+
+  it("reaches the app as the model chose it", async () => {
+    model({ text: JSON.stringify({ ...billAnswer, category: "groceries" }) });
+
+    const sent = await send(billRequest());
+
+    expect(last(sent)).toMatchObject({ type: "result", answer: { ...billAnswer, category: "groceries" } });
   });
 });
 

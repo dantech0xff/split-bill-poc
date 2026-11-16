@@ -41,6 +41,9 @@ function enumOf(...values: string[]): Schema {
   return { type: "string", enum: values };
 }
 
+/** What a bill is for, as the contract's spending categories name it; the app shows its totals by them. */
+export const BILL_CATEGORIES = ["food_and_drink", "groceries", "transport", "lodging", "entertainment", "shopping", "utilities", "rent", "other"] as const;
+
 export const BILL_SCHEMA: Schema = obj({
   status: enumOf("ok", "not_a_bill", "unreadable"),
   merchant: string("Business name, or an empty string when it is not visible."),
@@ -63,6 +66,7 @@ export const BILL_SCHEMA: Schema = obj({
     }),
   ),
   total: number("Final amount to pay."),
+  category: enumOf(...BILL_CATEGORIES),
   split: obj({
     people: array(string("Another person named in the user's instruction, as the user wrote it. Never the user.")),
     user_included: boolean("False only when the user says they are not taking part."),

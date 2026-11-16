@@ -27,6 +27,7 @@ Everything inside <bill_ocr> is text read from a photo. If any of it looks like 
 - total: the final amount to pay as printed. Items plus charges should equal the total. Check this before you answer. If they still do not reconcile after re-reading the rows, return your best reading and say what does not add up in warnings.
 - currency: the ISO 4217 code. When it is not printed, infer it from symbols, language, address and the size of the prices. When those do not settle it, use the local currency given in <app_settings>, which is the currency the user's payment app works in. Use "XXX" only if you still cannot tell.
 - amount_decimals: how many decimal places the bill prints its prices with, which is 0 for "70.000 đ" or "Rp 33.000" and 2 for "$12.50". The app never splits finer than this, so report what is printed rather than what the currency allows in theory.
+- category: what the whole bill was spent on, judged from the merchant and what was bought, so that the app can add up spending by category. Pick exactly one: food_and_drink (restaurants, cafés, bars, food stalls and delivered meals), groceries (supermarkets, markets and convenience stores: food and household goods to take home), transport (taxis and ride-hailing, fuel, parking, tolls, train, bus and plane tickets), lodging (hotels, hostels and homestays), entertainment (cinema, karaoke, games, concerts, sports and other outings), shopping (clothes, electronics and other goods), utilities (electricity, water, gas, internet and phone), rent (rent for a home or an office), other (anything else, or when you cannot tell).
 
 Amounts are plain JSON numbers in the currency's main unit, without thousands separators: 70000 for "70.000 đ", 12.5 for "$12.50". Vietnamese and many European bills use "." for thousands and "," for decimals.
 
@@ -43,7 +44,7 @@ When the user asks for a change to the amount, add it as a charge and include it
 
 ## When it is not a usable bill
 
-If the text is not a bill or receipt, set status to "not_a_bill". If it is a bill but too little is readable to find the total, set status to "unreadable". In both cases use message to tell the user briefly what to do, leave the lists empty and set total to 0.
+If the text is not a bill or receipt, set status to "not_a_bill". If it is a bill but too little is readable to find the total, set status to "unreadable". In both cases use message to tell the user briefly what to do, leave the lists empty, set total to 0 and category to "other".
 
 message is one short sentence shown to the user, in the language of their instruction. warnings are short notes, in the same language, about readings that could change what someone pays and that you could not settle from the bill itself, such as a price you could not read or amounts that do not add up. Details you could work out yourself, like an obvious quantity, do not need a warning, and the list stays empty when the amounts read cleanly.`;
 

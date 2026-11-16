@@ -12,6 +12,7 @@ import { holdMicro } from "../src/spend";
 import { apiError, serverSentEvents, sseOf, stalled, streamed } from "./fake-model";
 import {
   ANSWER,
+  billAnswer,
   billRequest,
   fetchWorker,
   IP,
@@ -20,7 +21,6 @@ import {
   model,
   proxyRequest,
   quotaOf,
-  sampleAnswer,
   sampleRequest,
   send,
   type Sent,
@@ -200,7 +200,7 @@ describe("a request id", () => {
 });
 
 it("reads the answer across the switch to a fallback model", async () => {
-  const text = JSON.stringify(sampleAnswer);
+  const text = JSON.stringify(billAnswer);
   const half = Math.floor(text.length / 2);
   const usage = { input_tokens: 5_000, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   model(() =>
@@ -224,7 +224,7 @@ it("reads the answer across the switch to a fallback model", async () => {
 
   const sent = await send(billRequest());
 
-  expect(last(sent)).toMatchObject({ type: "result", answer: sampleAnswer });
+  expect(last(sent)).toMatchObject({ type: "result", answer: billAnswer });
 });
 
 it("refuses a call over its IP's daily spend cap, and gives back what the other caps held", async () => {
@@ -301,7 +301,7 @@ describe("a counter that cannot be reached", () => {
     const sent = await send(billRequest({ install }), failingLedger("global", "settleSpend"));
 
     expect(sent.lines.filter((line) => line.type !== "wait")).toEqual([
-      { type: "result", answer: sampleAnswer, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null } },
+      { type: "result", answer: billAnswer, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null } },
     ]);
     expect(await spendOf(`install:${install}`)).toMatchObject({ spent: 60_000, held: 0 });
   });
