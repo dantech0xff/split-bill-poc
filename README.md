@@ -144,6 +144,9 @@ calls RevenueCat, and its Pro screen says Pro is not available in this build. Te
 splitvibe.revenueCatApiKey=goog_<public SDK key>
 ```
 
+What the owner sets up in Play Console, RevenueCat and the Worker before Pro can be sold, and how to
+test the whole subscription cycle, is in [docs/pro-subscription.md](docs/pro-subscription.md).
+
 Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own address and open in the app
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
 app is signed with (see [docs/proxy.md](docs/proxy.md)).
