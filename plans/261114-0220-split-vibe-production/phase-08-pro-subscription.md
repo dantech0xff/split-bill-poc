@@ -160,14 +160,67 @@ Sửa:
 
 ## Todo
 
-- [ ] Sản phẩm thuê bao tháng và năm trên Play Console
-- [ ] Webhook coi sự kiện là tín hiệu, lấy lại trạng thái, bỏ qua sự kiện cũ
-- [ ] Gói hiệu lực tính từ `expiresAt`; số lượt còn lại trong trả lời
-- [ ] `BillingRepository`, màn hình Pro, mua, khôi phục, đổi gói
-- [ ] Liên kết tài khoản trước khi mua
-- [ ] Thông báo hết lượt và lời mời nâng cấp
-- [ ] Xóa tài khoản xóa hồ sơ người mua
-- [ ] Thử đủ vòng đời thuê bao bằng tài khoản thử nghiệm
+- [ ] Sản phẩm thuê bao tháng và năm trên Play Console (chủ sản phẩm)
+- [x] Webhook coi sự kiện là tín hiệu, lấy lại trạng thái, bỏ qua sự kiện cũ
+- [x] Gói hiệu lực tính từ `proUntil`; số lượt còn lại trong trả lời
+- [x] `BillingRepository`, màn hình Pro, mua, khôi phục, đổi gói
+- [x] Liên kết tài khoản trước khi mua
+- [x] Thông báo hết lượt và lời mời nâng cấp
+- [x] Xóa tài khoản xóa hồ sơ người mua
+- [ ] Thử đủ vòng đời thuê bao bằng tài khoản thử nghiệm (chủ sản phẩm)
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 17/11/2026 trên nhánh feat/phase-08-pro-subscription, chưa merge vào main -->
+Sáu trên bảy tiêu chí đạt và có bằng chứng. Tiêu chí thử trên kênh nội bộ bằng tài khoản thử nghiệm chưa làm được, vì nó cần app trên Play Console, sản phẩm thuê bao và project RevenueCat của chủ sản phẩm. Các bước nằm ở [docs/pro-subscription.md](../../docs/pro-subscription.md).
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Trên kênh nội bộ: mua xong thì 300 lượt trong 5 phút; hủy rồi hết hạn thì về 10; khôi phục trên máy thứ hai được; khôi phục trên tài khoản khác không chuyển gói | Chưa thử | Cần Play Console và RevenueCat. Từng bước đã chạy với cửa hàng giả (`BillingRepositoryTest`, `ProViewModelTest`) và với RevenueCat giả (`plan.test.ts`, `subscription-webhook.test.ts`) |
+| Webhook: sự kiện không có khóa đúng bị từ chối; "hết hạn" cũ đến sau "gia hạn" không hạ gói; sự kiện lặp lại không đổi gì | Đạt | `subscription-webhook.test.ts`: header thiếu, sai hay khác độ dài đều 401 mà không gọi RevenueCat. Trạng thái luôn được hỏi lại, nên sự kiện cũ không hạ gói; hai lần hỏi trả lời sai thứ tự vẫn giữ trạng thái mới hơn |
+| Gói đã lưu là Pro nhưng `proUntil` đã qua thời gian ân hạn chỉ được hạn mức miễn phí | Đạt | `plan.test.ts` và `quota-book.test.ts`, kể cả đúng mốc 24 giờ |
+| Không đường nào cho app ghi gói; webhook không có Authorization đúng bị từ chối | Đạt | Không route nào nhận gói từ app, review proxy đã soát lại; test 401 như trên |
+| Người đã đăng nhập ở lượt thứ 11 trong tháng nhận thông báo hết lượt kèm lời mời nâng cấp; nhập tay vẫn chạy | Đạt | Proxy từ chối lần đọc thứ 11 của tài khoản miễn phí và cho tài khoản Pro đọc tiếp. App hiện "Get Pro" ở bước đọc hóa đơn và ở ô chỉnh bằng lời, với mọi tổ hợp lượt thử, miễn phí, Pro, bản có bán Pro và bản không bán |
+| Màn Pro hiện giá Play trả về theo vùng, điều khoản gia hạn và link quản lý | Đạt với cửa hàng giả | Giá là chuỗi Play định dạng sẵn, qua RevenueCat; gói năm lấy giá năm làm con số chính. Có ưu đãi thì ghi rõ điều khoản, với test cho cả ba dạng ưu đãi của Play. Link là `?sku=pro&package=…` |
+| Ảnh chuẩn màn Pro sáng và tối | Đạt | `47-pro`, `48-pro-member`, `49-settings-pro`, mỗi ảnh có cả hai theme |
+
+Kiểm tra chung: proxy 404 test vitest và 10 test Node, typecheck sạch. App 433 unit test ở cả bản prod lẫn bản dev, domain 198, hệ thiết kế 3; ktlint, lint và bản release sạch; manifest không có quyền `AD_ID`. Checksum của RevenueCat và Play Billing do workflow trên máy sạch dựng (lượt 44026139926), khớp từng byte với tệp đã commit. Test trên máy ảo Android 14 và bước ghi baseline profile đều qua ở `9b7fc2d` (lượt 44101722683).
+
+Những gì đã làm:
+- **Proxy:**
+  - gói của mỗi tài khoản nằm trong `QuotaBook` (`proUntil`, `checkedAt` và dấu đã cấp mã người mua), Pro được 300 lượt mỗi tháng;
+  - `usage.plan` và `purchaser`, `POST /v1/plan`, webhook `POST /v1/subscription-events`;
+  - xóa khách hàng trong RevenueCat trước khi xóa tài khoản, tối đa 5 lần xóa mỗi giờ;
+  - câu trả lời dự phòng khi Durable Object còn chạy mã cũ lúc triển khai.
+  Contract ở [docs/proxy.md](../../docs/proxy.md).
+- **App:**
+  - RevenueCat 11.3.0 với Play Billing 9.1.0; SDK chỉ được cấu hình khi đã đăng nhập, luôn với `purchaser`, và được đóng khi đăng xuất hay xóa tài khoản;
+  - màn Pro, dòng gói trong Settings, lời mời "Get Pro" khi hết lượt, cảnh báo khi xóa tài khoản;
+  - không bán Pro khi proxy chưa kiểm được thuê bao, và gửi giao dịch còn treo trước khi đổi người dùng.
+  Kiến trúc ở [docs/architecture.md](../../docs/architecture.md).
+- **Hai bản review độc lập**, đã sửa hết:
+  - proxy: 1 lỗi trung bình, 4 nhẹ ([báo cáo](../reports/code-reviewer-261117-0558-phase-8-proxy-review.md), [phần sửa](../reports/fullstack-developer-261117-0619-proxy-review-fixes.md));
+  - app: 2 nặng, 2 trung bình, 6 nhẹ ([báo cáo](../reports/code-reviewer-261117-0705-phase-8-app-review.md), [phần sửa](../reports/fullstack-developer-261117-0710-app-review-fixes.md)).
+- **Hướng dẫn cho chủ sản phẩm:** [docs/pro-subscription.md](../../docs/pro-subscription.md), từ Play Console tới 9 bước thử trọn vòng đời thuê bao.
+
+Triển khai lên Cloudflare ngày 17/11/2026:
+- **Worker `split-vibe-proxy`:** gói dựng bằng đúng lệnh của CI (`npm run bundle`) từ commit `b41360a`; mã proxy ở đầu nhánh giống hệt. Không có migration D1 và không thêm binding nào. Worker chưa có hai secret của RevenueCat, nên chưa ai thành Pro.
+- **Thử bản đang chạy:** `/v1/usage` trả thêm `plan: "trial"`; `/v1/plan` khi chưa đăng nhập trả 401 `session`; webhook trả 503 `not_configured`; đăng nhập vẫn `sign_in_off`; tỷ giá và trang `/s/` trả 200.
+- Worker và KV namespace tạm dùng để chuyển gói lên đã bị xóa.
+
+Các mặc định đã chọn, chủ sản phẩm có thể đổi:
+- Đổi giữa gói tháng và gói năm có hiệu lực ngay, giá mới tính từ lần gia hạn kế tiếp (`WITHOUT_PRORATION`).
+- Giao dịch thử của tài khoản thử nghiệm giấy phép cũng cho Pro.
+- Proxy đọc RevenueCat bằng REST API v1. Khóa bí mật của API này làm được mọi thứ trong project, nên nó chỉ nằm trong secret của Worker.
+- Ân hạn 24 giờ sau khi hết kỳ, và khoảng chờ gia hạn chỉ áp cho thuê bao Play.
+- Xóa tài khoản không hủy thuê bao Play; app cảnh báo trước khi xóa.
+- Bản `dev` không mang khóa RevenueCat, vì Play không bán cho gói của bản dev.
+
+Giới hạn đã biết:
+- Session không bị thu hồi khi xóa tài khoản. Một máy khác còn session cũ có thể làm RevenueCat tạo lại một hồ sơ trống.
+- Một giao dịch chưa gửi được lên RevenueCat mà app không đồng bộ kịp trước khi đổi người dùng có thể bị gán cho người đăng nhập sau. App thử đồng bộ trước, trong vài giây.
+- Trần chi phí $3 mỗi ngày cho mỗi người gọi giới hạn một tài khoản Pro ở khoảng 50 lần đọc hóa đơn mỗi ngày. Trần $20 mỗi ngày của cả proxy phải nâng khi có người trả tiền.
+- Thời hạn 10 giây khi proxy chờ RevenueCat chưa có test.
 
 ## Success Criteria
 
