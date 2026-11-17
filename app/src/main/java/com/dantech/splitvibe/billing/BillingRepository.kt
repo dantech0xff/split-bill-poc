@@ -77,8 +77,9 @@ class BillingRepository(
 
     /**
      * The purchaser one of whose purchases in this run of the app may not have reached RevenueCat:
-     * its sending failed, its payment is pending, or the purchase ended unseen. Changed only under
-     * [identity], and only while the store runs as that purchaser.
+     * its sending failed, RevenueCat's server did not take it, its payment is pending, or the
+     * purchase ended unseen. Changed only under [identity], and only while the store runs as that
+     * purchaser.
      */
     private var unsentBy: String? = null
 
