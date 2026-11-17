@@ -96,7 +96,7 @@ class GatewayBillAnalyzerOnDeviceTest {
     }
 
     private fun analyzerFor(store: AccountStore) =
-        GatewayBillAnalyzer(ProxyApi(server.url("/").toString(), store, appVersion = 1), store, canSignIn = true)
+        GatewayBillAnalyzer(ProxyApi(server.url("/").toString(), store, appVersion = 1), store, canSignIn = true, sellsPro = false)
 
     private fun ndjson(vararg lines: String): MockResponse =
         MockResponse().setHeader("content-type", "application/x-ndjson; charset=utf-8").setBody(lines.joinToString("\n", postfix = "\n"))

@@ -77,7 +77,7 @@ class SplitAssistantTest {
     fun setUp() {
         server.start()
         proxy = TestProxy(server, context)
-        assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true)
+        assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false)
     }
 
     @After
@@ -172,7 +172,9 @@ class SplitAssistantTest {
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(2, TimeUnit.SECONDS))
 
-        val failure = failureOf { SplitAssistant(api, proxy.account, canSignIn = true).revise("Lan không uống bia", bill, plan, "Dana") }
+        val failure = failureOf {
+            SplitAssistant(api, proxy.account, canSignIn = true, sellsPro = false).revise("Lan không uống bia", bill, plan, "Dana")
+        }
 
         assertEquals(Kind.TIMEOUT, failure.kind)
     }
@@ -268,7 +270,7 @@ class SplitAssistantTest {
         assertThrows(IllegalArgumentException::class.java) { runBlocking { assistant.revise(" \n ", bill, plan, "Dana") } }
         assertThrows(IllegalArgumentException::class.java) { runBlocking { assistant.revise("a".repeat(501), bill, plan, "Dana") } }
         val account = AccountStore(context, proxySetUp = false, cipher = PlainCipher)
-        val noProxy = SplitAssistant(ProxyApi("", account, appVersion = 1), account, canSignIn = false)
+        val noProxy = SplitAssistant(ProxyApi("", account, appVersion = 1), account, canSignIn = false, sellsPro = false)
 
         val failure = failureOf { noProxy.revise("Lan không uống bia", bill, plan, "Dana") }
 

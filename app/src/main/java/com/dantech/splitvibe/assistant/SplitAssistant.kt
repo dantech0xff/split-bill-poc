@@ -29,9 +29,11 @@ class SplitAssistant(
     account: AccountStore,
     /** Whether this build can sign in with Google, which is how a person gets more calls. */
     val canSignIn: Boolean,
+    /** Whether this build sells Pro, which gives the most calls. */
+    val sellsPro: Boolean,
 ) {
 
-    private val call = ProxyModelCall(api, account, canSignIn, WORDS, api::reviseSplit)
+    private val call = ProxyModelCall(api, account, canSignIn, sellsPro, WORDS, api::reviseSplit)
 
     /**
      * The edits the AI proposes for [instruction] on [bill] split as [plan], with what it says about

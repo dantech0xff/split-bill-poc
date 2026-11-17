@@ -50,6 +50,7 @@ class SplitFlowOnDeviceTest {
                             Account(installId = "on-device-test", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
                         ),
                         canSignIn = true,
+                        sellsPro = false,
                         imageLoader = get(),
                         recognizer = get(),
                         analyzer = RecordedAnswer,

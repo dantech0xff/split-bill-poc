@@ -22,6 +22,7 @@ import com.dantech.splitvibe.domain.takeCodePoints
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.SplitRevision
 import com.dantech.splitvibe.llm.SplitRevisionRequest
+import com.dantech.splitvibe.llm.proHelps
 import com.dantech.splitvibe.llm.signInHelps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -137,6 +138,8 @@ data class AssistantUiState(
     val error: String? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
+    /** The error is the calls used up, of which Pro gives more in this build, so it comes with a way to the Pro screen. */
+    val errorOpensPro: Boolean = false,
     /** AI is not set up in this build or is switched off, which the assistant says above its field. */
     val notice: String? = null,
     val canSend: Boolean = false,
@@ -199,7 +202,9 @@ class SplitAssistantViewModel(
         if (current.working || typed.isEmpty() || account.value.ai == AiStatus.NOT_SET_UP) return
         val instruction = current.question?.let { followUp(it, typed) } ?: typed
         voice.cancel()
-        draft.update { it.copy(working = true, listening = false, note = null, error = null, errorOpensSettings = false) }
+        draft.update {
+            it.copy(working = true, listening = false, note = null, error = null, errorOpensSettings = false, errorOpensPro = false)
+        }
         asking?.cancel()
         val job = viewModelScope.launch {
             try {
@@ -209,8 +214,10 @@ class SplitAssistantViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BillAnalyzerException) {
-                val signInHelps = e.signInHelps(assistant.canSignIn, signedIn = account.value.session != null)
-                draft.update { it.copy(error = e.message, errorOpensSettings = signInHelps) }
+                val signedIn = account.value.session != null
+                val signInHelps = e.signInHelps(assistant.canSignIn, signedIn, sellsPro = assistant.sellsPro)
+                val proHelps = e.proHelps(assistant.sellsPro)
+                draft.update { it.copy(error = e.message, errorOpensSettings = signInHelps, errorOpensPro = proHelps) }
             }
         }
         asking = job
@@ -270,7 +277,7 @@ class SplitAssistantViewModel(
     /** Leaves the question the AI asked unanswered, so the next text sent is a change of its own. */
     fun forgetQuestion() = draft.update { it.copy(question = null) }
 
-    fun dismissError() = draft.update { it.copy(error = null, errorOpensSettings = false) }
+    fun dismissError() = draft.update { it.copy(error = null, errorOpensSettings = false, errorOpensPro = false) }
 
     /** A tap on the mic: listens, or stops listening, after asking for what listening needs the first time. */
     fun onMic() {
@@ -371,6 +378,7 @@ class SplitAssistantViewModel(
             // An error that only repeats the notice says nothing new.
             error = draft.error?.takeIf { it != notice },
             errorOpensSettings = draft.errorOpensSettings,
+            errorOpensPro = draft.errorOpensPro,
             notice = notice,
             // When AI is only switched off, the request still goes out: the proxy may have turned it back on.
             canSend = saved != null &&
@@ -480,6 +488,7 @@ class SplitAssistantViewModel(
         val note: String? = null,
         val error: String? = null,
         val errorOpensSettings: Boolean = false,
+        val errorOpensPro: Boolean = false,
         val voiceAvailable: Boolean,
         val listening: Boolean = false,
         val askingNetwork: Boolean = false,

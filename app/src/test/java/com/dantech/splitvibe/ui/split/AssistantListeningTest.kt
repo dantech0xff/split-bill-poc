@@ -76,7 +76,7 @@ class AssistantListeningTest {
         split.doneEditing()
         val assistant = SplitAssistantViewModel(
             host = split,
-            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
+            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, SettingsStore(context)),
             settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
             account = proxy.account.account,
@@ -92,6 +92,7 @@ class AssistantListeningTest {
                         scanIntent = { null },
                         onExit = {},
                         onOpenSettings = {},
+                        onOpenPro = {},
                         assistant = assistant,
                     )
                 }

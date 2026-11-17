@@ -35,6 +35,7 @@ import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
+import com.dantech.splitvibe.llm.proHelps
 import com.dantech.splitvibe.llm.signInHelps
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
@@ -136,6 +137,8 @@ data class SplitUiState(
     val error: String? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
+    /** The error is the calls used up, of which Pro gives more in this build, so it comes with a way to the Pro screen. */
+    val errorOpensPro: Boolean = false,
     val result: SplitResultState? = null,
     /** The bill is open in the editor. */
     val editing: Boolean = false,
@@ -164,6 +167,8 @@ class SplitBillViewModel(
     private val account: StateFlow<Account>,
     /** Whether this build can sign in with Google, which is what some errors ask for. */
     private val canSignIn: Boolean,
+    /** Whether this build sells Pro, which calls used up invite to. */
+    private val sellsPro: Boolean,
     private val imageLoader: BillImageLoader,
     private val recognizer: BillTextRecognizer,
     private val analyzer: BillAnalyzer,
@@ -752,20 +757,20 @@ class SplitBillViewModel(
         }
     }
 
-    private fun showError(message: String, opensSettings: Boolean = false) =
-        mutableState.update { it.copy(error = message, errorOpensSettings = opensSettings) }
+    private fun showError(message: String, opensSettings: Boolean = false, opensPro: Boolean = false) =
+        mutableState.update { it.copy(error = message, errorOpensSettings = opensSettings, errorOpensPro = opensPro) }
 
     private fun launchWork(progress: Progress, block: suspend () -> Unit) {
         work?.cancel()
         val job = viewModelScope.launch {
-            mutableState.update { it.copy(progress = progress, error = null, errorOpensSettings = false) }
+            mutableState.update { it.copy(progress = progress, error = null, errorOpensSettings = false, errorOpensPro = false) }
             try {
                 block()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BillAnalyzerException) {
-                val signInHelps = e.signInHelps(canSignIn, signedIn = account.value.session != null)
-                showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps)
+                val signInHelps = e.signInHelps(canSignIn, signedIn = account.value.session != null, sellsPro = sellsPro)
+                showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps, opensPro = e.proHelps(sellsPro))
             } catch (e: IOException) {
                 showError("That image could not be opened. Try another photo.")
             } catch (e: Exception) {

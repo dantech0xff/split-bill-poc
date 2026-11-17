@@ -369,6 +369,32 @@ class SplitAssistantFlowTest {
     }
 
     @Test
+    fun `in a build that sells Pro, no calls left leads to Pro, and a Pro member only learns when the calls come back`() {
+        // The same bill on screen, with the assistant of a build that sells Pro.
+        assistant = SplitAssistantViewModel(
+            host = split,
+            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = true),
+            voice = VoiceInput(context, settingsStore),
+            settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
+            account = proxy.account.account,
+        )
+        server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
+
+        ask("Lan didn't have beer", reply = null)
+
+        assertEquals("You have used your 3 free calls. Sign in with Google for 10 calls a month, or get Pro for 300.", assistant.ui().error)
+        assertTrue(assistant.ui().errorOpensPro)
+        assertFalse("the Pro screen offers signing in itself", assistant.ui().errorOpensSettings)
+
+        proxy.account.saveSession(Session("signed-session", expiresAt = Long.MAX_VALUE))
+        server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$PRO_USED_UP}"""))
+        ask("Lan didn't have beer", reply = null)
+        assertEquals("You have used this month's 300 calls. They come back on 1 December.", assistant.ui().error)
+        assertFalse(assistant.ui().errorOpensPro)
+        assertFalse(assistant.ui().errorOpensSettings)
+    }
+
+    @Test
     fun `with AI switched off the assistant says so once, and a build without AI sends nothing`() {
         server.enqueue(refusal(503, """{"error":"ai_off"}"""))
 
@@ -380,7 +406,7 @@ class SplitAssistantFlowTest {
 
         val withoutAi = SplitAssistantViewModel(
             split,
-            SplitAssistant(proxy.api, proxy.account, canSignIn = true),
+            SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             VoiceInput(context, settingsStore),
             MutableStateFlow(AppSettings("VND")),
             MutableStateFlow(proxy.account.account.value.copy(ai = AiStatus.NOT_SET_UP)),
@@ -477,7 +503,7 @@ class SplitAssistantFlowTest {
         split.doneEditing()
         assistant = SplitAssistantViewModel(
             host = split,
-            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
+            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, settingsStore),
             settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
             account = proxy.account.account,
@@ -536,5 +562,6 @@ class SplitAssistantFlowTest {
         const val ONE_CHANGE_USED = """{"limit":3,"used":0.2,"remaining":2.8,"period":"trial","resetsAt":null}"""
         const val TRIAL_USED_UP = """{"limit":3,"used":3,"remaining":0,"period":"trial","resetsAt":null}"""
         const val MONTH_USED_UP = """{"limit":10,"used":10,"remaining":0,"period":"2026-11","resetsAt":1796083200000}"""
+        const val PRO_USED_UP = """{"limit":300,"used":300,"remaining":0,"period":"2026-11","resetsAt":1796083200000,"plan":"pro"}"""
     }
 }

@@ -55,8 +55,22 @@ val appModule = module {
     single { SettingsStore(androidContext()) }
     single { AccountStore(androidContext(), proxySetUp = BuildConfig.AI_PROXY_URL.toHttpUrlOrNull() != null) }
     single { ProxyApi(BuildConfig.AI_PROXY_URL, account = get(), appVersion = BuildConfig.VERSION_CODE) }
-    single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
-    single { SplitAssistant(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
+    single<BillAnalyzer> {
+        GatewayBillAnalyzer(
+            api = get(),
+            account = get(),
+            canSignIn = get<AccountRepository>().canSignIn,
+            sellsPro = get<BillingRepository>().sellsPro,
+        )
+    }
+    single {
+        SplitAssistant(
+            api = get(),
+            account = get(),
+            canSignIn = get<AccountRepository>().canSignIn,
+            sellsPro = get<BillingRepository>().sellsPro,
+        )
+    }
     single {
         BillingRepository(
             // A build without RevenueCat's key sells no Pro.
@@ -158,6 +172,7 @@ val appModule = module {
             settings = get<SettingsStore>().settings,
             account = get<AccountStore>().account,
             canSignIn = get<AccountRepository>().canSignIn,
+            sellsPro = get<BillingRepository>().sellsPro,
             imageLoader = get(),
             recognizer = get(),
             analyzer = get(),

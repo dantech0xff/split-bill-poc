@@ -226,6 +226,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             // Back to the list of bills when the bill was opened from there, else home.
                             onExit = { backStack.remove(SplitKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            onOpenPro = { backStack.open(ProKey) },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onPickTogether = { backStack.open(ClaimKey) },
                         )

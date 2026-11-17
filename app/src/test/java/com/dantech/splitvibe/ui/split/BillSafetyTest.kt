@@ -124,7 +124,7 @@ class BillSafetyTest {
             SplitVibeTheme {
                 SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
+                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
             }
         }
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Paid by"))

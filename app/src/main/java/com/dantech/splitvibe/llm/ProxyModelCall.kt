@@ -2,6 +2,7 @@ package com.dantech.splitvibe.llm
 
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.proxy.AnswerTimeoutException
 import com.dantech.splitvibe.data.proxy.ModelReply
 import com.dantech.splitvibe.data.proxy.ProxyApi
@@ -53,6 +54,8 @@ class ProxyModelCall(
     private val account: AccountStore,
     /** Whether this build can sign in with Google, which is how a person gets more calls. */
     private val canSignIn: Boolean,
+    /** Whether this build sells Pro, which gives the most calls. */
+    private val sellsPro: Boolean,
     private val words: ModelCallWords,
     /** Sends a body to the route and reads the streamed reply up to its answer, such as [ProxyApi.readBill]. */
     private val send: suspend (JsonObject) -> ModelReply,
@@ -139,20 +142,39 @@ class ProxyModelCall(
 
     /**
      * That the calls are used up, or that too little of one is left for a call of this kind: a bill
-     * read takes a whole one, so a part left over from changes is not enough for it.
+     * read takes a whole one, so a part left over from changes is not enough for it. Then where more
+     * calls come from, as [moreCalls] says.
      */
     private fun quotaMessage(callsLeft: CallsLeft?): String {
-        val more = if (canSignIn) " Sign in with Google in Settings to get more each month." else ""
+        val more = moreCalls(callsLeft?.plan)
         if (callsLeft == null) return "You have used your free calls.$more"
         val limit = CallsLeft.text(callsLeft.limit)
         val left = callsLeft.remaining.takeIf { it.signum() > 0 }?.let(CallsLeft::text)
         val date = callsLeft.comesBackOn
         return when {
-            date != null && left == null -> "You have used this month's $limit calls. They come back on $date."
-            date != null -> "${words.cost}, and $left of this month's $limit calls are left. They come back on $date."
+            date != null && left == null -> "You have used this month's $limit calls. They come back on $date.$more"
+            date != null -> "${words.cost}, and $left of this month's $limit calls are left. They come back on $date.$more"
             left == null -> "You have used your $limit free calls.$more"
             else -> "${words.cost}, and $left of your $limit free calls are left.$more"
         }
+    }
+
+    /**
+     * Where more calls come from for someone on [plan], as a sentence after the count, or nothing. A
+     * build that sells Pro invites everyone not on Pro to it, and also tells someone who has not
+     * signed in what signing in gives; a Pro member only learns when the calls come back. A build
+     * that does not sell Pro tells only an install's trial to sign in.
+     */
+    private fun moreCalls(plan: Plan?): String = when {
+        sellsPro -> when (plan) {
+            Plan.PRO -> ""
+            Plan.FREE -> " Get Pro for ${CallsLeft.PRO_MONTHLY} calls a month."
+            Plan.TRIAL, null -> " Sign in with Google for ${CallsLeft.FREE_MONTHLY} calls a month, or get Pro for ${CallsLeft.PRO_MONTHLY}."
+        }
+
+        canSignIn && (plan == null || plan == Plan.TRIAL) -> " Sign in with Google in Settings to get more each month."
+
+        else -> ""
     }
 
     private fun waitHint(seconds: Long?): String {
@@ -179,7 +201,15 @@ class ProxyModelCall(
 /**
  * Whether signing in fixes this failure, in a build that can sign in: a sign-in that has run out,
  * or the free calls of this phone used up before anyone signed in. Signing in again after the
- * month's calls are used up gives no more.
+ * month's calls are used up gives no more. In a build that sells Pro, calls used up lead to Pro
+ * instead, whose screen also offers signing in ([proHelps]).
  */
-fun BillAnalyzerException.signInHelps(canSignIn: Boolean, signedIn: Boolean): Boolean =
-    canSignIn && (kind == Kind.SIGN_IN_EXPIRED || (kind == Kind.QUOTA_EXHAUSTED && !signedIn))
+fun BillAnalyzerException.signInHelps(canSignIn: Boolean, signedIn: Boolean, sellsPro: Boolean): Boolean =
+    canSignIn && (kind == Kind.SIGN_IN_EXPIRED || (kind == Kind.QUOTA_EXHAUSTED && !signedIn && !sellsPro))
+
+/**
+ * Whether Pro gives more calls after this failure, in a build that sells it: the calls are used up,
+ * and the proxy does not count them as Pro's already.
+ */
+fun BillAnalyzerException.proHelps(sellsPro: Boolean): Boolean =
+    sellsPro && kind == Kind.QUOTA_EXHAUSTED && (cause as? ProxyException)?.callsLeft?.plan != Plan.PRO

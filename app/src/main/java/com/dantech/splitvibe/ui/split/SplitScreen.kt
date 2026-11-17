@@ -40,6 +40,8 @@ fun SplitScreen(
     scanIntent: suspend (Activity) -> IntentSender?,
     onExit: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Opens the Pro screen, which is where calls used up lead in a build that sells Pro. */
+    onOpenPro: () -> Unit,
     onOpenPaymentMethods: () -> Unit = {},
     /** Opens the link of the bill on screen, where everyone at the table picks what they had. */
     onPickTogether: () -> Unit = {},
@@ -115,6 +117,7 @@ fun SplitScreen(
             onForgetQuestion = assistant::forgetQuestion,
             onDismissError = assistant::dismissError,
             onOpenSettings = onOpenSettings,
+            onOpenPro = onOpenPro,
             onMic = assistant::onMic,
             onNetworkVoice = assistant::onNetworkVoice,
             onMicPermissionAsked = assistant::onMicPermissionAsked,
@@ -164,6 +167,7 @@ fun SplitScreen(
                     onAnalyze = viewModel::analyze,
                     onCancel = viewModel::cancelWork,
                     onOpenSettings = onOpenSettings,
+                    onOpenPro = onOpenPro,
                 )
             }
         }

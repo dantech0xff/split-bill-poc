@@ -54,6 +54,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.ui.paywall.GET_PRO
 
 /** What the assistant on the result screen asks the flow to do. */
 class AssistantActions(
@@ -67,6 +68,7 @@ class AssistantActions(
     val onForgetQuestion: () -> Unit,
     val onDismissError: () -> Unit,
     val onOpenSettings: () -> Unit,
+    val onOpenPro: () -> Unit,
     val onMic: () -> Unit,
     /** The user's answer to whether the phone's speech service may hear them. */
     val onNetworkVoice: (allowed: Boolean) -> Unit,
@@ -140,8 +142,16 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
                 SvMessageCard(
                     text = error,
                     isError = true,
-                    action = if (state.errorOpensSettings) "Open settings" else "OK",
-                    onAction = if (state.errorOpensSettings) actions.onOpenSettings else actions.onDismissError,
+                    action = when {
+                        state.errorOpensPro -> GET_PRO
+                        state.errorOpensSettings -> "Open settings"
+                        else -> "OK"
+                    },
+                    onAction = when {
+                        state.errorOpensPro -> actions.onOpenPro
+                        state.errorOpensSettings -> actions.onOpenSettings
+                        else -> actions.onDismissError
+                    },
                     modifier = announced,
                 )
             }

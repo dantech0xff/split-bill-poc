@@ -184,7 +184,7 @@ class SplitFlowTest {
             SplitVibeTheme {
                 SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
+                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
             }
         }
         return viewModel

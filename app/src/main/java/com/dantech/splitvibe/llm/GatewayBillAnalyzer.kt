@@ -26,9 +26,11 @@ class GatewayBillAnalyzer(
     account: AccountStore,
     /** Whether this build can sign in with Google, which is how a person gets more calls. */
     canSignIn: Boolean,
+    /** Whether this build sells Pro, which gives the most calls. */
+    sellsPro: Boolean,
 ) : BillAnalyzer {
 
-    private val call = ProxyModelCall(api, account, canSignIn, WORDS, api::readBill)
+    private val call = ProxyModelCall(api, account, canSignIn, sellsPro, WORDS, api::readBill)
 
     override suspend fun analyze(pages: List<OcrResult>, instruction: String, localCurrency: String): BillAnalysis = call.ask(
         content = {

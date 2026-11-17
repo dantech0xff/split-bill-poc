@@ -369,7 +369,7 @@ class ScreenGalleryTest {
         )
         assistant = SplitAssistantViewModel(
             host = viewModel,
-            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true),
+            assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, SettingsStore(context)),
             settings = MutableStateFlow(settings),
             account = proxy.account.account,
@@ -388,12 +388,12 @@ class ScreenGalleryTest {
 
                         Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
-                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, assistant = assistant)
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {}, assistant = assistant)
 
                         // What a build without the AI proxy's address shows.
                         Screen.SPLIT_WITHOUT_AI -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.NOT_SET_UP, newCameraTarget = {
                             Uri.EMPTY
-                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, assistant = assistant)
+                        }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {}, assistant = assistant)
 
                         // Before signing in, with the count the proxy reported for this install.
                         Screen.SETTINGS -> SettingsScreen(

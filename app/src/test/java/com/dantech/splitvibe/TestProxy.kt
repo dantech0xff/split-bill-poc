@@ -25,7 +25,7 @@ import org.robolectric.Shadows.shadowOf
 class TestProxy(server: MockWebServer, context: Context, clock: () -> Long = System::currentTimeMillis) {
     val account = AccountStore(context, proxySetUp = true, cipher = PlainCipher, clock = clock)
     val api = ProxyApi(server.url("/").toString(), account, appVersion = APP_VERSION)
-    val analyzer = GatewayBillAnalyzer(api, account, canSignIn = true)
+    val analyzer = GatewayBillAnalyzer(api, account, canSignIn = true, sellsPro = false)
 
     /** The account's actions as the app wires them, with [cache] for groups and requests and no push. */
     fun accountRepository(google: GoogleAccounts?, cache: ProxyCache, proxy: ProxyApi = api) =

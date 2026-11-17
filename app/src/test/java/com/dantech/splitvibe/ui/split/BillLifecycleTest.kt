@@ -85,7 +85,7 @@ class BillLifecycleTest {
             SplitVibeTheme {
                 SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, scanIntent = { null }, onExit = {}, onOpenSettings = {})
+                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
             }
         }
 
@@ -301,7 +301,7 @@ class BillLifecycleTest {
             SplitVibeTheme {
                 SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, scanIntent = { null }, onExit = { exited = true }, onOpenSettings = {})
+                }, scanIntent = { null }, onExit = { exited = true }, onOpenSettings = {}, onOpenPro = {})
             }
         }
 

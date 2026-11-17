@@ -33,6 +33,7 @@ import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -188,7 +189,9 @@ class GatewayBillAnalyzerTest {
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(ndjson("""{"type":"wait"}""").setBodyDelay(2, TimeUnit.SECONDS))
 
-        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(listOf(ocr), INSTRUCTION, "VND") }
+        val failure = failureOf {
+            GatewayBillAnalyzer(api, proxy.account, canSignIn = true, sellsPro = false).analyze(listOf(ocr), INSTRUCTION, "VND")
+        }
 
         assertEquals(Kind.TIMEOUT, failure.kind)
     }
@@ -199,7 +202,9 @@ class GatewayBillAnalyzerTest {
         val api = ProxyApi(server.url("/").toString(), proxy.account, appVersion = 1, client = impatient)
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
 
-        val failure = failureOf { GatewayBillAnalyzer(api, proxy.account, canSignIn = true).analyze(listOf(ocr), INSTRUCTION, "VND") }
+        val failure = failureOf {
+            GatewayBillAnalyzer(api, proxy.account, canSignIn = true, sellsPro = false).analyze(listOf(ocr), INSTRUCTION, "VND")
+        }
 
         assertEquals(Kind.NETWORK, failure.kind)
     }
@@ -331,13 +336,55 @@ class GatewayBillAnalyzerTest {
 
     @Test
     fun `a build that cannot sign in does not tell the person to sign in`() = runBlocking {
-        val analyzer = GatewayBillAnalyzer(proxy.api, proxy.account, canSignIn = false)
+        val analyzer = GatewayBillAnalyzer(proxy.api, proxy.account, canSignIn = false, sellsPro = false)
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
 
         val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
         assertEquals("You have used your 3 free calls.", failure.message)
+    }
+
+    @Test
+    fun `in a build that sells Pro, calls used up invite to Pro, also with what signing in gives, but not a Pro member`() = runBlocking {
+        val analyzer = GatewayBillAnalyzer(proxy.api, proxy.account, canSignIn = true, sellsPro = true)
+        val cases = listOf(
+            // A proxy from before Pro says no plan: the trial is the install's.
+            TRIAL_USED_UP to "You have used your 3 free calls. Sign in with Google for 10 calls a month, or get Pro for 300.",
+            TRIAL_PART_LEFT.replace("}", ""","plan":"trial"}""") to
+                "Reading a bill takes a whole call, and 0.8 of your 3 free calls are left. Sign in with Google for 10 calls a month, " +
+                "or get Pro for 300.",
+            MONTH_USED_UP.replace("}", ""","plan":"free"}""") to
+                "You have used this month's 10 calls. They come back on 1 December. Get Pro for 300 calls a month.",
+            PRO_USED_UP to "You have used this month's 300 calls. They come back on 1 December.",
+            PRO_PART_LEFT to "Reading a bill takes a whole call, and 0.4 of this month's 300 calls are left. They come back on 1 December.",
+        )
+        for ((usage, said) in cases) {
+            server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$usage}"""))
+
+            val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
+
+            assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
+            assertEquals(said, failure.message)
+            assertEquals("Pro is offered to everyone not on it", !usage.contains("\"pro\""), failure.proHelps(sellsPro = true))
+            assertFalse("the invite leads to Pro, not Settings", failure.signInHelps(canSignIn = true, signedIn = false, sellsPro = true))
+        }
+    }
+
+    @Test
+    fun `a build that does not sell Pro keeps inviting only the install's trial to sign in`() = runBlocking {
+        val month = MONTH_USED_UP.replace("}", ""","plan":"free"}""")
+        server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
+        server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$month}"""))
+
+        val trial = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
+        val monthly = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
+
+        assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", trial.message)
+        assertTrue(trial.signInHelps(canSignIn = true, signedIn = false, sellsPro = false))
+        assertEquals("You have used this month's 10 calls. They come back on 1 December.", monthly.message)
+        assertFalse(trial.proHelps(sellsPro = false))
+        assertFalse(monthly.proHelps(sellsPro = false))
     }
 
     @Test
@@ -354,7 +401,7 @@ class GatewayBillAnalyzerTest {
     @Test
     fun `a build without the proxy's address sends nothing`() = runBlocking {
         val account = AccountStore(context, proxySetUp = false, cipher = PlainCipher)
-        val analyzer = GatewayBillAnalyzer(ProxyApi("", account, appVersion = 1), account, canSignIn = false)
+        val analyzer = GatewayBillAnalyzer(ProxyApi("", account, appVersion = 1), account, canSignIn = false, sellsPro = false)
 
         val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
@@ -395,6 +442,8 @@ class GatewayBillAnalyzerTest {
         const val ONE_USED = """{"limit":3,"used":1,"remaining":2,"period":"trial","resetsAt":null}"""
         const val TRIAL_PART_LEFT = """{"limit":3,"used":2.2,"remaining":0.8,"period":"trial","resetsAt":null}"""
         const val MONTH_PART_LEFT = """{"limit":10,"used":9.6,"remaining":0.4,"period":"2026-11","resetsAt":1796083200000}"""
+        const val PRO_USED_UP = """{"limit":300,"used":300,"remaining":0,"period":"2026-11","resetsAt":1796083200000,"plan":"pro"}"""
+        const val PRO_PART_LEFT = """{"limit":300,"used":299.6,"remaining":0.4,"period":"2026-11","resetsAt":1796083200000,"plan":"pro"}"""
         val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     }
 }

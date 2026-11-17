@@ -50,6 +50,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.ui.paywall.GET_PRO
 import kotlinx.coroutines.launch
 
 /**
@@ -73,6 +74,7 @@ fun NewSplitContent(
     onAnalyze: () -> Unit,
     onCancel: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPro: () -> Unit,
 ) {
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -123,8 +125,12 @@ fun NewSplitContent(
                 SvMessageCard(
                     text = error,
                     isError = true,
-                    action = if (state.errorOpensSettings) "Open settings" else null,
-                    onAction = onOpenSettings,
+                    action = when {
+                        state.errorOpensPro -> GET_PRO
+                        state.errorOpensSettings -> "Open settings"
+                        else -> null
+                    },
+                    onAction = if (state.errorOpensPro) onOpenPro else onOpenSettings,
                 )
             }
         }
