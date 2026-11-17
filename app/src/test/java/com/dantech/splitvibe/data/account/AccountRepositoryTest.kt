@@ -109,6 +109,26 @@ class AccountRepositoryTest {
     }
 
     @Test
+    fun `a deletion the proxy limits deletes nothing and keeps the sign-in, with when to try again`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
+        server.enqueue(json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400"))
+
+        try {
+            repository.deleteAccount(context)
+            fail("A limited deletion deletes nothing")
+        } catch (e: ProxyException) {
+            assertEquals("rate_limited", e.code)
+            assertEquals(2400L, e.retryAfterSeconds)
+        }
+
+        val account = proxy.account.account.value
+        assertEquals("signed-session", account.session?.token)
+        assertFalse(account.signInExpired)
+        assertEquals(PURCHASER, account.purchaser)
+        assertFalse(google.forgotten)
+    }
+
+    @Test
     fun `nothing changes when the person closes Google's picker`() = runBlocking {
         google.failure = GoogleSignInException(GoogleSignInException.Reason.CANCELLED)
 

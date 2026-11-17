@@ -206,7 +206,7 @@ class ProViewModelTest {
     fun `the plans show although the proxy could not check the plan, which says so plainly`() {
         val cases = mapOf(
             json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "1200") to
-                "Your plan was checked many times in the last hour. Try again later.",
+                "Your plan was checked many times in the last hour. Try again in about 20 minutes.",
             json(503, """{"error":"not_configured"}""") to "Split Vibe's server cannot check subscriptions yet.",
             json(502, """{"error":"subscription_unavailable"}""") to
                 "Split Vibe's server could not check your subscription just now. Try again in a moment.",

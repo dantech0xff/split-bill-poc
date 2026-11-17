@@ -27,6 +27,8 @@ class AccountMessagesTest {
             ProxyException(503, "sign_in_off", null, null) to "not available right now",
             ProxyException(401, "session", null, null) to "Sign in again",
             ProxyException(502, "http_502", null, null) to "server had a problem",
+            ProxyException(429, "rate_limited", 2400, null) to "so nothing was changed. Try again in about 40 minutes.",
+            ProxyException(429, "rate_limited", null, null) to "so nothing was changed. Try again later.",
             IOException("offline") to "Check the internet connection",
         )
 

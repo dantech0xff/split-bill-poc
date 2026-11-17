@@ -103,6 +103,21 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `a deletion the proxy limits keeps the account signed in, and says when to try again`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        answers["/v1/account"] = { json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400") }
+        val viewModel = viewModel()
+
+        viewModel.deleteAccount(context)
+        awaitOnMain { !viewModel.ui.value.working }
+
+        val said = "That was tried too many times just now, so nothing was changed. Try again in about 40 minutes."
+        assertEquals(said, viewModel.ui.value.message)
+        assertTrue(viewModel.ui.value.isError)
+        assertEquals("signed-session", proxy.account.account.value.session?.token)
+    }
+
+    @Test
     fun `opening Settings without a connection says nothing`() {
         server.shutdown()
         val viewModel = viewModel()

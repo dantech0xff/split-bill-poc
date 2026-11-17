@@ -16,6 +16,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.llm.waitHint
 import com.dantech.splitvibe.ui.settings.messageOf
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
@@ -243,7 +244,7 @@ internal fun proMessageOf(error: Exception): ProMessage? {
     val text = when (error) {
         is PurchasesTransactionException -> if (error.userCancelled) null else storeText(error.code)
         is PurchasesException -> storeText(error.code)
-        is ProxyException -> proxyText(error.code)
+        is ProxyException -> proxyText(error)
         is SignInNeededException -> "Sign in with Google to buy Pro."
         is IOException -> NO_CONNECTION
         else -> "Something went wrong: ${error.message ?: error.javaClass.simpleName}"
@@ -264,8 +265,8 @@ private fun storeText(code: PurchasesErrorCode): String? = when (code) {
 }
 
 /** What a refusal of the proxy's check of the plan means for the person. */
-private fun proxyText(code: String): String = when (code) {
-    "rate_limited" -> "Your plan was checked many times in the last hour. Try again later."
+private fun proxyText(refusal: ProxyException): String = when (refusal.code) {
+    "rate_limited" -> "Your plan was checked many times in the last hour. ${waitHint(refusal.retryAfterSeconds)}"
     "not_configured" -> "Split Vibe's server cannot check subscriptions yet."
     "subscription_unavailable" -> "Split Vibe's server could not check your subscription just now. Try again in a moment."
     ProxyApi.SESSION_REFUSED -> "Your sign-in has run out. Sign in again to buy or manage Pro."

@@ -177,16 +177,6 @@ class ProxyModelCall(
         else -> ""
     }
 
-    private fun waitHint(seconds: Long?): String {
-        if (seconds == null) return "Try again later."
-        val minutes = (seconds + 59) / 60
-        return when {
-            minutes <= 1 -> "Try again in a minute."
-            minutes < 120 -> "Try again in about $minutes minutes."
-            else -> "Try again in about ${(minutes + 59) / 60} hours."
-        }
-    }
-
     companion object {
         /** What to say about an answer that came but could not be used. */
         const val UNREADABLE_ANSWER = "The AI's answer could not be read. Please try again."
@@ -195,6 +185,20 @@ class ProxyModelCall(
         private const val REQUEST_ID = "requestId"
         private const val RETRY_LIMIT = "retry_limit"
         private const val INPUT = "input"
+    }
+}
+
+/**
+ * When to try again after the proxy limited a request, from its `Retry-After` in [seconds], such as
+ * "Try again in about 40 minutes."; without one, later.
+ */
+internal fun waitHint(seconds: Long?): String {
+    if (seconds == null) return "Try again later."
+    val minutes = (seconds + 59) / 60
+    return when {
+        minutes <= 1 -> "Try again in a minute."
+        minutes < 120 -> "Try again in about $minutes minutes."
+        else -> "Try again in about ${(minutes + 59) / 60} hours."
     }
 }
 

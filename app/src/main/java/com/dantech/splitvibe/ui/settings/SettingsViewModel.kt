@@ -7,6 +7,7 @@ import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.GoogleSignInException
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.llm.waitHint
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -68,7 +69,11 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
     }
 }
 
-/** What to tell the person when an account action did not work, or null when there is nothing to say. */
+/**
+ * What to tell the person when an account action did not work, or null when there is nothing to say.
+ * An action the proxy limited, such as deleting the account more often than it lets an account in an
+ * hour, changed nothing.
+ */
 internal fun messageOf(error: Exception): String? = when (error) {
     is GoogleSignInException -> when (error.reason) {
         GoogleSignInException.Reason.CANCELLED -> null
@@ -81,6 +86,7 @@ internal fun messageOf(error: Exception): String? = when (error) {
         "id_token" -> "Split Vibe's server did not accept this Google sign-in. Please try again."
         "sign_in_off" -> "Signing in is not available right now. Please try again later."
         ProxyApi.SESSION_REFUSED -> "Your sign-in has run out. Sign in again."
+        "rate_limited" -> "That was tried too many times just now, so nothing was changed. ${waitHint(error.retryAfterSeconds)}"
         else -> "Split Vibe's server had a problem. Try again in a moment."
     }
 
