@@ -31,9 +31,12 @@ const EVENT_TYPE = /^[A-Z_]{1,64}$/;
  * again, five times over about 80 minutes. So the answer is 200 with a small body once every account
  * the event is about was refreshed, for a `TEST` event, and for an event about no such account; it
  * is 503 when RevenueCat could not be read for one of them, so that the event comes again, which is
- * safe: what was kept meanwhile stays right.
+ * safe: what was kept meanwhile stays right. When the QuotaBook of an account it names cannot be
+ * asked, the request fails as any route's does, answered 500 `internal`, which RevenueCat sends
+ * again too.
  *
- * One log line per event says its type and what came of it, never an id, a body or a secret.
+ * One log line per event says its type and what came of it, never an id, a body or a secret; an
+ * event that fails as above is logged as any failed request is instead.
  */
 export async function subscriptionEventsRoute(request: Request, env: Env): Promise<Response> {
   const started = Date.now();
@@ -81,10 +84,11 @@ function sha256(text: string): Promise<ArrayBuffer> {
 }
 
 /**
- * The accounts [event] is about, at most [MAX_EVENT_ACCOUNTS]: the ids it names that have the form
- * of an account, each once, whose ids the proxy handed out as purchasers and has not forgotten. A
- * `TRANSFER` names its two sides in `transferred_from` and `transferred_to`, without `app_user_id`;
- * both lists come before `aliases`, so that a long list of aliases cannot crowd them out.
+ * The accounts [event] is about: of the first [MAX_EVENT_ACCOUNTS] ids it names that have the form
+ * of an account, each once, those the proxy handed out as purchasers and has not forgotten. The cap
+ * comes first, so ids of that form the proxy never handed out count towards it. A `TRANSFER` names
+ * its two sides in `transferred_from` and `transferred_to`, without `app_user_id`; both lists come
+ * before `aliases`, so that a long list of aliases cannot crowd them out.
  */
 async function accountsOf(env: Env, event: Record<string, unknown>): Promise<string[]> {
   const named = [

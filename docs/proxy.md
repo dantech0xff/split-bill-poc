@@ -37,7 +37,7 @@ flowchart LR
 | `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage, purchaser}`: a session the proxy signs, for 30 days, and the id the app gives RevenueCat |
 | `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on; with `purchaser` too for a signed-in caller |
 | `POST /v1/plan` | the Pro screen, and the app once a purchase or a restore is done | `{purchaser, usage, aiEnabled}` once the proxy has read the account's plan from RevenueCat, [below](#pro-subscriptions) |
-| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its counters, and its part in the shared data, are gone |
+| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its call and spend counters, and its part in the shared data, are gone |
 | `POST /v1/subscription-events` | RevenueCat's webhook | `{"ok":true}` once the plans the event is about are read again, [below](#pro-subscriptions) |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
@@ -113,8 +113,11 @@ says is never taken as the plan. What the owner sets up in Play Console and Reve
 - **The purchaser.** RevenueCat's app user ID for an account is the account id itself: the 64
   lower-case hex digits of the salted hash a session carries. `POST /v1/session`, `GET /v1/usage`
   for a signed-in caller and `POST /v1/plan` hand it to the app as `purchaser`, and the account's
-  `QuotaBook` records the first time it went out. An install that is not signed in gets none, and
-  sends nothing to RevenueCat.
+  `QuotaBook` records the first time it went out. The id never goes out without that record: when
+  the `QuotaBook` cannot make it, as for a few minutes after the first deploy of Pro
+  ([Deploy it](#deploy-it)), sign-in and `GET /v1/usage` answer without `purchaser`, and the app
+  gets it on a later call. An install that is not signed in gets none, and sends nothing to
+  RevenueCat.
 - **Reading RevenueCat.** The proxy reads an account's plan with
   `GET https://api.revenuecat.com/v1/subscribers/{purchaser}` and the secret key, waiting at most
   10 seconds and reading at most 256 KB of the answer. That read creates the customer when
@@ -126,11 +129,12 @@ says is never taken as the plan. What the owner sets up in Play Console and Reve
     end of the grace period Play gives after a failed payment, is after that time, `proUntil` is
     that later time; an entitlement whose `expires_date` is null, as one granted for life from
     RevenueCat's dashboard, never ends;
-  - once that time has passed, while the subscription still renews by itself, with
-    `unsubscribe_detected_at`, `billing_issues_detected_at` and `refunded_at` all null, `proUntil`
-    is the `expires_date`: Play may renew a subscription hours after its period ended (the renewal
-    gap);
-  - otherwise there is no Pro.
+  - once that time has passed, while the subscription is Google Play's (its `store` is
+    `play_store`) and still renews by itself, with `unsubscribe_detected_at`,
+    `billing_issues_detected_at` and `refunded_at` all null, `proUntil` is the `expires_date`: Play
+    may renew a subscription hours after its period ended (the renewal gap);
+  - otherwise there is no Pro. So a grant from RevenueCat's dashboard (store `promotional`), which
+    never renews, is read as no Pro once its time is up.
 
   An account is on Pro until `proUntil` plus 24 hours (`proGraceMs`), which covers a late renewal
   and a late event. A subscription read as cancelled, refunded or failing to bill once its period
@@ -151,23 +155,27 @@ says is never taken as the plan. What the owner sets up in Play Console and Reve
   the two in constant time, and otherwise answers 401 `webhook_auth`, reading, asking and writing
   nothing; without the secret it answers 503 `not_configured`. HMAC signing is not used. The body,
   `{api_version, event}`, may be 64 KB at most: a longer one is 413 `too_large`, and one without an
-  `event` object 400 `input`. An event is only a sign that something changed: of
-  the ids it names (`app_user_id`, `original_app_user_id`, then `transferred_from` and
-  `transferred_to`, which a `TRANSFER` carries instead of `app_user_id`, then `aliases`), the proxy
-  keeps those of the form of an account, each once and at most 20, that it handed out and has not
-  forgotten, and reads and keeps the plan of each as `POST /v1/plan` does.
+  `event` object 400 `input`. An event is only a sign that something changed: of the ids it names
+  (`app_user_id`, `original_app_user_id`, then `transferred_from` and `transferred_to`, which a
+  `TRANSFER` carries instead of `app_user_id`, then `aliases`), the proxy takes the first 20 of the
+  form of an account, each once, keeps those it handed out and has not forgotten, and reads and
+  keeps the plan of each as `POST /v1/plan` does. The cap of 20 comes before that check, so ids of
+  the right form that the proxy never handed out count towards it.
 - **The webhook's answers.** RevenueCat counts any answer but 200 as a failure, 204 too, and sends
   a failed event again five times over about 80 minutes. So the webhook answers 200 `{"ok":true}`
   once every account the event is about was read, and also for a `TEST` event and an event about
   no account it knows, which it does not read. It answers 503 `subscription_unavailable` when
   RevenueCat could not be read for one of them, so that the event comes again; the plans it kept
   meanwhile stay, since keeping the same plan again changes nothing. An event about an account while
-  `REVENUECAT_SECRET_KEY` is missing is 503 `not_configured`.
+  `REVENUECAT_SECRET_KEY` is missing is 503 `not_configured`. When the `QuotaBook` of an account
+  the event names cannot be asked, the request fails as any route's does: 500 `internal`, which
+  RevenueCat also sends again.
 - **Deleting an account** deletes its customer at RevenueCat before anything else, as
   [Deleting an account](#deleting-an-account) says. It does not cancel the subscription on Google
   Play: the app warns the person to cancel it there first.
 
-Without the two secrets nobody is on Pro, and everything else works as before.
+Without the two secrets nobody is on Pro, and everything else works as before. What the first
+minutes after the first deploy of Pro change is in [Deploy it](#deploy-it).
 
 ### Editing a split by a sentence
 
@@ -359,10 +367,12 @@ The Worker prints one log line per bill read (`bill_analysis`) and per edit (`sp
 outcome, whether the caller is an install or an account, the model, the tokens, the cost and the
 time taken. For notifications it prints their type and how many devices got them, never an id, a
 token or any text. For RevenueCat's webhook it prints one line per event (`subscription_event`):
-the event's type, how many accounts it was about and what came of it. When RevenueCat cannot be
-read, or does not take a deletion, it prints the status or the error's name
+the event's type, how many accounts it was about and what came of it; an event that fails because
+a `QuotaBook` cannot be asked prints `request_failed` instead, as any request that fails does. When
+RevenueCat cannot be read, or does not take a deletion, it prints the status or the error's name
 (`revenuecat_unavailable`, `revenuecat_unreadable`, `revenuecat_delete_failed`), never an id, a
-body or a key. When Turnstile cannot judge
+body or a key. When an account's `QuotaBook` cannot record its purchaser, it prints
+`purchaser_not_recorded` and nothing more. When Turnstile cannot judge
 a claim, it prints Cloudflare's error codes; when a token was solved for another action or host, the
 action and the hostname Cloudflare gave; and when a test secret is refused, that it was. It never
 prints a token. Cloudflare's invocation
@@ -642,7 +652,8 @@ The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongsi
   free plan's 50 subrequests, and the rest go the next day. The run fetches FCM's access token
   once: without push set up, or without a token, nothing is sent and nothing is recorded.
 - Invites and deleted requests are forgotten 30 days after they stopped working, and the hourly
-  counters, those of the web pages' addresses among them, once their hour is over.
+  counters, those of the web pages' addresses and those a deleted account left among them, once
+  their hour is over.
 - Bill links that expired or were revoked are deleted, with their claims. This calls no Durable
   Object, so it takes none of the run's subrequests.
 
@@ -660,7 +671,9 @@ browser. None of these needs a session or an install id.
 
 ### Deleting an account
 
-`DELETE /v1/account` first has RevenueCat delete the account's customer, with its purchase
+Each account may ask for its deletion 5 times an hour (`accountDeletionsPerHour`), counted before
+RevenueCat is asked; past that, `DELETE /v1/account` is 429 `rate_limited` with `Retry-After`, and
+nothing is deleted. It first has RevenueCat delete the account's customer, with its purchase
 history, when `REVENUECAT_SECRET_KEY` is set. RevenueCat answering 200, or 404 for a customer it
 does not have, counts as done; any other answer, or none within 10 seconds, is 502
 `subscription_unavailable`, and nothing else is deleted, so that the app can try again. RevenueCat
@@ -669,16 +682,17 @@ Google Play, which renews until the person cancels it in Play; the app warns the
 deletes the account. Next the proxy takes the account out of the shared data, in one batch,
 without changing anyone's balance: amounts and settlements stay as they are. Last it deletes the
 account's `QuotaBook`, with its plan and the record of its purchaser, and its spend counter, so a
-later webhook event about the account asks RevenueCat nothing. Only an event that arrives in the
-moment between RevenueCat's deletion and the proxy's still has the customer read, which creates it
-again, without purchases.
+later webhook event about the account asks RevenueCat nothing.
 
 - Its members become placeholders named "Former member", keeping their ids; each group logs
   `member_left`. A group where nobody else has an account is deleted, as when its last account
   leaves.
 - A group it owns passes to the member with an account who joined first, and its bills pass to
   the group's owner.
-- Its claims, devices and hourly counters are deleted.
+- Its claims and devices are deleted, and its hourly counters but two: those of `POST /v1/plan`
+  and of deleting the account. Those two outlive the deletion until the daily run forgets them
+  once their hour is over, and hold nothing of the account but its salted hash, so that deleting
+  the account again and again starts neither over, and cannot have RevenueCat asked without end.
 - Its bill links are deleted, with their claims. Pages that have one open hear nothing more, and
   learn it at their next request.
 - On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and on
@@ -696,6 +710,12 @@ calls, make groups, requests and devices again, which a later sign-in would then
 its plan read, which hands its purchaser out again and has RevenueCat create the customer anew. The
 app forgets its session when the account is deleted, so only a copy kept elsewhere, such as on a
 second phone signed in to the same account, could still be used.
+
+While an account is being deleted, two things can still read its customer at RevenueCat between
+RevenueCat's deletion and the proxy's own, and so create the customer again, empty, under the
+account's id: a `POST /v1/plan` from a second phone signed in to the same account, since the
+record of its purchaser is still there; and a webhook event whose check of that record ran before
+the `QuotaBook` was deleted.
 
 ## Bill links and the web pages
 
@@ -1146,6 +1166,11 @@ These steps need the owner's accounts.
    npx wrangler secret put REVENUECAT_WEBHOOK_AUTH
    ```
 
+   Nothing checks the key when it is set. With a wrong or revoked one, RevenueCat answers 401:
+   `POST /v1/plan` is then 502 `subscription_unavailable`, the webhook 503 for every event about
+   an account, and deleting an account 502. The Worker's logs show `revenuecat_unavailable` and
+   `revenuecat_delete_failed` with `"status":401`; watch for those lines to notice a wrong key.
+
    Once the Worker is deployed, give RevenueCat the webhook URL
    `https://<your worker>/v1/subscription-events`, with that value as its Authorization header,
    as it is or after `Bearer `, for production and sandbox both, so that license testers' purchases
@@ -1202,6 +1227,17 @@ These steps need the owner's accounts.
    again, as for the first deploy. Each `QuotaBook` then counts, at its first request, the calls the
    older code charged, so that nobody gains a call by the rollback; an edit held across the switch
    may cost a whole call.
+
+   **The first deploy of Pro**, which adds `purchaser`, `POST /v1/plan` and the webhook: after it,
+   a `QuotaBook` may keep the code from before Pro for up to about five minutes, and that code can
+   neither record a purchaser nor keep a plan. Meanwhile `POST /v1/session` and `GET /v1/usage`
+   answer without `purchaser`, and every `usage` such an object gives lacks `plan`, which the app
+   reads as it reads an older proxy; it gets the purchaser on a later call. `POST /v1/plan` and
+   the webhook may answer 500 `internal` in that window: RevenueCat sends a failed event again,
+   and the app takes a failed refresh as non-fatal. So deploy this version as one plain deploy, not
+   as a gradual deployment, which keeps each object on the version it was given for as long as the
+   rollout lasts. `--durable-objects-code-update-mode immediate`, as above, moves every object to
+   the new code at once.
 
 7. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
