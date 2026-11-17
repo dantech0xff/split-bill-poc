@@ -241,6 +241,9 @@ class ProxyApi(
         /** The proxy's code for a session it does not accept, because it has run out or is not its own. */
         const val SESSION_REFUSED = "session"
 
+        /** The proxy's code for a check of the plan it cannot make, as it has no key for RevenueCat yet. */
+        const val NOT_CONFIGURED = "not_configured"
+
         private val JSON = "application/json".toMediaType()
         private val BODY_METHODS = setOf("POST", "PUT", "PATCH")
 

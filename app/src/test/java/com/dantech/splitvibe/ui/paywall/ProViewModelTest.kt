@@ -121,7 +121,7 @@ class ProViewModelTest {
 
         assertEquals(before, viewModel.state.value)
         assertNull(viewModel.state.value.message)
-        assertEquals("the proxy is not asked", asked, server.requestCount)
+        assertEquals("the proxy is asked only whether Pro is on sale", asked + 1, server.requestCount)
     }
 
     @Test
@@ -136,7 +136,7 @@ class ProViewModelTest {
         val pending = ProMessage("The payment is pending. Pro starts once Google Play confirms it.", isError = false)
         assertEquals(pending, viewModel.state.value.message)
         assertFalse(viewModel.state.value.member)
-        assertEquals(asked, server.requestCount)
+        assertEquals("the proxy is asked only whether Pro is on sale", asked + 1, server.requestCount)
     }
 
     @Test
@@ -203,11 +203,10 @@ class ProViewModelTest {
     }
 
     @Test
-    fun `the plans show although the proxy could not check the plan, which says so plainly`() {
+    fun `the plans show although the proxy could not check the plan just then, which says so plainly`() {
         val cases = mapOf(
             json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "1200") to
                 "Your plan was checked many times in the last hour. Try again in about 20 minutes.",
-            json(503, """{"error":"not_configured"}""") to "Split Vibe's server cannot check subscriptions yet.",
             json(502, """{"error":"subscription_unavailable"}""") to
                 "Split Vibe's server could not check your subscription just now. Try again in a moment.",
             // Just after a deploy, a part of the proxy that still runs the code before can fail the check.
@@ -223,7 +222,45 @@ class ProViewModelTest {
 
             assertEquals(said, viewModel.state.value.message?.text)
             assertEquals("the last known calls stay", KNOWN, viewModel.state.value.callsLeft)
+            assertTrue("Pro stays on sale", viewModel.state.value.onSale)
         }
+    }
+
+    @Test
+    fun `while Split Vibe's server cannot check subscriptions, no purchase and no switch can be made, and a restore can`() {
+        answers["/v1/plan"] = { json(503, """{"error":"not_configured"}""") }
+        billing.membership = FakeBilling.active(basePlanId = "monthly")
+        proxy.account.saveSession(SESSION, purchaser = PURCHASER)
+
+        val viewModel = viewModel()
+        awaitOnMain { viewModel.state.value.let { !it.loading && it.plans.isNotEmpty() } }
+
+        val state = viewModel.state.value
+        assertFalse(state.onSale)
+        assertEquals(ProMessage("Split Vibe's server cannot check subscriptions yet.", isError = true), state.message)
+        viewModel.buy(activity)
+        viewModel.switchTo(activity, FakeBilling.YEARLY)
+        assertNull("nothing started", viewModel.state.value.working)
+        assertTrue(billing.purchases.isEmpty())
+
+        viewModel.restore()
+        awaitOnMain { viewModel.state.value.working == null }
+        assertEquals(1, billing.restores)
+        assertTrue(billing.purchases.isEmpty())
+    }
+
+    @Test
+    fun `a screen opened while Pro was on sale cannot buy once the server says it cannot check subscriptions`() {
+        val viewModel = signedInViewModel()
+        assertTrue(viewModel.state.value.onSale)
+        answers["/v1/plan"] = { json(503, """{"error":"not_configured"}""") }
+
+        viewModel.buy(activity)
+        awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
+
+        assertTrue(billing.purchases.isEmpty())
+        assertFalse("the screen shows that Pro cannot be bought now", viewModel.state.value.onSale)
+        assertEquals(ProMessage("Split Vibe's server cannot check subscriptions yet.", isError = true), viewModel.state.value.message)
     }
 
     @Test

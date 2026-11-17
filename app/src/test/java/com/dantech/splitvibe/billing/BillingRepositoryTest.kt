@@ -125,16 +125,20 @@ class BillingRepositoryTest {
     @Test
     fun `a purchase has the proxy ask RevenueCat at once, and the account's Pro calls are kept`() = runBlocking {
         signIn()
-        server.enqueue(json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}"""))
+        // First whether Pro is on sale, then what the purchase changed.
+        server.enqueue(planAnswer(FREE_MONTH))
+        server.enqueue(planAnswer(PRO_MONTH))
 
         val change = repository.buy(activity, FakeBilling.MONTHLY)
 
         assertEquals(listOf(FakeBilling.MONTHLY to null), billing.purchases)
-        val request = server.takeRequest()
-        assertEquals("POST", request.method)
-        assertEquals("/v1/plan", request.requestUrl?.encodedPath)
-        assertEquals("{}", request.body.readUtf8())
-        assertEquals("Bearer signed-session", request.getHeader("Authorization"))
+        repeat(2) {
+            val request = server.takeRequest()
+            assertEquals("POST", request.method)
+            assertEquals("/v1/plan", request.requestUrl?.encodedPath)
+            assertEquals("{}", request.body.readUtf8())
+            assertEquals("Bearer signed-session", request.getHeader("Authorization"))
+        }
         assertEquals(Plan.PRO, change.plan)
         assertTrue(change.membership?.active == true)
         val calls = proxy.account.account.value.callsLeft
@@ -145,7 +149,7 @@ class BillingRepositoryTest {
     @Test
     fun `a purchase that went through stays bought when the proxy cannot be asked just then`() = runBlocking {
         signIn()
-        server.enqueue(json(502, """{"error":"subscription_unavailable"}"""))
+        repeat(2) { server.enqueue(json(502, """{"error":"subscription_unavailable"}""")) }
 
         val change = repository.buy(activity, FakeBilling.YEARLY)
 
@@ -157,7 +161,7 @@ class BillingRepositoryTest {
     @Test
     fun `a switch of plans names the subscription without its base plan, and never prorates, in both directions`() = runBlocking {
         signIn()
-        repeat(2) { server.enqueue(json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}""")) }
+        repeat(4) { server.enqueue(planAnswer(PRO_MONTH)) }
 
         repository.switchTo(activity, FakeBilling.YEARLY, from = FakeBilling.active(productId = "pro", basePlanId = "monthly"))
         // RevenueCat may name the product with its base plan; only the subscription goes.
@@ -165,7 +169,7 @@ class BillingRepositoryTest {
 
         val change = PlanChange(oldProductId = "pro", replacementMode = StoreReplacementMode.WITHOUT_PRORATION)
         assertEquals(listOf(FakeBilling.YEARLY to change, FakeBilling.MONTHLY to change), billing.purchases)
-        assertEquals("each switch has the proxy ask again", 2, server.requestCount)
+        assertEquals("the proxy is asked before and after each switch", 4, server.requestCount)
     }
 
     @Test
@@ -239,16 +243,100 @@ class BillingRepositoryTest {
     }
 
     @Test
+    fun `while the proxy cannot check subscriptions nothing is bought or switched, until it checks again`() = runBlocking {
+        signIn()
+        // The screen opened while the proxy could still check them.
+        server.enqueue(planAnswer(FREE_MONTH))
+        repository.refreshPlan()
+        assertTrue(repository.onSale.value)
+
+        repeat(2) { server.enqueue(notConfigured()) }
+        for (attempt in listOf<suspend () -> Unit>(
+            { repository.buy(activity, FakeBilling.MONTHLY) },
+            { repository.switchTo(activity, FakeBilling.YEARLY, from = FakeBilling.active()) },
+        )) {
+            try {
+                attempt()
+                fail("Nothing is sold that the proxy would not count")
+            } catch (e: NotOnSaleException) {
+                // The screen says that Pro cannot be bought right now.
+            }
+        }
+        assertFalse(repository.onSale.value)
+        assertTrue(billing.purchases.isEmpty())
+
+        server.enqueue(notConfigured())
+        billing.membership = FakeBilling.active()
+        val restored = repository.restore()
+        assertEquals("a restore stays possible", 1, billing.restores)
+        assertNull(restored.plan)
+
+        server.enqueue(planAnswer(FREE_MONTH))
+        server.enqueue(planAnswer(PRO_MONTH))
+        assertEquals(Plan.PRO, repository.buy(activity, FakeBilling.MONTHLY).plan)
+        assertTrue(repository.onSale.value)
+    }
+
+    @Test
+    fun `a check before a purchase refused for a limit or a server problem does not stop the purchase`() = runBlocking {
+        signIn()
+        val refusals = listOf(
+            json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "1200"),
+            json(502, """{"error":"subscription_unavailable"}"""),
+            json(500, """{"error":"internal"}"""),
+        )
+        for (refusal in refusals) {
+            server.enqueue(refusal)
+            server.enqueue(planAnswer(PRO_MONTH))
+
+            repository.buy(activity, FakeBilling.MONTHLY)
+        }
+
+        assertEquals(3, billing.purchases.size)
+        assertTrue(repository.onSale.value)
+    }
+
+    @Test
+    fun `without the proxy just then, its last answer decides whether Pro is on sale`() = runBlocking {
+        signIn()
+        // Pro was not on sale when the proxy was last asked.
+        server.enqueue(notConfigured())
+        try {
+            repository.refreshPlan()
+            fail("The proxy cannot check subscriptions")
+        } catch (e: ProxyException) {
+            assertEquals("not_configured", e.code)
+        }
+        server.shutdown()
+
+        try {
+            repository.buy(activity, FakeBilling.MONTHLY)
+            fail("Nothing is sold that the proxy would not count")
+        } catch (e: NotOnSaleException) {
+            // As the proxy said last.
+        }
+        assertTrue(billing.purchases.isEmpty())
+
+        // When it said nothing of the kind, the purchase goes ahead, and the proxy counts it at its next check.
+        val change = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true).buy(activity, FakeBilling.MONTHLY)
+        assertEquals(1, billing.purchases.size)
+        assertNull(change.plan)
+    }
+
+    @Test
     fun `a sign-out while Google Play's purchase or a restore is open waits until it is done`() {
         scope.launch { repository.follow() }
         val steps = listOf<suspend () -> Unit>({ repository.buy(activity, FakeBilling.MONTHLY) }, { repository.restore() })
         for (step in steps) {
             signIn()
             idle()
+            // The check of the plan before a purchase; a restore asks nothing first.
+            server.enqueue(planAnswer(FREE_MONTH))
             val open = CompletableDeferred<Unit>()
             billing.gate = open
+            val opened = billing.purchases.size + billing.restores
             val done = scope.launch { step() }
-            idle()
+            awaitOnMain { billing.purchases.size + billing.restores > opened }
 
             proxy.account.clearSession()
             idle()
@@ -377,9 +465,9 @@ class BillingRepositoryTest {
 
     private fun signIn() = proxy.account.saveSession(SESSION, signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
 
-    /** Buys the monthly plan, whatever Google Play or RevenueCat make of it; a purchase that goes through has the proxy asked. */
+    /** Buys the monthly plan, whatever comes of it; the proxy is asked before, and after a purchase that goes through. */
     private fun buyAllowingFailure() = runBlocking {
-        server.enqueue(json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}"""))
+        repeat(2) { server.enqueue(planAnswer(PRO_MONTH)) }
         try {
             repository.buy(activity, FakeBilling.MONTHLY)
         } catch (e: PurchasesException) {
@@ -391,6 +479,12 @@ class BillingRepositoryTest {
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)
+
+    /** The proxy's answer to `POST /v1/plan` with [usage], for the account signed in with [PURCHASER]. */
+    private fun planAnswer(usage: String): MockResponse = json(200, """{"purchaser":"$PURCHASER","usage":$usage,"aiEnabled":true}""")
+
+    /** The proxy's refusal to check a plan while it has no key for RevenueCat. */
+    private fun notConfigured(): MockResponse = json(503, """{"error":"not_configured"}""")
 
     private companion object {
         val SESSION = Session("signed-session", expiresAt = 4_102_444_800_000L)

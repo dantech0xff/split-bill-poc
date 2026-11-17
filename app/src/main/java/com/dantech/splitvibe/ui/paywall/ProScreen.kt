@@ -179,6 +179,9 @@ private fun Offer(state: ProUiState, actions: ProActions) {
 
         loadError != null -> SvMessageCard(text = loadError, isError = true, action = "Try again", onAction = actions.onRetry)
 
+        // Neither a plan to buy nor a switch, while Split Vibe's server could not count them.
+        !state.onSale -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
+
         state.member -> if (switchTarget != null) SwitchCard(switchTarget, enabled = state.working == null, onSwitch = actions.onSwitch)
 
         state.plans.isEmpty() -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
@@ -272,7 +275,7 @@ private fun BottomPart(state: ProUiState, actions: ProActions) {
         state.working != null -> MainAction.WORKING
         !state.sold || state.member -> MainAction.NONE
         !state.signedIn -> MainAction.SIGN_IN
-        chosen != null && !state.loading && state.loadError == null -> MainAction.BUY
+        chosen != null && state.onSale && !state.loading && state.loadError == null -> MainAction.BUY
         else -> MainAction.NONE
     }
     val message = state.message

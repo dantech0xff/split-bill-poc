@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.billing.BillingRepository
+import com.dantech.splitvibe.billing.NotOnSaleException
 import com.dantech.splitvibe.billing.ProChange
 import com.dantech.splitvibe.billing.ProMembership
 import com.dantech.splitvibe.billing.ProPeriod
@@ -58,6 +59,11 @@ data class ProUiState(
     val membership: ProMembership? = null,
     val working: ProWork? = null,
     val message: ProMessage? = null,
+    /**
+     * Pro can be bought, and a plan switched, now: not while Split Vibe's server says it cannot
+     * check subscriptions yet, as it would count none of them.
+     */
+    val onSale: Boolean = true,
 ) {
     /** The person has Pro: as RevenueCat reports it, or before it has said, as the proxy counts the calls. */
     val member: Boolean get() = membership?.active ?: (callsLeft?.plan == Plan.PRO)
@@ -88,8 +94,8 @@ class ProViewModel(
 
     private val local = MutableStateFlow(Local())
 
-    val state: StateFlow<ProUiState> = combine(local, account, ::uiOf)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, uiOf(local.value, account.value))
+    val state: StateFlow<ProUiState> = combine(local, account, billing.onSale, ::uiOf)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, uiOf(local.value, account.value, billing.onSale.value))
 
     private var loading: Job? = null
 
@@ -151,7 +157,7 @@ class ProViewModel(
 
     /** Buys the plan picked, over [activity], which Google Play's purchase is shown over. */
     fun buy(activity: Activity) {
-        val plan = state.value.chosen ?: return
+        val plan = state.value.takeIf { it.onSale }?.chosen ?: return
         act(ProWork.BUYING) {
             val change = billing.buy(activity, plan)
             local.update { it.copy(membership = change.membership) }
@@ -161,7 +167,7 @@ class ProViewModel(
 
     /** Switches the person's Pro to [plan], over [activity]. */
     fun switchTo(activity: Activity, plan: ProPlan) {
-        val from = state.value.membership?.takeIf { it.active } ?: return
+        val from = state.value.takeIf { it.onSale }?.membership?.takeIf { it.active } ?: return
         act(ProWork.SWITCHING) {
             val change = billing.switchTo(activity, plan, from)
             local.update { it.copy(membership = change.membership) }
@@ -194,7 +200,7 @@ class ProViewModel(
         }
     }
 
-    private fun uiOf(local: Local, account: Account) = ProUiState(
+    private fun uiOf(local: Local, account: Account, onSale: Boolean) = ProUiState(
         sold = billing.sellsPro,
         signedIn = account.session != null,
         signInExpired = account.signInExpired,
@@ -207,6 +213,7 @@ class ProViewModel(
         membership = local.membership.takeIf { account.session != null },
         working = local.working,
         message = local.message,
+        onSale = onSale,
     )
 
     /** What the screen keeps between the person's steps. */
@@ -245,6 +252,7 @@ internal fun proMessageOf(error: Exception): ProMessage? {
         is PurchasesTransactionException -> if (error.userCancelled) null else storeText(error.code)
         is PurchasesException -> storeText(error.code)
         is ProxyException -> proxyText(error)
+        is NotOnSaleException -> CANNOT_CHECK
         is SignInNeededException -> "Sign in with Google to buy Pro."
         is IOException -> NO_CONNECTION
         else -> "Something went wrong: ${error.message ?: error.javaClass.simpleName}"
@@ -267,7 +275,7 @@ private fun storeText(code: PurchasesErrorCode): String? = when (code) {
 /** What a refusal of the proxy's check of the plan means for the person. */
 private fun proxyText(refusal: ProxyException): String = when (refusal.code) {
     "rate_limited" -> "Your plan was checked many times in the last hour. ${waitHint(refusal.retryAfterSeconds)}"
-    "not_configured" -> "Split Vibe's server cannot check subscriptions yet."
+    ProxyApi.NOT_CONFIGURED -> CANNOT_CHECK
     "subscription_unavailable" -> "Split Vibe's server could not check your subscription just now. Try again in a moment."
     ProxyApi.SESSION_REFUSED -> "Your sign-in has run out. Sign in again to buy or manage Pro."
     else -> "Split Vibe's server had a problem. Try again in a moment."
@@ -275,6 +283,9 @@ private fun proxyText(refusal: ProxyException): String = when (refusal.code) {
 
 private const val NO_CONNECTION = "There is no connection. Check it and try again."
 private const val STORE_PROBLEM = "Google Play has a problem right now. Try again later."
+
+/** Why Pro is not on sale: Split Vibe's server would count none of what is bought, as it has no key for RevenueCat yet. */
+private const val CANNOT_CHECK = "Split Vibe's server cannot check subscriptions yet."
 
 /** A subscription bought by another Split Vibe account stays with it, and RevenueCat refuses it to this one. */
 private const val ANOTHER_ACCOUNT =

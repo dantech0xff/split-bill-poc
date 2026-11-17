@@ -111,6 +111,23 @@ class ProScreenTest {
     }
 
     @Test
+    fun `while Pro is not on sale there is no plan to buy and no switch, but restoring and managing stay`() {
+        show(SIGNED_IN.copy(onSale = false))
+
+        compose.onNodeWithText("Pro cannot be bought right now", substring = true).assertExists()
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)).assertCountEquals(0)
+        compose.onNodeWithText("Subscribe", substring = true).assertDoesNotExist()
+        compose.onNode(hasText("Manage subscriptions in Google Play") and hasClickAction()).assertExists()
+        compose.onNode(hasText("Restore purchases") and hasClickAction()).performScrollTo().performClick()
+
+        state = MEMBER.copy(membership = FakeBilling.active(), onSale = false)
+        compose.onNode(hasText("You have Pro") and isHeading()).assertExists()
+        compose.onNodeWithText("Pro cannot be bought right now", substring = true).assertExists()
+        compose.onNodeWithText("Switch to", substring = true).assertDoesNotExist()
+        assertEquals(listOf("restore"), done)
+    }
+
+    @Test
     fun `while the plans load it says so, and when they cannot it offers to try again`() {
         show(SIGNED_IN.copy(plans = emptyList(), loading = true))
         compose.onNodeWithText("Loading the plans…").assertExists()

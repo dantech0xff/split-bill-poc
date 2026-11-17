@@ -13,6 +13,9 @@ import com.revenuecat.purchases.PurchasesTransactionException
 import com.revenuecat.purchases.models.StoreReplacementMode
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -21,6 +24,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** Buying, switching or restoring Pro needs a Google sign-in, and the purchaser the proxy gave for it. */
 class SignInNeededException : Exception("Pro is bought only while signed in")
+
+/**
+ * Pro is neither bought nor switched while Split Vibe's server says it cannot check subscriptions
+ * yet, as it would count none of them, and would not hear of them from RevenueCat either.
+ */
+class NotOnSaleException : Exception("Pro is not sold while the proxy cannot check subscriptions")
 
 /**
  * What a purchase, a switch of plans or a restore left: Pro as RevenueCat reports it, and the plan
@@ -45,6 +54,15 @@ class BillingRepository(
 ) {
     /** Whether this build sells Pro: it has RevenueCat's key and can sign in, as only a signed-in account buys. */
     val sellsPro: Boolean = billing != null && canSignIn
+
+    private val onSaleNow = MutableStateFlow(true)
+
+    /**
+     * Whether Pro can be bought, and a plan switched, as the proxy's last answer to `POST /v1/plan`
+     * says: not once it answered that it cannot check subscriptions yet (503 `not_configured`),
+     * until it next answers a check. Restoring stays possible either way.
+     */
+    val onSale: StateFlow<Boolean> = onSaleNow.asStateFlow()
 
     /**
      * One change of the store's user at a time, so that it always ends as the latest account. A
@@ -95,9 +113,13 @@ class BillingRepository(
         val usage = try {
             api.refreshPlan()
         } catch (e: ProxyException) {
-            if (e.code == ProxyApi.SESSION_REFUSED) store.expireSession()
+            when (e.code) {
+                ProxyApi.SESSION_REFUSED -> store.expireSession()
+                ProxyApi.NOT_CONFIGURED -> onSaleNow.value = false
+            }
             throw e
         }
+        onSaleNow.value = true
         // An answer that arrives after signing out, or after someone else signed in, is nobody's now.
         if (store.account.value.session == session) {
             store.onCallsLeft(usage.callsLeft)
@@ -113,13 +135,17 @@ class BillingRepository(
      */
     suspend fun offer(): ProOffer = asPurchaser { billing, _ -> ProOffer(plans = billing.plans(), membership = billing.membership()) }
 
-    /** Buys [plan] over [activity]. Throws [PurchasesTransactionException] when Google Play or RevenueCat did not complete it. */
+    /**
+     * Buys [plan] over [activity]. Throws [SignInNeededException] without a purchaser, [NotOnSaleException]
+     * while the proxy cannot check subscriptions, and [PurchasesTransactionException] when Google Play
+     * or RevenueCat did not complete it.
+     */
     suspend fun buy(activity: Activity, plan: ProPlan): ProChange = completed(purchase(activity, plan, change = null))
 
     /**
      * Switches the Pro the person has, [from], to [plan] at once. Between the two base plans of one
      * subscription Google Play takes only a switch without proration: the new plan starts now, and
-     * its price is charged from the next renewal, in both directions.
+     * its price is charged from the next renewal, in both directions. Throws as [buy] does.
      */
     suspend fun switchTo(activity: Activity, plan: ProPlan, from: ProMembership): ProChange {
         val change = PlanChange(oldProductId = from.subscriptionId, replacementMode = StoreReplacementMode.WITHOUT_PRORATION)
@@ -134,13 +160,15 @@ class BillingRepository(
     suspend fun restore(): ProChange = completed(asPurchaser { billing, _ -> billing.restore() })
 
     /**
-     * Google Play's purchase of [plan], or with [change] a switch, noting when it may have left the
-     * purchase unsent: RevenueCat's server failed and its SDK worked Pro out on the phone, Google
-     * Play still waits for the payment, a failure came after Google Play may have taken it, or the
-     * purchase ended unseen.
+     * Google Play's purchase of [plan], or with [change] a switch, once the proxy says it can count
+     * it. Notes when it may have left the purchase unsent: RevenueCat's server failed and its SDK
+     * worked Pro out on the phone, Google Play still waits for the payment, a failure came after
+     * Google Play may have taken it, or the purchase ended unseen.
      */
-    private suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? =
-        asPurchaser { billing, purchaser ->
+    private suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? {
+        purchaserNow()
+        requireOnSale()
+        return asPurchaser { billing, purchaser ->
             try {
                 billing.purchase(activity, plan, change).also { if (it?.offline == true) unsentBy = purchaser }
             } catch (e: PurchasesException) {
@@ -151,11 +179,32 @@ class BillingRepository(
                 throw e
             }
         }
+    }
+
+    /**
+     * Has the proxy check the plan first, and refuses while it says that it cannot check
+     * subscriptions, or said so last when it cannot be asked now. A refused session ends the
+     * sign-in and stops the purchase too. A limit or RevenueCat out of the proxy's reach does not,
+     * as the proxy counts the purchase at its next check.
+     */
+    private suspend fun requireOnSale() {
+        try {
+            refreshPlan()
+        } catch (e: ProxyException) {
+            if (e.code == ProxyApi.SESSION_REFUSED) throw e
+        } catch (e: IOException) {
+            // Google Play says itself when it cannot be reached either.
+        }
+        if (!onSale.value) throw NotOnSaleException()
+    }
+
+    /** The signed-in account's purchaser, as the proxy gave it. Throws [SignInNeededException] without one. */
+    private fun purchaserNow(): String = store.currentSession()?.let { store.account.value.purchaser } ?: throw SignInNeededException()
 
     /** Runs [block] on the store as the signed-in account's purchaser, under [identity]. */
     private suspend fun <T> asPurchaser(block: suspend (Billing, String) -> T): T = identity.withLock {
         val billing = checkNotNull(billing) { "This build sells no Pro" }
-        val purchaser = store.currentSession()?.let { store.account.value.purchaser } ?: throw SignInNeededException()
+        val purchaser = purchaserNow()
         useAs(purchaser)
         block(billing, purchaser)
     }
