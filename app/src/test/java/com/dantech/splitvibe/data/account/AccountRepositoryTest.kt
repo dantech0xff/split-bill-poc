@@ -92,6 +92,23 @@ class AccountRepositoryTest {
     }
 
     @Test
+    fun `a sign-in answered without the purchaser works, the next count brings it, and a count without it keeps it`() = runBlocking {
+        // For a few minutes after a deploy, a part of the proxy that still runs the code before answers without it.
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":${FAR_FUTURE},"usage":$MONTH}"""))
+        server.enqueue(json(200, """{"usage":$MONTH,"aiEnabled":true,"purchaser":"$PURCHASER"}"""))
+        server.enqueue(json(200, """{"usage":$MONTH,"aiEnabled":true}"""))
+
+        repository.signIn(context)
+        assertEquals("signed-session", proxy.account.account.value.session?.token)
+        assertNull(proxy.account.account.value.purchaser)
+
+        repository.refresh()
+        assertEquals(PURCHASER, proxy.account.account.value.purchaser)
+        repository.refresh()
+        assertEquals("an answer without it keeps the one stored for the session", PURCHASER, proxy.account.account.value.purchaser)
+    }
+
+    @Test
     fun `nothing changes when the person closes Google's picker`() = runBlocking {
         google.failure = GoogleSignInException(GoogleSignInException.Reason.CANCELLED)
 

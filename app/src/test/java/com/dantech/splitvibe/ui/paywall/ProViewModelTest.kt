@@ -210,6 +210,8 @@ class ProViewModelTest {
             json(503, """{"error":"not_configured"}""") to "Split Vibe's server cannot check subscriptions yet.",
             json(502, """{"error":"subscription_unavailable"}""") to
                 "Split Vibe's server could not check your subscription just now. Try again in a moment.",
+            // Just after a deploy, a part of the proxy that still runs the code before can fail the check.
+            json(500, """{"error":"internal"}""") to "Split Vibe's server had a problem. Try again in a moment.",
         )
         for ((refusal, said) in cases) {
             answers["/v1/plan"] = { refusal }

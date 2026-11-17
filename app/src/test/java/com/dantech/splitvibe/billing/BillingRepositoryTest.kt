@@ -210,6 +210,18 @@ class BillingRepositoryTest {
     }
 
     @Test
+    fun `a check of the plan answered without the purchaser keeps the one stored for the session`() = runBlocking {
+        signIn()
+        server.enqueue(json(200, """{"usage":$PRO_MONTH,"aiEnabled":true}"""))
+
+        val calls = repository.refreshPlan()
+
+        assertEquals(Plan.PRO, calls.plan)
+        assertEquals(PURCHASER, proxy.account.account.value.purchaser)
+        assertEquals(Plan.PRO, proxy.account.account.value.callsLeft?.plan)
+    }
+
+    @Test
     fun `an answer that arrives after signing out is nobody's`() = runBlocking {
         signIn()
         val late = json(200, """{"purchaser":"$OTHER_PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}""")
