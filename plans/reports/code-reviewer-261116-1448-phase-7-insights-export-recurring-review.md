@@ -1,6 +1,6 @@
 # Review: Phase 7 app work on categories, insights, export and recurring bills
 
-Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`. Commits `959b262`, `0572bfa`, `44b2c4b`, `eaccef8`, `17720fa` and `62b30f4`; the files were read at `HEAD`, where none has changed since `62b30f4`. The review was read-only: nothing changed but this report.
+Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`. Commits `47f9ed8`, `8393c10`, `01acb12`, `40142f1`, `dce42bc` and `13ca3ed`; the files were read at `HEAD`, where none has changed since `13ca3ed`. The review was read-only: nothing changed but this report.
 
 ## Verdict
 
@@ -33,7 +33,7 @@ No Critical issue was found.
 - **Scope.** 52 files; +2,293 and −28 lines in `app/src/main`, and +1,902 lines of tests (images not counted). The six commits were read together with their callers: `SplitBillViewModel`, `PeopleRepository`, `AppLink`, and the domain's `Insights` and `Recurrence`.
 - **Tests.** `:app:testProdDebugUnitTest` for `*Recurring*`, `InsightsViewModelTest`, `CsvExportTest`, `PdfSummaryTest`, `DatabaseMigrationTest`, `BillRepositoryTest`, `AppLinkTest`, `SpendingModuleTest` and `DesignSystemBoundaryTest`: 11 suites, 49 tests, 0 failures, results stamped 15:30 UTC. `ktlintCheck` passes.
 - **R8.** In `app/build/outputs/mapping/prodRelease/`, `mapping.txt` keeps `com.dantech.splitvibe.recurring.RecurringBillWorker` under its own name. `seeds.txt` keeps its `(Context, WorkerParameters)` constructor, as WorkManager 2.12.0's own rules ask (`-keepnames class * extends ListenableWorker`, plus its public constructors).
-- **Checksums.** Workflow run 43891123888 ("Dependency checksums", on `959b262`) succeeded. Its `verification-metadata` artifact is byte-identical to the committed file.
+- **Checksums.** Workflow run 43891123888 ("Dependency checksums", on `47f9ed8`) succeeded. Its `verification-metadata` artifact is byte-identical to the committed file.
 - **Insights tables.** All three tables worked out by hand in `InsightsViewModelTest` were recomputed independently. Every total, share, order and note is right.
 - **Schedules.** For H1, `Recurrence.occurrence`, `Recurrence.next` and `firstDraftDay` were replayed line for line in java.time, in a scratch program outside the repository.
 
@@ -364,7 +364,7 @@ None found.
 |---|---|
 | ktlint and the unit tests pass | Confirmed for ktlint and for the 11 touched suites (49 tests); the full 306 tests were not run again |
 | R8 keeps `RecurringBillWorker` | Confirmed, in `mapping.txt` and `seeds.txt` |
-| The checksums from a clean machine equal `959b262` | Confirmed: byte-identical |
+| The checksums from a clean machine equal `47f9ed8` | Confirmed: byte-identical |
 | A monthly bill on the 31st makes one draft in each period | True of the repository; false of the sheet's default (H1) |
 | Two runs at once make each draft once | Confirmed |
 | The activity makes what is due as the app opens | Only on a fresh start (M1) |

@@ -1,12 +1,12 @@
 # Code review: Phase 7 domain rules and the result screen's AI edits
 
-Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`, reviewed at `b0c0a90`. The six
-commits the other agent added since (`959b262` to `62b30f4`: insights screen, export, recurring
+Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`, reviewed at `f0ff557`. The six
+commits the other agent added since (`47f9ed8` to `13ca3ed`: insights screen, export, recurring
 bills) change no file in scope.
 
 Scope:
 - Domain commits `c2a7e2c`, `a2244d6`, `1885399`, `570c209`, `5af9889`, `5e808cc` and `9dbc20a`.
-- App commits `af76150`, `f3be54d`, `efc797f`, `102f81d` and `bf86b69`.
+- App commits `f478f46`, `c26ebde`, `1ccce69`, `c054baa` and `284ef29`.
 
 Read against:
 - `phase-07-ai-assistant-insights.md`: Đã chốt, Hợp đồng chung, Requirements, Success Criteria and Security.

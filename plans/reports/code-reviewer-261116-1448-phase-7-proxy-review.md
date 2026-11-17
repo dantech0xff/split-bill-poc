@@ -1,6 +1,6 @@
 # Code review: Phase 7, proxy (edits of a split by a sentence, weighted calls, the bill's category, the evaluation)
 
-Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`. The commits reviewed are `e0d7411`, `40a0701`, `167e0b2`, `d93dcb0`, `3e6b02f`, `bbf33e2`, `364977c` and `3c0153c` (`git log -p e0d7411^..3c0153c -- proxy docs/proxy.md`). The files were read as they are at `62b30f4`; the commits made since `3c0153c` touch only the app.
+Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`. The commits reviewed are `e0d7411`, `40a0701`, `167e0b2`, `d93dcb0`, `3e6b02f`, `bbf33e2`, `364977c` and `3c0153c` (`git log -p e0d7411^..3c0153c -- proxy docs/proxy.md`). The files were read as they are at `13ca3ed`; the commits made since `3c0153c` touch only the app.
 
 The builder's report, `fullstack-developer-261116-1241-proxy-split-revision-weighted-quota.md`, was treated as a claim to check. Nothing was deployed, and no Cloudflare or Anthropic API was called.
 

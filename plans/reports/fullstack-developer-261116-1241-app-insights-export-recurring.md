@@ -1,6 +1,6 @@
 # App: categories, spending insights, CSV and PDF export, recurring bills
 
-Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`, on top of `b0c0a90`. Everything below is pushed.
+Date: 2026-11-16 (UTC). Branch `feat/phase-07-ai-assistant-insights`, on top of `f0ff557`. Everything below is pushed.
 
 ## Outcome
 
@@ -128,7 +128,7 @@ Split Vibe · All time | Page 1 of 2
 
 - **Versions.** 2.12.0 is the newest stable release, published on 23 September 2026, so more than two weeks old (`Last-Modified` of its POMs). androidx is not on Maven Central, and the mirror answers 404 for it. I read `maven-metadata.xml` and the POM dates from Google's Maven, which is where Gradle resolves them from. 2.12.0 needs minSdk 24, and the app has 26.
 - **Checksums.** I wrote them once with a run that was not offline: `--write-verification-metadata sha256`, with the mirror init script, over the debug and release classpaths and the unit test compile. Pushing the build commit started `checksums.yml` on the branch (run 43891123888), because the version catalog changed. I did not dispatch it again: its concurrency group would have cancelled that run and started the same one over.
-- **The clean-machine list.** The run passed. Its artifact `verification-metadata`, downloaded with `gh run download`, is byte for byte the file committed in `959b262`. Compared with the file before my commits, it removes nothing and adds only WorkManager's ten components:
+- **The clean-machine list.** The run passed. Its artifact `verification-metadata`, downloaded with `gh run download`, is byte for byte the file committed in `47f9ed8`. Compared with the file before my commits, it removes nothing and adds only WorkManager's ten components:
   - `work-runtime`, `work-runtime-ktx` and `work-testing` 2.12.0;
   - `tracing-ktx` 1.2.0 and `concurrent-futures-ktx` 1.1.0;
   - `lifecycle-livedata`, `lifecycle-livedata-core` and `lifecycle-viewmodel-savedstate` 2.6.2;
@@ -183,17 +183,17 @@ New and changed tests, all passing:
 
 ## Commits
 
-- `959b262` build: add WorkManager to make the drafts of recurring bills
-- `0572bfa` feat(app): keep each bill's category in the list of bills, and recurring bills on the phone
-- `44b2c4b` feat(app): add up the finished bills of a period and export them as CSV and PDF
-- `eaccef8` feat(app): make a draft of each recurring bill on its days, with a notice that opens it
-- `17720fa` feat(app): show the insights and the recurring bills, and pick each bill's category
-- `62b30f4` test(app): check the recurring bills' view model and what the repeat sheet suggests
+- `47f9ed8` build: add WorkManager to make the drafts of recurring bills
+- `8393c10` feat(app): keep each bill's category in the list of bills, and recurring bills on the phone
+- `01acb12` feat(app): add up the finished bills of a period and export them as CSV and PDF
+- `40142f1` feat(app): make a draft of each recurring bill on its days, with a notice that opens it
+- `dce42bc` feat(app): show the insights and the recurring bills, and pick each bill's category
+- `13ca3ed` test(app): check the recurring bills' view model and what the repeat sheet suggests
 - this report
 
-There is no separate commit for the checksums, because the clean machine's list equals the one in `959b262`.
+There is no separate commit for the checksums, because the clean machine's list equals the one in `47f9ed8`.
 
-`eaccef8` holds earlier versions of `AppNavHost.kt`, `SpendingModule.kt` and `SpendingModuleTest.kt`: only the line that opens a draft's notice, and the module without the recurring screen's view model. That is so the commit stands on its own; `17720fa` brings them to their final form.
+`40142f1` holds earlier versions of `AppNavHost.kt`, `SpendingModule.kt` and `SpendingModuleTest.kt`: only the line that opens a draft's notice, and the module without the recurring screen's view model. That is so the commit stands on its own; `dce42bc` brings them to their final form.
 
 ## From the domain, and the manifest
 

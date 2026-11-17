@@ -151,11 +151,11 @@ and the app's unit tests.
 
 ## Commits
 
-- `af76150` feat(app): count AI calls with decimals, as a change of a split takes part of one
-- `f3be54d` refactor(app): share what every call to the model does between the AI routes
-- `efc797f` feat(app): ask the proxy for the edits a sentence makes to a split
-- `102f81d` feat(app): turn what the user says into text, on the phone when it can
-- `bf86b69` feat(app): change the split on the result screen by a sentence, typed or said
+- `f478f46` feat(app): count AI calls with decimals, as a change of a split takes part of one
+- `c26ebde` refactor(app): share what every call to the model does between the AI routes
+- `1ccce69` feat(app): ask the proxy for the edits a sentence makes to a split
+- `c054baa` feat(app): turn what the user says into text, on the phone when it can
+- `284ef29` feat(app): change the split on the result screen by a sentence, typed or said
 
 All pushed to `feat/phase-07-ai-assistant-insights`; this report follows them.
 

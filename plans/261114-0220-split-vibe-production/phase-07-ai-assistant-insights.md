@@ -240,7 +240,9 @@ Bảy trên tám tiêu chí đạt và có bằng chứng. Tiêu chí về bộ 
 | Tệp CSV và PDF xuất từ fixture khớp tệp mẫu; CSV mở bằng bảng tính với đúng dấu thập phân | Đạt | `CsvExportTest`: so từng byte với tệp mẫu ở cả hai quy ước, và đọc lại từng số như bảng tính ở `en-US` và `vi-VN`. `PdfSummaryTest`: so chữ thực sự vẽ ra và ảnh từng trang với tệp mẫu. Một test trên máy ảo kiểm tệp PDF thật |
 | Với đồng hồ giả, hóa đơn hằng tháng tạo đúng một bản nháp mỗi kỳ, kể cả tháng thiếu ngày và khi hai máy cùng chạy | Đạt | `RecurringDraftsTest`: một hóa đơn ngày 31 chạy mỗi ngày từ 1/2027 tới 4/2028 tạo đúng một bản nháp mỗi kỳ, đúng ngày. Hai lượt chạy cùng lúc, 20 vòng, mỗi bản nháp vẫn chỉ một. Mẫu hóa đơn định kỳ nằm trên máy nên không đồng bộ giữa hai máy; mã bản nháp là UUID dựng từ mẫu và ngày, nên cùng một mẫu luôn cho cùng một mã |
 
-Kiểm tra chung: 543 unit test Kotlin (app 342, domain 198, hệ thiết kế 3), 357 test proxy và 192 test trang web đều qua; ktlint, lint, `tsc` và bản release đều sạch. Checksum của WorkManager do workflow trên máy sạch dựng, khớp từng byte với tệp đã commit. Test trên máy ảo Android qua ở `80c5bbb`.
+Kiểm tra chung: 543 unit test Kotlin (app 342, domain 198, hệ thiết kế 3), 357 test proxy và 192 test trang web đều qua; ktlint, lint, `tsc` và bản release đều sạch. Checksum của WorkManager do workflow trên máy sạch dựng, khớp từng byte với tệp đã commit. Test trên máy ảo Android qua ở `0ebc0de`.
+
+Ngày 17/11/2026, 73 commit từ `f478f46` trở đi được ký lại, vì sáu commit của phần AI trong app thiếu chữ ký nên GitHub sẽ ghi là chưa xác minh. Hash của các commit này đổi, còn cây mã, tác giả và message giữ nguyên. Các hash trong plan và các báo cáo đã đổi theo. Các lượt CI và gói triển khai nêu ở đây dùng hash cũ, cùng cây mã với hash mới.
 
 Những gì đã làm:
 - **Domain:** `BillCategory`, 13 thao tác `SplitEdit` với `SplitEdits.apply` và `describe`, bộ đọc câu trả lời, `SplitRevisionRequest`, `Insights`, `Recurrence`. Các quy tắc làm sạch chữ của proxy nay ở một chỗ (`ProxyText`), dùng chung cho link, yêu cầu trả tiền và chỉnh sửa.
@@ -260,7 +262,7 @@ Những gì đã làm:
   Vài lỗi nhẹ được giữ có chủ ý, kèm lý do trong các báo cáo sửa, như tốc độ đọc lại hóa đơn của màn thống kê và cách chia trang PDF.
 
 Triển khai lên Cloudflare ngày 17/11/2026:
-- **Worker `split-vibe-proxy`:** gói dựng bằng đúng lệnh của CI (`npm run bundle`) từ commit `1473e70`. Không có migration D1 nào. Các `QuotaBook` tự đổi số lượt cũ sang phần trăm ở lần dùng đầu, và vẫn ghi kèm số lượt nguyên để bản cũ đọc được nếu phải lùi phiên bản. Các binding, biến, secret và lịch cron giữ nguyên.
+- **Worker `split-vibe-proxy`:** gói dựng bằng đúng lệnh của CI (`npm run bundle`) từ commit `3d9e8af`. Không có migration D1 nào. Các `QuotaBook` tự đổi số lượt cũ sang phần trăm ở lần dùng đầu, và vẫn ghi kèm số lượt nguyên để bản cũ đọc được nếu phải lùi phiên bản. Các binding, biến, secret và lịch cron giữ nguyên.
 - **Thử bản đang chạy:**
   - `/v1/usage` trả số lượt dạng số;
   - `/v1/split-revision` trả 503 `not_configured`, vì Worker chưa có key Anthropic;
