@@ -8,6 +8,7 @@ service may spend in a day, and keeps nothing of the bill. It also hands the app
 day's exchange rates, keeps what signed-in people share (groups, their bills and settlements, and
 payment requests), sends their push notifications, and serves the web pages of shared links, where
 people without the app claim the items they had on a bill, or see a payment request or an invite.
+Which accounts are on Pro, the subscription sold through Google Play, it reads from RevenueCat.
 
 ```mermaid
 flowchart LR
@@ -23,6 +24,8 @@ flowchart LR
     worker -->|new claims| turnstile[Turnstile Siteverify]
     worker --> rooms[Durable Objects:<br/>live connections<br/>of bill links]
     rooms -->|changes| browser
+    worker -->|reads plans,<br/>deletes customers| revenuecat[RevenueCat]
+    revenuecat -->|webhook events| worker
 ```
 
 ## What it does
@@ -31,9 +34,11 @@ flowchart LR
 |---|---|---|
 | `POST /v1/bill-analysis` | the app, to read a bill | lines of JSON: `{"type":"wait"}` while the model works, then one `{"type":"result","answer":…,"usage":…}` or `{"type":"error","code":…}` |
 | `POST /v1/split-revision` | the app, to change a split by a sentence | the same lines, with edits of the split as the answer, [below](#editing-a-split-by-a-sentence) |
-| `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage}`: a session the proxy signs, for 30 days |
-| `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on |
-| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's counters, and its part in the shared data, are gone |
+| `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage, purchaser}`: a session the proxy signs, for 30 days, and the id the app gives RevenueCat |
+| `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on; with `purchaser` too for a signed-in caller |
+| `POST /v1/plan` | the Pro screen, and the app once a purchase or a restore is done | `{purchaser, usage, aiEnabled}` once the proxy has read the account's plan from RevenueCat, [below](#pro-subscriptions) |
+| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its counters, and its part in the shared data, are gone |
+| `POST /v1/subscription-events` | RevenueCat's webhook | `{"ok":true}` once the plans the event is about are read again, [below](#pro-subscriptions) |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
 | `/v1/shares…` | the app, signed in; a browser with the link | bill links and their claims, [below](#bill-links-and-the-web-pages) |
@@ -43,7 +48,7 @@ flowchart LR
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
 its version with `X-SplitVibe-Version`; the exchange rates, the shared data and the links need
 neither. A signed-in app adds `Authorization: Bearer <session>`, which is all the shared data
-needs. The body of a bill read is exactly
+needs. RevenueCat's webhook carries none of them: its own `Authorization` value lets it in. The body of a bill read is exactly
 [`sample_bill_request.json`](../app/src/sharedTest/resources/fixtures/sample_bill_request.json) in
 shape; the app's and the proxy's tests both use that file. A bill photographed in several pages is
 still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="…">` per photo, in
@@ -51,8 +56,9 @@ order, with rows numbered from 1 and coordinates from 0 to 1000 within each page
 stays `<bill_ocr rows="N">` with its rows directly inside. The full contract of the bill read,
 the session, usage and account routes, with every error code, is in
 [the Phase 3 plan](../plans/261114-0220-split-vibe-production/phase-03-cloudflare-ai-proxy.md), but
-for the numbers of `usage`, which [Calls and limits](#calls-and-limits) gives as they are now, and
-the bill's `category`, [below](#changing-the-prompt-or-the-model). Edits of a split are described
+for the numbers and the `plan` of `usage`, which [Calls and limits](#calls-and-limits) gives as they
+are now, the `purchaser` that [Pro subscriptions](#pro-subscriptions) adds, and the bill's
+`category`, [below](#changing-the-prompt-or-the-model). Edits of a split are described
 [in their own section](#editing-a-split-by-a-sentence), the exchange rates and their one error
 [below](#exchange-rates), and the shared data's whole contract in
 [its own section](#shared-data-groups-payment-requests-and-push).
@@ -62,7 +68,12 @@ the bill's `category`, [below](#changing-the-prompt-or-the-model). Edits of a sp
 The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change with a deploy.
 
 - An install that has not signed in gets 3 calls, once. A Google account gets 10 calls each calendar
-  month, counted in UTC.
+  month, counted in UTC, and 300 (`proCalls`) while it is on [Pro](#pro-subscriptions), on the same
+  count: a plan that changes during a month keeps what the month used, so an account that used 12
+  calls on Pro and goes back to the free plan has none left until the month ends. Every `usage`
+  says which allowance holds in `plan`: `"trial"` for an install, `"free"` or `"pro"` for an
+  account. An app that meets a proxy without `plan` reads `"trial"` from `period: "trial"`, and
+  `"free"` otherwise.
 - A bill read takes one call, and an edit of a split by a sentence a fifth of one
   (`revisionWeight`, 0.2), from the same calls. The proxy counts in hundredths of a call, so
   `limit`, `used` and `remaining`, in `/v1/usage`, in the answer of `/v1/session`, and in every line
@@ -87,7 +98,76 @@ The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change w
   own model answers, is held at that model's price: half a cent to 1.3 cents with Haiku. A bill
   read, which a refusal can move to another model, is held at the dearest price in `spend.ts`:
   about half a dollar, and up to some 80 cents for the longest bill. Also set a monthly spend limit
-  in the Anthropic console.
+  in the Anthropic console. Pro changes none of the caps: one account still spends at most $3 a
+  day. The $20 a day of the whole proxy must rise as accounts move to Pro: at about 6 cents a bill
+  read, one that uses its 300 calls costs some $18 a month.
+
+### Pro subscriptions
+
+Pro is one auto-renewing subscription sold through Google Play, with RevenueCat checking the
+purchases, and it changes one thing: a Google account's calls, 300 a month instead of 10. The
+proxy alone decides who is on Pro. No route takes a plan from the app, and what a webhook event
+says is never taken as the plan. What the owner sets up in Play Console and RevenueCat is in
+[pro-subscription.md](pro-subscription.md).
+
+- **The purchaser.** RevenueCat's app user ID for an account is the account id itself: the 64
+  lower-case hex digits of the salted hash a session carries. `POST /v1/session`, `GET /v1/usage`
+  for a signed-in caller and `POST /v1/plan` hand it to the app as `purchaser`, and the account's
+  `QuotaBook` records the first time it went out. An install that is not signed in gets none, and
+  sends nothing to RevenueCat.
+- **Reading RevenueCat.** The proxy reads an account's plan with
+  `GET https://api.revenuecat.com/v1/subscribers/{purchaser}` and the secret key, waiting at most
+  10 seconds and reading at most 256 KB of the answer. That read creates the customer when
+  RevenueCat has none, so the proxy makes it only for an id it handed out and has not forgotten
+  since: never for an id an event makes up, nor for a deleted account.
+- **The plan.** From the entitlement `pro` and the subscription that grants it, the proxy keeps
+  `proUntil` and `checkedAt`, the time of RevenueCat's answer by RevenueCat's clock:
+  - while the later of the entitlement's `expires_date` and its `grace_period_expires_date`, the
+    end of the grace period Play gives after a failed payment, is after that time, `proUntil` is
+    that later time; an entitlement whose `expires_date` is null, as one granted for life from
+    RevenueCat's dashboard, never ends;
+  - once that time has passed, while the subscription still renews by itself, with
+    `unsubscribe_detected_at`, `billing_issues_detected_at` and `refunded_at` all null, `proUntil`
+    is the `expires_date`: Play may renew a subscription hours after its period ended (the renewal
+    gap);
+  - otherwise there is no Pro.
+
+  An account is on Pro until `proUntil` plus 24 hours (`proGraceMs`), which covers a late renewal
+  and a late event. A subscription read as cancelled, refunded or failing to bill once its period
+  is over ends at once. A plan read earlier than the one kept is not kept, so answers that arrive
+  out of order leave the latest, and an event that comes twice or late changes nothing that
+  RevenueCat does not say now. Purchases of Play's license testers, which RevenueCat marks as
+  sandbox, count as any other: only the testers the owner lists in Play Console can make them.
+- **`POST /v1/plan`** needs a session; its body, empty or `{}`, is not read. It reads the
+  account's plan, keeps it, and answers `{purchaser, usage, aiEnabled}`. The app calls it when it
+  opens the Pro screen and once a purchase, a restore or a change of plan is done, so as not to
+  wait for the webhook. Each account may call it 30 times an hour (`planRefreshesPerHour`); past
+  that it is 429 `rate_limited` with `Retry-After`. Without `REVENUECAT_SECRET_KEY` it is 503
+  `not_configured`. When RevenueCat cannot be reached, takes longer than 10 seconds, or answers
+  with anything but a customer, it is 502 `subscription_unavailable`, and the plan kept stays as it
+  was.
+- **`POST /v1/subscription-events`** is RevenueCat's webhook. Its `Authorization` header must be
+  `REVENUECAT_WEBHOOK_AUTH`, as it is or after `Bearer `. The proxy compares the SHA-256 digests of
+  the two in constant time, and otherwise answers 401 `webhook_auth`, reading, asking and writing
+  nothing; without the secret it answers 503 `not_configured`. HMAC signing is not used. The body,
+  `{api_version, event}`, may be 64 KB at most: a longer one is 413 `too_large`, and one without an
+  `event` object 400 `input`. An event is only a sign that something changed: of
+  the ids it names (`app_user_id`, `original_app_user_id`, then `transferred_from` and
+  `transferred_to`, which a `TRANSFER` carries instead of `app_user_id`, then `aliases`), the proxy
+  keeps those of the form of an account, each once and at most 20, that it handed out and has not
+  forgotten, and reads and keeps the plan of each as `POST /v1/plan` does.
+- **The webhook's answers.** RevenueCat counts any answer but 200 as a failure, 204 too, and sends
+  a failed event again five times over about 80 minutes. So the webhook answers 200 `{"ok":true}`
+  once every account the event is about was read, and also for a `TEST` event and an event about
+  no account it knows, which it does not read. It answers 503 `subscription_unavailable` when
+  RevenueCat could not be read for one of them, so that the event comes again; the plans it kept
+  meanwhile stay, since keeping the same plan again changes nothing. An event about an account while
+  `REVENUECAT_SECRET_KEY` is missing is 503 `not_configured`.
+- **Deleting an account** deletes its customer at RevenueCat before anything else, as
+  [Deleting an account](#deleting-an-account) says. It does not cancel the subscription on Google
+  Play: the app warns the person to cancel it there first.
+
+Without the two secrets nobody is on Pro, and everything else works as before.
 
 ### Editing a split by a sentence
 
@@ -236,8 +316,10 @@ the cron always asks. Only when there has never been a snapshot does a failed fe
 
 ### What it keeps
 
-Durable Objects hold counters only: calls used per install or per account, in hundredths of a
-call, request ids for a day with what each one takes, requests and spend per address. One more
+Durable Objects hold counters: calls used per install or per account, in hundredths of a
+call, request ids for a day with what each one takes, requests and spend per address. A Google
+account's `QuotaBook` also keeps its plan as RevenueCat last gave it, `proUntil` and `checkedAt`,
+and when its id first went out as a purchaser; both go when the account is deleted. One more
 holds the latest exchange rates, which are public. Objects are named by salted hashes, never by an
 IP address or a Google id. A request id is kept with a salted hash of what it asked, so that it
 cannot be reused for another bill or another edit. Nothing of a bill read or of an edit, an
@@ -276,7 +358,11 @@ a request or an invite that works; it is forgotten by the daily run once the hou
 The Worker prints one log line per bill read (`bill_analysis`) and per edit (`split_revision`): the
 outcome, whether the caller is an install or an account, the model, the tokens, the cost and the
 time taken. For notifications it prints their type and how many devices got them, never an id, a
-token or any text. When Turnstile cannot judge
+token or any text. For RevenueCat's webhook it prints one line per event (`subscription_event`):
+the event's type, how many accounts it was about and what came of it. When RevenueCat cannot be
+read, or does not take a deletion, it prints the status or the error's name
+(`revenuecat_unavailable`, `revenuecat_unreadable`, `revenuecat_delete_failed`), never an id, a
+body or a key. When Turnstile cannot judge
 a claim, it prints Cloudflare's error codes; when a token was solved for another action or host, the
 action and the hostname Cloudflare gave; and when a test secret is refused, that it was. It never
 prints a token. Cloudflare's invocation
@@ -574,8 +660,18 @@ browser. None of these needs a session or an install id.
 
 ### Deleting an account
 
-`DELETE /v1/account` also takes the account out of the shared data, in one batch, without
-changing anyone's balance: amounts and settlements stay as they are.
+`DELETE /v1/account` first has RevenueCat delete the account's customer, with its purchase
+history, when `REVENUECAT_SECRET_KEY` is set. RevenueCat answering 200, or 404 for a customer it
+does not have, counts as done; any other answer, or none within 10 seconds, is 502
+`subscription_unavailable`, and nothing else is deleted, so that the app can try again. RevenueCat
+deletes the customer some time after it answers. Deleting it does not cancel the subscription on
+Google Play, which renews until the person cancels it in Play; the app warns them before it
+deletes the account. Next the proxy takes the account out of the shared data, in one batch,
+without changing anyone's balance: amounts and settlements stay as they are. Last it deletes the
+account's `QuotaBook`, with its plan and the record of its purchaser, and its spend counter, so a
+later webhook event about the account asks RevenueCat nothing. Only an event that arrives in the
+moment between RevenueCat's deletion and the proxy's still has the customer read, which creates it
+again, without purchases.
 
 - Its members become placeholders named "Former member", keeping their ids; each group logs
   `member_left`. A group where nobody else has an account is deleted, as when its last account
@@ -596,7 +692,8 @@ changing anyone's balance: amounts and settlements stay as they are.
 Sessions are not revoked: the proxy keeps no list of them, and a session it signed stays valid
 until it expires, at most 30 days after it was issued. A session issued before the deletion can
 therefore still do whatever a session can, as the same account: read bills on a new month's
-calls, and make groups, requests and devices again, which a later sign-in would then find. The
+calls, make groups, requests and devices again, which a later sign-in would then find, and have
+its plan read, which hands its purchaser out again and has RevenueCat create the customer anew. The
 app forgets its session when the account is deleted, so only a copy kept elsewhere, such as on a
 second phone signed in to the same account, could still be used.
 
@@ -902,7 +999,9 @@ SESSION_SIGNING_KEY=<at least 32 random characters>
 To try claims on a bill link, add `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY`, for instance
 Cloudflare's test pair `1x0000000000000000000000000000000AA` and `1x00000000000000000000AA`, which
 pass every claim while the page is opened at `localhost`, `127.0.0.1` or `[::1]`, as `wrangler dev`
-serves it; on any other host, and without the secret, a new claim answers 503.
+serves it; on any other host, and without the secret, a new claim answers 503. To try Pro, add
+`REVENUECAT_SECRET_KEY` and `REVENUECAT_WEBHOOK_AUTH`; without them nobody is on Pro, `POST /v1/plan`
+and the webhook answer 503, and everything else works.
 `wrangler dev` keeps the D1 database on the computer, under `proxy/.wrangler/`; give it the schema
 once, and again after a new migration:
 
@@ -955,7 +1054,9 @@ model answering what the case expects. Each test starts from an empty local D1 d
 migrations of `proxy/migrations/` applied, and push goes to a fake of Google's token endpoint and of
 FCM, which checks the signed token request. New claims go to a fake of Turnstile's Siteverify, which
 hands out tokens for an action and a host and passes each once, and answers Cloudflare's test
-secrets as Cloudflare does. Live connections are opened as a browser opens them. A claim and a lock
+secrets as Cloudflare does. RevenueCat's REST API is a fake too: it takes only the tests' key,
+creates a customer on a read as RevenueCat does, and can hold an answer back until another has
+overtaken it. Live connections are opened as a browser opens them. A claim and a lock
 are raced by landing one just before the other's batch, both ways round, and a claim is removed just
 before the batch of a settlement that matches it. The tests of the pages read nothing of what the
 page says, so they hold for the web app and for the placeholder alike. `npm test` then has Node
@@ -1032,7 +1133,26 @@ These steps need the owner's accounts.
    Put the address that reports of abuse go to into `ABUSE_EMAIL` in `wrangler.jsonc`; while it is
    empty, the pages show no "Report abuse" link.
 
-5. Deploy. Build the web app first, from `proxy/`, so that the bundle holds it: without it, the
+5. **Pro subscriptions.** Set RevenueCat's secret API key, which starts with `sk_`, and the value
+   of the Authorization header that RevenueCat's webhook will send: a long random value, such as
+   `openssl rand -hex 32` makes. Without them nobody is on Pro, `POST /v1/plan` and the webhook
+   answer 503, and everything else works.
+
+   ```bash
+   npx wrangler secret put REVENUECAT_SECRET_KEY
+   ```
+
+   ```bash
+   npx wrangler secret put REVENUECAT_WEBHOOK_AUTH
+   ```
+
+   Once the Worker is deployed, give RevenueCat the webhook URL
+   `https://<your worker>/v1/subscription-events`, with that value as its Authorization header,
+   as it is or after `Bearer `, for production and sandbox both, so that license testers' purchases
+   count. RevenueCat's test event then answers 200; 401 means the two values differ. The rest of
+   the setup in Play Console and RevenueCat is in [pro-subscription.md](pro-subscription.md).
+
+6. Deploy. Build the web app first, from `proxy/`, so that the bundle holds it: without it, the
    bundle serves the placeholder page, or does not build when the module was never written.
 
    ```bash
@@ -1083,7 +1203,7 @@ These steps need the owner's accounts.
    older code charged, so that nobody gains a call by the rollback; an edit held across the switch
    may cost a whole call.
 
-6. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
+7. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
    a value with a placeholder such as `<your-subdomain>` still in it.
 
@@ -1106,8 +1226,8 @@ Two variables in `wrangler.jsonc` change behaviour without a new app:
 - `AI_ENABLED`: bill reading and edits of a split work only while it is exactly `"true"`. Anything
   else answers 503 `ai_off`, and the app tells the person AI is switched off.
 - `MIN_APP_VERSION`: an app with a lower version code gets 426 `update_required` on a bill read or
-  an edit. Signing in, the calls left, the exchange rates, the shared data and deleting the account
-  keep working for old apps.
+  an edit. Signing in, the calls left, the plan, the exchange rates, the shared data and deleting
+  the account keep working for old apps.
 
 Change either in `wrangler.jsonc` and deploy, or under the Worker's settings in the Cloudflare
 dashboard; a deploy from `wrangler.jsonc` sets them back to the file's values.
