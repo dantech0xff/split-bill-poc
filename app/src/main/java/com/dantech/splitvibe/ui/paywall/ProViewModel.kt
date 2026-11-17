@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -110,19 +113,26 @@ class ProViewModel(
     private var loading: Job? = null
 
     init {
+        // The Pro an account has, and what was said to it, are not the next account's.
+        viewModelScope.launch {
+            account.map { it.session }.distinctUntilChanged().drop(1).collect {
+                local.update { it.copy(membership = null, message = null) }
+            }
+        }
         load()
     }
 
     /**
      * Has the proxy ask RevenueCat for the account's plan, which shows its calls left even when that
      * fails, then asks RevenueCat for the plans and the person's Pro. Only while signed in: nothing
-     * goes to RevenueCat for a phone where nobody is.
+     * goes to RevenueCat for a phone where nobody is. Pro as last reported is not shown meanwhile,
+     * nor kept when the plans cannot load, as it can be another account's.
      */
     fun load() {
         if (!billing.sellsPro || account.value.session == null) return
         loading?.cancel()
         loading = viewModelScope.launch {
-            local.update { it.copy(loading = true, loadError = null) }
+            local.update { it.copy(loading = true, loadError = null, membership = null, message = null) }
             val refreshFailure = try {
                 billing.refreshPlan()
                 null
@@ -277,7 +287,8 @@ class ProViewModel(
 
 /**
  * What to tell the person when something on the Pro screen did not work, or null when there is
- * nothing to say, as when they closed Google Play's purchase themselves.
+ * nothing to say, as when they closed Google Play's purchase themselves. An exception's own
+ * message is never shown: it is written for developers, and can name the app's inner workings.
  */
 internal fun proMessageOf(error: Exception): ProMessage? {
     val text = when (error) {
@@ -287,21 +298,27 @@ internal fun proMessageOf(error: Exception): ProMessage? {
         is NotOnSaleException -> CANNOT_CHECK
         is SignInNeededException -> "Sign in with Google to buy Pro."
         is IOException -> NO_CONNECTION
-        else -> "Something went wrong: ${error.message ?: error.javaClass.simpleName}"
+        else -> DID_NOT_WORK
     } ?: return null
     // A payment that is waiting is no failure: Pro follows once Google Play has it.
     val pending = (error as? PurchasesException)?.code == PurchasesErrorCode.PaymentPendingError
     return ProMessage(text, isError = !pending)
 }
 
-/** What a refusal of Google Play or RevenueCat means for the person; null for a purchase they cancelled. */
+/**
+ * What a refusal of Google Play or RevenueCat means for the person; null for a purchase they
+ * cancelled. A product that is not on sale, as before it is active in Google Play or in a build that
+ * Google Play sells nothing to, cannot be bought by trying again.
+ */
 private fun storeText(code: PurchasesErrorCode): String? = when (code) {
     PurchasesErrorCode.PurchaseCancelledError -> null
     PurchasesErrorCode.PaymentPendingError -> "The payment is pending. Pro starts once Google Play confirms it."
     PurchasesErrorCode.ReceiptAlreadyInUseError -> ANOTHER_ACCOUNT
     PurchasesErrorCode.NetworkError -> NO_CONNECTION
-    PurchasesErrorCode.StoreProblemError, PurchasesErrorCode.PurchaseNotAllowedError -> STORE_PROBLEM
-    else -> "That did not work. Please try again."
+    PurchasesErrorCode.StoreProblemError -> STORE_PROBLEM
+    PurchasesErrorCode.PurchaseNotAllowedError -> "This phone or this Google Play account cannot buy subscriptions."
+    PurchasesErrorCode.ConfigurationError, PurchasesErrorCode.ProductNotAvailableForPurchaseError -> NOTHING_ON_SALE
+    else -> DID_NOT_WORK
 }
 
 /** What a refusal of the proxy's check of the plan means for the person. */
@@ -315,6 +332,7 @@ private fun proxyText(refusal: ProxyException): String = when (refusal.code) {
 
 private const val NO_CONNECTION = "There is no connection. Check it and try again."
 private const val STORE_PROBLEM = "Google Play has a problem right now. Try again later."
+private const val DID_NOT_WORK = "That did not work. Please try again."
 
 /** Why Pro is not on sale: Split Vibe's server would count none of what is bought, as it has no key for RevenueCat yet. */
 private const val CANNOT_CHECK = "Split Vibe's server cannot check subscriptions yet."

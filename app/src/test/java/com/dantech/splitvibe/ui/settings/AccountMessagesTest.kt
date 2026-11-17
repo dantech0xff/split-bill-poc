@@ -39,6 +39,11 @@ class AccountMessagesTest {
     }
 
     @Test
+    fun `an unexpected failure says only that something went wrong, never what the exception says`() {
+        assertEquals("Something went wrong. Please try again.", messageOf(IllegalStateException("Keystore key split_vibe_session is gone")))
+    }
+
+    @Test
     fun `calls left are shown without zeros that say nothing, and what each use takes is said`() {
         fun calls(limit: String, used: String, remaining: String, resetsAt: Long?) =
             CallsLeft(BigDecimal(limit), BigDecimal(used), BigDecimal(remaining), if (resetsAt == null) "trial" else "2026-11", resetsAt)

@@ -71,13 +71,11 @@ class ProViewModelTest {
     }
 
     @Test
-    fun `signed out, nothing goes to RevenueCat and nothing can be bought until the person signs in`() {
+    fun `signed out, nothing goes to RevenueCat, and the plans left on screen buy nothing until the person signs in again`() {
         val viewModel = viewModel()
 
         assertTrue(viewModel.state.value.sold)
         assertFalse(viewModel.state.value.signedIn)
-        viewModel.buy(activity)
-        assertTrue(billing.purchases.isEmpty())
         assertTrue(billing.starts.isEmpty())
         assertEquals(0, server.requestCount)
 
@@ -88,6 +86,44 @@ class ProViewModelTest {
         assertEquals(listOf(FakeBilling.MONTHLY, FakeBilling.YEARLY), viewModel.state.value.plans)
         assertEquals("the store runs as the purchaser the sign-in brought", PURCHASER, billing.user)
         assertEquals(emptyList<String>(), billing.startsWithoutTheAccount)
+
+        // The sign-in runs out with the plans still on the screen, so only the sign-in check stops the purchase.
+        proxy.account.expireSession()
+        awaitOnMain { !viewModel.state.value.signedIn }
+        assertEquals(FakeBilling.MONTHLY, viewModel.state.value.chosen)
+        val asked = server.requestCount
+
+        viewModel.buy(activity)
+        awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
+
+        assertEquals(ProMessage("Sign in with Google to buy Pro.", isError = true), viewModel.state.value.message)
+        assertTrue(billing.purchases.isEmpty())
+        assertEquals("nor is the proxy asked", asked, server.requestCount)
+    }
+
+    @Test
+    fun `another sign-in on the open screen shows nothing of the account before, also when its plans cannot load`() {
+        billing.membership = FakeBilling.active(billingIssue = true)
+        val viewModel = signedInViewModel()
+        viewModel.restore()
+        awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
+        assertTrue(viewModel.state.value.member)
+
+        // The sign-in runs out, and someone else signs in before the proxy has said who they buy as.
+        billing.membership = null
+        proxy.account.expireSession()
+        proxy.account.saveSession(OTHER_SESSION, signedInAs = "lan@example.com")
+        awaitOnMain { viewModel.state.value.message == null }
+
+        assertNull(viewModel.state.value.membership)
+        assertFalse(viewModel.state.value.member)
+
+        answers["/v1/plan"] = { json(500, """{"error":"internal"}""") }
+        viewModel.load()
+        awaitOnMain { viewModel.state.value.let { !it.loading && it.loadError != null } }
+
+        assertNull(viewModel.state.value.membership)
+        assertFalse(viewModel.state.value.member)
     }
 
     @Test
@@ -364,10 +400,20 @@ class ProViewModelTest {
         val cases = mapOf(
             FakeBilling.refused(PurchasesErrorCode.NetworkError) to "There is no connection. Check it and try again.",
             FakeBilling.refused(PurchasesErrorCode.StoreProblemError) to STORE_PROBLEM,
-            FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseNotAllowedError) to STORE_PROBLEM,
+            FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseNotAllowedError) to
+                "This phone or this Google Play account cannot buy subscriptions.",
+            FakeBilling.refused(PurchasesErrorCode.ConfigurationError) to NOTHING_ON_SALE,
+            FakeBilling.purchaseFailed(PurchasesErrorCode.ProductNotAvailableForPurchaseError) to NOTHING_ON_SALE,
             FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseCancelledError, cancelled = true) to null,
         )
         for ((failure, said) in cases) assertEquals(failure.code.name, said, proMessageOf(failure)?.text)
+    }
+
+    @Test
+    fun `a failure of the app's own says only that it did not work, never what the exception says`() {
+        val failure = IllegalStateException("RevenueCat is used only once a purchaser is signed in")
+
+        assertEquals(ProMessage("That did not work. Please try again.", isError = true), proMessageOf(failure))
     }
 
     private fun viewModel(repository: BillingRepository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true)) =
@@ -391,6 +437,7 @@ class ProViewModelTest {
     private companion object {
         const val FAR_FUTURE = 4_102_444_800_000L
         val SESSION = Session("signed-session", expiresAt = FAR_FUTURE)
+        val OTHER_SESSION = Session("other-session", expiresAt = FAR_FUTURE)
         val PURCHASER = "c".repeat(64)
         const val FREE_MONTH = """{"limit":10,"used":3,"remaining":7,"period":"2026-11","resetsAt":1796083200000,"plan":"free"}"""
         const val PRO_MONTH = """{"limit":300,"used":3,"remaining":297,"period":"2026-11","resetsAt":1796083200000,"plan":"pro"}"""

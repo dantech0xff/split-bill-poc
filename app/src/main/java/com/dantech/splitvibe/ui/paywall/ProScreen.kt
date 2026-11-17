@@ -345,7 +345,6 @@ private const val EVERYTHING_ELSE_FREE = "Everything else stays free: typing bil
 private val SIGN_IN_FIRST = "Sign in with Google to buy Pro, so that it stays with your account. Signing in alone gives you " +
     "${CallsLeft.FREE_MONTHLY} AI calls a month, free."
 private const val SIGN_IN_AGAIN = "Your sign-in has run out. Sign in with Google again to buy or manage Pro."
-private const val NOTHING_ON_SALE = "Pro cannot be bought right now. Please try again later."
 private const val RENEWAL_TERMS = "A plan renews automatically at the end of each month or year, at its price shown here, until " +
     "you cancel it. You can cancel any time in Google Play, and Pro then lasts until the end of the period you paid for."
 private const val SWITCH_TERMS = "The new plan starts now, and Google Play charges its price from your next renewal."

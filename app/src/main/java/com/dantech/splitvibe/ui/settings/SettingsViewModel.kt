@@ -72,7 +72,8 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 /**
  * What to tell the person when an account action did not work, or null when there is nothing to say.
  * An action the proxy limited, such as deleting the account more often than it lets an account in an
- * hour, changed nothing.
+ * hour, changed nothing. An exception's own message, written for developers, is never shown; the
+ * Pro screen's sign-in says the same as Settings.
  */
 internal fun messageOf(error: Exception): String? = when (error) {
     is GoogleSignInException -> when (error.reason) {
@@ -92,5 +93,5 @@ internal fun messageOf(error: Exception): String? = when (error) {
 
     is IOException -> "Could not reach Split Vibe's server. Check the internet connection and try again."
 
-    else -> "Something went wrong: ${error.message ?: error.javaClass.simpleName}"
+    else -> "Something went wrong. Please try again."
 }

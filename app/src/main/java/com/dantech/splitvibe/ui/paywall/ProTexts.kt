@@ -68,6 +68,9 @@ internal fun manageUrlOf(membership: ProMembership?): String {
 /** Google Play's page of the person's subscriptions. */
 internal const val PLAY_SUBSCRIPTIONS = "https://play.google.com/store/account/subscriptions"
 
+/** Said when no plan can be bought now: Google Play sells none here, or Split Vibe's server could not count it. */
+internal const val NOTHING_ON_SALE = "Pro cannot be bought right now. Please try again later."
+
 /** Said of a subscription whose period ended while Google Play has not renewed it yet. */
 internal const val RENEWAL_PENDING = "Renewal pending: Google Play is renewing your subscription, which can take a few hours."
 
