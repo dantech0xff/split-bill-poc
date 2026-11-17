@@ -43,6 +43,15 @@ check(googleWebClientId.isEmpty() || Regex("[A-Za-z0-9-]+\\.apps\\.googleusercon
     "splitvibe.googleWebClientId must be a web client ID such as 1234-abcd.apps.googleusercontent.com, but it is $googleWebClientId"
 }
 
+// RevenueCat's public SDK key for the app on Google Play, which is made to ship inside the app. Pro
+// is sold only in a build that has it; without it the Pro screen says Pro is not available, and
+// every other flow works the same. Anything else, such as RevenueCat's secret key, stops the build,
+// and the message leaves the value out.
+val revenueCatApiKey: String = localProperties.getProperty("splitvibe.revenueCatApiKey")?.trim().orEmpty()
+check(revenueCatApiKey.isEmpty() || Regex("goog_[A-Za-z0-9_-]+").matches(revenueCatApiKey)) {
+    "splitvibe.revenueCatApiKey must be RevenueCat's public SDK key for Google Play, which starts with goog_"
+}
+
 // Firebase is used for one thing only, receiving the push notices the proxy sends about requests and
 // groups. Its four values are public settings of the Android app in the Firebase console (Project
 // settings), set in local.properties. Without all four the app is built without push, and every
@@ -94,6 +103,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        buildConfigField("String", "REVENUECAT_API_KEY", "\"$revenueCatApiKey\"")
         firebaseSettings.keys.forEach { field -> buildConfigField("String", "FIREBASE_$field", "\"${firebase[field].orEmpty()}\"") }
         // Every build type made from release, such as the baseline profile's, uses the release address.
         manifestPlaceholders["linkHost"] = linkHostOf(releaseAiProxyUrl)
@@ -250,6 +260,10 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+
+    // Sells Pro through Google Play: RevenueCat checks and keeps the purchases, and brings Play
+    // Billing Library 9.1.0 with it. The proxy, not the app, decides what Pro gives.
+    implementation(libs.revenuecat.purchases)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
