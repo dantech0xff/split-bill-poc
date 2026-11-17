@@ -179,3 +179,45 @@ export function lifetimeCustomer(): Customer {
 function iso(time: number | undefined): string | null {
   return time === undefined ? null : new Date(time).toISOString();
 }
+
+/** A webhook event of [type] about the customer [id], as RevenueCat sends one, with [fields] added or replaced. */
+export function webhookEvent(type: string, id: unknown, fields: Record<string, unknown> = {}): Record<string, unknown> {
+  const now = Date.now();
+  return {
+    api_version: "1.0",
+    event: {
+      id: crypto.randomUUID().toUpperCase(),
+      type,
+      event_timestamp_ms: now,
+      app_id: "app0123456789",
+      app_user_id: id,
+      original_app_user_id: id,
+      aliases: [id],
+      environment: "PRODUCTION",
+      store: "PLAY_STORE",
+      product_id: "pro:monthly",
+      entitlement_ids: ["pro"],
+      period_type: "NORMAL",
+      purchased_at_ms: now,
+      expiration_at_ms: now + 30 * DAY,
+      ...fields,
+    },
+  };
+}
+
+/** A `TRANSFER` event, which names the customers a purchase moved from and to, and has no `app_user_id`. */
+export function transferEvent(from: string[], to: string[]): Record<string, unknown> {
+  return {
+    api_version: "1.0",
+    event: {
+      id: crypto.randomUUID().toUpperCase(),
+      type: "TRANSFER",
+      event_timestamp_ms: Date.now(),
+      app_id: "app0123456789",
+      environment: "PRODUCTION",
+      store: "PLAY_STORE",
+      transferred_from: from,
+      transferred_to: to,
+    },
+  };
+}

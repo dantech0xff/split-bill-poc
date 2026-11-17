@@ -35,6 +35,7 @@ import { claimRoute, liveShareRoute, openShareRoute } from "./share-claims";
 import { ShareRoom } from "./share-room";
 import { finalizeShareRoute, lockShareRoute, putShareRoute, readShareRoute, removeClaimRoute, reopenShareRoute, revokeShareRoute } from "./shares";
 import { splitRevision } from "./split-revision";
+import { subscriptionEventsRoute } from "./subscription-webhook";
 import { webAssetRoute, webPageRoute } from "./web";
 
 export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
@@ -114,6 +115,8 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/usage", { GET: usageRoute }],
   ["/v1/plan", { POST: planRoute }],
   ["/v1/account", { DELETE: accountRoute }],
+  // RevenueCat's webhook, which needs neither a session nor an install id.
+  ["/v1/subscription-events", { POST: subscriptionEventsRoute }],
   ["/v1/fx-rates", { GET: fxRatesRoute }],
   ["/v1/groups", { GET: listGroupsRoute, POST: createGroupRoute }],
   ["/v1/groups/:group", { GET: readGroupRoute, PATCH: renameGroupRoute }],
