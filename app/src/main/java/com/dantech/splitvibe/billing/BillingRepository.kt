@@ -7,6 +7,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.PurchasesTransactionException
@@ -131,9 +132,13 @@ class BillingRepository(
 
     /**
      * The plans on sale and the person's Pro, as RevenueCat reports them to the signed-in account.
-     * Throws [SignInNeededException] before the account has a purchaser, and [PurchasesException].
+     * Pro comes from RevenueCat's server now, not from the copy its SDK keeps, which can predate a
+     * purchase made on another phone. Throws [SignInNeededException] before the account has a
+     * purchaser, and [PurchasesException].
      */
-    suspend fun offer(): ProOffer = asPurchaser { billing, _ -> ProOffer(plans = billing.plans(), membership = billing.membership()) }
+    suspend fun offer(): ProOffer = asPurchaser { billing, _ ->
+        ProOffer(plans = billing.plans(), membership = billing.membership(CacheFetchPolicy.FETCH_CURRENT))
+    }
 
     /**
      * Buys [plan] over [activity]. Throws [SignInNeededException] without a purchaser, [NotOnSaleException]

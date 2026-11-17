@@ -65,14 +65,24 @@ data class ProUiState(
      */
     val onSale: Boolean = true,
 ) {
-    /** The person has Pro: as RevenueCat reports it, or before it has said, as the proxy counts the calls. */
-    val member: Boolean get() = membership?.active ?: (callsLeft?.plan == Plan.PRO)
+    /**
+     * The person has Pro: RevenueCat reports it active, or the proxy counts the calls as Pro's. The
+     * proxy keeps Pro through Google Play's delay in renewing, which RevenueCat does not.
+     */
+    val member: Boolean get() = membership?.active == true || callsLeft?.plan == Plan.PRO
+
+    /**
+     * The screen shows the person's Pro rather than the plans to buy: they have it, or a Google Play
+     * subscription to it that Google Play is still renewing or waits for a payment for.
+     */
+    val subscribed: Boolean get() = member || membership?.awaitingRenewal == true
 
     /** The plan of the person's Pro, among those on sale; none for Pro given another way than Google Play. */
-    val currentPlan: ProPlan? get() = membership?.takeIf { member }?.let { pro -> plans.firstOrNull(pro::isOn) }
+    val currentPlan: ProPlan? get() = membership?.takeIf { subscribed }?.let { pro -> plans.firstOrNull(pro::isOn) }
 
-    /** The other plan, which a Pro member can switch to. */
-    val switchTarget: ProPlan? get() = currentPlan?.let { current -> plans.firstOrNull { it.period != current.period } }
+    /** The other plan, which a Pro member can switch to while RevenueCat reports their Pro active. */
+    val switchTarget: ProPlan?
+        get() = currentPlan?.takeIf { membership?.active == true }?.let { current -> plans.firstOrNull { it.period != current.period } }
 
     /** The plan the main button buys. */
     val chosen: ProPlan? get() = plans.firstOrNull { it.period == selected } ?: plans.firstOrNull()
@@ -159,8 +169,7 @@ class ProViewModel(
     fun buy(activity: Activity) {
         val plan = state.value.takeIf { it.onSale }?.chosen ?: return
         act(ProWork.BUYING) {
-            val change = billing.buy(activity, plan)
-            local.update { it.copy(membership = change.membership) }
+            val change = purchased { billing.buy(activity, plan) } ?: return@act restored()
             ProMessage(if (change.plan == Plan.PRO) WELCOME else NOT_COUNTED_YET, isError = false)
         }
     }
@@ -169,17 +178,36 @@ class ProViewModel(
     fun switchTo(activity: Activity, plan: ProPlan) {
         val from = state.value.takeIf { it.onSale }?.membership?.takeIf { it.active } ?: return
         act(ProWork.SWITCHING) {
-            val change = billing.switchTo(activity, plan, from)
-            local.update { it.copy(membership = change.membership) }
+            purchased { billing.switchTo(activity, plan, from) } ?: return@act restored()
             val name = nameOf(plan.period).lowercase()
             ProMessage("You are on the $name plan now. Its price is charged from your next renewal.", isError = false)
         }
     }
 
-    fun restore() = act(ProWork.RESTORING) {
+    fun restore() = act(ProWork.RESTORING) { restored() }
+
+    /**
+     * What [purchase] changed, shown; or null when Google Play says that its account has the
+     * subscription already, which only a restore can tell apart: this Split Vibe account's, or
+     * another's, which RevenueCat refuses with `ReceiptAlreadyInUseError`.
+     */
+    private suspend fun purchased(purchase: suspend () -> ProChange): ProChange? {
+        val change = try {
+            purchase()
+        } catch (e: PurchasesException) {
+            if (e.code == PurchasesErrorCode.ProductAlreadyPurchasedError) return null
+            throw e
+        }
+        local.update { it.copy(membership = change.membership) }
+        return change
+    }
+
+    /** Restores the purchases of the phone's Google Play account, then has the proxy check them, and says what was found. */
+    private suspend fun restored(): ProMessage {
+        local.update { it.copy(working = ProWork.RESTORING) }
         val change = billing.restore()
         local.update { it.copy(membership = change.membership) }
-        ProMessage(restoredText(change), isError = false)
+        return ProMessage(restoredText(change), isError = false)
     }
 
     fun dismissMessage() = local.update { it.copy(message = null) }
@@ -235,10 +263,14 @@ class ProViewModel(
         const val FOUND_NOT_COUNTED_YET = "Your Pro subscription was found. Your calls turn into Pro's ${CallsLeft.PRO_MONTHLY} a " +
             "month as soon as Split Vibe's server has checked it."
 
-        fun restoredText(change: ProChange): String = when {
-            change.membership?.active != true -> "No Pro subscription was found for this Google Play account."
-            change.plan == Plan.PRO -> "Your Pro subscription is back on this account."
-            else -> FOUND_NOT_COUNTED_YET
+        fun restoredText(change: ProChange): String {
+            val pro = change.membership
+            return when {
+                pro == null || !(pro.active || pro.awaitingRenewal) -> "No Pro subscription was found for this Google Play account."
+                change.plan == Plan.PRO -> "Your Pro subscription is back on this account."
+                pro.active -> FOUND_NOT_COUNTED_YET
+                else -> "Your Pro subscription was found. Pro comes back once Google Play has renewed it."
+            }
         }
     }
 }
@@ -266,7 +298,7 @@ internal fun proMessageOf(error: Exception): ProMessage? {
 private fun storeText(code: PurchasesErrorCode): String? = when (code) {
     PurchasesErrorCode.PurchaseCancelledError -> null
     PurchasesErrorCode.PaymentPendingError -> "The payment is pending. Pro starts once Google Play confirms it."
-    PurchasesErrorCode.ReceiptAlreadyInUseError, PurchasesErrorCode.ProductAlreadyPurchasedError -> ANOTHER_ACCOUNT
+    PurchasesErrorCode.ReceiptAlreadyInUseError -> ANOTHER_ACCOUNT
     PurchasesErrorCode.NetworkError -> NO_CONNECTION
     PurchasesErrorCode.StoreProblemError, PurchasesErrorCode.PurchaseNotAllowedError -> STORE_PROBLEM
     else -> "That did not work. Please try again."

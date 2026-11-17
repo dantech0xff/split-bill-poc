@@ -16,6 +16,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.models.StoreReplacementMode
 import java.math.BigDecimal
@@ -142,16 +143,85 @@ class ProViewModelTest {
     @Test
     fun `a subscription of this Google Play account that another Split Vibe account bought says to sign in with that one`() {
         val viewModel = signedInViewModel()
-        for (code in listOf(PurchasesErrorCode.ReceiptAlreadyInUseError, PurchasesErrorCode.ProductAlreadyPurchasedError)) {
-            billing.failure = FakeBilling.purchaseFailed(code)
+        // RevenueCat refuses the purchase itself, or Google Play says its account has the subscription
+        // already and the restore that follows is refused.
+        val refusals = listOf<() -> Unit>(
+            { billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.ReceiptAlreadyInUseError) },
+            {
+                billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.ProductAlreadyPurchasedError)
+                billing.restoreFailure = FakeBilling.refused(PurchasesErrorCode.ReceiptAlreadyInUseError)
+            },
+        )
+        for ((index, refuse) in refusals.withIndex()) {
+            refuse()
             viewModel.dismissMessage()
 
             viewModel.buy(activity)
-            awaitOnMain { viewModel.state.value.message != null }
+            awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
 
-            assertEquals(code.name, ProMessage(ANOTHER_ACCOUNT, isError = true), viewModel.state.value.message)
+            assertEquals("$index", ProMessage(ANOTHER_ACCOUNT, isError = true), viewModel.state.value.message)
             assertFalse(viewModel.state.value.member)
         }
+        assertEquals("only Google Play's refusal is restored first", 1, billing.restores)
+    }
+
+    @Test
+    fun `when Google Play says its account has the subscription already, a restore finds this account's Pro and shows it`() {
+        val viewModel = signedInViewModel()
+        billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.ProductAlreadyPurchasedError)
+        billing.membership = FakeBilling.active()
+        answers["/v1/plan"] = { json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}""") }
+        val asked = server.requestCount
+
+        viewModel.buy(activity)
+        awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
+
+        assertEquals(1, billing.restores)
+        val state = viewModel.state.value
+        assertEquals(ProMessage("Your Pro subscription is back on this account.", isError = false), state.message)
+        assertTrue(state.member)
+        assertEquals(Plan.PRO, state.callsLeft?.plan)
+        repeat(asked) { server.takeRequest() }
+        val paths = List(2) { server.takeRequest().requestUrl?.encodedPath }
+        assertEquals("the proxy checks the plan before the purchase and after the restore", listOf("/v1/plan", "/v1/plan"), paths)
+    }
+
+    @Test
+    fun `the proxy's Pro counts as membership although RevenueCat reports the subscription ended`() {
+        // As in the hours Google Play can take to renew, which the proxy covers and RevenueCat does not.
+        billing.membership = FakeBilling.active(willRenew = false).copy(active = false)
+        answers["/v1/plan"] = { json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}""") }
+
+        val state = signedInViewModel().state.value
+
+        assertTrue(state.member)
+        assertTrue(state.subscribed)
+        assertNull("no switch until RevenueCat reports it active again", state.switchTarget)
+    }
+
+    @Test
+    fun `a subscription Google Play is still renewing or waits for a payment for shows as the person's, not as one to buy`() {
+        val waiting = listOf(
+            FakeBilling.active(willRenew = true).copy(active = false),
+            FakeBilling.active(willRenew = false, billingIssue = true).copy(active = false),
+        )
+        for (membership in waiting) {
+            billing.membership = membership
+
+            val state = signedInViewModel().state.value
+
+            assertFalse("the proxy counts free calls", state.member)
+            assertTrue(state.subscribed)
+            assertEquals(FakeBilling.MONTHLY, state.currentPlan)
+            assertNull(state.switchTarget)
+        }
+    }
+
+    @Test
+    fun `opening the screen asks RevenueCat's server for the person's Pro, not the copy its SDK keeps`() {
+        signedInViewModel()
+
+        assertEquals(listOf(CacheFetchPolicy.FETCH_CURRENT), billing.policies)
     }
 
     @Test

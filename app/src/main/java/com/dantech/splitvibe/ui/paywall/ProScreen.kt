@@ -78,11 +78,16 @@ class ProActions(
  * Pro: what it gives, that everything else stays free, the plans with Google Play's prices and the
  * terms of any offer, how a plan renews and where to cancel it, and the calls left. A Pro member sees
  * their plan, when it renews or ends, a payment Google Play could not take, and the switch to the
- * other plan. Signing in comes first, as only a signed-in account buys.
+ * other plan; so does someone whose subscription Google Play is still renewing. Signing in comes
+ * first, as only a signed-in account buys.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProScreen(state: ProUiState, actions: ProActions) {
+    val context = LocalContext.current
+    // Set when no app on the phone opens Google Play's subscriptions.
+    var cannotOpen by rememberSaveable { mutableStateOf(false) }
+    val manage = { cannotOpen = !open(context, state.manageUrl) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -106,13 +111,13 @@ fun ProScreen(state: ProUiState, actions: ProActions) {
         ) {
             when {
                 !state.sold -> SvMessageCard(text = NOT_SOLD, isError = false)
-                state.member -> MemberCard(state)
+                state.subscribed -> MemberCard(state, onManage = manage)
                 else -> BenefitCard()
             }
             state.callsLeft?.let { Text(callsLeftText(it), style = MaterialTheme.typography.bodyLarge) }
             if (state.sold) {
                 Offer(state, actions)
-                Terms(state, actions)
+                Terms(state, actions, onManage = manage, cannotOpen = cannotOpen)
             }
         }
     }
@@ -134,22 +139,34 @@ private fun BenefitCard() = HeroCard {
     Text(EVERYTHING_ELSE_FREE, style = MaterialTheme.typography.bodyMedium)
 }
 
-/** The Pro the person has: its plan and price, when it renews or ends, and a payment Google Play could not take. */
+/**
+ * The Pro the person has: its plan and price, when it renews or ends, and a payment Google Play
+ * could not take, with the way to Google Play to fix it. A subscription that Google Play is still
+ * renewing shows here too, in place of the offer to buy, although RevenueCat does not report it active.
+ */
 @Composable
-private fun MemberCard(state: ProUiState) {
+private fun MemberCard(state: ProUiState, onManage: () -> Unit) {
     val membership = state.membership
     HeroCard {
-        Text("You have Pro", modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLargeEmphasized)
         Text(
-            "${CallsLeft.PRO_MONTHLY} AI calls a month. Everything else in Split Vibe stays free.",
-            style = MaterialTheme.typography.bodyMedium,
+            if (state.member) "You have Pro" else "Your Pro subscription",
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.titleLargeEmphasized,
         )
+        if (state.member) {
+            Text(
+                "${CallsLeft.PRO_MONTHLY} AI calls a month. Everything else in Split Vibe stays free.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         state.currentPlan?.let { plan ->
             Text("${nameOf(plan.period)} plan, ${priceText(plan)}", style = MaterialTheme.typography.amountMedium)
         }
-        membership?.let { Text(renewalText(it), style = MaterialTheme.typography.bodyMedium) }
+        membership?.let { renewalText(it) }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
-    if (membership?.billingIssue == true) SvMessageCard(text = BILLING_ISSUE, isError = true)
+    if (membership?.billingIssue == true) {
+        SvMessageCard(text = BILLING_ISSUE, isError = true, action = "Open Google Play", onAction = onManage)
+    }
 }
 
 /** The accent card the screen is about. */
@@ -182,7 +199,7 @@ private fun Offer(state: ProUiState, actions: ProActions) {
         // Neither a plan to buy nor a switch, while Split Vibe's server could not count them.
         !state.onSale -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
 
-        state.member -> if (switchTarget != null) SwitchCard(switchTarget, enabled = state.working == null, onSwitch = actions.onSwitch)
+        state.subscribed -> if (switchTarget != null) SwitchCard(switchTarget, enabled = state.working == null, onSwitch = actions.onSwitch)
 
         state.plans.isEmpty() -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
 
@@ -247,14 +264,12 @@ private fun SwitchCard(target: ProPlan, enabled: Boolean, onSwitch: (ProPlan) ->
 
 /** How a plan renews and where to cancel it, and restoring purchases made before. */
 @Composable
-private fun Terms(state: ProUiState, actions: ProActions) {
-    val context = LocalContext.current
-    var cannotOpen by rememberSaveable { mutableStateOf(false) }
+private fun Terms(state: ProUiState, actions: ProActions, onManage: () -> Unit, cannotOpen: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
         Text(RENEWAL_TERMS, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // A flow row: with large text the second button moves to its own line instead of wrapping its label.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            OutlinedButton(onClick = { cannotOpen = !open(context, state.manageUrl) }) { Text("Manage subscriptions in Google Play") }
+            OutlinedButton(onClick = onManage) { Text("Manage subscriptions in Google Play") }
             if (state.signedIn) TextButton(onClick = actions.onRestore, enabled = state.working == null) { Text("Restore purchases") }
         }
         if (cannotOpen) {
@@ -273,7 +288,7 @@ private fun BottomPart(state: ProUiState, actions: ProActions) {
     val chosen = state.chosen
     val main = when {
         state.working != null -> MainAction.WORKING
-        !state.sold || state.member -> MainAction.NONE
+        !state.sold || state.subscribed -> MainAction.NONE
         !state.signedIn -> MainAction.SIGN_IN
         chosen != null && state.onSale && !state.loading && state.loadError == null -> MainAction.BUY
         else -> MainAction.NONE

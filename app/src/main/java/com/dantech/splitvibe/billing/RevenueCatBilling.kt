@@ -2,6 +2,7 @@ package com.dantech.splitvibe.billing
 
 import android.app.Activity
 import android.content.Context
+import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.CustomerInfo
 import com.revenuecat.purchases.Offering
 import com.revenuecat.purchases.Package
@@ -58,7 +59,7 @@ class RevenueCatBilling(context: Context, private val apiKey: String) : Billing 
         return ProPeriod.entries.mapNotNull { period -> packageOf(offering, period)?.let { planOf(it, period) } }
     }
 
-    override suspend fun membership(): ProMembership? = membershipOf(purchases().awaitCustomerInfo())
+    override suspend fun membership(policy: CacheFetchPolicy): ProMembership? = membershipOf(purchases().awaitCustomerInfo(policy))
 
     override suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? {
         val purchases = purchases()

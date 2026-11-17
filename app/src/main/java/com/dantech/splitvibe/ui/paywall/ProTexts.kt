@@ -41,9 +41,12 @@ internal fun offerText(plan: ProPlan): String? {
 
 /**
  * When Pro renews or ends, such as "Renews on 17 December 2026.", in the phone's time zone; Pro
- * given without an end says that it does not end.
+ * given without an end says that it does not end, and a subscription Google Play is still renewing
+ * says so. Null for Pro that is not active otherwise, such as one waiting for a payment, which the
+ * notice about the payment covers.
  */
-internal fun renewalText(membership: ProMembership, zone: ZoneId = ZoneId.systemDefault()): String {
+internal fun renewalText(membership: ProMembership, zone: ZoneId = ZoneId.systemDefault()): String? {
+    if (!membership.active) return RENEWAL_PENDING.takeIf { membership.awaitingRenewal && !membership.billingIssue }
     val end = membership.expiresAt ?: return "It does not end."
     val day = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH).format(Instant.ofEpochMilli(end).atZone(zone))
     return if (membership.willRenew) "Renews on $day." else "Ends on $day, as it is set not to renew."
@@ -51,11 +54,11 @@ internal fun renewalText(membership: ProMembership, zone: ZoneId = ZoneId.system
 
 /**
  * Where the person manages their subscription in Google Play: the page of their Pro subscription
- * while they have one there, otherwise the address RevenueCat gave, or the page of all their
- * subscriptions.
+ * while they have one there, also one Google Play is still renewing or waits for a payment for,
+ * otherwise the address RevenueCat gave, or the page of all their subscriptions.
  */
 internal fun manageUrlOf(membership: ProMembership?): String {
-    val subscription = membership?.takeIf { it.active && it.fromGooglePlay }?.subscriptionId
+    val subscription = membership?.takeIf { it.fromGooglePlay && (it.active || it.awaitingRenewal) }?.subscriptionId
     if (subscription != null) {
         return "$PLAY_SUBSCRIPTIONS?sku=${URLEncoder.encode(subscription, "UTF-8")}&package=${BuildConfig.APPLICATION_ID}"
     }
@@ -64,6 +67,9 @@ internal fun manageUrlOf(membership: ProMembership?): String {
 
 /** Google Play's page of the person's subscriptions. */
 internal const val PLAY_SUBSCRIPTIONS = "https://play.google.com/store/account/subscriptions"
+
+/** Said of a subscription whose period ended while Google Play has not renewed it yet. */
+internal const val RENEWAL_PENDING = "Renewal pending: Google Play is renewing your subscription, which can take a few hours."
 
 /** "Free for 7 days", "$0.99 for the first month" or "$1.99 a month for 3 months". */
 private fun phaseText(phase: OfferPhase, first: Boolean): String {

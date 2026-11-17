@@ -66,12 +66,25 @@ class ProTextsTest {
     }
 
     @Test
+    fun `a subscription Google Play is still renewing says so, and one waiting for a payment leaves it to the payment's notice`() {
+        val renewing = FakeBilling.active(willRenew = true).copy(active = false)
+        val onHold = FakeBilling.active(willRenew = false, billingIssue = true).copy(active = false)
+        val ended = FakeBilling.active(willRenew = false).copy(active = false)
+
+        assertEquals("Renewal pending: Google Play is renewing your subscription, which can take a few hours.", renewalText(renewing))
+        assertNull(renewalText(onHold))
+        assertNull(renewalText(ended))
+    }
+
+    @Test
     fun `Google Play's page of the subscription while there is one, else RevenueCat's address or all subscriptions`() {
-        assertEquals(
-            "https://play.google.com/store/account/subscriptions?sku=pro&package=${BuildConfig.APPLICATION_ID}",
-            manageUrlOf(FakeBilling.active(productId = "pro:monthly")),
-        )
-        val ended = FakeBilling.active().copy(active = false, managementUrl = "https://play.google.com/store/account/subscriptions?x=1")
+        val subscription = "https://play.google.com/store/account/subscriptions?sku=pro&package=${BuildConfig.APPLICATION_ID}"
+        assertEquals(subscription, manageUrlOf(FakeBilling.active(productId = "pro:monthly")))
+        assertEquals("one Google Play is still renewing", subscription, manageUrlOf(FakeBilling.active().copy(active = false)))
+        val onHold = FakeBilling.active(willRenew = false, billingIssue = true).copy(active = false)
+        assertEquals("one waiting for a payment", subscription, manageUrlOf(onHold))
+        val ended = FakeBilling.active(willRenew = false)
+            .copy(active = false, managementUrl = "https://play.google.com/store/account/subscriptions?x=1")
         assertEquals("https://play.google.com/store/account/subscriptions?x=1", manageUrlOf(ended))
         val given = FakeBilling.active(productId = "rc_promo_pro_lifetime").copy(fromGooglePlay = false)
         assertEquals(PLAY_SUBSCRIPTIONS, manageUrlOf(given))

@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.billing
 
 import android.app.Activity
+import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.PurchasesTransactionException
 import com.revenuecat.purchases.models.StoreReplacementMode
@@ -28,8 +29,12 @@ interface Billing {
     /** The plans of the current offering that Google Play sells here: its `$rc_monthly` and `$rc_annual` packages. */
     suspend fun plans(): List<ProPlan>
 
-    /** The `pro` entitlement as RevenueCat reports it now, or null when the account never had it. */
-    suspend fun membership(): ProMembership?
+    /**
+     * The `pro` entitlement as RevenueCat reports it, or null when the account never had it. With
+     * [CacheFetchPolicy.FETCH_CURRENT] RevenueCat's server is asked now, after the store sends what
+     * it has not sent yet, rather than the store answering from its own copy.
+     */
+    suspend fun membership(policy: CacheFetchPolicy): ProMembership?
 
     /**
      * Opens Google Play's purchase of [plan] over [activity], or with [change] a switch from the plan
@@ -97,6 +102,13 @@ data class ProMembership(
 ) {
     /** Google Play's id of the subscription, without its base plan, which a switch of plans names. */
     val subscriptionId: String get() = productId.substringBefore(':')
+
+    /**
+     * Pro from a Google Play subscription that RevenueCat no longer reports active, but that is not
+     * over: Google Play is still renewing it, which can take hours after a period ends, or waits for
+     * a payment it could not take.
+     */
+    val awaitingRenewal: Boolean get() = !active && fromGooglePlay && (willRenew || billingIssue)
 
     /** Whether this Pro comes from [plan]. */
     fun isOn(plan: ProPlan): Boolean =

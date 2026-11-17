@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.ui.paywall
 
+import android.app.Application
+import android.content.Intent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -18,7 +20,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.billing.FakeBilling
 import com.dantech.splitvibe.billing.OfferPhase
 import com.dantech.splitvibe.billing.ProPeriod
@@ -31,6 +35,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /** What the Pro screen offers in each state, and how a screen reader reads it. */
@@ -111,6 +116,38 @@ class ProScreenTest {
     }
 
     @Test
+    fun `a subscription Google Play is still renewing shows as the person's, never as one to buy`() {
+        show(SIGNED_IN.copy(membership = FakeBilling.active(willRenew = true).copy(active = false)))
+
+        compose.onNode(hasText("Your Pro subscription") and isHeading()).assertExists()
+        compose.onNodeWithText("Monthly plan, $3.99 a month").assertExists()
+        compose.onNodeWithText("Renewal pending: Google Play is renewing your subscription", substring = true).assertExists()
+        assertNoOffer()
+    }
+
+    @Test
+    fun `a payment Google Play could not take shows the notice, which opens the subscription in Google Play`() {
+        show(SIGNED_IN.copy(membership = FakeBilling.active(willRenew = false, billingIssue = true).copy(active = false)))
+
+        compose.onNodeWithText("Google Play could not take your last payment", substring = true).assertExists()
+        compose.onNode(hasText("Open Google Play") and hasClickAction()).performClick()
+
+        val opened = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, opened.action)
+        assertEquals("https://play.google.com/store/account/subscriptions?sku=pro&package=${BuildConfig.APPLICATION_ID}", opened.dataString)
+        assertNoOffer()
+    }
+
+    @Test
+    fun `the proxy's Pro shows as Pro although RevenueCat reports the subscription ended`() {
+        show(MEMBER.copy(membership = FakeBilling.active(willRenew = false).copy(active = false)))
+
+        compose.onNode(hasText("You have Pro") and isHeading()).assertExists()
+        compose.onNodeWithText("Ends on", substring = true).assertDoesNotExist()
+        assertNoOffer()
+    }
+
+    @Test
     fun `while Pro is not on sale there is no plan to buy and no switch, but restoring and managing stay`() {
         show(SIGNED_IN.copy(onSale = false))
 
@@ -159,6 +196,14 @@ class ProScreenTest {
     private fun show(shown: ProUiState) {
         state = shown
         compose.setContent { SplitVibeTheme { ProScreen(state = state, actions = actions) } }
+    }
+
+    /** Neither Pro's pitch nor a plan to buy or switch to. */
+    private fun assertNoOffer() {
+        compose.onNodeWithText("${CallsLeft.PRO_MONTHLY} AI calls a month").assertDoesNotExist()
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)).assertCountEquals(0)
+        compose.onNodeWithText("Subscribe", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Switch to", substring = true).assertDoesNotExist()
     }
 
     private companion object {

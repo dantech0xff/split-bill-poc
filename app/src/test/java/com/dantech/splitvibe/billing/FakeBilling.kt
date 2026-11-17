@@ -2,6 +2,7 @@ package com.dantech.splitvibe.billing
 
 import android.app.Activity
 import com.dantech.splitvibe.data.account.Account
+import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
@@ -32,12 +33,18 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
     var plans: List<ProPlan> = listOf(MONTHLY, YEARLY)
     var membership: ProMembership? = null
 
+    /** How each read of [membership] asked RevenueCat: from its server now, or from the SDK's copy. */
+    val policies = mutableListOf<CacheFetchPolicy>()
+
     /** The purchases opened, with the switch each one makes. */
     val purchases = mutableListOf<Pair<ProPlan, PlanChange?>>()
     var restores = 0
 
     /** What the next purchase or restore fails with. */
     var failure: PurchasesException? = null
+
+    /** What the next restore fails with, such as one after a purchase that failed with [failure]. */
+    var restoreFailure: PurchasesException? = null
 
     /** While set, a purchase or a restore waits for it to complete, as while Google Play's purchase is open. */
     var gate: CompletableDeferred<Unit>? = null
@@ -66,7 +73,11 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
 
     override suspend fun plans(): List<ProPlan> = plans.also { requireStarted() }
 
-    override suspend fun membership(): ProMembership? = membership.also { requireStarted() }
+    override suspend fun membership(policy: CacheFetchPolicy): ProMembership? {
+        requireStarted()
+        policies += policy
+        return membership
+    }
 
     override suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? {
         requireStarted()
@@ -87,6 +98,10 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
         gate?.await()
         failure?.let {
             failure = null
+            throw it
+        }
+        restoreFailure?.let {
+            restoreFailure = null
             throw it
         }
         return membership
