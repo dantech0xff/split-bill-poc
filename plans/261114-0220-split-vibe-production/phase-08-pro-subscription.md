@@ -171,7 +171,7 @@ Sửa:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 17/11/2026 trên nhánh feat/phase-08-pro-subscription, chưa merge vào main -->
+<!-- Updated: thực hiện ngày 17/11/2026 trên nhánh feat/phase-08-pro-subscription, đã fast-forward vào main ngày 17/11/2026 -->
 Sáu trên bảy tiêu chí đạt và có bằng chứng. Tiêu chí thử trên kênh nội bộ bằng tài khoản thử nghiệm chưa làm được, vì nó cần app trên Play Console, sản phẩm thuê bao và project RevenueCat của chủ sản phẩm. Các bước nằm ở [docs/pro-subscription.md](../../docs/pro-subscription.md).
 
 | Tiêu chí | Kết quả | Bằng chứng |
