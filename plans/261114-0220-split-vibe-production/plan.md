@@ -54,7 +54,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 | 5 | [Nhóm, số dư và thu tiền không giữ tiền](./phase-05-people-groups-settle-up.md) | In Progress |
 | 6 | [Trang web cho người nhận và tự nhận món trực tiếp](./phase-06-web-companion-realtime-claim.md) | In Progress |
 | 7 | [Chỉnh bằng lời với AI, thống kê, xuất file, hóa đơn định kỳ](./phase-07-ai-assistant-insights.md) | In Progress |
-| 8 | [Gói Pro](./phase-08-pro-subscription.md) | Pending |
+| 8 | [Gói Pro](./phase-08-pro-subscription.md) | In Progress |
 | 9 | [Chất lượng, tuân thủ và phát hành](./phase-09-quality-compliance-release.md) | Pending |
 
 Thứ tự và phụ thuộc: 1 trước tất cả. 2 và 3 chạy song song được sau 1. 4 cần 2 và 3. 5 cần 4. 6 cần 5. 7 cần 4 và chạy song song được với 5 và 6. 8 cần 3 và 7. 9 cần tất cả, nhưng việc tra nhãn hiệu, vòng thử kín và hồ sơ pháp lý của nó bắt đầu sớm.
