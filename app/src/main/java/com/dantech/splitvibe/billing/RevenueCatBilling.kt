@@ -18,6 +18,8 @@ import com.revenuecat.purchases.awaitOfferings
 import com.revenuecat.purchases.awaitPurchase
 import com.revenuecat.purchases.awaitRestore
 import com.revenuecat.purchases.models.Period
+import com.revenuecat.purchases.models.PricingPhase
+import com.revenuecat.purchases.models.RecurrenceMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -98,25 +100,8 @@ class RevenueCatBilling(context: Context, private val apiKey: String) : Billing 
     private fun planOf(sold: Package, period: ProPeriod): ProPlan? {
         val product = sold.product
         val billingPeriod = product.period?.let(::periodOf) ?: return null
-        val offer = product.defaultOption?.pricingPhases.orEmpty().dropLast(1).map { phase ->
-            OfferPhase(
-                price = phase.price.takeIf { it.amountMicros > 0 }?.formatted,
-                period = periodOf(phase.billingPeriod) ?: return null,
-                cycles = phase.billingCycleCount ?: 1,
-            )
-        }
+        val offer = offerOf(product.defaultOption?.pricingPhases.orEmpty()) ?: return null
         return ProPlan(period, productId = product.id, price = product.price.formatted, billingPeriod = billingPeriod, offer = offer)
-    }
-
-    private fun periodOf(period: Period): BillingPeriod? {
-        val unit = when (period.unit) {
-            Period.Unit.DAY -> PeriodUnit.DAY
-            Period.Unit.WEEK -> PeriodUnit.WEEK
-            Period.Unit.MONTH -> PeriodUnit.MONTH
-            Period.Unit.YEAR -> PeriodUnit.YEAR
-            Period.Unit.UNKNOWN -> return null
-        }
-        return BillingPeriod(period.value, unit).takeIf { it.count > 0 }
     }
 
     private fun membershipOf(info: CustomerInfo): ProMembership? {
@@ -137,4 +122,37 @@ class RevenueCatBilling(context: Context, private val apiKey: String) : Billing 
         /** The entitlement Pro is in RevenueCat. */
         const val ENTITLEMENT = "pro"
     }
+}
+
+/**
+ * The phases of an offer that come before the full price, from all the [phases] of what is bought,
+ * the full price last, as Google Play sends them through RevenueCat. Null when the terms cannot be
+ * stated: a phase that never ends would come before the full price, or a period cannot be read.
+ *
+ * Google Play counts a single payment, such as $5.99 for the first 3 months, as 0 cycles of its
+ * period, and RevenueCat passes the 0 on; it is paid once and covers its period once. A count of 0
+ * or none for any other phase is read the same way.
+ */
+internal fun offerOf(phases: List<PricingPhase>): List<OfferPhase>? {
+    return phases.dropLast(1).map { phase ->
+        if (phase.recurrenceMode == RecurrenceMode.INFINITE_RECURRING) return null
+        val cycles = if (phase.recurrenceMode == RecurrenceMode.NON_RECURRING) 1 else phase.billingCycleCount?.takeIf { it > 0 } ?: 1
+        OfferPhase(
+            price = phase.price.takeIf { it.amountMicros > 0 }?.formatted,
+            period = periodOf(phase.billingPeriod) ?: return null,
+            cycles = cycles,
+        )
+    }
+}
+
+/** [period] as the app counts it, or null for one Google Play states in a unit this version does not know. */
+internal fun periodOf(period: Period): BillingPeriod? {
+    val unit = when (period.unit) {
+        Period.Unit.DAY -> PeriodUnit.DAY
+        Period.Unit.WEEK -> PeriodUnit.WEEK
+        Period.Unit.MONTH -> PeriodUnit.MONTH
+        Period.Unit.YEAR -> PeriodUnit.YEAR
+        Period.Unit.UNKNOWN -> return null
+    }
+    return BillingPeriod(period.value, unit).takeIf { it.count > 0 }
 }
