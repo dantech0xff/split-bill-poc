@@ -339,26 +339,62 @@ flowchart LR
   configures it when someone is signed in with a known purchaser, switches with `logIn` when another
   account signs in, and closes it with `Purchases.close()` while nobody is. It never calls `logOut`,
   which would make an anonymous id, so a phone where nobody signed in sends nothing to RevenueCat.
-  It starts in the activity rather than the application because every local test creates the
-  application, and as early as that so that a purchase the SDK has not acknowledged yet reaches
-  RevenueCat as the account that made it.
+  A change of user, a purchase, a restore and reading the offer take turns under one lock, so a
+  sign-out while Google Play's purchase is open waits until it is done. `follow` starts in the
+  activity rather than the application because every local test creates the application, and as
+  early as that so that a purchase the SDK has not sent to RevenueCat yet goes out soon.
+- RevenueCat's SDK sends such a purchase, one whose sending failed after Google Play took the
+  payment or one whose payment Google Play completes later, as whoever it runs as when it next tries
+  (when it is set up, when the app comes to the foreground, when it reads the customer info), not as
+  the account that made it. So when a purchase or a switch in this run of the app failed after
+  Google Play may have charged, left its payment pending, ended unseen, or came back with Pro that
+  the SDK worked out on the phone because RevenueCat's server failed, `BillingRepository` runs
+  `syncPurchases` as that account before the store stops or changes user. It waits 5 seconds at most,
+  and stops or changes user all the same after that or after a failure.
+  - What remains: a payment that is still pending then, and a purchase the sync could not send (no
+    connection, RevenueCat failing), stay on the phone, and the SDK sends them later as whoever is
+    signed in on it then. With "Keep with original App User ID", that account keeps the
+    subscription, and the buyer's restore is refused. A purchase left unsent by an earlier run of the
+    app is not known to this one, so nothing sends it before a stop. After an account deletion the
+    sync still runs, so such a purchase can reach RevenueCat under the purchaser the proxy has just
+    forgotten.
 - A build sells Pro only with RevenueCat's public key (`splitvibe.revenueCatApiKey`, read into
-  `BuildConfig.REVENUECAT_API_KEY`) and with signing in, as only a signed-in account buys. Without
-  them the Pro screen says Pro is not available, and calls used up lead to Settings as before.
+  `BuildConfig.REVENUECAT_API_KEY`, which `dev` builds leave empty) and with signing in, as only a
+  signed-in account buys. Without them the Pro screen says Pro is not available, and calls used up
+  lead to Settings as before.
 - The Pro screen (`ui/paywall/`, `ProKey`) opens from the plan row in Settings ("Get Pro" or "Manage
   Pro") and from the notice when the calls run out. It first has the proxy check the plan with
-  `POST /v1/plan`, which is not fatal when it fails, then reads the current offering's `$rc_monthly`
-  and `$rc_annual` packages: Google Play's price and period, and the phases of the offer that buying
-  applies (`defaultOption`), which the screen writes out, such as "Free for 7 days, then $3.99 a
-  month.". The yearly plan shows its yearly price. Signed out, its main action is signing in.
-- A purchase, a switch of plans and a restore are each followed by `POST /v1/plan`, so the calls
-  change without waiting for RevenueCat's notice. A switch between monthly and yearly names the
-  subscription without its base plan (`oldProductId`) and uses `StoreReplacementMode.WITHOUT_PRORATION`
-  both ways: the new plan starts at once and its price is charged from the next renewal.
+  `POST /v1/plan`, then reads the current offering's `$rc_monthly` and `$rc_annual` packages: Google
+  Play's price and period, and the phases of the offer that buying applies (`defaultOption`), which
+  the screen writes out, such as "Free for 7 days, then $3.99 a month.". Google Play counts a single
+  payment as 0 cycles, which reads as one period, and a plan with a phase that never ends before its
+  full price is left out. The yearly plan shows its yearly price. The person's Pro is read from
+  RevenueCat's server (`CacheFetchPolicy.FETCH_CURRENT`) rather than the SDK's copy, which can
+  predate a purchase on another phone. Signed out, its main action is signing in. Opening the
+  screen, and every change of session, forget the Pro and the message shown before.
+- A check of the plan refused for a limit (429), with RevenueCat out of the proxy's reach (502) or
+  with a 500 is not fatal. A 503 `not_configured`, while the proxy has no RevenueCat secret, takes Pro
+  off sale: `BillingRepository.onSale` keeps that answer until the proxy answers a check again, and
+  the screen then shows "Pro cannot be bought right now" in place of the plans, Subscribe and the
+  switch, while restoring and the manage link stay.
+- A Pro member is someone RevenueCat reports the `pro` entitlement active for, or whose calls the
+  proxy counts as Pro's, as the proxy keeps Pro through Google Play's delay in renewing. A Google
+  Play entitlement that RevenueCat reports inactive but that still renews, or has a billing issue,
+  shows as the person's subscription too, never the offer: "Renewal pending", or the notice about
+  the payment with a button that opens the subscription in Google Play.
+- A purchase and a switch of plans first have the proxy check the plan, and are refused while it
+  says that it cannot check subscriptions, or said so last when it cannot be reached. A purchase, a
+  switch of plans and a restore are each followed by `POST /v1/plan`, so the calls change without
+  waiting for RevenueCat's notice. A switch between monthly and yearly names the subscription
+  without its base plan (`oldProductId`) and uses `StoreReplacementMode.WITHOUT_PRORATION` both
+  ways: the new plan starts at once and its price is charged from the next renewal.
 - RevenueCat keeps a purchase with the account that bought it, so a purchase or a restore of it on
-  another account is refused (`ReceiptAlreadyInUseError` or `ProductAlreadyPurchasedError`), and the
-  screen says to sign in with that account. A purchase the person cancels says nothing; a pending
-  payment says that Pro starts once Google Play confirms it.
+  another account is refused with `ReceiptAlreadyInUseError`, and the screen says to sign in with
+  that account. When Google Play answers a purchase with `ProductAlreadyPurchasedError`, as its
+  account has the subscription already, the screen restores first and has the proxy check the
+  plan: a restore that works shows this account's Pro, and only a refused one says the subscription
+  is another account's. A purchase the person cancels says nothing; a pending payment says that Pro
+  starts once Google Play confirms it. No message shows an exception's own text.
 - The proxy's side of this, its routes and RevenueCat's notices, is in [proxy.md](proxy.md).
 
 ## Build variants
