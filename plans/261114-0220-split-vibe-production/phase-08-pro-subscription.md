@@ -99,7 +99,7 @@ Proxy và app làm song song, nên hai phần dùng chung đúng các định d�
   - quyền lợi đã qua kỳ, nhưng thuê bao cấp nó vẫn bật tự gia hạn và chưa có lỗi thanh toán hay hoàn tiền (`unsubscribe_detected_at`, `billing_issues_detected_at` và `refunded_at` đều null): `proUntil` là `expires_date`, vì Play có thể gia hạn chậm vài giờ sau khi hết kỳ;
   - mọi trường hợp khác: `proUntil` là null.
 - Lúc `now`, tài khoản là Pro khi `proUntil` khác null và `now < proUntil + proGraceMs` (`proGraceMs` là 24 giờ, trong `policy.ts`). Phần ân hạn này che khoảng chờ Play gia hạn và sự kiện đến trễ. Thuê bao đã hủy, đã hoàn tiền hay lỗi thanh toán thì hạ gói ngay khi proxy biết.
-- Chỉ trạng thái có `checkedAt` mới hơn trạng thái đã lưu mới được ghi. Vì proxy luôn hỏi lại trạng thái thật, sự kiện lặp lại hay đến sai thứ tự không làm sai gì, và không cần so thứ tự sự kiện.
+- Trạng thái có `checkedAt` cũ hơn trạng thái đã lưu không được ghi. Vì proxy luôn hỏi lại trạng thái thật, sự kiện lặp lại hay đến sai thứ tự không làm sai gì, và không cần so thứ tự sự kiện.
 - Giao dịch thử của tài khoản thử nghiệm giấy phép (sandbox) cũng cho Pro, vì chỉ người chủ sản phẩm thêm vào danh sách thử nghiệm mới mua thử được.
 - Hạn mức Pro là 300 lượt mỗi tháng (`proCalls`), dùng chung bộ đếm theo tháng UTC với 10 lượt miễn phí. Nâng hay hạ gói giữa tháng giữ nguyên số đã dùng.
 
