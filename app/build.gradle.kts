@@ -45,8 +45,8 @@ check(googleWebClientId.isEmpty() || Regex("[A-Za-z0-9-]+\\.apps\\.googleusercon
 
 // RevenueCat's public SDK key for the app on Google Play, which is made to ship inside the app. Pro
 // is sold only in a build that has it; without it the Pro screen says Pro is not available, and
-// every other flow works the same. Anything else, such as RevenueCat's secret key, stops the build,
-// and the message leaves the value out.
+// every other flow works the same. Only the prod flavor gets it (see productFlavors). Anything else,
+// such as RevenueCat's secret key, stops the build, and the message leaves the value out.
 val revenueCatApiKey: String = localProperties.getProperty("splitvibe.revenueCatApiKey")?.trim().orEmpty()
 check(revenueCatApiKey.isEmpty() || Regex("goog_[A-Za-z0-9_-]+").matches(revenueCatApiKey)) {
     "splitvibe.revenueCatApiKey must be RevenueCat's public SDK key for Google Play, which starts with goog_"
@@ -140,6 +140,9 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
+            // Google Play sells Pro only to the prod package, so a dev build never calls RevenueCat:
+            // without the key it says that Pro is not available in this build.
+            buildConfigField("String", "REVENUECAT_API_KEY", "\"\"")
         }
         create("prod") {
             dimension = "environment"

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Only needed to reach the app's proxy. OCR runs on the device; photos come from Google's
          document scanner, the system picker, the system camera app or a share, and people from the
@@ -13,6 +14,11 @@
     <uses-feature
         android:name="android.hardware.microphone"
         android:required="false" />
+    <!-- The app shows no ads and never reads the advertising ID, so a library that asks for it, such
+         as a later version of Google Play services or Firebase Analytics, cannot add it unnoticed. -->
+    <uses-permission
+        android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
 
     <!-- The speech recognizer the phone has, which turns what is said into text; Android shows it
          to the app only when the app says it looks for one. -->

@@ -136,7 +136,9 @@ Pro is sold through RevenueCat, with RevenueCat's public SDK key for the app on 
 starts with `goog_` and is made to ship inside the app. Without it the app is built without Pro: the
 Pro screen says Pro is not available, and every other flow works the same. Any other value, such as
 RevenueCat's secret key, stops the build. Google Play sells the subscription only to the `prod`
-flavor's package, so test purchases with that one:
+flavor's package, so only `prod` builds get the key: a `dev` build is always built without it, never
+calls RevenueCat, and its Pro screen says Pro is not available in this build. Test purchases with
+`prod`:
 
 ```properties
 splitvibe.revenueCatApiKey=goog_<public SDK key>

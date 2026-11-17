@@ -365,7 +365,7 @@ flowchart LR
 
 | Dimension | Values | Effect |
 |---|---|---|
-| Flavor `environment` | `dev`, `prod` | `dev` has the application id `com.dantech.splitvibe.dev`, so it installs next to the real app and never shares its data. `prod` is `com.dantech.splitvibe`. |
+| Flavor `environment` | `dev`, `prod` | `dev` has the application id `com.dantech.splitvibe.dev`, so it installs next to the real app and never shares its data. It is built without RevenueCat's key, as Google Play sells Pro only to `prod`, so it sells no Pro and never calls RevenueCat. `prod` is `com.dantech.splitvibe`. |
 | Build type | `debug`, `release` | `release` is shrunk with R8. |
 | Added by the baseline profile plugin | `nonMinifiedRelease`, `benchmarkRelease` | Used only to record the profile and to run the benchmarks. |
 
