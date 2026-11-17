@@ -26,6 +26,13 @@ export const POLICY = {
   /** Times one account may have the proxy ask RevenueCat for its plan in an hour. */
   planRefreshesPerHour: 30,
   /**
+   * Times one account may ask for its deletion in an hour; each asks RevenueCat to delete its
+   * customer. This count and that of [planRefreshesPerHour] outlive the deletion until the daily
+   * run forgets them, so that deleting the account again and again starts neither over, and cannot
+   * have RevenueCat asked without end.
+   */
+  accountDeletionsPerHour: 5,
+  /**
    * What an edit of a split by a sentence takes of the same allowance, in calls; a bill read takes
    * one. Allowances are counted in hundredths of a call, so a weight is a whole number of
    * hundredths from 0.01 to 1; the Worker does not load with any other.

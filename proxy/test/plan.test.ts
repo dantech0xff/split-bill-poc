@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ALLOWANCES, WEIGHTS } from "../src/identity";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf } from "../src/quota-book";
+import { forgetExpired } from "../src/reminders";
 import { type Customer, type FakeRevenueCat, fakeRevenueCat, lifetimeCustomer, playCustomer, subscriberAnswer, TEST_KEY } from "./fake-revenuecat";
 import { ANSWER, billAnswer, billRequest, last, model, proxyRequest, send } from "./requests";
 import { modelRevision, revisionRequest, SAMPLE_REVISION } from "./revisions";
@@ -118,6 +119,28 @@ describe("asking for the plan", () => {
     expect((await refresh(await person())).status).toBe(200);
     await env.DB.prepare("UPDATE rate_windows SET started_at = started_at - ?2 WHERE account = ?1").bind(who.account, POLICY.hourMs).run();
     expect((await refresh(who)).status).toBe(200);
+  }, 60_000);
+
+  it("keeps its hourly count through the account's deletion, which cannot start it over, until the daily run after the hour", async () => {
+    const who = await person();
+    for (let count = 0; count < POLICY.planRefreshesPerHour; count++) {
+      expect((await refresh(who)).status, `refresh ${count + 1}`).toBe(200);
+    }
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status).toBe(204);
+
+    // A session outlives the deletion, so the same one asks again.
+    const refused = await refresh(who);
+
+    expect(refused.status).toBe(429);
+    expect(refused.body).toEqual({ error: "rate_limited" });
+    expect(revenueCat.gets(who.account)).toBe(POLICY.planRefreshesPerHour);
+    expect(await rows("SELECT account, kind, used FROM rate_windows ORDER BY kind")).toEqual([
+      { account: who.account, kind: "account_delete", used: 1 },
+      { account: who.account, kind: "plan_refresh", used: POLICY.planRefreshesPerHour },
+    ]);
+    await env.DB.prepare("UPDATE rate_windows SET started_at = started_at - ?2 WHERE account = ?1").bind(who.account, POLICY.hourMs + 1).run();
+    await forgetExpired(env, Date.now());
+    expect(await rows("SELECT * FROM rate_windows")).toEqual([]);
   }, 60_000);
 
   it("is 503 not_configured without RevenueCat's key, before RevenueCat or the hourly count is asked", async () => {

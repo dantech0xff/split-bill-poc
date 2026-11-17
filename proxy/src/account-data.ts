@@ -1,5 +1,15 @@
+import type { HourlyKind } from "./rate-limit";
+
 /** The name a member gets once its account is deleted. */
 export const FORMER_MEMBER = "Former member";
+
+/**
+ * The hourly windows of an account that its deletion leaves: those that bound what the account has
+ * RevenueCat do, its plan reads and its deletions, so that deleting the account again and again
+ * starts neither over. They hold nothing of the account but its salted hash, and the daily run
+ * forgets them, as every window, once their hour is over.
+ */
+const KEPT_WINDOWS: readonly HourlyKind[] = ["plan_refresh", "account_delete"];
 
 /**
  * Takes [account] out of the shared data, in one batch, so that it is gone everywhere or nowhere.
@@ -10,7 +20,7 @@ export const FORMER_MEMBER = "Former member";
  * - a group where nobody else has an account is deleted, as when its last account leaves;
  * - a group it owns passes to the member with an account who joined first, and its bills pass to
  *   the group's owner;
- * - its claims, devices and hourly windows are deleted;
+ * - its claims and devices are deleted, and its hourly windows but [KEPT_WINDOWS];
  * - the requests it made keep their amounts for the debtor, but the payment method of each one
  *   not yet confirmed becomes `{}`, the payment for the web page of every one, confirmed or not,
  *   is emptied, so that its link no longer shows how the account was paid, and the creditor's
@@ -57,7 +67,9 @@ export async function forgetSharedData(db: D1Database, account: string, now: num
     db.prepare("UPDATE members SET account = NULL, name = ?2 WHERE account = ?1").bind(account, FORMER_MEMBER),
     db.prepare("DELETE FROM claims WHERE account = ?1").bind(account),
     db.prepare("DELETE FROM devices WHERE account = ?1").bind(account),
-    db.prepare("DELETE FROM rate_windows WHERE account = ?1").bind(account),
+    db
+      .prepare("DELETE FROM rate_windows WHERE account = ?1 AND kind NOT IN (SELECT value FROM json_each(?2))")
+      .bind(account, JSON.stringify(KEPT_WINDOWS)),
     db
       .prepare("UPDATE requests SET payment = NULL, method = CASE WHEN confirmed_paid_at IS NULL THEN '{}' ELSE method END WHERE creditor = ?1")
       .bind(account),

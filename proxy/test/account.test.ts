@@ -384,6 +384,29 @@ describe("deleting an account", () => {
     expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
   });
 
+  it("is taken 5 times an hour for one account, and 429 with Retry-After past that, deleting nothing", async () => {
+    const who = await person();
+    for (let count = 0; count < POLICY.accountDeletionsPerHour; count++) {
+      expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status, `deletion ${count + 1}`).toBe(204);
+    }
+    // A session outlives the deletion: the same one makes a group and has its purchaser recorded again.
+    const group = await newGroup(who);
+    expect((await api(who, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
+    const before = { held: await heldFor(who.account), group: await stateOf(group) };
+
+    const refused = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+
+    expect(refused.status).toBe(429);
+    expect(JSON.parse(refused.body)).toEqual({ error: "rate_limited" });
+    const wait = Number(refused.headers.get("retry-after"));
+    expect(wait).toBeGreaterThan(3_500);
+    expect(wait).toBeLessThanOrEqual(3_600);
+    expect(revenueCat.asked.filter((asked) => asked.method === "DELETE")).toHaveLength(POLICY.accountDeletionsPerHour);
+    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
+    // Another account is counted apart.
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: (await person()).session }))).status).toBe(204);
+  });
+
   it("deletes as before without RevenueCat's key, asking RevenueCat nothing", async () => {
     const { account, session } = await accountSession();
     model(ANSWER);
@@ -454,6 +477,7 @@ describe("deleting an account, in the shared data", () => {
     await api(minh, "POST", "/v1/request-links/accept", { token: linkToken(paid.body.url) });
     await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
     const owed = (await newRequest(owner, { groupId: group.id, toMemberId: lanId, creditorName: "Owner" })).body.request;
+    expect((await rows<{ kind: string }>("SELECT kind FROM rate_windows WHERE account = ?1", lan.account)).map((window) => window.kind)).toContain("request");
 
     expect((await deleteAccount(lan)).status).toBe(204);
 
@@ -471,9 +495,11 @@ describe("deleting an account, in the shared data", () => {
     expect(minhs.find((request) => request.id === paid.body.request.id)).toMatchObject({ method: paid.body.request.method, creditorName: "Former member" });
     const owners = (await api<{ requests: RequestView[] }>(owner, "GET", "/v1/requests")).body.requests;
     expect(owners).toEqual([{ ...owed, debtorBound: true }]);
-    for (const table of ["groups", "members", "claims", "group_bills", "settlements", "group_log", "requests", "devices", "rate_windows"]) {
+    for (const table of ["groups", "members", "claims", "group_bills", "settlements", "group_log", "requests", "devices"]) {
       expect(JSON.stringify(await rows(`SELECT * FROM ${table}`)), table).not.toContain(lan.account);
     }
+    // Of the hourly windows, only the count of deletions outlives it, as that of plan reads would.
+    expect(await rows("SELECT kind FROM rate_windows WHERE account = ?1", lan.account)).toEqual([{ kind: "account_delete" }]);
 
     const again = await signedInAgain(lan);
     expect((await api(again, "GET", "/v1/groups")).body).toEqual({ groups: [] });

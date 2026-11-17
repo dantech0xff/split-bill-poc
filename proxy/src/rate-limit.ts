@@ -5,8 +5,9 @@ import { errorResponse } from "./respond";
 
 /**
  * What an hourly limit counts. An account counts the invites, payment requests, group changes,
- * bill links and changes to them it makes, and the times it has its plan read from RevenueCat; a
- * hashed IP counts what the web pages do without a session: new claims, claim writes and reads.
+ * bill links and changes to them it makes, the times it has its plan read from RevenueCat, and the
+ * times it asks for its deletion; a hashed IP counts what the web pages do without a session: new
+ * claims, claim writes and reads.
  */
 export type HourlyKind =
   | "invite"
@@ -15,6 +16,7 @@ export type HourlyKind =
   | "share"
   | "share_write"
   | "plan_refresh"
+  | "account_delete"
   | "claim_new"
   | "claim_write"
   | "web_read";

@@ -99,10 +99,16 @@ export async function planRoute(request: Request, env: Env): Promise<Response> {
  * deletion, the answer is 502 `subscription_unavailable` and nothing else is deleted, so that the app
  * can try again. A subscription on Google Play goes on: the app says so before it deletes. The app
  * then forgets the session.
+ *
+ * An account may ask for its deletion [POLICY.accountDeletionsPerHour] times an hour, counted before
+ * RevenueCat is asked; past that the answer is 429 `rate_limited` and nothing is deleted. The count
+ * outlives the deletion, as `forgetSharedData` keeps it, because a session outlives it too.
  */
 export async function accountRoute(request: Request, env: Env): Promise<Response> {
   const account = await sessionAccountOf(request, env);
   if (account === null) return errorResponse(401, "session");
+  const refused = await hourlyRefusal(env.DB, account, "account_delete", POLICY.accountDeletionsPerHour);
+  if (refused !== null) return refused;
   const key = revenueCatKey(env);
   if (key !== null && !(await deleteCustomer(key, account))) return errorResponse(502, "subscription_unavailable");
   await forgetSharedData(env.DB, account, Date.now());
