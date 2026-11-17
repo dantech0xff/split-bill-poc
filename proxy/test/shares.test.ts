@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import worker from "../src/index";
 import { POLICY } from "../src/policy";
 import type { ShareView } from "../src/share-state";
+import { fakeRevenueCat } from "./fake-revenuecat";
 import { fakeTurnstile } from "./fake-turnstile";
 import { network } from "./network";
 import { proxyRequest, send } from "./requests";
@@ -896,6 +897,8 @@ describe("cleaning up", () => {
       method: { kind: "PayPalMe", handle: "lan" },
       payment: payPal(107_250),
     });
+    // Deleting an account deletes its customer at RevenueCat first.
+    fakeRevenueCat();
 
     expect((await send(proxyRequest("DELETE", "/v1/account", { session: lan.session }))).status).toBe(204);
 

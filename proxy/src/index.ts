@@ -1,4 +1,4 @@
-import { accountRoute, sessionRoute, usageRoute } from "./account";
+import { accountRoute, planRoute, sessionRoute, usageRoute } from "./account";
 import { billAnalysis } from "./bill-analysis";
 import { deleteBillRoute, putBillRoute, recordSettlementRoute } from "./bills";
 import { deleteDeviceRoute, putDeviceRoute } from "./devices";
@@ -67,6 +67,18 @@ export interface Env {
   TURNSTILE_SECRET?: string;
   /** The site key of that Turnstile widget, which the web page carries in a meta tag. Public; may be empty. */
   TURNSTILE_SITE_KEY: string;
+  /**
+   * The secret key of RevenueCat's REST API, with which the proxy reads each account's subscription
+   * and deletes its customer when the account is deleted. A secret; without it nobody becomes Pro,
+   * `POST /v1/plan` is 503 `not_configured`, and everything else works the same.
+   */
+  REVENUECAT_SECRET_KEY?: string;
+  /**
+   * The value of the Authorization header set in RevenueCat's webhook, which
+   * `POST /v1/subscription-events` takes as it is or after `Bearer `. A secret; without it the
+   * webhook is 503 `not_configured`, and everything else works the same.
+   */
+  REVENUECAT_WEBHOOK_AUTH?: string;
   /** The address of the web page's "Report abuse" link, which the page leaves out while it is empty. Public. */
   ABUSE_EMAIL: string;
   /** The app's web client ID at Google, which Google's ID tokens for the app are meant for. Public. */
@@ -100,6 +112,7 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/split-revision", { POST: (request, env, ctx) => splitRevision(request, env, ctx) }],
   ["/v1/session", { POST: sessionRoute }],
   ["/v1/usage", { GET: usageRoute }],
+  ["/v1/plan", { POST: planRoute }],
   ["/v1/account", { DELETE: accountRoute }],
   ["/v1/fx-rates", { GET: fxRatesRoute }],
   ["/v1/groups", { GET: listGroupsRoute, POST: createGroupRoute }],

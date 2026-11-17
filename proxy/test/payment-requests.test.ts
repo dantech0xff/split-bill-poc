@@ -4,6 +4,7 @@ import { POLICY } from "../src/policy";
 import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { fakeFcm } from "./fake-fcm";
+import { fakeRevenueCat } from "./fake-revenuecat";
 import { proxyRequest, send } from "./requests";
 import { addPlaceholder, api, join, linkToken, newGroup, type Person, person, rows, sha256, stateOf, THB, VND } from "./shared";
 
@@ -346,6 +347,8 @@ describe("a request link's web page", () => {
     await api(minh, "POST", "/v1/request-links/accept", { token });
     await api(minh, "POST", `/v1/requests/${paid.body.request.id}/reported-paid`);
     await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
+    // Deleting an account deletes its customer at RevenueCat first.
+    fakeRevenueCat();
 
     expect((await send(proxyRequest("DELETE", "/v1/account", { session: lan.session }))).status).toBe(204);
 

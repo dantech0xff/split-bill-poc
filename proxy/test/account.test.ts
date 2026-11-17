@@ -9,6 +9,7 @@ import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf } from "../src/quota-book";
 import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
+import { type FakeRevenueCat, fakeRevenueCat, playCustomer, TEST_KEY } from "./fake-revenuecat";
 import { network } from "./network";
 import { ANSWER, billRequest, last, model, proxyRequest, send } from "./requests";
 import {
@@ -34,9 +35,26 @@ const google = await generateKeyPair("RS256");
 const stranger = await generateKeyPair("RS256");
 const googleKeys = { keys: [{ ...(await exportJWK(google.publicKey)), kid: "google-test", alg: "RS256", use: "sig" }] };
 
+/** RevenueCat, which every deletion of an account asks first. */
+let revenueCat: FakeRevenueCat;
+
 beforeEach(() => {
   network.use(http.get("https://www.googleapis.com/oauth2/v3/certs", () => HttpResponse.json(googleKeys)));
+  revenueCat = fakeRevenueCat();
 });
+
+function bookOf(account: string) {
+  return env.QUOTA_BOOK.get(env.QUOTA_BOOK.idFromName(`google:${account}`));
+}
+
+/** Everything the account's QuotaBook and spend ledger hold, by key. */
+async function heldFor(account: string): Promise<{ book: Record<string, unknown>; ledger: Record<string, unknown> }> {
+  const all = async (state: DurableObjectState) => Object.fromEntries(await state.storage.list());
+  return {
+    book: await runInDurableObject(bookOf(account), (_, state) => all(state)),
+    ledger: await runInDurableObject(env.ABUSE_LEDGER.get(env.ABUSE_LEDGER.idFromName(`google:${account}`)), (_, state) => all(state)),
+  };
+}
 
 type IdTokenChange = { key?: CryptoKey; issuer?: string; audience?: string; expires?: number | string };
 
@@ -73,9 +91,13 @@ describe("signing in", () => {
     const signedIn = await signIn(await idToken());
 
     expect(signedIn.status).toBe(200);
-    const { session, expiresAt, usage } = JSON.parse(signedIn.body) as { session: string; expiresAt: number; usage: unknown };
+    const { session, expiresAt, usage, purchaser } = JSON.parse(signedIn.body) as { session: string; expiresAt: number; usage: unknown; purchaser: string };
     expect(usage).toEqual(monthly(0));
     expect(expiresAt).toBeGreaterThan(Date.now() + POLICY.sessionMs - 60_000);
+    // The purchaser is the account the session stands for, recorded as handed out.
+    expect(purchaser).toBe(await hashed(GOOGLE_SUB, env.HASH_SALT));
+    expect(decodeJwt(session).sub).toBe(purchaser);
+    expect(await bookOf(purchaser).purchaserIssued()).toBe(true);
 
     model(ANSWER);
     const read = await send(billRequest({ session }));
@@ -177,17 +199,20 @@ describe("a session", () => {
 });
 
 describe("the calls left", () => {
-  it("are reported for an install and for an account, with whether AI is on", async () => {
-    const install = await send(proxyRequest("GET", "/v1/usage"));
+  it("are reported for an install and for an account, with whether AI is on, and the account's purchaser", async () => {
+    const installId = crypto.randomUUID();
+    const install = await send(proxyRequest("GET", "/v1/usage", { install: installId }));
     expect(install.status).toBe(200);
     expect(JSON.parse(install.body)).toEqual({
       usage: { limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null, plan: "trial" },
       aiEnabled: true,
     });
+    expect(await env.QUOTA_BOOK.get(env.QUOTA_BOOK.idFromName(`install:${installId}`)).purchaserIssued()).toBe(false);
 
-    const { session } = await accountSession();
-    const account = await send(proxyRequest("GET", "/v1/usage", { session }), { AI_ENABLED: "false" });
-    expect(JSON.parse(account.body)).toEqual({ usage: monthly(0), aiEnabled: false });
+    const { account, session } = await accountSession();
+    const signedIn = await send(proxyRequest("GET", "/v1/usage", { session }), { AI_ENABLED: "false" });
+    expect(JSON.parse(signedIn.body)).toEqual({ usage: monthly(0), aiEnabled: false, purchaser: account });
+    expect(await bookOf(account).purchaserIssued()).toBe(true);
   });
 
   it("need an install id or a session", async () => {
@@ -221,6 +246,85 @@ describe("deleting an account", () => {
 
     expect(sent.status).toBe(401);
     expect(JSON.parse(sent.body)).toEqual({ error: "session" });
+    expect(revenueCat.asked).toEqual([]);
+  });
+
+  /** An account on Pro that read a bill and made a group. */
+  async function activeAccount() {
+    const who = await person();
+    revenueCat.hold(who.account, playCustomer({ expires: Date.now() + 20 * POLICY.dayMs }));
+    expect((await api(who, "POST", "/v1/plan")).body).toMatchObject({ usage: { plan: "pro" } });
+    model(ANSWER);
+    expect(last(await send(billRequest({ session: who.session })))).toMatchObject({ type: "result" });
+    return { who, group: await newGroup(who) };
+  }
+
+  it("deletes the customer at RevenueCat before anything else", async () => {
+    const { who, group } = await activeAccount();
+    const before = { held: await heldFor(who.account), group: await stateOf(group) };
+    let atDeletion: typeof before | undefined;
+    revenueCat.answer = async (asked) => {
+      if (asked.method === "DELETE") atDeletion = { held: await heldFor(who.account), group: await stateOf(group) };
+      return undefined;
+    };
+
+    const deleted = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+
+    expect(deleted.status).toBe(204);
+    expect(revenueCat.asked.filter((asked) => asked.method === "DELETE")).toEqual([
+      { method: "DELETE", id: who.account, authorization: `Bearer ${TEST_KEY}`, platform: null },
+    ]);
+    expect(atDeletion).toEqual(before);
+    expect(revenueCat.has(who.account)).toBe(false);
+    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
+    expect(await rows("SELECT id FROM members WHERE account = ?1", who.account)).toEqual([]);
+  });
+
+  it("counts a customer RevenueCat does not have as deleted", async () => {
+    const who = await person();
+    expect((await api(who, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
+
+    const deleted = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+
+    expect(deleted.status).toBe(204);
+    expect(revenueCat.asked.map((asked) => asked.method)).toEqual(["DELETE"]);
+    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
+  });
+
+  it("deletes nothing when RevenueCat does not take the deletion, so that the app can try again", async () => {
+    const { who, group } = await activeAccount();
+    const before = { held: await heldFor(who.account), group: await stateOf(group) };
+    const failures = [
+      () => HttpResponse.json({ code: 7110, message: "Internal server error." }, { status: 500 }),
+      () => HttpResponse.error(),
+      () => HttpResponse.json({ code: 7731, message: "Too many requests." }, { status: 429 }),
+      () => HttpResponse.json({}, { status: 201 }),
+    ];
+
+    for (const failure of failures) {
+      revenueCat.answer = (asked) => (asked.method === "DELETE" ? failure() : undefined);
+      const sent = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+      expect(sent.status).toBe(502);
+      expect(JSON.parse(sent.body)).toEqual({ error: "subscription_unavailable" });
+    }
+
+    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
+    expect(revenueCat.has(who.account)).toBe(true);
+    revenueCat.answer = undefined;
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status).toBe(204);
+    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
+  });
+
+  it("deletes as before without RevenueCat's key, asking RevenueCat nothing", async () => {
+    const { account, session } = await accountSession();
+    model(ANSWER);
+    await send(billRequest({ session }));
+
+    const deleted = await send(proxyRequest("DELETE", "/v1/account", { session }), { REVENUECAT_SECRET_KEY: undefined });
+
+    expect(deleted.status).toBe(204);
+    expect(revenueCat.asked).toEqual([]);
+    expect(await heldFor(account)).toEqual({ book: {}, ledger: {} });
   });
 });
 

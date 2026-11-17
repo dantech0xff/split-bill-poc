@@ -17,6 +17,9 @@ export default defineConfig(async () => {
             GOOGLE_CLIENT_ID: "test-web-client.apps.googleusercontent.com",
             // The secret test/fake-turnstile.ts expects; Cloudflare's own test secrets are tried there too.
             TURNSTILE_SECRET: "test-turnstile-secret",
+            // The key test/fake-revenuecat.ts takes, and the webhook's Authorization value it sends.
+            REVENUECAT_SECRET_KEY: "test-revenuecat-secret-key",
+            REVENUECAT_WEBHOOK_AUTH: "test-revenuecat-webhook-auth",
             TEST_MIGRATIONS: migrations,
           },
         },
