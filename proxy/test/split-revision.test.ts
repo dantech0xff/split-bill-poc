@@ -12,7 +12,7 @@ import { network } from "./network";
 import { billRequest, type Caller, IP, ipName, last, model, quotaOf, sampleRequest, send, type Sent, spendOf } from "./requests";
 import { modelEdit, modelRevision, type RevisionBody, revisionRequest, SAMPLE_REVISION, sampleRevision } from "./revisions";
 
-const TRIAL_AFTER_ONE_EDIT = { limit: 3, used: 0.2, remaining: 2.8, period: "trial", resetsAt: null };
+const TRIAL_AFTER_ONE_EDIT = { limit: 3, used: 0.2, remaining: 2.8, period: "trial", resetsAt: null, plan: "trial" };
 
 /** A copy of the sample request with [change] made to it, to break or stretch one part of the contract. */
 function changed(change: (body: RevisionBody) => void): RevisionBody {
@@ -377,7 +377,7 @@ describe("the allowance of edits", () => {
 
     const read = await send(billRequest({ install, ip: "198.51.100.3" }));
     expect(read.status).toBe(429);
-    expect(JSON.parse(read.body)).toEqual({ error: "quota_exhausted", usage: { limit: 3, used: 2.2, remaining: 0.8, period: "trial", resetsAt: null } });
+    expect(JSON.parse(read.body)).toEqual({ error: "quota_exhausted", usage: { limit: 3, used: 2.2, remaining: 0.8, period: "trial", resetsAt: null, plan: "trial" } });
   });
 
   it("refuses an edit once less than a fifth of a call is left, with the calls left in decimals", async () => {
@@ -391,7 +391,7 @@ describe("the allowance of edits", () => {
 
     expect(over.status).toBe(429);
     expect(over.headers.get("retry-after")).toBeNull();
-    expect(JSON.parse(over.body)).toEqual({ error: "quota_exhausted", usage: { limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null } });
+    expect(JSON.parse(over.body)).toEqual({ error: "quota_exhausted", usage: { limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null, plan: "trial" } });
     expect(seen).toHaveLength(15);
   });
 

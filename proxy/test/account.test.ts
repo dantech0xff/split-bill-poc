@@ -64,7 +64,8 @@ async function accountSession(now: number = Date.now(), settings: Partial<typeof
 
 function monthly(used: number) {
   const now = Date.now();
-  return { limit: POLICY.monthlyCalls, used, remaining: POLICY.monthlyCalls - used, period: periodOf({ kind: "monthly", limit: 10 }, now), resetsAt: nextMonthStart(now) };
+  const period = periodOf({ kind: "monthly", limit: 10 }, now);
+  return { limit: POLICY.monthlyCalls, used, remaining: POLICY.monthlyCalls - used, period, resetsAt: nextMonthStart(now), plan: "free" };
 }
 
 describe("signing in", () => {
@@ -180,7 +181,7 @@ describe("the calls left", () => {
     const install = await send(proxyRequest("GET", "/v1/usage"));
     expect(install.status).toBe(200);
     expect(JSON.parse(install.body)).toEqual({
-      usage: { limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null },
+      usage: { limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null, plan: "trial" },
       aiEnabled: true,
     });
 

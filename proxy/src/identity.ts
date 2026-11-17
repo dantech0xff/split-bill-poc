@@ -9,6 +9,10 @@ import { accountOfSession } from "./session";
 /** The header that carries the random id an install of the app made for itself. */
 export const INSTALL_HEADER = "X-SplitVibe-Install";
 
+/**
+ * The allowance of each kind of caller without Pro. A Google account's `QuotaBook` gives it Pro's
+ * calls instead while its plan is Pro.
+ */
 export const ALLOWANCES = {
   trial: { kind: "trial", limit: POLICY.trialCalls },
   monthly: { kind: "monthly", limit: POLICY.monthlyCalls },
@@ -35,9 +39,12 @@ export function weightInHundredths(calls: number): number {
 
 /**
  * Who is calling, as far as allowances are concerned: an install that is not signed in, or a
- * Google account. [name] names the caller's QuotaBook and spend ledger; it holds no personal data.
+ * Google account, with its [account], which is also its purchaser at RevenueCat. [name] names the
+ * caller's QuotaBook and spend ledger; it holds no personal data.
  */
-export type Caller = { kind: "install" | "google"; name: string; allowance: Allowance };
+export type Caller =
+  | { kind: "install"; name: string; allowance: Allowance }
+  | { kind: "google"; account: string; name: string; allowance: Allowance };
 
 /**
  * The caller of [request]. A session, when the request carries one, decides: one that does not
@@ -48,7 +55,7 @@ export async function callerOf(request: Request, env: Env): Promise<{ ok: true; 
   if (request.headers.has("authorization")) {
     const account = await sessionAccountOf(request, env);
     if (account === null) return { ok: false, code: "session" };
-    return { ok: true, caller: { kind: "google", name: `google:${account}`, allowance: ALLOWANCES.monthly } };
+    return { ok: true, caller: { kind: "google", account, name: accountName(account), allowance: ALLOWANCES.monthly } };
   }
   const install = uuidOf(request.headers.get(INSTALL_HEADER));
   if (install === null) return { ok: false, code: "install" };
@@ -74,6 +81,11 @@ export function signedIn(route: (call: Call) => Promise<Response>) {
     if (account === null) return errorResponse(401, "session");
     return route({ request, env, ctx, params, account });
   };
+}
+
+/** The name of a Google account's QuotaBook and spend ledger. */
+export function accountName(account: string): string {
+  return `google:${account}`;
 }
 
 export function quotaBook(env: Env, name: string): DurableObjectStub<QuotaBook> {

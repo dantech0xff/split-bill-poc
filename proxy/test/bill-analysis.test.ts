@@ -35,7 +35,7 @@ describe("a bill read", () => {
     expect(last(sent)).toEqual({
       type: "result",
       answer: billAnswer,
-      usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null },
+      usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null, plan: "trial" },
     });
   });
 
@@ -208,7 +208,7 @@ describe("the allowance", () => {
     expect(fourth.headers.get("retry-after")).toBeNull();
     expect(JSON.parse(fourth.body)).toEqual({
       error: "quota_exhausted",
-      usage: { limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null },
+      usage: { limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null, plan: "trial" },
     });
     expect(seen).toHaveLength(POLICY.trialCalls);
   });
@@ -259,7 +259,7 @@ describe("the allowance", () => {
 
       const sent = await send(billRequest({ install }));
 
-      expect(last(sent)).toEqual({ type: "error", code, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null } });
+      expect(last(sent)).toEqual({ type: "error", code, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null, plan: "trial" } });
       network.resetHandlers();
     }
   });

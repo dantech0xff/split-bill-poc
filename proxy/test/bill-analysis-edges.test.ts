@@ -301,7 +301,7 @@ describe("a counter that cannot be reached", () => {
     const sent = await send(billRequest({ install }), failingLedger("global", "settleSpend"));
 
     expect(sent.lines.filter((line) => line.type !== "wait")).toEqual([
-      { type: "result", answer: billAnswer, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null } },
+      { type: "result", answer: billAnswer, usage: { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null, plan: "trial" } },
     ]);
     expect(await spendOf(`install:${install}`)).toMatchObject({ spent: 60_000, held: 0 });
   });

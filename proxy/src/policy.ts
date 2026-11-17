@@ -12,6 +12,20 @@ export const POLICY = {
   /** Calls a Google account may make in each calendar month, counted in UTC. */
   monthlyCalls: 10,
   /**
+   * Calls a Google account on Pro may make in each calendar month, on the same count as
+   * [monthlyCalls]: a plan that changes during a month keeps what the month used.
+   */
+  proCalls: 300,
+  /**
+   * How long an account stays on Pro after the time RevenueCat last gave it, unless RevenueCat says
+   * otherwise first. It covers a renewal that Play makes hours after the period ended, and a webhook
+   * that comes late. A subscription that RevenueCat shows cancelled, refunded or failing to bill once
+   * its period is over ends at once.
+   */
+  proGraceMs: 24 * 60 * 60 * 1000,
+  /** Times one account may have the proxy ask RevenueCat for its plan in an hour. */
+  planRefreshesPerHour: 30,
+  /**
    * What an edit of a split by a sentence takes of the same allowance, in calls; a bill read takes
    * one. Allowances are counted in hundredths of a call, so a weight is a whole number of
    * hundredths from 0.01 to 1; the Worker does not load with any other.
@@ -36,7 +50,8 @@ export const POLICY = {
    * another model, nearly half a dollar at the dearest price with a full answer, though a bill
    * should cost far less; an edit at the price of its own model, half a cent to 1.3 cents for
    * Haiku. So the caller's cap leaves room for a day's worth of real calls plus one hold, and the
-   * IP's cap for its 100 requests a day.
+   * IP's cap for its 100 requests a day. The global cap must rise as accounts move to Pro, each of
+   * which may use [proCalls] a month.
    */
   callerCapMicro: 3_000_000,
   ipCapMicro: 6_000_000,

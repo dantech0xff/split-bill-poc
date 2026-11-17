@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { WEIGHTS, weightInHundredths } from "../src/identity";
 import { POLICY } from "../src/policy";
-import { nextMonthStart, periodOf, type Allowance } from "../src/quota-book";
+import { nextMonthStart, periodOf, type Allowance, type PlanState } from "../src/quota-book";
 
 // Times are taken from the real clock: the object's alarm runs on it, and a time in the past would
 // let the alarm clear a hold in the middle of a test.
@@ -42,6 +42,20 @@ async function call(stub: Book, now: number, allowance: Allowance, requestId: st
   return hold;
 }
 
+/** The book of a Google account whose id the proxy handed out as its purchaser, keeping [plan] when there is one. */
+async function accountBook(plan?: PlanState): Promise<Book> {
+  const stub = book();
+  await stub.issuePurchaser(Date.now(), MONTHLY);
+  if (plan !== undefined) await stub.storePlan(plan);
+  return stub;
+}
+
+/** The usage of a Google account in the month of [now]. */
+function month(now: number, plan: "free" | "pro", used: number, remaining: number) {
+  const limit = plan === "pro" ? POLICY.proCalls : POLICY.monthlyCalls;
+  return { limit, used, remaining, period: periodOf(MONTHLY, now), resetsAt: nextMonthStart(now), plan };
+}
+
 describe("trial calls", () => {
   it("allows three, then refuses for good", async () => {
     const stub = book();
@@ -52,7 +66,7 @@ describe("trial calls", () => {
 
     expect(await stub.hold(now, crypto.randomUUID(), TRIAL, BILL, READ)).toMatchObject({ ok: false, code: "quota_exhausted", retryAfter: null });
     expect(await stub.hold(nextMonthStart(now), crypto.randomUUID(), TRIAL, BILL, READ)).toMatchObject({ ok: false, code: "quota_exhausted" });
-    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null });
+    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 3, remaining: 0, period: "trial", resetsAt: null, plan: "trial" });
   });
 
   it("lets exactly three of four requests racing for the calls have one", async () => {
@@ -78,6 +92,146 @@ describe("monthly calls", () => {
 
     const nextMonth = await stub.hold(nextMonthStart(now), crypto.randomUUID(), MONTHLY, BILL, READ);
     expect(nextMonth).toMatchObject({ ok: true, usage: { used: 0, remaining: 9 } });
+  });
+});
+
+describe("a Google account on Pro", () => {
+  it("may make 300 calls in a month and is refused the next", async () => {
+    const now = Date.now();
+    const stub = await accountBook({ proUntil: now + 30 * POLICY.dayMs, checkedAt: now });
+    for (let i = 0; i < POLICY.proCalls; i++) {
+      expect((await call(stub, now, MONTHLY)).ok, `call ${i + 1}`).toBe(true);
+    }
+
+    const next = await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, EDIT);
+
+    expect(next).toEqual({
+      ok: false,
+      code: "quota_exhausted",
+      usage: month(now, "pro", 300, 0),
+      retryAfter: Math.ceil((nextMonthStart(now) - now) / 1000),
+    });
+  }, 60_000);
+
+  it("is Pro until a day after the time RevenueCat gave, and has the free calls after", async () => {
+    const now = Date.now();
+    const proUntil = now - POLICY.proGraceMs + 1;
+    const stub = await accountBook({ proUntil, checkedAt: proUntil - POLICY.dayMs });
+    for (let i = 0; i < POLICY.monthlyCalls; i++) await call(stub, now, MONTHLY);
+
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, READ)).toMatchObject({ ok: true, usage: { limit: 300, plan: "pro" } });
+    const after = proUntil + POLICY.proGraceMs;
+    expect(await stub.usage(after, MONTHLY)).toEqual(month(after, "free", 10, 0));
+    expect(await stub.hold(after, crypto.randomUUID(), MONTHLY, BILL, READ)).toMatchObject({
+      ok: false,
+      code: "quota_exhausted",
+      usage: { limit: 10, plan: "free" },
+    });
+  });
+
+  it("keeps what the month used when the plan changes during the month", async () => {
+    const now = Date.now();
+    const stub = await accountBook();
+    for (let i = 0; i < 4; i++) await call(stub, now, MONTHLY);
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "free", 4, 6));
+
+    await stub.storePlan({ proUntil: now + 30 * POLICY.dayMs, checkedAt: now });
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "pro", 4, 296));
+    for (let i = 0; i < 8; i++) await call(stub, now, MONTHLY);
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "pro", 12, 288));
+
+    await stub.storePlan({ proUntil: null, checkedAt: now + 1 });
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "free", 12, 0));
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, EDIT)).toMatchObject({ ok: false, code: "quota_exhausted" });
+  });
+
+  it("never ends with an entitlement that has no end", async () => {
+    const now = Date.now();
+    const stub = await accountBook({ proUntil: Number.POSITIVE_INFINITY, checkedAt: now });
+    const later = now + 10 * 365 * POLICY.dayMs;
+
+    expect(await stub.usage(later, MONTHLY)).toEqual(month(later, "pro", 0, 300));
+    expect((await storageOf(stub)).plan).toEqual({ proUntil: Number.POSITIVE_INFINITY, checkedAt: now });
+  });
+
+  it("leaves the trial of an install as it is", async () => {
+    const now = Date.now();
+    const stub = await accountBook({ proUntil: now + POLICY.dayMs, checkedAt: now });
+
+    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null, plan: "trial" });
+  });
+});
+
+describe("a plan", () => {
+  it("is kept only for an account whose id went out as a purchaser, and forgotten with the account", async () => {
+    const now = Date.now();
+    const plan = { proUntil: now + POLICY.dayMs, checkedAt: now };
+    const stub = book();
+
+    await stub.storePlan(plan);
+    expect(await stub.purchaserIssued()).toBe(false);
+    expect(await storageOf(stub)).toEqual({});
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "free", 0, 10));
+
+    expect(await stub.issuePurchaser(now, MONTHLY)).toEqual(month(now, "free", 0, 10));
+    await stub.issuePurchaser(now + 1, MONTHLY);
+    await stub.storePlan(plan);
+    expect(await stub.purchaserIssued()).toBe(true);
+    expect(await storageOf(stub)).toEqual({ issued: now, plan });
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "pro", 0, 300));
+
+    await stub.forget();
+    await stub.storePlan({ ...plan, checkedAt: now + 1 });
+    expect(await stub.purchaserIssued()).toBe(false);
+    expect(await storageOf(stub)).toEqual({});
+  });
+
+  it("keeps the one RevenueCat gave last, whatever order its answers come in", async () => {
+    const now = Date.now();
+    const later = { proUntil: null, checkedAt: now };
+    const stub = await accountBook(later);
+
+    await stub.storePlan({ proUntil: now + POLICY.dayMs, checkedAt: now - 1 });
+    expect((await storageOf(stub)).plan).toEqual(later);
+    expect(await stub.usage(now, MONTHLY)).toMatchObject({ plan: "free" });
+
+    const latest = { proUntil: now + POLICY.dayMs, checkedAt: now + 1 };
+    await stub.storePlan(latest);
+    expect((await storageOf(stub)).plan).toEqual(latest);
+    expect(await stub.usage(now, MONTHLY)).toMatchObject({ plan: "pro" });
+  });
+
+  it("reads as no Pro when it is not of the shape it is kept in, and is kept again in its shape", async () => {
+    const now = Date.now();
+    for (const plan of [
+      { proUntil: "2099-01-01T00:00:00Z", checkedAt: now },
+      { proUntil: Number.NaN, checkedAt: now },
+      { proUntil: now + POLICY.dayMs },
+      { proUntil: now + POLICY.dayMs, checkedAt: Number.POSITIVE_INFINITY },
+      "pro",
+    ]) {
+      const stub = await bookWith({ issued: now, plan });
+      expect(await stub.usage(now, MONTHLY), JSON.stringify(plan)).toEqual(month(now, "free", 0, 10));
+
+      await stub.storePlan({ proUntil: now + POLICY.dayMs, checkedAt: now - POLICY.dayMs });
+      expect(await stub.usage(now, MONTHLY), JSON.stringify(plan)).toEqual(month(now, "pro", 0, 300));
+    }
+  });
+
+  it("is not kept when it is not of its shape", async () => {
+    const now = Date.now();
+    const stub = await accountBook();
+    const plans: unknown[] = [
+      { proUntil: now + POLICY.dayMs, checkedAt: Number.NaN },
+      { proUntil: Number.NaN, checkedAt: now },
+      { proUntil: "soon", checkedAt: now },
+    ];
+    for (const plan of plans) {
+      // As a Worker of another version could send it: the object checks what it is given.
+      await stub.storePlan(plan as PlanState);
+    }
+
+    expect(await storageOf(stub)).toEqual({ issued: expect.any(Number) });
   });
 });
 
@@ -110,11 +264,11 @@ describe("calls that weigh less than one", () => {
     const id = crypto.randomUUID();
 
     expect(await stub.hold(now, id, TRIAL, BILL, EDIT)).toMatchObject({ ok: true, usage: { used: 0, remaining: 2.8 } });
-    expect(await stub.commit(now, id, TRIAL, BILL, EDIT)).toEqual({ limit: 3, used: 0.2, remaining: 2.8, period: "trial", resetsAt: null });
+    expect(await stub.commit(now, id, TRIAL, BILL, EDIT)).toEqual({ limit: 3, used: 0.2, remaining: 2.8, period: "trial", resetsAt: null, plan: "trial" });
     await call(stub, now, TRIAL, crypto.randomUUID(), EDIT);
     await call(stub, now, TRIAL);
 
-    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 1.4, remaining: 1.6, period: "trial", resetsAt: null });
+    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 1.4, remaining: 1.6, period: "trial", resetsAt: null, plan: "trial" });
   });
 
   it("still run when too little is left for a bill read, and stop when less than their weight is left", async () => {
@@ -303,7 +457,7 @@ describe("storage written before calls had weights", () => {
       [`request:${held}`]: { heldAt: now, runs: 1, active: 1, committedAt: null, digest: BILL },
     });
 
-    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 1, remaining: 1, period: "trial", resetsAt: null });
+    expect(await stub.usage(now, TRIAL)).toEqual({ limit: 3, used: 1, remaining: 1, period: "trial", resetsAt: null, plan: "trial" });
     expect(await storageOf(stub)).toMatchObject({
       book: { period: "trial", hundredths: 100, used: 1 },
       [`request:${charged}`]: { committedAt: now, weight: 100 },
@@ -432,7 +586,7 @@ describe("a rollback to the code deployed before calls had weights", () => {
     // The object starts again on this code, with what that code left.
     const restarted = await bookWith(storage);
 
-    expect(await restarted.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.6, remaining: 0.4, period: "trial", resetsAt: null });
+    expect(await restarted.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.6, remaining: 0.4, period: "trial", resetsAt: null, plan: "trial" });
     expect(await storageOf(restarted)).toMatchObject({ book: { period: "trial", hundredths: 260, used: 3 }, [`request:${read}`]: { weight: 100 } });
     // A read that code charged is not charged again when it runs once more.
     expect(await call(restarted, now, TRIAL, read)).toMatchObject({ ok: true });
@@ -462,9 +616,9 @@ describe("a rollback to the code deployed before calls had weights", () => {
     const noWhole = await bookWith({ book: { period: "trial", hundredths: 280, used: Number.NaN } });
 
     // The whole calls stand in for the hundredths, and a hold with no weight holds a whole call.
-    expect(await notANumber.usage(now, TRIAL)).toEqual({ limit: 3, used: 2, remaining: 0, period: "trial", resetsAt: null });
-    expect(await neither.usage(now, TRIAL)).toEqual({ limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null });
-    expect(await noWhole.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.8, remaining: 0.2, period: "trial", resetsAt: null });
+    expect(await notANumber.usage(now, TRIAL)).toEqual({ limit: 3, used: 2, remaining: 0, period: "trial", resetsAt: null, plan: "trial" });
+    expect(await neither.usage(now, TRIAL)).toEqual({ limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null, plan: "trial" });
+    expect(await noWhole.usage(now, TRIAL)).toEqual({ limit: 3, used: 2.8, remaining: 0.2, period: "trial", resetsAt: null, plan: "trial" });
     expect((await storageOf(noWhole)).book).toEqual({ period: "trial", hundredths: 280, used: 3 });
   });
 });

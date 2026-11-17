@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { isRecord } from "./input";
 import { POLICY } from "./policy";
 
 /**
@@ -7,11 +8,22 @@ import { POLICY } from "./policy";
  */
 export type Allowance = { kind: "trial" | "monthly"; limit: number };
 
+/** The plan a caller is on: the trial of an install, or the free plan or Pro of a Google account. */
+export type Plan = "trial" | "free" | "pro";
+
 /**
- * How much of its allowance a caller has used, in calls. A call can weigh less than one, so the
- * numbers have up to two decimals, such as 2.8. A trial never starts over, so it has no reset time.
+ * How much of its allowance a caller has used, in calls, and the plan the allowance comes from. A
+ * call can weigh less than one, so the numbers have up to two decimals, such as 2.8. A trial never
+ * starts over, so it has no reset time.
  */
-export type Usage = { limit: number; used: number; remaining: number; period: string; resetsAt: number | null };
+export type Usage = { limit: number; used: number; remaining: number; period: string; resetsAt: number | null; plan: Plan };
+
+/**
+ * A Google account's subscription as RevenueCat last told of it: Pro until [proUntil], in ms since
+ * the epoch, which is infinite for an entitlement that never ends, or no Pro for null; and
+ * [checkedAt], when RevenueCat answered, by RevenueCat's clock.
+ */
+export type PlanState = { proUntil: number | null; checkedAt: number };
 
 export type HoldResult =
   | { ok: true; usage: Usage }
@@ -51,15 +63,27 @@ type WrittenBook = Book & { used: number };
 type StoredBook = { period: string; hundredths?: unknown; used?: unknown };
 type StoredEntry = Omit<RequestEntry, "weight"> & { weight?: unknown };
 
+/** The allowance that holds for a caller at one time, and the plan it comes from. */
+type Terms = { allowance: Allowance; plan: Plan };
+
 const BOOK = "book";
 const REQUEST = "request:";
+/** A Google account's plan, as [PlanState]. */
+const PLAN = "plan";
+/** When the proxy first handed a Google account's id to the app as its purchaser. */
+const ISSUED = "issued";
 /** The most keys one write of storage takes. */
 const MAX_PUT_KEYS = 128;
 
 /**
  * The calls of one caller: an install that is not signed in, or a Google account. Every request of
  * a caller runs on this one object, one after another, so two requests can never both take the
- * last call. Storage holds counts and request ids only.
+ * last call. Storage holds counts and request ids, and for a Google account its plan and when its
+ * id was first handed out as a purchaser.
+ *
+ * A Google account's monthly allowance is Pro's, [POLICY.proCalls], at every time its plan says it
+ * is Pro, and the free one otherwise. The object decides that each time it holds, charges or reports
+ * a call, so that the plan and the count are read together. Both plans share the month's count.
  *
  * A call is held before the model runs, committed once the model has answered, and released when
  * no answer came. Each run of a request holds a share of the request's one call and gives its own
@@ -74,30 +98,35 @@ export class QuotaBook extends DurableObject {
   /** Whether this object has looked for counts in whole calls since it started; see [upgrade]. */
   private upgraded = false;
 
+  /**
+   * Holds a call of [weight] for [requestId] while what is left of the allowance that holds at [now]
+   * is at least that. [allowance] is the caller's without Pro; see [termsAt].
+   */
   async hold(now: number, requestId: string, allowance: Allowance, digest: string, weight: number): Promise<HoldResult> {
     await this.upgrade();
-    const book = await this.currentBook(now, allowance);
+    const terms = await this.termsAt(now, allowance);
+    const book = await this.currentBook(now, terms.allowance);
     const requests = await this.liveRequests(now);
     const known = requests.get(requestId);
     if (known) {
       if (known.digest !== digest) {
-        return { ok: false, code: "request_mismatch", usage: usageOf(book, requests, allowance, now), retryAfter: null };
+        return { ok: false, code: "request_mismatch", usage: usageOf(book, requests, terms, now), retryAfter: null };
       }
       // The same request again, after a dropped connection for instance: it shares the call it
       // already holds or was charged, but it may only run a few times.
       if (known.runs >= POLICY.runsPerRequest) {
-        return { ok: false, code: "retry_limit", usage: usageOf(book, requests, allowance, now), retryAfter: null };
+        return { ok: false, code: "retry_limit", usage: usageOf(book, requests, terms, now), retryAfter: null };
       }
       known.runs += 1;
       known.active += 1;
       known.heldAt = now;
       await this.ctx.storage.put(REQUEST + requestId, known);
       await this.arm(now);
-      return { ok: true, usage: usageOf(book, requests, allowance, now) };
+      return { ok: true, usage: usageOf(book, requests, terms, now) };
     }
     const cost = weightOf(weight);
-    if (countOf(book, requests, allowance).remaining < cost) {
-      const usage = usageOf(book, requests, allowance, now);
+    if (countOf(book, requests, terms.allowance).remaining < cost) {
+      const usage = usageOf(book, requests, terms, now);
       const retryAfter = usage.resetsAt === null ? null : secondsUntil(now, usage.resetsAt);
       return { ok: false, code: "quota_exhausted", usage, retryAfter };
     }
@@ -105,7 +134,7 @@ export class QuotaBook extends DurableObject {
     requests.set(requestId, entry);
     await this.ctx.storage.put(REQUEST + requestId, entry);
     await this.arm(now);
-    return { ok: true, usage: usageOf(book, requests, allowance, now) };
+    return { ok: true, usage: usageOf(book, requests, terms, now) };
   }
 
   /**
@@ -115,7 +144,8 @@ export class QuotaBook extends DurableObject {
    */
   async commit(now: number, requestId: string, allowance: Allowance, digest: string, weight: number): Promise<Usage> {
     await this.upgrade();
-    const book = await this.currentBook(now, allowance);
+    const terms = await this.termsAt(now, allowance);
+    const book = await this.currentBook(now, terms.allowance);
     const stored = await this.ctx.storage.get<RequestEntry>(REQUEST + requestId);
     const entry = stored ?? { heldAt: now, runs: 1, active: 1, committedAt: null, digest, weight: weightOf(weight) };
     entry.active = Math.max(0, entry.active - 1);
@@ -127,7 +157,7 @@ export class QuotaBook extends DurableObject {
       await this.ctx.storage.put(REQUEST + requestId, entry);
     }
     await this.arm(now);
-    return usageOf(book, await this.liveRequests(now), allowance, now);
+    return usageOf(book, await this.liveRequests(now), terms, now);
   }
 
   /**
@@ -148,10 +178,40 @@ export class QuotaBook extends DurableObject {
 
   async usage(now: number, allowance: Allowance): Promise<Usage> {
     await this.upgrade();
-    return usageOf(await this.currentBook(now, allowance), await this.liveRequests(now), allowance, now);
+    const terms = await this.termsAt(now, allowance);
+    return usageOf(await this.currentBook(now, terms.allowance), await this.liveRequests(now), terms, now);
   }
 
-  /** Deletes everything this object holds, for a deleted account. */
+  /**
+   * [usage], for a Google account whose id the proxy is handing to the app as its purchaser, the id
+   * the app gives RevenueCat. The first time, the object records that the id went out: the proxy
+   * asks RevenueCat only about ids it handed out, because RevenueCat's read creates a customer that
+   * does not exist. The record goes with everything else when the account is deleted.
+   */
+  async issuePurchaser(now: number, allowance: Allowance): Promise<Usage> {
+    if ((await this.ctx.storage.get(ISSUED)) === undefined) await this.ctx.storage.put(ISSUED, now);
+    return this.usage(now, allowance);
+  }
+
+  /** Whether the proxy handed this account's id out as a purchaser and has not forgotten it since. */
+  async purchaserIssued(): Promise<boolean> {
+    return (await this.ctx.storage.get(ISSUED)) !== undefined;
+  }
+
+  /**
+   * Keeps [plan], read from RevenueCat, as the account's plan, unless the plan already kept was read
+   * later: answers that arrive out of order leave the latest, so an event repeated or late changes
+   * nothing. Nothing is kept for an id the proxy never handed out or has forgotten, such as a deleted
+   * account's, nor for a plan that is not of the shape [PlanState] gives.
+   */
+  async storePlan(plan: PlanState): Promise<void> {
+    const next = planStateOf(plan);
+    if (next === null || !(await this.purchaserIssued())) return;
+    const stored = planStateOf(await this.ctx.storage.get(PLAN));
+    if (stored === null || next.checkedAt >= stored.checkedAt) await this.ctx.storage.put(PLAN, next);
+  }
+
+  /** Deletes everything this object holds, for a deleted account: its plan and its purchaser's record too. */
   async forget(): Promise<void> {
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
@@ -189,6 +249,16 @@ export class QuotaBook extends DurableObject {
       await this.ctx.storage.put(Object.fromEntries(changes.slice(start, start + MAX_PUT_KEYS)));
     }
     this.upgraded = true;
+  }
+
+  /**
+   * The allowance that holds at [now] for a caller whose allowance without Pro is [allowance]: an
+   * install keeps its trial, and a Google account has Pro's calls while its plan is Pro.
+   */
+  private async termsAt(now: number, allowance: Allowance): Promise<Terms> {
+    if (allowance.kind === "trial") return { allowance, plan: "trial" };
+    if (!isProAt(planStateOf(await this.ctx.storage.get(PLAN)), now)) return { allowance, plan: "free" };
+    return { allowance: { kind: "monthly", limit: POLICY.proCalls }, plan: "pro" };
   }
 
   /** The count of the current period. A new calendar month starts a monthly count from zero. */
@@ -278,15 +348,34 @@ function countOf(book: Book, requests: Map<string, RequestEntry>, allowance: All
 }
 
 /** [countOf] in calls, as the app reads it: a number of hundredths over 100 prints with at most two decimals. */
-function usageOf(book: Book, requests: Map<string, RequestEntry>, allowance: Allowance, now: number): Usage {
-  const count = countOf(book, requests, allowance);
+function usageOf(book: Book, requests: Map<string, RequestEntry>, terms: Terms, now: number): Usage {
+  const count = countOf(book, requests, terms.allowance);
   return {
     limit: count.limit / PER_CALL,
     used: count.used / PER_CALL,
     remaining: count.remaining / PER_CALL,
     period: book.period,
-    resetsAt: allowance.kind === "monthly" ? nextMonthStart(now) : null,
+    resetsAt: terms.allowance.kind === "monthly" ? nextMonthStart(now) : null,
+    plan: terms.plan,
   };
+}
+
+/**
+ * [value] when it is a plan as [QuotaBook.storePlan] keeps one: [PlanState.checkedAt] a finite time,
+ * and [PlanState.proUntil] null or a time, infinite for an entitlement that never ends. Null for
+ * anything else, as for an account that never had a plan, so that a record cut off half way reads
+ * as no Pro rather than as NaN.
+ */
+function planStateOf(value: unknown): PlanState | null {
+  if (!isRecord(value) || typeof value.checkedAt !== "number" || !Number.isFinite(value.checkedAt)) return null;
+  const { proUntil, checkedAt } = value;
+  if (proUntil === null) return { proUntil, checkedAt };
+  return typeof proUntil === "number" && !Number.isNaN(proUntil) ? { proUntil, checkedAt } : null;
+}
+
+/** Whether [plan] makes its account Pro at [now]: until [POLICY.proGraceMs] after the time RevenueCat gave. */
+function isProAt(plan: PlanState | null, now: number): boolean {
+  return plan !== null && plan.proUntil !== null && now < plan.proUntil + POLICY.proGraceMs;
 }
 
 /** "trial" for a trial, and the calendar month in UTC, such as "2026-11", for a monthly allowance. */
