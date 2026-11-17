@@ -8,7 +8,7 @@ only what is in the repository now.
 
 ```mermaid
 flowchart LR
-    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push, bill links,<br/>edits by a sentence, insights, recurring bills"]
+    app[":app<br/>screens, navigation, dependency wiring,<br/>ML Kit text recognition and scanning,<br/>the bills on the phone, the proxy client,<br/>groups, requests, push, bill links,<br/>edits by a sentence, insights, recurring bills,<br/>Pro through RevenueCat"]
     domain[":core:domain<br/>plain Kotlin: money, split rules,<br/>group balances, payment codes,<br/>data contracts, answer parsing"]
     design[":core:designsystem<br/>theme, tokens,<br/>components, motion"]
     profile[":baseline-profile<br/>records the startup profile,<br/>holds the benchmarks"]
@@ -18,13 +18,16 @@ flowchart LR
     proxy["proxy/<br/>Cloudflare Worker:<br/>prompt, calls, limits, Claude,<br/>the day's exchange rates,<br/>groups and requests in D1, push,<br/>bill links and their live claims,<br/>edits of a split by a sentence"]
     web["web/<br/>the pages a link opens:<br/>Vite, Preact, TypeScript"]
     app -. HTTPS and a WebSocket .-> proxy
+    revenuecat["RevenueCat<br/>over Google Play Billing"]
+    app -. Pro, as the account's purchaser .-> revenuecat
+    revenuecat -. notices of changes .-> proxy
     web -. built into .-> proxy
     design -. tokens.css .-> web
 ```
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`) |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`), Pro (`Billing`, `RevenueCatBilling`, `BillingRepository`, `ProViewModel`) |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `BillCategory`, `SplitEdit` and `SplitEdits`, `Insights`, `Recurrence`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser`, `SplitRevisionParser`, `SplitRevisionRequest` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
@@ -68,7 +71,7 @@ the real application and activity. A wiring mistake fails the checks instead of 
 `ui/AppNavHost.kt` uses Navigation 3. The back stack is a list of keys (`HomeKey`, `SplitKey`,
 `HistoryKey`, `SettingsKey`, `PaymentMethodsKey`, `GroupsKey`, `GroupKey(id)`,
 `JoinGroupKey(token)`, `RequestsKey`, `RequestLinkKey(token)`, `ClaimKey`, `InsightsKey`,
-`RecurringKey`) that the screen code owns directly:
+`RecurringKey`, `ProKey`) that the screen code owns directly:
 
 - The keys are `@Serializable`, so the list is saved with the activity and the open screens come
   back after the system recreates it.
@@ -122,7 +125,9 @@ longer the latest, so two writers never overwrite each other. Reading other phot
 in by hand starts a new bill; only reading the same photos again replaces their bill. What was on
 screen comes back from `SavedStateHandle` and the database after the system ends the app. The
 proxy streams its answer as lines of JSON, and the app's error kinds follow the proxy's codes: free
-calls used up, sign-in run out, AI switched off, app too old, busy, refused, too long.
+calls used up, sign-in run out, AI switched off, app too old, busy, refused, too long. Calls used up
+lead to the Pro screen in a build that sells Pro, except for a Pro member, and otherwise to Settings
+for the install's trial.
 The [README](../README.md) describes each step in detail.
 
 ### Groups, requests and push
@@ -303,6 +308,57 @@ flowchart LR
   the `recurring_bills` table, through an automatic migration. `DatabaseMigrationTest` opens a
   version 2 database with Room.
 
+### Pro
+
+```mermaid
+flowchart LR
+    screen[Pro screen:<br/>ProViewModel] --> repo[BillingRepository]
+    repo -->|buy, switch, restore,<br/>as the purchaser| sdk[RevenueCatBilling:<br/>RevenueCat's SDK]
+    sdk --> play[Google Play Billing]
+    sdk --> rc[(RevenueCat)]
+    rc -->|notice of a change| proxy[Proxy: the account's QuotaBook]
+    repo -->|POST /v1/plan| proxy
+    proxy -->|asks for the account's Pro| rc
+    proxy -->|usage with its plan| store[AccountStore: CallsLeft.plan]
+```
+
+- The proxy alone decides what Pro gives. The app shows the plan the proxy counts the calls against
+  (`usage.plan`: `trial`, `free` or `pro`, read into `CallsLeft.plan`; a proxy from before Pro sends
+  none, which reads as the trial for `period: "trial"` and free otherwise) and what RevenueCat's SDK
+  reports about the subscription: its plan, when it renews or ends, and a payment that failed.
+- The purchaser is the account's id at RevenueCat, 64 lowercase hex characters, which the proxy hands
+  out in `POST /v1/session`, `GET /v1/usage` and `POST /v1/plan`; the app never works it out, and a
+  value of another shape reads as missing. `AccountStore` keeps it with the session, encrypted the
+  same way, and forgets it with the session: on signing out, on deleting the account, and when the
+  sign-in runs out. An answer that arrives after the session changed is not kept.
+- `Billing` is the app's interface to the store. `RevenueCatBilling` implements it over
+  `com.revenuecat.purchases:purchases`, and the tests use a stand-in. The SDK is only ever configured
+  with the signed-in account's purchaser: `BillingRepository.follow`, which `MainActivity` starts,
+  configures it when someone is signed in with a known purchaser, switches with `logIn` when another
+  account signs in, and closes it with `Purchases.close()` while nobody is. It never calls `logOut`,
+  which would make an anonymous id, so a phone where nobody signed in sends nothing to RevenueCat.
+  It starts in the activity rather than the application because every local test creates the
+  application, and as early as that so that a purchase the SDK has not acknowledged yet reaches
+  RevenueCat as the account that made it.
+- A build sells Pro only with RevenueCat's public key (`splitvibe.revenueCatApiKey`, read into
+  `BuildConfig.REVENUECAT_API_KEY`) and with signing in, as only a signed-in account buys. Without
+  them the Pro screen says Pro is not available, and calls used up lead to Settings as before.
+- The Pro screen (`ui/paywall/`, `ProKey`) opens from the plan row in Settings ("Get Pro" or "Manage
+  Pro") and from the notice when the calls run out. It first has the proxy check the plan with
+  `POST /v1/plan`, which is not fatal when it fails, then reads the current offering's `$rc_monthly`
+  and `$rc_annual` packages: Google Play's price and period, and the phases of the offer that buying
+  applies (`defaultOption`), which the screen writes out, such as "Free for 7 days, then $3.99 a
+  month.". The yearly plan shows its yearly price. Signed out, its main action is signing in.
+- A purchase, a switch of plans and a restore are each followed by `POST /v1/plan`, so the calls
+  change without waiting for RevenueCat's notice. A switch between monthly and yearly names the
+  subscription without its base plan (`oldProductId`) and uses `StoreReplacementMode.WITHOUT_PRORATION`
+  both ways: the new plan starts at once and its price is charged from the next renewal.
+- RevenueCat keeps a purchase with the account that bought it, so a purchase or a restore of it on
+  another account is refused (`ReceiptAlreadyInUseError` or `ProductAlreadyPurchasedError`), and the
+  screen says to sign in with that account. A purchase the person cancels says nothing; a pending
+  payment says that Pro starts once Google Play confirms it.
+- The proxy's side of this, its routes and RevenueCat's notices, is in [proxy.md](proxy.md).
+
 ## Build variants
 
 | Dimension | Values | Effect |
@@ -333,6 +389,8 @@ Only a release workflow that a maintainer approves may set them. That workflow d
   none of Android 17's behaviour changes apply.
 - material3 is pinned to `1.5.0-rc01` beside the Compose BOM, because no BOM includes the release
   with the Material 3 Expressive components yet. Do not publish to production on a release candidate.
+- RevenueCat's SDK 11.3.0 brings Google Play Billing Library 9.1.0, which meets Google's rule of
+  version 8 or later. Its own R8 rules are enough for the shrunk release build.
 
 ## Checks
 
@@ -349,7 +407,7 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Check | Command | What it guards |
 |---|---|---|
 | Code style | `./gradlew ktlintCheck` | The rules in `.editorconfig`. `./gradlew ktlintFormat` fixes most findings. |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules for every way to split, editing, exchange rates, parsing, the bills on the phone and their revisions, the proxy client and the account against a stand-in for the proxy, the UI flow, app startup, navigation and back handling, text contrast of the palette |
+| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | Split rules for every way to split, editing, exchange rates, parsing, the bills on the phone and their revisions, the proxy client and the account against a stand-in for the proxy, Pro against a stand-in for RevenueCat, the UI flow, app startup, navigation and back handling, text contrast of the palette |
 | Screenshots | part of the unit tests | Every screen against the reference images in `app/src/test/screenshots` |
 | Android Lint | `./gradlew :app:lintProdDebug :core:designsystem:lintDebug` | Platform and API misuse |
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |

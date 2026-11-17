@@ -78,6 +78,11 @@ flowchart LR
 12. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
     bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
     (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
+13. **Pro** (from Settings, or from the notice when the AI calls run out) is a Google Play
+    subscription, monthly or yearly, that gives 300 AI calls a month instead of 10. Everything else
+    stays free. The screen shows Google Play's prices and any offer, how the plan renews and where to
+    cancel it; a Pro member sees their plan, when it renews or ends, and can switch between monthly
+    and yearly or restore a purchase. Only a signed-in account buys, so Pro stays with it.
 
 Every change is saved as a draft as it is made, so a split survives the app being closed.
 
@@ -127,13 +132,24 @@ splitvibe.firebaseProjectId=<project id>
 splitvibe.firebaseSenderId=<project number>
 ```
 
+Pro is sold through RevenueCat, with RevenueCat's public SDK key for the app on Google Play, which
+starts with `goog_` and is made to ship inside the app. Without it the app is built without Pro: the
+Pro screen says Pro is not available, and every other flow works the same. Any other value, such as
+RevenueCat's secret key, stops the build. Google Play sells the subscription only to the `prod`
+flavor's package, so test purchases with that one:
+
+```properties
+splitvibe.revenueCatApiKey=goog_<public SDK key>
+```
+
 Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own address and open in the app
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
 app is signed with (see [docs/proxy.md](docs/proxy.md)).
 
 Without signing in, each install gets 3 free calls to Claude: reading a bill takes a whole call, and
-changing a split by a sentence takes 0.2. **Settings** (gear icon) shows the calls left and offers
-"Sign in with Google" for 10 calls a month, signing out and deleting the account. When a sign-in
+changing a split by a sentence takes 0.2. **Settings** (gear icon) shows the calls left with the plan
+they count against, and offers "Sign in with Google" for 10 calls a month, **Pro** for 300 a month,
+signing out and deleting the account. When a sign-in
 runs out, the app asks to sign in again and never falls back to the phone's free calls on its own;
 signing out does that. It
 also holds the app's **local currency** (the currency the payment app works in), which defaults to
@@ -186,10 +202,10 @@ Split with Minh and Lan. Minh had the beers.
   `fallbacks: "default"`): if a safety classifier declines the request, the API re-runs it on another
   model instead of failing.
 
-The proxy counts the calls (3 free per install, 10 a month per Google account), limits each network
-address, caps the day's spend, and charges a call only once the model has answered. When a read is
-cancelled, fails, or brings an answer the app cannot use, reading the same bill again keeps its
-request id, so the proxy does not charge twice.
+The proxy counts the calls (3 free per install, 10 a month per Google account, 300 a month with
+Pro), limits each network address, caps the day's spend, and charges a call only once the model has
+answered. When a read is cancelled, fails, or brings an answer the app cannot use, reading the same
+bill again keeps its request id, so the proxy does not charge twice.
 
 The model returns items, charges, the total, the currency, the number of decimals the prices are
 printed with, and what the instruction said about people:
@@ -259,7 +275,9 @@ one name picked. Bills, people, photos and payment methods stay on the phone. A 
 carries what was bought and how it was split, but no photo, read text or instruction. The request
 for exchange rates says nothing about who asks. The proxy keeps no email, Google name or photo: the
 names in groups and on requests are the ones people type, and push notices carry fixed words of the
-app's own, never a name, an amount or a link.
+app's own, never a name, an amount or a link. Only while someone is signed in does the app talk to
+RevenueCat, and then as the account's purchaser, an id the proxy makes that names no one; Google
+Play handles the payment, and the app keeps no payment details.
 
 ## Project layout
 
@@ -284,8 +302,9 @@ app/src/main/java/com/dantech/splitvibe/
               settings (local currency, your name)
   share/      QR codes (ZXing) and the split card shared as a picture
   notifications/ push notices through Firebase, and the device the proxy sends them to
+  billing/    Pro through RevenueCat and Google Play, and the proxy's check of the plan
   ui/         navigation and app links, home, history, split (new split, result, sheets, the request
-              step), editor, groups, requests, payments, settings
+              step), editor, groups, requests, payments, settings, paywall (Pro)
 app/schemas/                  the Room database schema, one file per version
 app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
 app/src/androidTest/          on-device tests
@@ -393,6 +412,8 @@ What has not been verified:
   have not been tried on a device yet.
 - **Google sign-in on a phone.** Credential Manager needs the OAuth clients, so sign-in has only been
   tested with a stand-in for Google's account picker.
+- **Buying Pro.** The subscription, its products in Play Console and RevenueCat's project are not set
+  up yet, so buying, switching and restoring have only been tested with a stand-in for RevenueCat.
 - **A physical phone.** Everything on-device ran on an emulator.
 - **The release build at runtime.** It builds with R8, but only debug builds were run.
 - **Performance numbers.** The benchmarks in `baseline-profile` exist but have not been run on a
@@ -428,7 +449,8 @@ What has not been verified:
 Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
 (Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
 Koin 4.2.2, Navigation 3 1.2.1, Room 2.8.5 with KSP 2.3.12, ML Kit text-recognition 16.0.1 and
-document scanner 16.0.0, OkHttp 4.12.0, Credential Manager 1.6.0 with Google ID 1.2.1. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
+document scanner 16.0.0, OkHttp 4.12.0, Credential Manager 1.6.0 with Google ID 1.2.1, RevenueCat
+11.3.0 with Google Play Billing Library 9.1.0. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
 wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0.
 
 ## License
