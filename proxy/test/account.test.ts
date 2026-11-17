@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { GroupState } from "../src/group-state";
 import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
-import { nextMonthStart, periodOf } from "../src/quota-book";
+import { nextMonthStart, periodOf, type QuotaBook } from "../src/quota-book";
 import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
 import { type FakeRevenueCat, fakeRevenueCat, playCustomer, TEST_KEY } from "./fake-revenuecat";
@@ -19,6 +19,7 @@ import {
   invite,
   join,
   linkToken,
+  logsOf,
   memberView,
   newGroup,
   type Person,
@@ -220,6 +221,74 @@ describe("the calls left", () => {
 
     expect(sent.status).toBe(401);
     expect(JSON.parse(sent.body)).toEqual({ error: "install" });
+  });
+});
+
+/**
+ * The QuotaBooks as the Worker finds them while they still run the code from before Pro, for a few
+ * minutes after the deploy that brought it: a call of `issuePurchaser`, which that code lacks, fails
+ * as the runtime fails a call of a method an object does not have. Everything else is the real
+ * object's.
+ */
+function booksFromBeforePro(): DurableObjectNamespace<QuotaBook> {
+  return new Proxy(env.QUOTA_BOOK, {
+    get(books, property) {
+      if (property === "get") {
+        return (id: DurableObjectId) =>
+          new Proxy(books.get(id), {
+            get(book, method) {
+              if (method === "issuePurchaser") return () => Promise.reject(new TypeError('The RPC receiver does not implement the method "issuePurchaser".'));
+              return Reflect.get(book, method);
+            },
+          });
+      }
+      const value: unknown = Reflect.get(books, property);
+      return typeof value === "function" ? value.bind(books) : value;
+    },
+  });
+}
+
+describe("while an account's QuotaBook still runs the code from before Pro", () => {
+  it("signs in, with the calls left and no purchaser, which is not recorded until a later call hands it out", async () => {
+    const { result: signedIn, lines } = await logsOf(async () => signIn(await idToken(), { QUOTA_BOOK: booksFromBeforePro() }));
+
+    expect(signedIn.status).toBe(200);
+    const body = JSON.parse(signedIn.body) as { session: string; usage: unknown };
+    expect(Object.keys(body).sort()).toEqual(["expiresAt", "session", "usage"]);
+    expect(body.usage).toEqual(monthly(0));
+    const account = await hashed(GOOGLE_SUB, env.HASH_SALT);
+    expect(await bookOf(account).purchaserIssued()).toBe(false);
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toEqual([{ event: "purchaser_not_recorded" }]);
+
+    // Once the object runs this code, the next call records the purchaser and hands it out.
+    const read = await send(proxyRequest("GET", "/v1/usage", { session: body.session }));
+    expect(JSON.parse(read.body)).toEqual({ usage: monthly(0), aiEnabled: true, purchaser: account });
+    expect(await bookOf(account).purchaserIssued()).toBe(true);
+  });
+
+  it("reports the calls left without a purchaser, and records none", async () => {
+    const { account, session } = await accountSession();
+    model(ANSWER);
+    expect(last(await send(billRequest({ session })))).toMatchObject({ type: "result" });
+
+    const { result: read, lines } = await logsOf(() => send(proxyRequest("GET", "/v1/usage", { session }), { QUOTA_BOOK: booksFromBeforePro() }));
+
+    expect(read.status).toBe(200);
+    expect(JSON.parse(read.body)).toEqual({ usage: monthly(1), aiEnabled: true });
+    expect(await bookOf(account).purchaserIssued()).toBe(false);
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toEqual([{ event: "purchaser_not_recorded" }]);
+  });
+
+  it("fails a refresh of the plan with 500, and asks RevenueCat nothing about the id it could not record", async () => {
+    const who = await person();
+
+    const { result: refreshed, lines } = await logsOf(() => api(who, "POST", "/v1/plan", {}, { QUOTA_BOOK: booksFromBeforePro() }));
+
+    expect(refreshed.status).toBe(500);
+    expect(refreshed.body).toEqual({ error: "internal" });
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toEqual([{ event: "request_failed", error: "TypeError" }]);
+    expect(revenueCat.asked).toEqual([]);
+    expect(await bookOf(who.account).purchaserIssued()).toBe(false);
   });
 });
 

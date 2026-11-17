@@ -3,6 +3,7 @@ import { ALLOWANCES, accountName, callerOf, ledger, quotaBook, sessionAccountOf 
 import type { Env } from "./index";
 import { readJson } from "./input";
 import { POLICY } from "./policy";
+import type { Usage } from "./quota-book";
 import { hourlyRefusal } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 import { deleteCustomer, refreshPlan, revenueCatKey } from "./revenuecat";
@@ -14,7 +15,8 @@ const MAX_ID_TOKEN_CHARS = 8 * 1024;
 /**
  * `POST /v1/session` with `{"idToken": …}`: trades the ID token Google gave the app at sign-in for
  * a session the proxy signs, and says how many calls the account has left this month, with the
- * account's purchaser: the id the app gives RevenueCat for the account's purchases.
+ * account's purchaser: the id the app gives RevenueCat for the account's purchases, left out while
+ * it cannot be recorded, as [callsAndPurchaser] says.
  */
 export async function sessionRoute(request: Request, env: Env): Promise<Response> {
   if (!signInReady(env)) return errorResponse(503, "sign_in_off");
@@ -26,8 +28,7 @@ export async function sessionRoute(request: Request, env: Env): Promise<Response
   if (!checked.ok) return checked.reason === "invalid" ? errorResponse(401, "id_token") : errorResponse(503, "sign_in_off");
   const now = Date.now();
   const { session, expiresAt } = await issueSession(checked.account, env, now);
-  const usage = await quotaBook(env, accountName(checked.account)).issuePurchaser(now, ALLOWANCES.monthly);
-  return jsonResponse(200, { session, expiresAt, usage, purchaser: checked.account });
+  return jsonResponse(200, { session, expiresAt, ...(await callsAndPurchaser(env, checked.account, now)) });
 }
 
 /**
@@ -38,11 +39,28 @@ export async function usageRoute(request: Request, env: Env): Promise<Response> 
   const who = await callerOf(request, env);
   if (!who.ok) return errorResponse(401, who.code);
   const { caller } = who;
-  const book = quotaBook(env, caller.name);
   const now = Date.now();
-  if (caller.kind === "install") return jsonResponse(200, { usage: await book.usage(now, caller.allowance), aiEnabled: aiEnabled(env) });
-  const usage = await book.issuePurchaser(now, caller.allowance);
-  return jsonResponse(200, { usage, aiEnabled: aiEnabled(env), purchaser: caller.account });
+  if (caller.kind === "install") {
+    return jsonResponse(200, { usage: await quotaBook(env, caller.name).usage(now, caller.allowance), aiEnabled: aiEnabled(env) });
+  }
+  return jsonResponse(200, { ...(await callsAndPurchaser(env, caller.account, now)), aiEnabled: aiEnabled(env) });
+}
+
+/**
+ * The calls [account] has left, and the account as its purchaser once its QuotaBook has recorded
+ * that the id went out, as [QuotaBook.issuePurchaser] does. For a few minutes after the deploy that
+ * brought Pro, the QuotaBook may still run the code from before it, which has no such method: the
+ * answer then has the calls left alone, from [QuotaBook.usage], and no purchaser, which the app gets
+ * on a later call. So an id never goes out without its record. Only the event's name is logged.
+ */
+async function callsAndPurchaser(env: Env, account: string, now: number): Promise<{ usage: Usage; purchaser?: string }> {
+  const book = quotaBook(env, accountName(account));
+  try {
+    return { usage: await book.issuePurchaser(now, ALLOWANCES.monthly), purchaser: account };
+  } catch {
+    console.error(JSON.stringify({ event: "purchaser_not_recorded" }));
+    return { usage: await book.usage(now, ALLOWANCES.monthly) };
+  }
 }
 
 /**
@@ -64,7 +82,9 @@ export async function planRoute(request: Request, env: Env): Promise<Response> {
   if (refused !== null) return refused;
   const book = quotaBook(env, accountName(account));
   // The answer hands the id out, so it is recorded as handed out before RevenueCat is asked: the
-  // read may create the customer, whose events the webhook then follows.
+  // read may create the customer, whose events the webhook then follows. A QuotaBook that cannot
+  // record it fails the request, answered 500, so RevenueCat is never asked about an id without
+  // its record.
   await book.issuePurchaser(Date.now(), ALLOWANCES.monthly);
   if (!(await refreshPlan(env, key, account))) return errorResponse(502, "subscription_unavailable");
   const usage = await book.usage(Date.now(), ALLOWANCES.monthly);

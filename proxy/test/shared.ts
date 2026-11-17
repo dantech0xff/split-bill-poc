@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 import type { GroupState } from "../src/group-state";
 import type { Env } from "../src/index";
 import { hashed } from "../src/ledger";
@@ -118,6 +118,20 @@ export async function addBill(group: TestGroup, who: Person, shares: Record<stri
 /** Rows of a table, straight from the database. */
 export async function rows<T = Record<string, unknown>>(sql: string, ...values: unknown[]): Promise<T[]> {
   return (await env.DB.prepare(sql).bind(...values).all<T>()).results;
+}
+
+/** What [run] gives, and the lines it logged, to the console's log and error alike, which stay out of the test's output. */
+export async function logsOf<T>(run: () => Promise<T>): Promise<{ result: T; lines: string[] }> {
+  const lines: string[] = [];
+  const record = (...parts: unknown[]) => {
+    lines.push(parts.map(String).join(" "));
+  };
+  const logs = [vi.spyOn(console, "log").mockImplementation(record), vi.spyOn(console, "error").mockImplementation(record)];
+  try {
+    return { result: await run(), lines };
+  } finally {
+    for (const log of logs) log.mockRestore();
+  }
 }
 
 /** The SHA-256 of [text] in hex, as the proxy keeps tokens. */
