@@ -9,7 +9,7 @@ import { forgetExpired } from "../src/reminders";
 import { type Customer, type FakeRevenueCat, fakeRevenueCat, playCustomer, promotionalCustomer, subscriberAnswer, TEST_KEY } from "./fake-revenuecat";
 import { ANSWER, billAnswer, billRequest, last, model, proxyRequest, send } from "./requests";
 import { modelRevision, revisionRequest, SAMPLE_REVISION } from "./revisions";
-import { api, type Person, person, rows } from "./shared";
+import { api, logsOf, type Person, person, rows } from "./shared";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -142,6 +142,58 @@ describe("asking for the plan", () => {
     await forgetExpired(env, Date.now());
     expect(await rows("SELECT * FROM rate_windows")).toEqual([]);
   }, 60_000);
+
+  it("reads an answer of up to 256 KB, and is 502 for a longer one, keeping the plan as it was", async () => {
+    const who = await customerWith(playCustomer({ expires: Date.now() + 20 * POLICY.dayMs }));
+    const kept = await storedPlan(who);
+    const now = Date.now();
+    /** RevenueCat's answer that the account has no Pro, made [bytes] long by a field the proxy does not read. */
+    const answerOf = (bytes: number) => {
+      const answer = { ...subscriberAnswer(who.account, { entitlements: {}, subscriptions: {} }, now), padding: "" };
+      answer.padding = "x".repeat(bytes - JSON.stringify(answer).length);
+      return () => new HttpResponse(JSON.stringify(answer), { headers: { "content-type": "application/json" } });
+    };
+
+    revenueCat.answer = answerOf(256 * 1024 + 1);
+    const refused = await refresh(who);
+
+    expect(refused.status).toBe(502);
+    expect(refused.body).toEqual({ error: "subscription_unavailable" });
+    expect(await storedPlan(who)).toEqual(kept);
+
+    revenueCat.answer = answerOf(256 * 1024);
+    const read = await refresh(who);
+
+    expect(read.status).toBe(200);
+    expect(read.body).toMatchObject({ usage: { plan: "free" } });
+    expect(await storedPlan(who)).toEqual({ proUntil: null, checkedAt: now });
+  });
+
+  it("is 502 with a key RevenueCat refuses, as is a deletion, and both log RevenueCat's 401, so that a wrong key shows", async () => {
+    const who = await person();
+    const wrongKey = "sk_not_the_projects_key";
+
+    const { result, lines } = await logsOf(async () => ({
+      plan: await refresh(who, {}, { REVENUECAT_SECRET_KEY: wrongKey }),
+      deletion: await send(proxyRequest("DELETE", "/v1/account", { session: who.session }), { REVENUECAT_SECRET_KEY: wrongKey }),
+    }));
+
+    expect(result.plan.status).toBe(502);
+    expect(result.plan.body).toEqual({ error: "subscription_unavailable" });
+    expect(result.deletion.status).toBe(502);
+    expect(JSON.parse(result.deletion.body)).toEqual({ error: "subscription_unavailable" });
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toEqual([
+      { event: "revenuecat_unavailable", status: 401 },
+      { event: "revenuecat_delete_failed", status: 401 },
+    ]);
+    expect(lines.join("\n")).not.toContain(wrongKey);
+    expect(revenueCat.asked.map(({ method, authorization }) => [method, authorization])).toEqual([
+      ["GET", `Bearer ${wrongKey}`],
+      ["DELETE", `Bearer ${wrongKey}`],
+    ]);
+    // The deletion did not go through: the purchaser's record is still there.
+    expect(await bookOf(who).purchaserIssued()).toBe(true);
+  });
 
   it("is 503 not_configured without RevenueCat's key, before RevenueCat or the hourly count is asked", async () => {
     const who = await person();

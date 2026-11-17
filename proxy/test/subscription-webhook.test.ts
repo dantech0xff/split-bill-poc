@@ -17,7 +17,7 @@ import {
   webhookEvent,
 } from "./fake-revenuecat";
 import { proxyRequest, send } from "./requests";
-import { api, type Person, person } from "./shared";
+import { api, logsOf, type Person, person } from "./shared";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -85,6 +85,20 @@ describe("the webhook's authorization", () => {
     }
     expect(revenueCat.asked).toEqual([]);
     expect(await storedPlan(who)).toBeUndefined();
+  });
+
+  it("refuses a wrong value before it reads the body, however long the body is", async () => {
+    const who = await purchaser();
+    const long = JSON.stringify(webhookEvent("RENEWAL", who.account, { aliases: Array(2_000).fill(who.account) }));
+    expect(long.length).toBeGreaterThan(64 * 1024);
+
+    const refused = await deliver(long, "wrong");
+
+    expect(refused.status).toBe(401);
+    expect(JSON.parse(refused.body)).toEqual({ error: "webhook_auth" });
+    // The same body with the right value is read, and is too long.
+    expect((await deliver(long)).status).toBe(413);
+    expect(revenueCat.asked).toEqual([]);
   });
 
   it("takes the value as it is, or after Bearer", async () => {
@@ -321,20 +335,13 @@ describe("an event", () => {
   it("is logged by its type and outcome, never with an id, a body or a secret", async () => {
     const who = await purchaser();
     revenueCat.hold(who.account, active());
-    const lines: string[] = [];
-    const record = (...parts: unknown[]) => {
-      lines.push(parts.map(String).join(" "));
-    };
-    const logs = [vi.spyOn(console, "log").mockImplementation(record), vi.spyOn(console, "error").mockImplementation(record)];
     const renewal = webhookEvent("RENEWAL", who.account);
-    try {
+    const { lines } = await logsOf(async () => {
       await deliver(renewal);
       await deliver(renewal, "wrong");
       revenueCat.answer = () => HttpResponse.json({ code: 7110 }, { status: 500 });
       await deliver(renewal);
-    } finally {
-      for (const log of logs) log.mockRestore();
-    }
+    });
 
     const logged = lines.join("\n");
     expect(lines.map((line) => JSON.parse(line) as Record<string, unknown>)).toEqual([
