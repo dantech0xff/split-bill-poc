@@ -3,6 +3,10 @@ package com.dantech.splitvibe.ui.settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
@@ -86,6 +90,8 @@ class SettingsScreenTest {
         show()
         compose.onNodeWithText("Free plan").assertDoesNotExist()
         compose.onNode(hasText("Get Pro") and hasClickAction()).assertExists()
+        // A text with nothing in it would be a stop that a screen reader has nothing to say for.
+        compose.onAllNodes(emptyText, useUnmergedTree = true).assertCountEquals(0)
 
         account = account.copy(ai = AiStatus.NOT_SET_UP)
         compose.onNodeWithText("Get Pro").assertDoesNotExist()
@@ -132,6 +138,9 @@ class SettingsScreenTest {
     }
 
     private companion object {
+        val emptyText = SemanticsMatcher("a text that says nothing") { node ->
+            node.config.getOrNull(SemanticsProperties.Text)?.any { it.text.isEmpty() } == true
+        }
         const val SWITCH = "Use the phone's online speech service"
         val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)
     }

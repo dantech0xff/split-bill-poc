@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -265,15 +266,12 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
 private fun PlanRow(plan: Plan?, onOpenPro: () -> Unit) {
     val pro = plan == Plan.PRO
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-        Text(
-            text = when {
-                plan == null -> ""
-                pro -> "Pro plan"
-                else -> "Free plan"
-            },
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleSmall,
-        )
+        // Before the count there is no plan to name, and an empty text would be a blank stop for a screen reader.
+        if (plan == null) {
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(if (pro) "Pro plan" else "Free plan", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+        }
         FilledTonalButton(onClick = onOpenPro) { Text(if (pro) "Manage Pro" else GET_PRO) }
     }
 }
