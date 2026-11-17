@@ -328,7 +328,9 @@ flowchart LR
   reports about the subscription: its plan, when it renews or ends, and a payment that failed.
 - The purchaser is the account's id at RevenueCat, 64 lowercase hex characters, which the proxy hands
   out in `POST /v1/session`, `GET /v1/usage` and `POST /v1/plan`; the app never works it out, and a
-  value of another shape reads as missing. `AccountStore` keeps it with the session, encrypted the
+  value of another shape reads as missing. An answer without it, as a part of the proxy still on the
+  code from before a deploy gives for a few minutes, keeps the one stored for the session, or waits
+  for the next answer that has it. `AccountStore` keeps it with the session, encrypted the
   same way, and forgets it with the session: on signing out, on deleting the account, and when the
   sign-in runs out. An answer that arrives after the session changed is not kept.
 - `Billing` is the app's interface to the store. `RevenueCatBilling` implements it over
