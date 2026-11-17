@@ -215,14 +215,70 @@ Sửa:
 
 ## Todo
 
-- [ ] `SplitEdit` và `applyEdits` với test bất biến
-- [ ] Bộ đánh giá câu lệnh chỉnh sửa và `reviseSplit`
-- [ ] Giao diện đề xuất, chấp nhận, bỏ, hoàn tác
-- [ ] Nhập bằng giọng nói
-- [ ] Trường `category`, `Insights`, màn hình thống kê
-- [ ] Xuất CSV và PDF
-- [ ] Hóa đơn định kỳ với WorkManager
-- [ ] Ảnh chuẩn cho màn hình mới
+- [x] `SplitEdit` và `applyEdits` với test bất biến
+- [x] Bộ đánh giá câu lệnh chỉnh sửa và `reviseSplit`
+- [x] Giao diện đề xuất, chấp nhận, bỏ, hoàn tác
+- [x] Nhập bằng giọng nói
+- [x] Trường `category`, `Insights`, màn hình thống kê
+- [x] Xuất CSV và PDF
+- [x] Hóa đơn định kỳ với WorkManager
+- [x] Ảnh chuẩn cho màn hình mới
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 16 và 17/11/2026 trên nhánh feat/phase-07-ai-assistant-insights, chưa merge vào main -->
+Bảy trên tám tiêu chí đạt và có bằng chứng. Tiêu chí về bộ đánh giá chưa đạt: bộ câu lệnh và công cụ chạy đã xong và đã thử với model giả, còn lần chạy với key Anthropic thật để sau, theo quyết định của chủ sản phẩm.
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Áp bất kỳ dãy thao tác hợp lệ nào, tổng các phần vẫn bằng tổng hóa đơn; thao tác trỏ tới món hay người không tồn tại bị loại và được báo | Đạt | `SplitEditPropertyTest`: 1.500 hóa đơn và cách chia ngẫu nhiên, mỗi cái tới 20 thao tác, cả số lượng rất nhỏ và số tiền rất lớn. Sau mỗi thao tác, cách chia không có vấn đề thì các phần cộng đúng tổng và không âm; thao tác bị loại không đổi gì; món, người hay `ref` lạ bị loại kèm lý do |
+| Model được chọn ra đúng dãy thao tác ở ít nhất 90% câu lệnh; báo cáo ghi độ chính xác, độ trễ và chi phí từng model | Chưa đạt | `proxy/eval/revise/` có 60 câu (27 tiếng Việt, 18 tiếng Anh, 5 tiếng Thái, 5 tiếng Indonesia, 5 tiếng Tây Ban Nha), chấm điểm và công cụ chạy (`npm run eval:revise`). Mỗi câu chạy ba lần cho mỗi model. Đã thử với model giả; lần chạy thật cần key Anthropic |
+| "Lan không uống bia" trên hóa đơn mẫu bỏ Lan khỏi món bia, phần của ba người cập nhật đúng; hoàn tác trả lại trạng thái cũ | Đạt | `SplitAssistantFlowTest` dùng view model thật: phần mỗi người từ 84.000 thành 99.750 / 99.750 / 52.500, đúng kết quả của `SplitCalculator`; hoàn tác trả lại hóa đơn y như trước, kể cả trạng thái đã xong |
+| Câu lệnh chứa chỉ dẫn lạ không tạo ra trạng thái vi phạm bất biến | Đạt | Domain loại số âm, phần trăm quá 100%, tổng không khớp và số tràn. App không áp gì từ câu trả lời độc hại và hiện lý do. Proxy ràng câu trả lời bằng schema, kiểm lại, và mã hóa mọi chữ nhúng vào prompt để tên không giả được thẻ. Bộ đánh giá có 6 câu tấn công |
+| Từ chối quyền micro: ô gõ vẫn dùng được, không có lỗi | Đạt | `VoiceInputTest` và `SplitAssistantFlowTest`. Quyền chỉ được hỏi khi bấm micro; máy không có bộ nhận dạng thì không hiện nút micro |
+| Thống kê tháng trên fixture 20 hóa đơn khớp bảng tính tay | Đạt | `InsightsTest` (domain) có bảng tính tay, reviewer đã tính lại từng số. `InsightsViewModelTest` kiểm phần app từ hóa đơn đã lưu tới màn hình, với ba kỳ và bảng tính tay |
+| Tệp CSV và PDF xuất từ fixture khớp tệp mẫu; CSV mở bằng bảng tính với đúng dấu thập phân | Đạt | `CsvExportTest`: so từng byte với tệp mẫu ở cả hai quy ước, và đọc lại từng số như bảng tính ở `en-US` và `vi-VN`. `PdfSummaryTest`: so chữ thực sự vẽ ra và ảnh từng trang với tệp mẫu. Một test trên máy ảo kiểm tệp PDF thật |
+| Với đồng hồ giả, hóa đơn hằng tháng tạo đúng một bản nháp mỗi kỳ, kể cả tháng thiếu ngày và khi hai máy cùng chạy | Đạt | `RecurringDraftsTest`: một hóa đơn ngày 31 chạy mỗi ngày từ 1/2027 tới 4/2028 tạo đúng một bản nháp mỗi kỳ, đúng ngày. Hai lượt chạy cùng lúc, 20 vòng, mỗi bản nháp vẫn chỉ một. Mẫu hóa đơn định kỳ nằm trên máy nên không đồng bộ giữa hai máy; mã bản nháp là UUID dựng từ mẫu và ngày, nên cùng một mẫu luôn cho cùng một mã |
+
+Kiểm tra chung: 543 unit test Kotlin (app 342, domain 198, hệ thiết kế 3), 357 test proxy và 192 test trang web đều qua; ktlint, lint, `tsc` và bản release đều sạch. Checksum của WorkManager do workflow trên máy sạch dựng, khớp từng byte với tệp đã commit. Test trên máy ảo Android qua ở `80c5bbb`.
+
+Những gì đã làm:
+- **Domain:** `BillCategory`, 13 thao tác `SplitEdit` với `SplitEdits.apply` và `describe`, bộ đọc câu trả lời, `SplitRevisionRequest`, `Insights`, `Recurrence`. Các quy tắc làm sạch chữ của proxy nay ở một chỗ (`ProxyText`), dùng chung cho link, yêu cầu trả tiền và chỉnh sửa.
+- **Proxy:** `POST /v1/split-revision` trên Haiku 5.5; hạn mức tính theo phần trăm của một lượt, chỉnh một lần tốn 0,2; trường `category` trong lần đọc hóa đơn; bộ đánh giá. Hợp đồng ở [docs/proxy.md](../../docs/proxy.md).
+- **App:**
+  - ô chỉnh bằng lời trên màn kết quả, với danh sách thay đổi trước và sau, bỏ từng mục, áp và hoàn tác;
+  - nhập bằng giọng nói;
+  - số lượt hiện kèm phần lẻ;
+  - chọn loại trong màn sửa;
+  - màn thống kê, xuất ba tệp CSV hay một PDF;
+  - hóa đơn định kỳ với WorkManager và thông báo.
+  Cơ sở dữ liệu lên phiên bản 3. Kiến trúc ở [docs/architecture.md](../../docs/architecture.md).
+- **Ba bản review độc lập**, đã sửa hết:
+  - proxy: 1 lỗi nặng, 1 trung bình, 8 nhẹ ([báo cáo](../reports/code-reviewer-261116-1448-phase-7-proxy-review.md));
+  - domain và phần AI của app: 2 nặng, 3 trung bình, 9 nhẹ ([báo cáo](../reports/code-reviewer-261116-1448-phase-7-domain-ai-app-review.md));
+  - thống kê, xuất file và hóa đơn định kỳ: 2 nặng, 5 trung bình, 11 nhẹ ([báo cáo](../reports/code-reviewer-261116-1448-phase-7-insights-export-recurring-review.md)).
+  Vài lỗi nhẹ được giữ có chủ ý, kèm lý do trong các báo cáo sửa, như tốc độ đọc lại hóa đơn của màn thống kê và cách chia trang PDF.
+
+Triển khai lên Cloudflare ngày 17/11/2026:
+- **Worker `split-vibe-proxy`:** gói dựng bằng đúng lệnh của CI (`npm run bundle`) từ commit `1473e70`. Không có migration D1 nào. Các `QuotaBook` tự đổi số lượt cũ sang phần trăm ở lần dùng đầu, và vẫn ghi kèm số lượt nguyên để bản cũ đọc được nếu phải lùi phiên bản. Các binding, biến, secret và lịch cron giữ nguyên.
+- **Thử bản đang chạy:**
+  - `/v1/usage` trả số lượt dạng số;
+  - `/v1/split-revision` trả 503 `not_configured`, vì Worker chưa có key Anthropic;
+  - trang `/s/`, tỷ giá và `sign_in_off` vẫn như trước.
+- Một Worker và một KV namespace tạm dùng để chuyển gói lên đã bị xóa.
+
+Các mặc định đã chọn, chủ sản phẩm có thể đổi:
+- Lần chỉnh bị model từ chối hay quá dài vẫn tính 0,2 lượt, như lần đọc hóa đơn. Câu trả lời không đọc được thì được trả lại lượt.
+- Khoản giữ chỗ chi phí của một lần chỉnh tính theo giá của chính model đó: khoảng 0,006 đến 0,013 USD thay vì 0,28 USD.
+- Tỷ giá trong ngày được lưu vào hóa đơn khi người dùng hoàn tất, hay khi chọn lại tỷ giá trong ngày trên hóa đơn đã xong. Mở hóa đơn ra vẫn không ghi lại gì.
+- Hóa đơn không có ngày được tính theo ngày lưu. Thống kê phân biệt người theo tên đã chuẩn hóa, và nhóm theo mã.
+- Lịch định kỳ neo theo ngày của hóa đơn, hay ngày người dùng chọn cho bản nháp đầu. Người vào từ link và cảnh báo của lần đọc không vào mẫu. Bản nháp đã xóa không tạo lại.
+- Sau một thời gian dài, mỗi hóa đơn định kỳ chỉ có một thông báo. Thông báo hiện tên khi máy đã mở khóa; trên màn hình khóa chỉ báo có hóa đơn tới kỳ.
+- Đề xuất của trợ lý mất khi hệ thống đóng app; hỏi lại tốn thêm 0,2 lượt.
+
+Còn lại trước khi đóng phase:
+- Đặt key Anthropic, rồi chạy bộ đánh giá (`npm run eval:revise`, khoảng 540 lần gọi) để chọn model chỉnh sửa và kiểm schema với API thật. Nên chạy trước khi bật chỉnh bằng lời cho người dùng.
+- Đặt `GOOGLE_CLIENT_ID` để thử trọn trên bản thật.
 
 ## Success Criteria
 
