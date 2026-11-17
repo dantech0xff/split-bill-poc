@@ -7,6 +7,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.PurchasesTransactionException
 import com.revenuecat.purchases.models.StoreReplacementMode
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Buying, switching or restoring Pro needs a Google sign-in, and the purchaser the proxy gave for it. */
 class SignInNeededException : Exception("Pro is bought only while signed in")
@@ -44,20 +46,36 @@ class BillingRepository(
     /** Whether this build sells Pro: it has RevenueCat's key and can sign in, as only a signed-in account buys. */
     val sellsPro: Boolean = billing != null && canSignIn
 
-    /** One change of the store's user at a time, so that it always ends as the latest account. */
+    /**
+     * One change of the store's user at a time, so that it always ends as the latest account. A
+     * purchase, a restore and reading the offer hold it too, so the store neither stops nor changes
+     * user in the middle of one: a sign-out waits until Google Play is done.
+     */
     private val identity = Mutex()
+
+    /** Who the store runs as, as it was last started here; null while it is stopped. Changed only under [identity]. */
+    private var runningAs: String? = null
+
+    /**
+     * The purchaser one of whose purchases in this run of the app may not have reached RevenueCat:
+     * its sending failed, its payment is pending, or the purchase ended unseen. Changed only under
+     * [identity], and only while the store runs as that purchaser.
+     */
+    private var unsentBy: String? = null
 
     /**
      * Keeps the store's user the purchaser of the account signed in now, and stops using the store
-     * while nobody is signed in or the proxy has not said who the purchaser is. Purchases that the
-     * store has not got to RevenueCat yet then go as the account that made them. Runs until
-     * cancelled, and nothing it meets stops it: the next purchase starts the store again anyway.
+     * while nobody is signed in or the proxy has not said who the purchaser is. RevenueCat's SDK
+     * sends a purchase it has not got to RevenueCat yet as whoever it runs as when it next tries,
+     * not as the account that made it. So when this run saw a purchase left unsent, the store first
+     * gets a few seconds to send it as its buyer. Runs until cancelled, and nothing it meets stops
+     * it: the next purchase starts the store again anyway.
      */
     suspend fun follow() {
         if (!sellsPro) return
         store.account.map { if (it.session != null) it.purchaser else null }.distinctUntilChanged().collect { purchaser ->
             try {
-                useAs(purchaser)
+                identity.withLock { useAs(purchaser) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -93,13 +111,10 @@ class BillingRepository(
      * The plans on sale and the person's Pro, as RevenueCat reports them to the signed-in account.
      * Throws [SignInNeededException] before the account has a purchaser, and [PurchasesException].
      */
-    suspend fun offer(): ProOffer {
-        val billing = ready()
-        return ProOffer(plans = billing.plans(), membership = billing.membership())
-    }
+    suspend fun offer(): ProOffer = asPurchaser { billing, _ -> ProOffer(plans = billing.plans(), membership = billing.membership()) }
 
     /** Buys [plan] over [activity]. Throws [PurchasesTransactionException] when Google Play or RevenueCat did not complete it. */
-    suspend fun buy(activity: Activity, plan: ProPlan): ProChange = completed(ready().purchase(activity, plan, change = null))
+    suspend fun buy(activity: Activity, plan: ProPlan): ProChange = completed(purchase(activity, plan, change = null))
 
     /**
      * Switches the Pro the person has, [from], to [plan] at once. Between the two base plans of one
@@ -108,7 +123,7 @@ class BillingRepository(
      */
     suspend fun switchTo(activity: Activity, plan: ProPlan, from: ProMembership): ProChange {
         val change = PlanChange(oldProductId = from.subscriptionId, replacementMode = StoreReplacementMode.WITHOUT_PRORATION)
-        return completed(ready().purchase(activity, plan, change))
+        return completed(purchase(activity, plan, change))
     }
 
     /**
@@ -116,19 +131,64 @@ class BillingRepository(
      * subscription bought by another Split Vibe account stays with it: RevenueCat then refuses, with
      * [PurchasesException], and nothing moves to this account.
      */
-    suspend fun restore(): ProChange = completed(ready().restore())
+    suspend fun restore(): ProChange = completed(asPurchaser { billing, _ -> billing.restore() })
 
-    /** The store as the signed-in account's purchaser. */
-    private suspend fun ready(): Billing {
+    /**
+     * Google Play's purchase of [plan], or with [change] a switch, noting when it may have left the
+     * purchase unsent: RevenueCat's server failed and its SDK worked Pro out on the phone, Google
+     * Play still waits for the payment, a failure came after Google Play may have taken it, or the
+     * purchase ended unseen.
+     */
+    private suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? =
+        asPurchaser { billing, purchaser ->
+            try {
+                billing.purchase(activity, plan, change).also { if (it?.offline == true) unsentBy = purchaser }
+            } catch (e: PurchasesException) {
+                if (e.code !in NOTHING_LEFT_TO_SEND) unsentBy = purchaser
+                throw e
+            } catch (e: CancellationException) {
+                unsentBy = purchaser
+                throw e
+            }
+        }
+
+    /** Runs [block] on the store as the signed-in account's purchaser, under [identity]. */
+    private suspend fun <T> asPurchaser(block: suspend (Billing, String) -> T): T = identity.withLock {
         val billing = checkNotNull(billing) { "This build sells no Pro" }
         val purchaser = store.currentSession()?.let { store.account.value.purchaser } ?: throw SignInNeededException()
         useAs(purchaser)
-        return billing
+        block(billing, purchaser)
     }
 
-    private suspend fun useAs(purchaser: String?) = identity.withLock {
-        val billing = billing ?: return@withLock
-        if (purchaser == null) billing.stop() else billing.start(purchaser)
+    /** Uses the store as [purchaser], or stops it for null. Called only under [identity]. */
+    private suspend fun useAs(purchaser: String?) {
+        val billing = billing ?: return
+        val leaving = runningAs?.takeIf { it != purchaser }
+        if (leaving != null) {
+            if (unsentBy == leaving) sendUnsent(billing)
+            unsentBy = null
+        }
+        runningAs = null
+        if (purchaser == null) {
+            billing.stop()
+        } else {
+            billing.start(purchaser)
+            runningAs = purchaser
+        }
+    }
+
+    /**
+     * Gives the store a few seconds to send what the phone's Google Play account bought, as whoever
+     * it runs as now. When that fails or takes longer, the store stops or changes user all the same.
+     */
+    private suspend fun sendUnsent(billing: Billing) {
+        try {
+            withTimeoutOrNull(SEND_UNSENT_MILLIS) { billing.syncPurchases() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Such as no connection, or RevenueCat keeping a purchase with the account that bought it.
+        }
     }
 
     /** After a purchase, a switch or a restore: the proxy's count follows at once, when the proxy can be asked now. */
@@ -141,5 +201,20 @@ class BillingRepository(
             null
         }
         return ProChange(membership, plan)
+    }
+
+    private companion object {
+        /** How long stopping or changing the store's user waits for a purchase left unsent to be sent. */
+        const val SEND_UNSENT_MILLIS = 5_000L
+
+        /** How a purchase can end with nothing left to send: nothing was bought, or RevenueCat already decided on it. */
+        val NOTHING_LEFT_TO_SEND = setOf(
+            PurchasesErrorCode.PurchaseCancelledError,
+            PurchasesErrorCode.ProductAlreadyPurchasedError,
+            PurchasesErrorCode.ReceiptAlreadyInUseError,
+            PurchasesErrorCode.PurchaseNotAllowedError,
+            PurchasesErrorCode.ProductNotAvailableForPurchaseError,
+            PurchasesErrorCode.ConfigurationError,
+        )
     }
 }

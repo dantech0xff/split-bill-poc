@@ -14,7 +14,9 @@ import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.models.StoreReplacementMode
 import java.math.BigDecimal
+import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -237,6 +239,127 @@ class BillingRepositoryTest {
     }
 
     @Test
+    fun `a sign-out while Google Play's purchase or a restore is open waits until it is done`() {
+        scope.launch { repository.follow() }
+        val steps = listOf<suspend () -> Unit>({ repository.buy(activity, FakeBilling.MONTHLY) }, { repository.restore() })
+        for (step in steps) {
+            signIn()
+            idle()
+            val open = CompletableDeferred<Unit>()
+            billing.gate = open
+            val done = scope.launch { step() }
+            idle()
+
+            proxy.account.clearSession()
+            idle()
+            assertEquals("the store still runs as the buyer while Google Play is open", PURCHASER, billing.user)
+
+            open.complete(Unit)
+            awaitOnMain { done.isCompleted }
+            assertNull("the sign-out stops it once Google Play is done", billing.user)
+            assertEquals("stop", billing.log.last())
+        }
+    }
+
+    @Test
+    fun `a purchase left unsent is sent as its buyer before the store stops`() {
+        val unsent = mapOf<String, () -> Unit>(
+            "its sending failed" to { billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.NetworkError) },
+            "its payment is pending" to { billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.PaymentPendingError) },
+            "Pro was worked out on the phone" to { billing.nextPurchaseOffline = true },
+        )
+        scope.launch { repository.follow() }
+        for ((case, leaveUnsent) in unsent) {
+            signIn()
+            idle()
+            leaveUnsent()
+            buyAllowingFailure()
+
+            proxy.account.clearSession()
+            idle()
+
+            assertEquals(case, listOf("sync as $PURCHASER", "stop"), billing.log.takeLast(2))
+        }
+    }
+
+    @Test
+    fun `a purchase left unsent is sent as its buyer before another account's purchaser takes the store`() {
+        scope.launch { repository.follow() }
+        signIn()
+        idle()
+        billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.PaymentPendingError)
+        buyAllowingFailure()
+
+        proxy.account.saveSession(OTHER_SESSION, signedInAs = "lan@example.com", purchaser = OTHER_PURCHASER)
+        idle()
+
+        assertEquals(listOf("sync as $PURCHASER", "start $OTHER_PURCHASER"), billing.log.takeLast(2))
+        assertEquals(OTHER_PURCHASER, billing.user)
+    }
+
+    @Test
+    fun `nothing is sent before the store stops when no purchase was left unsent`() {
+        val sent = mapOf<String, () -> Unit>(
+            "RevenueCat took it" to {},
+            "the person cancelled it" to {
+                billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseCancelledError, cancelled = true)
+            },
+            "RevenueCat keeps it with another account" to {
+                billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.ReceiptAlreadyInUseError)
+            },
+        )
+        scope.launch { repository.follow() }
+        for ((case, outcome) in sent) {
+            signIn()
+            idle()
+            outcome()
+            buyAllowingFailure()
+
+            proxy.account.clearSession()
+            idle()
+
+            assertEquals(case, "stop", billing.log.last())
+        }
+        // Signed in and out with no purchase at all.
+        signIn()
+        idle()
+        proxy.account.clearSession()
+        idle()
+        assertTrue(billing.log.none { it.startsWith("sync") })
+    }
+
+    @Test
+    fun `the store stops all the same when a purchase left unsent cannot be sent within a few seconds`() {
+        scope.launch { repository.follow() }
+        signIn()
+        idle()
+        billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.NetworkError)
+        buyAllowingFailure()
+        billing.syncHangs = true
+
+        proxy.account.clearSession()
+        idle()
+        assertEquals("sync as $PURCHASER", billing.log.last())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(4))
+        assertEquals("still trying after 4 seconds", PURCHASER, billing.user)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals("stop", billing.log.last())
+        assertNull(billing.user)
+
+        // A sync that fails stops the store at once.
+        signIn()
+        idle()
+        billing.failure = FakeBilling.purchaseFailed(PurchasesErrorCode.NetworkError)
+        buyAllowingFailure()
+        billing.syncHangs = false
+        billing.syncFailure = FakeBilling.refused(PurchasesErrorCode.NetworkError)
+
+        proxy.account.clearSession()
+        idle()
+        assertEquals(listOf("sync as $PURCHASER", "stop"), billing.log.takeLast(2))
+    }
+
+    @Test
     fun `a build without RevenueCat's key, or one that cannot sign in, sells no Pro and never starts a store`() {
         val withoutKey = BillingRepository(billing = null, proxy.api, proxy.account, canSignIn = true)
         val withoutSignIn = BillingRepository(billing, proxy.api, proxy.account, canSignIn = false)
@@ -253,6 +376,16 @@ class BillingRepositoryTest {
     }
 
     private fun signIn() = proxy.account.saveSession(SESSION, signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
+
+    /** Buys the monthly plan, whatever Google Play or RevenueCat make of it; a purchase that goes through has the proxy asked. */
+    private fun buyAllowingFailure() = runBlocking {
+        server.enqueue(json(200, """{"purchaser":"$PURCHASER","usage":$PRO_MONTH,"aiEnabled":true}"""))
+        try {
+            repository.buy(activity, FakeBilling.MONTHLY)
+        } catch (e: PurchasesException) {
+            // What the test is about comes after.
+        }
+    }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 

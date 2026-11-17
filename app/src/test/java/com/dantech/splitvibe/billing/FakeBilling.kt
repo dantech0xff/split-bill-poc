@@ -6,6 +6,8 @@ import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.PurchasesTransactionException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -24,6 +26,9 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
     /** Starts that came while the account had no session, or another purchaser than the one started as. */
     val startsWithoutTheAccount = mutableListOf<String>()
 
+    /** What was done to the store, in order: "start <purchaser>", "stop", and "sync as <purchaser>". */
+    val log = mutableListOf<String>()
+
     var plans: List<ProPlan> = listOf(MONTHLY, YEARLY)
     var membership: ProMembership? = null
 
@@ -34,14 +39,28 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
     /** What the next purchase or restore fails with. */
     var failure: PurchasesException? = null
 
+    /** While set, a purchase or a restore waits for it to complete, as while Google Play's purchase is open. */
+    var gate: CompletableDeferred<Unit>? = null
+
+    /** The next purchase goes through, but RevenueCat's server did not take it, so the SDK worked Pro out on the phone. */
+    var nextPurchaseOffline = false
+
+    /** A sync never ends by itself, as when RevenueCat does not answer. */
+    var syncHangs = false
+
+    /** What a sync fails with, such as no connection. */
+    var syncFailure: PurchasesException? = null
+
     override suspend fun start(purchaser: String) {
         val now = account.value
         if (now.session == null || now.purchaser != purchaser) startsWithoutTheAccount += purchaser
         starts += purchaser
+        log += "start $purchaser"
         user = purchaser
     }
 
     override suspend fun stop() {
+        log += "stop"
         user = null
     }
 
@@ -52,17 +71,20 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
     override suspend fun purchase(activity: Activity, plan: ProPlan, change: PlanChange?): ProMembership? {
         requireStarted()
         purchases += plan to change
+        gate?.await()
         failure?.let {
             failure = null
             throw it
         }
         val basePlan = plan.productId.substringAfter(':')
-        return active(productId = "pro", basePlanId = basePlan).also { membership = it }
+        val offline = nextPurchaseOffline.also { nextPurchaseOffline = false }
+        return active(productId = "pro", basePlanId = basePlan).copy(offline = offline).also { membership = it }
     }
 
     override suspend fun restore(): ProMembership? {
         requireStarted()
         restores++
+        gate?.await()
         failure?.let {
             failure = null
             throw it
@@ -70,7 +92,13 @@ class FakeBilling(private val account: StateFlow<Account>) : Billing {
         return membership
     }
 
-    private fun requireStarted() = checkNotNull(user) { "The store was used before it was started" }
+    override suspend fun syncPurchases() {
+        log += "sync as ${requireStarted()}"
+        if (syncHangs) awaitCancellation()
+        syncFailure?.let { throw it }
+    }
+
+    private fun requireStarted(): String = checkNotNull(user) { "The store was used before it was started" }
 
     companion object {
         val MONTHLY = ProPlan(ProPeriod.MONTHLY, "pro:monthly", "$3.99", BillingPeriod(1, PeriodUnit.MONTH))

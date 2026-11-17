@@ -36,7 +36,9 @@ class MainActivity : ComponentActivity() {
         // system restored after it ended the app. A run that finds nothing due changes nothing.
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { catchUpOnRecurringBills() } }
         // RevenueCat runs as the signed-in account from the moment the app opens, rather than once the
-        // Pro screen does, so a purchase it has not acknowledged yet reaches RevenueCat as that account.
+        // Pro screen does, so that a purchase its SDK has not sent yet goes to RevenueCat soon. The SDK
+        // sends it as whoever is signed in then, not as the account that made it, which is why the
+        // store first sends what this run left unsent before it stops or changes user (follow()).
         // Here rather than when the application starts, which every local test does too.
         lifecycleScope.launch { billing.follow() }
         // Photos shared from another app, and a link or a notice that opened the app, are taken

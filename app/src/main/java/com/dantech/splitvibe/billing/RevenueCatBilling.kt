@@ -12,11 +12,13 @@ import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.Store
+import com.revenuecat.purchases.VerificationResult
 import com.revenuecat.purchases.awaitCustomerInfo
 import com.revenuecat.purchases.awaitLogIn
 import com.revenuecat.purchases.awaitOfferings
 import com.revenuecat.purchases.awaitPurchase
 import com.revenuecat.purchases.awaitRestore
+import com.revenuecat.purchases.awaitSyncPurchases
 import com.revenuecat.purchases.models.Period
 import com.revenuecat.purchases.models.PricingPhase
 import com.revenuecat.purchases.models.RecurrenceMode
@@ -71,6 +73,10 @@ class RevenueCatBilling(context: Context, private val apiKey: String) : Billing 
 
     override suspend fun restore(): ProMembership? = membershipOf(purchases().awaitRestore())
 
+    override suspend fun syncPurchases() {
+        purchases().awaitSyncPurchases()
+    }
+
     private suspend fun logIn(purchases: Purchases, purchaser: String) {
         try {
             purchases.awaitLogIn(purchaser)
@@ -115,6 +121,8 @@ class RevenueCatBilling(context: Context, private val apiKey: String) : Billing 
             billingIssue = pro.billingIssueDetectedAt != null,
             fromGooglePlay = pro.store == Store.PLAY_STORE,
             managementUrl = info.managementURL?.toString(),
+            // How the SDK marks what it worked out itself after RevenueCat's server failed to take a purchase.
+            offline = info.entitlements.verification == VerificationResult.VERIFIED_ON_DEVICE,
         )
     }
 

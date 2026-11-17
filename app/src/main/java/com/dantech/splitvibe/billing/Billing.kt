@@ -39,6 +39,13 @@ interface Billing {
 
     /** Sends the purchases of the phone's Google Play account to RevenueCat again, as the purchaser, and returns Pro after it. */
     suspend fun restore(): ProMembership?
+
+    /**
+     * Sends the purchases of the phone's Google Play account to RevenueCat as whoever the store runs
+     * as now, such as one whose sending failed after Google Play took the payment. A payment Google
+     * Play has not completed yet cannot be sent.
+     */
+    suspend fun syncPurchases()
 }
 
 /** How often a plan of Pro is paid for. */
@@ -81,6 +88,12 @@ data class ProMembership(
     val fromGooglePlay: Boolean,
     /** Where RevenueCat says the person manages their subscription, when it says. */
     val managementUrl: String? = null,
+    /**
+     * RevenueCat's server did not take the purchase this was reported after, so its SDK worked Pro
+     * out on the phone from Google Play's purchase. The server does not have that purchase yet, and
+     * the SDK sends it later, as whoever it runs as then.
+     */
+    val offline: Boolean = false,
 ) {
     /** Google Play's id of the subscription, without its base plan, which a switch of plans names. */
     val subscriptionId: String get() = productId.substringBefore(':')
