@@ -6,7 +6,7 @@ import { ALLOWANCES, WEIGHTS } from "../src/identity";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf } from "../src/quota-book";
 import { forgetExpired } from "../src/reminders";
-import { type Customer, type FakeRevenueCat, fakeRevenueCat, lifetimeCustomer, playCustomer, subscriberAnswer, TEST_KEY } from "./fake-revenuecat";
+import { type Customer, type FakeRevenueCat, fakeRevenueCat, playCustomer, promotionalCustomer, subscriberAnswer, TEST_KEY } from "./fake-revenuecat";
 import { ANSWER, billAnswer, billRequest, last, model, proxyRequest, send } from "./requests";
 import { modelRevision, revisionRequest, SAMPLE_REVISION } from "./revisions";
 import { api, type Person, person, rows } from "./shared";
@@ -241,7 +241,15 @@ describe("the plan RevenueCat gives", () => {
   });
 
   it("never ends for an entitlement granted for life", async () => {
-    expect(await planOf(lifetimeCustomer())).toEqual({ plan: "pro", proUntil: Number.POSITIVE_INFINITY });
+    expect(await planOf(promotionalCustomer(null))).toEqual({ plan: "pro", proUntil: Number.POSITIVE_INFINITY });
+  });
+
+  it("is Pro while a grant from RevenueCat's dashboard lasts, and free as soon as it has ended, as a grant never renews", async () => {
+    const now = Date.now();
+    const lasts = now + 7 * POLICY.dayMs;
+
+    expect(await planOf(promotionalCustomer(lasts))).toEqual({ plan: "pro", proUntil: lasts });
+    expect(await planOf(promotionalCustomer(now - HOUR))).toEqual({ plan: "free", proUntil: null });
   });
 
   it("is free without the entitlement, as for a customer RevenueCat has just created", async () => {

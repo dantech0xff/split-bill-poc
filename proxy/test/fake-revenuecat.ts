@@ -152,17 +152,23 @@ export function playCustomer(purchase: PlayPurchase): Customer {
   };
 }
 
-/** A customer given the entitlement `pro` for life from RevenueCat's dashboard. */
-export function lifetimeCustomer(): Customer {
+/**
+ * A customer given the entitlement `pro` from RevenueCat's dashboard until [expires], or for life
+ * for null. The grant is listed among the subscriptions, of store `promotional`, with nothing that
+ * says it stopped renewing, though it never renews.
+ */
+export function promotionalCustomer(expires: number | null): Customer {
   const granted = iso(Date.now() - DAY);
+  const ends = iso(expires ?? undefined);
+  const product = expires === null ? "rc_promo_pro_lifetime" : "rc_promo_pro_custom";
   return {
     entitlements: {
-      pro: { expires_date: null, grace_period_expires_date: null, product_identifier: "rc_promo_pro_lifetime", purchase_date: granted },
+      pro: { expires_date: ends, grace_period_expires_date: null, product_identifier: product, purchase_date: granted },
     },
     subscriptions: {
-      rc_promo_pro_lifetime: {
+      [product]: {
         billing_issues_detected_at: null,
-        expires_date: null,
+        expires_date: ends,
         grace_period_expires_date: null,
         is_sandbox: false,
         original_purchase_date: granted,

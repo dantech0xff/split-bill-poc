@@ -91,9 +91,10 @@ export async function deleteCustomer(key: string, account: string): Promise<bool
  *   grace period Play gives after a failed payment is after the answer's time: Pro until then. One
  *   whose `expires_date` is null, as one granted for life from RevenueCat's dashboard, never ends.
  * - Once that time has passed, Pro lasts until its `expires_date`, which [POLICY.proGraceMs] then
- *   extends, while the subscription that granted it still renews by itself, with no billing issue
- *   and no refund: Play may renew a subscription hours after its period ended.
- * - Anything else, the entitlement missing among them, is no Pro.
+ *   extends, while the subscription that granted it is Google Play's and still renews by itself,
+ *   with no billing issue and no refund: Play may renew a subscription hours after its period ended.
+ * - Anything else, the entitlement missing among them, is no Pro. So is a grant from RevenueCat's
+ *   dashboard, which never renews, once its time is up.
  *
  * Purchases in RevenueCat's sandbox, which Play's license testers make, count like any other: only
  * the testers the owner lists in Play Console can make them.
@@ -115,7 +116,7 @@ function planOf(answer: unknown): PlanState | null {
   const until = grace === null ? expires : Math.max(expires, grace);
   if (until > checkedAt) return { proUntil: until, checkedAt };
   const granting = subscriptionOf(subscriptions, pro.product_identifier);
-  return { proUntil: granting !== null && stillRenews(granting) ? expires : null, checkedAt };
+  return { proUntil: granting !== null && renewsOnPlay(granting) ? expires : null, checkedAt };
 }
 
 /**
@@ -132,9 +133,19 @@ function subscriptionOf(subscriptions: Record<string, unknown>, product: unknown
   return null;
 }
 
-/** Whether [subscription] renews by itself: nobody turned renewal off, no payment failed and nothing was refunded. */
-function stillRenews(subscription: Record<string, unknown>): boolean {
-  return subscription.unsubscribe_detected_at === null && subscription.billing_issues_detected_at === null && subscription.refunded_at === null;
+/**
+ * Whether [subscription] is a Google Play subscription that renews by itself: nobody turned renewal
+ * off, no payment failed and nothing was refunded. The time after a period is kept for Play's
+ * renewals, which can come hours late; a grant from RevenueCat's dashboard, of store `promotional`,
+ * never renews.
+ */
+function renewsOnPlay(subscription: Record<string, unknown>): boolean {
+  return (
+    subscription.store === "play_store" &&
+    subscription.unsubscribe_detected_at === null &&
+    subscription.billing_issues_detected_at === null &&
+    subscription.refunded_at === null
+  );
 }
 
 /** A time RevenueCat wrote in ISO 8601, in ms since the epoch: null for null, undefined for anything that is not a time. */
