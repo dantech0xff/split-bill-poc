@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.proxy
 
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.fx.DayRate
 import com.dantech.splitvibe.data.fx.FxSnapshot
@@ -48,8 +49,14 @@ class AnswerTimeoutException(cause: InterruptedIOException) : IOException("The a
 /** The model's final answer to a bill read or to a change of a split, and the calls left after it. */
 data class ModelReply(val answer: JsonObject, val callsLeft: CallsLeft?)
 
-/** What `GET /v1/usage` says. */
-data class Usage(val callsLeft: CallsLeft, val aiEnabled: Boolean)
+/**
+ * What `GET /v1/usage` and `POST /v1/plan` say: the calls left, whether AI is on, and for a
+ * signed-in account its [purchaser], the account's id at RevenueCat.
+ */
+data class Usage(val callsLeft: CallsLeft, val aiEnabled: Boolean, val purchaser: String? = null)
+
+/** What `POST /v1/session` gives for a Google sign-in: the proxy's session, the account's calls left and its purchaser. */
+data class StartedSession(val session: Session, val callsLeft: CallsLeft?, val purchaser: String?)
 
 /**
  * The app's side of the AI proxy's contract (see `proxy/` and `docs/proxy.md`). Every request says
@@ -76,7 +83,7 @@ class ProxyApi(
     suspend fun reviseSplit(body: JsonObject): ModelReply = askModel("v1/split-revision", body)
 
     /** `POST /v1/session`: trades the ID token Google gave at sign-in for the proxy's session. */
-    suspend fun startSession(idToken: String): Pair<Session, CallsLeft?> =
+    suspend fun startSession(idToken: String): StartedSession =
         // Signing in carries Google's token in place of a session, also when the old one has run out.
         send(post("v1/session", buildJsonObject { put("idToken", idToken) }, withSession = false)) { response ->
             if (!response.isSuccessful) throw failureOf(response)
@@ -84,15 +91,26 @@ class ProxyApi(
             val token = body.text("session")
             val expiresAt = body.long("expiresAt")
             if (token.isNullOrEmpty() || expiresAt == null) throw ProxyException(response.code, BAD_RESPONSE, null, null)
-            Session(token, expiresAt) to body["usage"]?.let(::callsLeftOf)
+            StartedSession(Session(token, expiresAt), callsLeft = body["usage"]?.let(::callsLeftOf), purchaser = purchaserOf(body))
         }
 
-    /** `GET /v1/usage`: the calls left of whoever is calling, and whether AI is on. */
+    /** `GET /v1/usage`: the calls left of whoever is calling, whether AI is on, and a signed-in account's purchaser. */
     suspend fun usage(): Usage = send(request("v1/usage").get().build()) { response ->
         if (!response.isSuccessful) throw failureOf(response)
-        val body = jsonOf(response)
-        val callsLeft = body["usage"]?.let(::callsLeftOf) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
-        Usage(callsLeft, aiEnabled = body.boolean("aiEnabled") ?: true)
+        usageOf(response)
+    }
+
+    /**
+     * `POST /v1/plan`: has the proxy ask RevenueCat for the signed-in account's Pro and keep it, and
+     * answers the calls left that follow from it. Throws [ProxyException] when the proxy refuses,
+     * also when nobody is signed in, which the proxy would refuse anyway.
+     */
+    suspend fun refreshPlan(): Usage {
+        if (account.currentSession() == null) throw ProxyException(401, SESSION_REFUSED, null, null)
+        return send(post("v1/plan", JsonObject(emptyMap()))) { response ->
+            if (!response.isSuccessful) throw failureOf(response)
+            usageOf(response)
+        }
     }
 
     /** `GET /v1/fx-rates`: the day's exchange rates. They are the same for everyone, so the request says nothing about who asks. */
@@ -209,6 +227,12 @@ class ProxyApi(
     private fun jsonOf(response: Response): JsonObject =
         parse(checkNotNull(response.body).string()) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
 
+    private fun usageOf(response: Response): Usage {
+        val body = jsonOf(response)
+        val callsLeft = body["usage"]?.let(::callsLeftOf) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
+        return Usage(callsLeft, aiEnabled = body.boolean("aiEnabled") ?: true, purchaser = purchaserOf(body))
+    }
+
     companion object {
         const val INSTALL_HEADER = "X-SplitVibe-Install"
         const val VERSION_HEADER = "X-SplitVibe-Version"
@@ -241,14 +265,25 @@ private fun parse(text: String): JsonObject? = try {
 
 private fun callsLeftOf(element: JsonElement): CallsLeft? {
     val usage = element as? JsonObject ?: return null
-    return CallsLeft(
+    val period = usage.text("period") ?: return null
+    val calls = CallsLeft(
         limit = usage.calls("limit") ?: return null,
         used = usage.calls("used") ?: return null,
         remaining = usage.calls("remaining") ?: return null,
-        period = usage.text("period") ?: return null,
+        period = period,
         resetsAt = usage.long("resetsAt"),
     )
+    // A proxy from before Pro sends no plan, and one this version does not know reads the same way.
+    return usage.text("plan")?.let(Plan::ofWire)?.let { calls.copy(plan = it) } ?: calls
 }
+
+/**
+ * The account's id at RevenueCat in an answer: 64 lowercase hex characters, as the proxy makes it.
+ * Anything else reads as missing, so the store is never used under an id the proxy did not give.
+ */
+private fun purchaserOf(body: JsonObject): String? = body.text("purchaser")?.takeIf(PURCHASER::matches)
+
+private val PURCHASER = Regex("[0-9a-f]{64}")
 
 // Fields of the wrong shape read as missing, so a broken answer is a bad response rather than a crash.
 

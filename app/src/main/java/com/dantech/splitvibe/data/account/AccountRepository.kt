@@ -11,7 +11,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * Signing in with Google, signing out, deleting the account and asking for the calls left. The
  * proxy checks Google's ID token itself and hands out its own session; the phone keeps only that
- * session and the account's address.
+ * session, the account's address and the account's id at RevenueCat that comes with it.
  */
 class AccountRepository(
     private val api: ProxyApi,
@@ -30,11 +30,11 @@ class AccountRepository(
     suspend fun signIn(activity: Context) {
         val accounts = checkNotNull(google) { "This build cannot sign in" }
         val account = accounts.pick(activity)
-        val (session, callsLeft) = api.startSession(account.idToken)
+        val started = api.startSession(account.idToken)
         // Someone else may be signing in after a sign-in ran out.
         cache.clear()
-        store.saveSession(session, signedInAs = account.email)
-        callsLeft?.let(store::onCallsLeft)
+        store.saveSession(started.session, signedInAs = account.email, purchaser = started.purchaser)
+        started.callsLeft?.let(store::onCallsLeft)
     }
 
     /** Also ends a sign-in that has run out: this phone's free reads are used again. */
@@ -61,11 +61,13 @@ class AccountRepository(
     }
 
     /**
-     * Asks the proxy how many calls are left and whether AI is on. A sign-in that has run out is not
-     * an error here: the account then shows that the person has to sign in again.
+     * Asks the proxy how many calls are left and whether AI is on, and for a signed-in account who
+     * its purchaser is. A sign-in that has run out is not an error here: the account then shows that
+     * the person has to sign in again.
      */
     suspend fun refresh() {
         if (!api.isSetUp) return
+        val session = store.currentSession()
         val usage = try {
             api.usage()
         } catch (e: ProxyException) {
@@ -75,6 +77,7 @@ class AccountRepository(
         }
         store.onCallsLeft(usage.callsLeft)
         store.onAiEnabled(usage.aiEnabled)
+        if (session != null) usage.purchaser?.let { store.onPurchaser(it, session) }
     }
 
     private suspend fun forgetGoogle(context: Context) {

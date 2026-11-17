@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
@@ -15,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -115,6 +117,87 @@ class ProxyApiTest {
     }
 
     @Test
+    fun `the plan comes with the calls, and an answer without it is the install's trial or a month's free calls`() = runBlocking {
+        val month = """"limit":10,"used":0,"remaining":10,"period":"2026-11","resetsAt":1796083200000"""
+        val trial = """"limit":3,"used":0,"remaining":3,"period":"trial","resetsAt":null"""
+        val usages = listOf(
+            """{$month,"plan":"pro"}""" to Plan.PRO,
+            """{$month,"plan":"free"}""" to Plan.FREE,
+            """{$trial,"plan":"trial"}""" to Plan.TRIAL,
+            // A proxy from before Pro.
+            """{$trial}""" to Plan.TRIAL,
+            """{$month}""" to Plan.FREE,
+            // A plan this version does not know reads as missing, and a plan of the wrong shape too.
+            """{$month,"plan":"team"}""" to Plan.FREE,
+            """{$trial,"plan":7}""" to Plan.TRIAL,
+        )
+        for ((usage, plan) in usages) {
+            server.enqueue(json(200, """{"usage":$usage,"aiEnabled":true}"""))
+
+            assertEquals(usage, plan, proxy.api.usage().callsLeft.plan)
+        }
+    }
+
+    @Test
+    fun `the purchaser is read only as the proxy makes it, from the sign-in and the calls left`() = runBlocking {
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":1798761600000,"usage":$MONTH,"purchaser":"$PURCHASER"}"""))
+        assertEquals(PURCHASER, proxy.api.startSession("google-id-token").purchaser)
+
+        for (wrong in listOf(PURCHASER.uppercase(), PURCHASER.drop(1), "$PURCHASER ", "../$PURCHASER", "")) {
+            server.enqueue(json(200, """{"usage":$MONTH,"aiEnabled":true,"purchaser":"$wrong"}"""))
+            assertNull(wrong, proxy.api.usage().purchaser)
+        }
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":1798761600000,"usage":$MONTH}"""))
+        assertNull("a proxy from before Pro", proxy.api.startSession("google-id-token").purchaser)
+    }
+
+    @Test
+    fun `asks the proxy to check the plan as the signed-in account, with an empty body`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
+        val pro = """{"limit":300,"used":12,"remaining":288,"period":"2026-11","resetsAt":1796083200000,"plan":"pro"}"""
+        server.enqueue(json(200, """{"purchaser":"$PURCHASER","usage":$pro,"aiEnabled":true}"""))
+
+        val usage = proxy.api.refreshPlan()
+
+        assertEquals(PURCHASER, usage.purchaser)
+        assertEquals(Plan.PRO, usage.callsLeft.plan)
+        assertEquals(BigDecimal(288), usage.callsLeft.remaining)
+        assertTrue(usage.aiEnabled)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/v1/plan", request.requestUrl?.encodedPath)
+        assertEquals("{}", request.body.readUtf8())
+        assertEquals("Bearer signed-session", request.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `checking the plan needs a sign-in, and keeps the proxy's refusals as they are`() = runBlocking {
+        try {
+            proxy.api.refreshPlan()
+            fail("Nobody is signed in")
+        } catch (e: ProxyException) {
+            assertEquals(ProxyApi.SESSION_REFUSED, e.code)
+        }
+        assertEquals("nothing went out", 0, server.requestCount)
+
+        proxy.account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
+        val refusals = listOf(
+            json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "1200") to (429 to "rate_limited"),
+            json(503, """{"error":"not_configured"}""") to (503 to "not_configured"),
+            json(502, """{"error":"subscription_unavailable"}""") to (502 to "subscription_unavailable"),
+        )
+        for ((refusal, expected) in refusals) {
+            server.enqueue(refusal)
+            try {
+                proxy.api.refreshPlan()
+                fail("${expected.second} is no plan")
+            } catch (e: ProxyException) {
+                assertEquals(expected, e.status to e.code)
+            }
+        }
+    }
+
+    @Test
     fun `an answer of the wrong shape is a bad response, not a crash`() = runBlocking {
         val answers = listOf(
             """{"usage":{"limit":"ten","used":0,"remaining":10,"period":"2026-11"},"aiEnabled":true}""",
@@ -181,5 +264,6 @@ class ProxyApiTest {
         const val WAIT_LINE_MS = 10_000
         const val MODEL_DEADLINE_MS = 120_000
         const val MONTH = """{"limit":10,"used":0,"remaining":10,"period":"2026-11","resetsAt":1796083200000}"""
+        val PURCHASER = "5e".repeat(32)
     }
 }

@@ -63,6 +63,35 @@ class AccountRepositoryTest {
     }
 
     @Test
+    fun `signing in keeps the purchaser the proxy gave, and signing out and deleting the account forget it`() = runBlocking {
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":${FAR_FUTURE},"usage":$MONTH,"purchaser":"$PURCHASER"}"""))
+        server.enqueue(json(200, """{"session":"signed-session","expiresAt":${FAR_FUTURE},"usage":$MONTH,"purchaser":"$PURCHASER"}"""))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        repository.signIn(context)
+        assertEquals(PURCHASER, proxy.account.account.value.purchaser)
+        repository.signOut(context)
+        assertNull(proxy.account.account.value.purchaser)
+
+        repository.signIn(context)
+        repository.deleteAccount(context)
+        assertNull(proxy.account.account.value.purchaser)
+    }
+
+    @Test
+    fun `the calls left bring the purchaser of a sign-in from before the app kept one, and never an install's`() = runBlocking {
+        val trial = """{"limit":3,"used":1,"remaining":2,"period":"trial","resetsAt":null}"""
+        server.enqueue(json(200, """{"usage":$trial,"purchaser":"$PURCHASER"}"""))
+        repository.refresh()
+        assertNull("nobody is signed in", proxy.account.account.value.purchaser)
+
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        server.enqueue(json(200, """{"usage":$MONTH,"aiEnabled":true,"purchaser":"$PURCHASER"}"""))
+        repository.refresh()
+        assertEquals(PURCHASER, proxy.account.account.value.purchaser)
+    }
+
+    @Test
     fun `nothing changes when the person closes Google's picker`() = runBlocking {
         google.failure = GoogleSignInException(GoogleSignInException.Reason.CANCELLED)
 
@@ -226,5 +255,6 @@ class AccountRepositoryTest {
     private companion object {
         const val FAR_FUTURE = 4_102_444_800_000L
         const val MONTH = """{"limit":10,"used":0,"remaining":10,"period":"2026-11","resetsAt":1796083200000}"""
+        val PURCHASER = "9".repeat(64)
     }
 }

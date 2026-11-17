@@ -18,13 +18,40 @@ import kotlinx.coroutines.flow.update
 /** A session the AI proxy signed after a Google sign-in. [expiresAt] is in epoch milliseconds. */
 data class Session(val token: String, val expiresAt: Long)
 
+/** Which allowance the proxy counts someone's calls against. */
+enum class Plan(private val wireName: String) {
+    /** The calls an install gets before anyone signs in on it, which never come back. */
+    TRIAL("trial"),
+
+    /** The calls a Google account gets each month without Pro. */
+    FREE("free"),
+
+    /** The calls of a Pro subscription each month. */
+    PRO("pro"),
+    ;
+
+    companion object {
+        /** The plan the proxy names [name], or null for one this version of the app does not know. */
+        fun ofWire(name: String): Plan? = entries.firstOrNull { it.wireName == name }
+    }
+}
+
 /**
  * The AI calls left, as the proxy last counted them. A call can take part of one: reading a bill
  * takes [READ] and changing a split by a sentence [REVISION], so the counts have decimals, such as
  * 2.8. [period] is "trial" for the calls an install gets before signing in, which never come back,
- * or the calendar month in UTC such as "2026-11".
+ * or the calendar month in UTC such as "2026-11". [plan] is the allowance they are counted against;
+ * a proxy from before Pro does not say, and then a trial is the install's and anything else a Google
+ * account's free calls.
  */
-data class CallsLeft(val limit: BigDecimal, val used: BigDecimal, val remaining: BigDecimal, val period: String, val resetsAt: Long?) {
+data class CallsLeft(
+    val limit: BigDecimal,
+    val used: BigDecimal,
+    val remaining: BigDecimal,
+    val period: String,
+    val resetsAt: Long?,
+    val plan: Plan = if (period == TRIAL_PERIOD) Plan.TRIAL else Plan.FREE,
+) {
     /** The day the monthly calls come back, such as "1 December", or null for a trial. */
     val comesBackOn: String?
         get() = resetsAt?.let {
@@ -37,6 +64,15 @@ data class CallsLeft(val limit: BigDecimal, val used: BigDecimal, val remaining:
 
         /** What changing a split by a sentence takes, as `revisionWeight` in the proxy's `policy.ts` sets it. */
         val REVISION: BigDecimal = BigDecimal("0.2")
+
+        /** The calls a Google account gets each month without Pro, as the proxy's `policy.ts` sets them. */
+        const val FREE_MONTHLY = 10
+
+        /** The calls Pro gives each month, as `proCalls` in the proxy's `policy.ts` sets them. */
+        const val PRO_MONTHLY = 300
+
+        /** The [period] of the calls an install gets before anyone signs in on it. */
+        const val TRIAL_PERIOD = "trial"
 
         /** [calls] as the app writes a number of calls, without zeros that say nothing: "2.8", "3", "0.2". */
         fun text(calls: BigDecimal): String = calls.stripTrailingZeros().toPlainString()
@@ -69,11 +105,18 @@ data class Account(
      * in again or sign out, no request goes out, neither as them nor as the install in their place.
      */
     val signInExpired: Boolean = false,
+    /**
+     * The signed-in account's id at RevenueCat, which the proxy hands out with the session and the
+     * app never works out itself. It goes with the session: null while nobody is signed in, and
+     * until the proxy has said it.
+     */
+    val purchaser: String? = null,
 )
 
 /**
- * Keeps the install id and the signed-in session, encrypted with a key in the Android Keystore,
- * and the latest calls left and AI switch the proxy reported, which only live as long as the app.
+ * Keeps the install id and the signed-in session with its purchaser, encrypted with a key in the
+ * Android Keystore, and the latest calls left and AI switch the proxy reported, which only live as
+ * long as the app.
  */
 class AccountStore(
     context: Context,
@@ -98,15 +141,29 @@ class AccountStore(
         return null
     }
 
-    fun saveSession(session: Session, signedInAs: String? = null) {
+    /** Keeps the session of a new sign-in with the account's address and its [purchaser], in place of any before it. */
+    fun saveSession(session: Session, signedInAs: String? = null, purchaser: String? = null) {
         preferences.edit {
             putString(KEY_SESSION, cipher.encrypt(session.token))
             putLong(KEY_SESSION_EXPIRES_AT, session.expiresAt)
             if (signedInAs == null) remove(KEY_SIGNED_IN_AS) else putString(KEY_SIGNED_IN_AS, cipher.encrypt(signedInAs))
+            if (purchaser == null) remove(KEY_PURCHASER) else putString(KEY_PURCHASER, cipher.encrypt(purchaser))
             remove(KEY_SIGN_IN_EXPIRED)
         }
         // A new person may have signed in, so the old count no longer applies.
-        state.update { it.copy(session = session, signedInAs = signedInAs, signInExpired = false, callsLeft = null) }
+        state.update { it.copy(session = session, signedInAs = signedInAs, signInExpired = false, callsLeft = null, purchaser = purchaser) }
+    }
+
+    /**
+     * The purchaser the proxy gave in an answer to [session], such as a sign-in from before the app
+     * kept one. It is kept only while [session] is still the one signed in: an answer that arrives
+     * after signing out, or after someone else signed in, is nobody's now.
+     */
+    fun onPurchaser(purchaser: String, session: Session) {
+        val current = state.value
+        if (current.session != session || current.purchaser == purchaser) return
+        preferences.edit { putString(KEY_PURCHASER, cipher.encrypt(purchaser)) }
+        state.update { it.copy(purchaser = purchaser) }
     }
 
     /**
@@ -119,10 +176,12 @@ class AccountStore(
         preferences.edit {
             remove(KEY_SESSION)
             remove(KEY_SESSION_EXPIRES_AT)
+            // The next sign-in brings the purchaser again, whoever signs in.
+            remove(KEY_PURCHASER)
             putBoolean(KEY_SIGN_IN_EXPIRED, true)
         }
         // The count was the account's, and no read is possible until the person signs in again.
-        state.update { it.copy(session = null, signInExpired = true, callsLeft = null) }
+        state.update { it.copy(session = null, signInExpired = true, callsLeft = null, purchaser = null) }
     }
 
     /** Forgets the sign-in, after signing out or deleting the account; the install is the caller again. */
@@ -131,9 +190,10 @@ class AccountStore(
             remove(KEY_SESSION)
             remove(KEY_SESSION_EXPIRES_AT)
             remove(KEY_SIGNED_IN_AS)
+            remove(KEY_PURCHASER)
             remove(KEY_SIGN_IN_EXPIRED)
         }
-        state.update { it.copy(session = null, signedInAs = null, signInExpired = false, callsLeft = null) }
+        state.update { it.copy(session = null, signedInAs = null, signInExpired = false, callsLeft = null, purchaser = null) }
     }
 
     fun onCallsLeft(callsLeft: CallsLeft) = state.update { it.copy(callsLeft = callsLeft) }
@@ -167,6 +227,8 @@ class AccountStore(
             ai = aiStatus(enabled = true),
             signedInAs = if (session != null || expired) preferences.getString(KEY_SIGNED_IN_AS, null)?.let(cipher::decrypt) else null,
             signInExpired = expired,
+            // Only with a session that still holds: the purchaser goes with it.
+            purchaser = if (session != null) preferences.getString(KEY_PURCHASER, null)?.let(cipher::decrypt) else null,
         )
     }
 
@@ -175,6 +237,7 @@ class AccountStore(
         const val KEY_SESSION = "session_encrypted"
         const val KEY_SESSION_EXPIRES_AT = "session_expires_at"
         const val KEY_SIGNED_IN_AS = "signed_in_as_encrypted"
+        const val KEY_PURCHASER = "purchaser_encrypted"
         const val KEY_SIGN_IN_EXPIRED = "sign_in_expired"
     }
 }

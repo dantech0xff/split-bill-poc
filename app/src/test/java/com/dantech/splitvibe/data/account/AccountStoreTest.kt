@@ -150,4 +150,66 @@ class AccountStoreTest {
         withoutProxy.onAiEnabled(true)
         assertEquals(AiStatus.NOT_SET_UP, withoutProxy.account.value.ai)
     }
+
+    @Test
+    fun `the purchaser is kept with the session, through the next start, and replaced by the next sign-in`() {
+        val store = store()
+        store.saveSession(Session("signed-session", expiresAt = now + 60_000), signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
+
+        assertFalse("the purchaser is only written encrypted", PURCHASER in storedValues())
+        assertEquals(PURCHASER, store.account.value.purchaser)
+        assertEquals(PURCHASER, store().account.value.purchaser)
+
+        store.saveSession(Session("other-session", expiresAt = now + 60_000), signedInAs = "lan@example.com", purchaser = OTHER_PURCHASER)
+        assertEquals(OTHER_PURCHASER, store.account.value.purchaser)
+        assertEquals(OTHER_PURCHASER, store().account.value.purchaser)
+
+        // A sign-in whose answer names none leaves none, rather than the one before.
+        store.saveSession(Session("third-session", expiresAt = now + 60_000))
+        assertNull(store.account.value.purchaser)
+        assertNull(store().account.value.purchaser)
+    }
+
+    @Test
+    fun `signing out, deleting the account and a sign-in that runs out each take the purchaser with them`() {
+        val store = store()
+        store.saveSession(Session("signed-session", expiresAt = now + 60_000), purchaser = PURCHASER)
+        store.clearSession()
+        assertNull(store.account.value.purchaser)
+        assertNull(store().account.value.purchaser)
+
+        store.saveSession(Session("signed-session", expiresAt = now + 60_000), purchaser = PURCHASER)
+        store.expireSession()
+        assertNull("a refused session", store.account.value.purchaser)
+        assertNull(store().account.value.purchaser)
+
+        store.saveSession(Session("signed-session", expiresAt = now + 60_000), purchaser = PURCHASER)
+        now += 60_000
+        assertNull(store().account.value.purchaser)
+        assertNull(store.currentSession())
+        assertNull("a session that ran out", store.account.value.purchaser)
+    }
+
+    @Test
+    fun `a purchaser the proxy names later is kept only for the session it answered`() {
+        val store = store()
+        val session = Session("signed-session", expiresAt = now + 60_000)
+        store.saveSession(session)
+
+        store.onPurchaser(PURCHASER, Session("someone-else", expiresAt = now + 60_000))
+        assertNull(store.account.value.purchaser)
+
+        store.onPurchaser(PURCHASER, session)
+        assertEquals(PURCHASER, store.account.value.purchaser)
+        assertEquals(PURCHASER, store().account.value.purchaser)
+
+        store.clearSession()
+        store.onPurchaser(OTHER_PURCHASER, session)
+        assertNull("an answer that arrives after signing out", store.account.value.purchaser)
+    }
+
+    private companion object {
+        val PURCHASER = "0123456789abcdef".repeat(4)
+        val OTHER_PURCHASER = "fedcba9876543210".repeat(4)
+    }
 }
