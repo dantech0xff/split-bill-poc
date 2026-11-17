@@ -23,7 +23,7 @@ Bản miễn phí có hạn mức lượt AI; gói thuê bao Pro mua qua Google 
 
 - Quyết định của chủ sản phẩm: có gói Pro ngay từ v1.0, và Pro **chỉ** khác bản miễn phí ở số lượt AI.
 - Phase 3 đã có hạn mức theo người dùng và tài liệu `entitlements/{uid}` chỉ server ghi được. Giai đoạn này nối tài liệu đó với việc mua hàng thật.
-- Dữ kiện: [báo cáo backend](../reports/researcher-261114-0209-product-backend-and-payment-links.md), mục 6; [báo cáo giao diện và Play](../reports/researcher-261114-0209-android-expressive-ui-and-play-requirements.md), mục 5 (Play Billing).
+- Dữ kiện: [báo cáo backend](../reports/researcher-261114-0209-product-backend-and-payment-links.md), mục 6; [báo cáo giao diện và Play](../reports/researcher-261114-0209-android-expressive-ui-and-play-requirements.md), mục 5 (Play Billing); [tra cứu RevenueCat và Play Billing ngày 17/11/2026](../reports/researcher-261117-0442-revenuecat-play-billing-facts.md).
 
 ## Key Insights
 
@@ -67,8 +67,8 @@ App ── SDK của RevenueCat ── Google Play Billing
 RevenueCat ── webhook ─▶ Worker `POST /v1/subscription-events`
                            1. kiểm header Authorization của webhook
                            2. gọi REST API của RevenueCat để lấy trạng thái hiện tại của người mua
-                           3. ghi gói vào QuotaBook của tài khoản = { proUntil, checkedAt, lastEventAt },
-                              bỏ qua sự kiện cũ hơn lastEventAt và trạng thái cũ hơn checkedAt
+                           3. ghi gói vào QuotaBook của tài khoản = { proUntil, checkedAt },
+                              chỉ khi trạng thái mới hơn checkedAt đã lưu
 bill-analysis / split-revision ── QuotaBook đọc gói hiệu lực ─▶ chọn hạn mức
 ```
 
@@ -93,9 +93,14 @@ Proxy và app làm song song, nên hai phần dùng chung đúng các định d�
 ### Gói hiệu lực trên proxy
 
 - Gói của một tài khoản nằm trong `QuotaBook` của tài khoản đó, và chỉ proxy ghi. Không đường nào nhận gói từ app.
-- Proxy lưu `proUntil`: lúc quyền lợi `pro` hết hiệu lực theo trạng thái mới nhất lấy từ RevenueCat, đã tính thời gian ân hạn thanh toán của Play; null khi không có quyền lợi đang hiệu lực. Quyền lợi không có ngày hết (tặng trọn đời từ bảng điều khiển của RevenueCat) không bao giờ hết.
-- Lúc `now`, tài khoản là Pro khi `proUntil` khác null và `now < proUntil + proGraceMs` (`proGraceMs` là 24 giờ, trong `policy.ts`). Phần ân hạn này chỉ để chờ sự kiện gia hạn đến trễ: trạng thái mới từ RevenueCat nói quyền lợi đã hết thì hạ gói ngay.
-- Mỗi lần ghi kèm `checkedAt`, giờ RevenueCat trả lời. Lần ghi có `checkedAt` cũ hơn lần đã lưu bị bỏ qua, nên hai lần hỏi chạy cùng lúc không ghi đè trạng thái mới bằng trạng thái cũ. Webhook còn lưu `lastEventAt`, giờ của sự kiện mới nhất đã xử lý.
+- Proxy đọc trạng thái thật bằng `GET /v1/subscribers/{purchaser}` của REST API v1, với khóa bí mật trong header `Authorization: Bearer`, đúng lệnh mà hướng dẫn webhook của RevenueCat chỉ định ([báo cáo tra cứu](../reports/researcher-261117-0442-revenuecat-play-billing-facts.md), mục 2). Lệnh này tạo khách hàng khi chưa có, nên proxy chỉ hỏi cho mã mà chính nó đã đưa cho app và chưa quên: `QuotaBook` ghi lại lần đầu proxy đưa `purchaser`, và quên điều đó khi tài khoản bị xóa.
+- Từ câu trả lời, proxy lưu `proUntil` và `checkedAt` (`request_date_ms`):
+  - quyền lợi `pro` còn hiệu lực, tức `expires_date` là null hoặc mốc muộn hơn giữa `expires_date` và `grace_period_expires_date` đến sau `request_date_ms`: `proUntil` là mốc đó, còn `expires_date` null (quyền lợi tặng trọn đời từ bảng điều khiển của RevenueCat) thì không bao giờ hết;
+  - quyền lợi đã qua kỳ, nhưng thuê bao cấp nó vẫn bật tự gia hạn và chưa có lỗi thanh toán hay hoàn tiền (`unsubscribe_detected_at`, `billing_issues_detected_at` và `refunded_at` đều null): `proUntil` là `expires_date`, vì Play có thể gia hạn chậm vài giờ sau khi hết kỳ;
+  - mọi trường hợp khác: `proUntil` là null.
+- Lúc `now`, tài khoản là Pro khi `proUntil` khác null và `now < proUntil + proGraceMs` (`proGraceMs` là 24 giờ, trong `policy.ts`). Phần ân hạn này che khoảng chờ Play gia hạn và sự kiện đến trễ. Thuê bao đã hủy, đã hoàn tiền hay lỗi thanh toán thì hạ gói ngay khi proxy biết.
+- Chỉ trạng thái có `checkedAt` mới hơn trạng thái đã lưu mới được ghi. Vì proxy luôn hỏi lại trạng thái thật, sự kiện lặp lại hay đến sai thứ tự không làm sai gì, và không cần so thứ tự sự kiện.
+- Giao dịch thử của tài khoản thử nghiệm giấy phép (sandbox) cũng cho Pro, vì chỉ người chủ sản phẩm thêm vào danh sách thử nghiệm mới mua thử được.
 - Hạn mức Pro là 300 lượt mỗi tháng (`proCalls`), dùng chung bộ đếm theo tháng UTC với 10 lượt miễn phí. Nâng hay hạ gói giữa tháng giữ nguyên số đã dùng.
 
 ### Đường của proxy
@@ -104,9 +109,9 @@ Proxy và app làm song song, nên hai phần dùng chung đúng các định d�
 - `POST /v1/session` và `GET /v1/usage` (khi có session) trả thêm `purchaser`.
 - `POST /v1/plan`, cần session, thân `{}`: proxy hỏi RevenueCat trạng thái hiện tại của tài khoản, lưu lại, rồi trả `{ purchaser, usage, aiEnabled }`. Mỗi tài khoản gọi được 30 lần mỗi giờ (`planRefreshesPerHour`); quá thì 429 `rate_limited` kèm `Retry-After`. Chưa có secret của RevenueCat thì 503 `not_configured`. Không hỏi được RevenueCat thì 502 `subscription_unavailable`.
 - `POST /v1/subscription-events`, webhook của RevenueCat:
-  - header `Authorization` phải đúng bằng secret `REVENUECAT_WEBHOOK_AUTH`, so trong thời gian không đổi; sai hay thiếu thì 401 `webhook_auth` và không làm gì; chưa có secret thì 503 `not_configured`;
-  - nội dung sự kiện chỉ là tín hiệu: proxy lấy các mã tài khoản trong sự kiện (`app_user_id`, `original_app_user_id`, `aliases`, `transferred_from`, `transferred_to`, chỉ những mã đúng dạng 64 hex), bỏ qua tài khoản đã xử lý một sự kiện mới hơn, rồi hỏi RevenueCat trạng thái thật của từng tài khoản còn lại và ghi như `POST /v1/plan`;
-  - sự kiện `TEST` trả 200 mà không làm gì; hỏi RevenueCat thất bại thì trả 503 để RevenueCat gửi lại.
+  - header `Authorization` phải bằng secret `REVENUECAT_WEBHOOK_AUTH`, hoặc bằng `Bearer ` ghép với secret đó, so trong thời gian không đổi; sai hay thiếu thì 401 `webhook_auth` và không làm gì; chưa có secret thì 503 `not_configured`;
+  - nội dung sự kiện chỉ là tín hiệu: proxy lấy các mã trong sự kiện (`app_user_id`, `original_app_user_id`, `aliases`, `transferred_from`, `transferred_to`), giữ những mã đúng dạng 64 hex mà proxy đã đưa ra và chưa quên, rồi hỏi RevenueCat trạng thái thật của từng mã và ghi như `POST /v1/plan`;
+  - xong thì trả 200, vì RevenueCat coi mọi mã khác, kể cả 204, là thất bại; sự kiện `TEST` và sự kiện không có mã nào của proxy cũng trả 200; hỏi RevenueCat thất bại thì trả 503 để RevenueCat gửi lại (5 lần trong khoảng 80 phút).
 - `DELETE /v1/account`: khi có secret của RevenueCat, xóa khách hàng trong RevenueCat trước tiên (không có khách hàng đó cũng coi là xong); không xóa được thì 502 `subscription_unavailable` và chưa xóa gì khác. Xóa tài khoản không hủy thuê bao trên Play.
 - Secret mới của Worker: `REVENUECAT_SECRET_KEY` (khóa bí mật của REST API) và `REVENUECAT_WEBHOOK_AUTH` (giá trị header Authorization đặt trong cấu hình webhook của RevenueCat). Thiếu hai secret này thì không ai thành Pro, còn mọi thứ khác chạy như cũ.
 
@@ -120,6 +125,9 @@ Proxy và app làm song song, nên hai phần dùng chung đúng các định d�
   - người đang Pro thấy gói hiện tại, ngày gia hạn hay ngày hết, và đổi được giữa gói tháng và gói năm;
   - chưa đăng nhập thì nút chính là đăng nhập Google: chỉ mua được sau khi đăng nhập.
 - Khi mở màn Pro, và sau khi mua, khôi phục hay đổi gói xong, app gọi `POST /v1/plan` rồi hiện số lượt proxy trả.
+- SDK là `com.revenuecat.purchases:purchases` 11.3.0, kéo theo Play Billing Library 9.1.0. App không bao giờ gọi `logOut` của SDK, vì lệnh này tạo mã ẩn danh; đổi người dùng bằng `logIn`.
+- Đổi giữa gói tháng và gói năm dùng `StoreReplacementMode.WITHOUT_PRORATION` cho cả hai chiều: đổi ngay, giá mới tính từ lần gia hạn kế tiếp. Giữa hai base plan của cùng một thuê bao, Google chỉ nhận `WITHOUT_PRORATION` hay `CHARGE_FULL_PRICE`.
+- Gói năm hiện giá năm làm con số chính, không quy ra tháng, theo chính sách thuê bao của Play. Link quản lý là `https://play.google.com/store/account/subscriptions?sku=pro&package=<applicationId>`.
 - Mua hay khôi phục một thuê bao thuộc tài khoản Split Vibe khác: app nói thuê bao đó thuộc tài khoản khác và người dùng phải đăng nhập đúng tài khoản đã mua.
 - Hết lượt (`quota_exhausted`): trong bản có bán Pro, người chưa là Pro thấy lời mời kèm nút mở màn Pro, và người chưa đăng nhập được nói thêm rằng đăng nhập Google cho 10 lượt mỗi tháng; người Pro chỉ thấy ngày lượt quay lại. Bản không bán Pro giữ cách cũ, tức mời đăng nhập.
 - Settings hiện gói (Free hay Pro) cạnh số lượt còn lại, và có nút mở màn Pro.
