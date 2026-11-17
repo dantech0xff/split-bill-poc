@@ -509,7 +509,7 @@ private val SIGNED_IN = SIGNED_OUT.copy(
     callsLeft = CallsLeft(BigDecimal(10), BigDecimal(1), BigDecimal(9), period = "2026-11", resetsAt = 1_796_083_200_000),
 )
 
-private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {})
+private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {}, onOpenPro = {})
 
 /** What the proxy answers to [ASSISTANT_INSTRUCTION] on the sample bill: the water, a tip and who paid, as three edits. */
 private fun revisionAnswer(): MockResponse {

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.SharedTransitionLayout
@@ -60,6 +61,9 @@ import com.dantech.splitvibe.ui.insights.InsightsScreen
 import com.dantech.splitvibe.ui.insights.InsightsViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsScreen
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
+import com.dantech.splitvibe.ui.paywall.ProActions
+import com.dantech.splitvibe.ui.paywall.ProScreen
+import com.dantech.splitvibe.ui.paywall.ProViewModel
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.recurring.RecurringScreen
 import com.dantech.splitvibe.ui.recurring.RecurringViewModel
@@ -121,6 +125,10 @@ data object InsightsKey : NavKey
 
 @Serializable
 data object RecurringKey : NavKey
+
+/** Pro: its plans, buying it, and managing it once bought. */
+@Serializable
+data object ProKey : NavKey
 
 /** The floating button on the home screen grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
@@ -338,6 +346,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                     onSignIn = { settingsViewModel.signIn(context) },
                                     onSignOut = { settingsViewModel.signOut(context) },
                                     onDeleteAccount = { settingsViewModel.deleteAccount(context) },
+                                    onOpenPro = { backStack.open(ProKey) },
                                 )
                             },
                             onSave = { localCurrency, myName ->
@@ -347,6 +356,30 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onBack = { backStack.remove(SettingsKey) },
+                        )
+                    }
+                }
+                entry<ProKey> {
+                    Screen {
+                        // Lives as long as the screen is open; it asks for the plans and the person's Pro when it starts.
+                        val proViewModel: ProViewModel = koinViewModel()
+                        val proState by proViewModel.state.collectAsStateWithLifecycle()
+                        // The activity, which Google's account picker and Google Play's purchase are shown over.
+                        val activity = LocalActivity.current
+                        ProScreen(
+                            state = proState,
+                            actions = remember(proViewModel, activity) {
+                                ProActions(
+                                    onSignIn = { activity?.let(proViewModel::signIn) },
+                                    onSelect = proViewModel::select,
+                                    onBuy = { activity?.let(proViewModel::buy) },
+                                    onSwitch = { plan -> activity?.let { proViewModel.switchTo(it, plan) } },
+                                    onRestore = proViewModel::restore,
+                                    onRetry = proViewModel::load,
+                                    onDismissMessage = proViewModel::dismissMessage,
+                                    onBack = { backStack.remove(ProKey) },
+                                )
+                            },
                         )
                     }
                 }

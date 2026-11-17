@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.components.SvCard
@@ -56,14 +58,16 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.ui.paywall.GET_PRO
 import org.koin.compose.koinInject
 
 /** What the account part of Settings can do. */
-class AccountActions(val onSignIn: () -> Unit, val onSignOut: () -> Unit, val onDeleteAccount: () -> Unit)
+class AccountActions(val onSignIn: () -> Unit, val onSignOut: () -> Unit, val onDeleteAccount: () -> Unit, val onOpenPro: () -> Unit)
 
 /**
- * The app's own settings: the AI calls left and the Google account behind them, the currency the app
- * works in, and, once the user let it hear them, the phone's online speech service.
+ * The app's own settings: the AI calls left with the plan they are counted against and the Google
+ * account behind them, the currency the app works in, and, once the user let it hear them, the
+ * phone's online speech service.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,6 +175,7 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
             Text("AI calls", style = MaterialTheme.typography.titleMedium)
 
+            if (account.ai != AiStatus.NOT_SET_UP) PlanRow(account.callsLeft?.plan, onOpenPro = actions.onOpenPro)
             account.callsLeft?.let { Text(callsLeftText(it), style = MaterialTheme.typography.bodyLarge) }
             if (account.ai != AiStatus.NOT_SET_UP) {
                 Text(CALL_COSTS, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -235,12 +240,7 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
             title = { Text("Delete your account?") },
-            text = {
-                Text(
-                    "Split Vibe's server deletes what it keeps about your Google account, which is the count of " +
-                        "your calls. Bills on this phone stay as they are.",
-                )
-            },
+            text = { Text(DELETE_ACCOUNT_TEXT) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -254,6 +254,27 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
             },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * The plan the calls are counted against, Free or Pro, once the proxy has counted them, and the way
+ * to the Pro screen: to get Pro, or to manage it.
+ */
+@Composable
+private fun PlanRow(plan: Plan?, onOpenPro: () -> Unit) {
+    val pro = plan == Plan.PRO
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+        Text(
+            text = when {
+                plan == null -> ""
+                pro -> "Pro plan"
+                else -> "Free plan"
+            },
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        FilledTonalButton(onClick = onOpenPro) { Text(if (pro) "Manage Pro" else GET_PRO) }
     }
 }
 
@@ -303,3 +324,8 @@ internal fun callsLeftText(calls: CallsLeft): String {
 /** What each use of the AI takes of the calls. */
 internal val CALL_COSTS = "Reading a bill takes ${CallsLeft.text(CallsLeft.READ)} call, " +
     "and changing a split by a sentence takes ${CallsLeft.text(CallsLeft.REVISION)}."
+
+/** What deleting the account does and does not do, before the person confirms it. */
+internal const val DELETE_ACCOUNT_TEXT = "Split Vibe's server deletes what it keeps about your Google account: the count of " +
+    "your calls and your plan. Bills on this phone stay as they are. Deleting the account does not cancel Pro, so " +
+    "if you have it, cancel it in Google Play first."

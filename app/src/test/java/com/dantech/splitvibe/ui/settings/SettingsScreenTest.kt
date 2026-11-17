@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -13,15 +15,22 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
+import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.data.account.Plan
+import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** What Settings offers about the phone's online speech service, which only the user's consent brings there. */
+/**
+ * What Settings offers about the phone's online speech service, which only the user's consent brings
+ * there, the plan beside the calls left, and what deleting the account says about Pro.
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class SettingsScreenTest {
@@ -30,7 +39,9 @@ class SettingsScreenTest {
     val compose = createComposeRule()
 
     private var settings by mutableStateOf(AppSettings(localCurrency = "VND"))
+    private var account by mutableStateOf(Account(installId = "settings", session = null, callsLeft = null, ai = AiStatus.AVAILABLE))
     private val answers = mutableListOf<Boolean>()
+    private var proOpened = 0
 
     @Test
     fun `the speech service is not offered before the user let it hear them`() {
@@ -56,14 +67,59 @@ class SettingsScreenTest {
         assertEquals(listOf(false, true), answers)
     }
 
-    private fun show() = compose.setContent {
+    @Test
+    fun `the plan shows beside the calls left, with a way to get Pro or to manage it`() {
+        show(callsLeft = MONTH)
+
+        compose.onNodeWithText("Free plan").assertExists()
+        compose.onNodeWithText("7 of 10 calls left this month", substring = true).assertExists()
+        compose.onNode(hasText("Get Pro") and hasClickAction()).performClick()
+
+        account = account.copy(callsLeft = MONTH.copy(limit = BigDecimal(300), remaining = BigDecimal(297), plan = Plan.PRO))
+        compose.onNodeWithText("Pro plan").assertExists()
+        compose.onNode(hasText("Manage Pro") and hasClickAction()).performClick()
+        assertEquals(2, proOpened)
+    }
+
+    @Test
+    fun `before the proxy has counted the calls, Pro is still a tap away, and without AI there is no plan at all`() {
+        show()
+        compose.onNodeWithText("Free plan").assertDoesNotExist()
+        compose.onNode(hasText("Get Pro") and hasClickAction()).assertExists()
+
+        account = account.copy(ai = AiStatus.NOT_SET_UP)
+        compose.onNodeWithText("Get Pro").assertDoesNotExist()
+    }
+
+    @Test
+    fun `deleting the account says it does not cancel Pro, which is cancelled in Google Play first`() {
+        show(callsLeft = MONTH, signedIn = true)
+
+        compose.onNode(hasText("Delete account") and hasClickAction()).performScrollTo().performClick()
+
+        compose.onNodeWithText("Deleting the account does not cancel Pro", substring = true).assertExists()
+        compose.onNodeWithText("cancel it in Google Play first", substring = true).assertExists()
+    }
+
+    private fun show(callsLeft: CallsLeft? = null, signedIn: Boolean = false) {
+        account = Account(
+            installId = "settings-install",
+            session = if (signedIn) Session("settings-session", expiresAt = Long.MAX_VALUE) else null,
+            callsLeft = callsLeft,
+            ai = AiStatus.AVAILABLE,
+            signedInAs = if (signedIn) "minh.tran@example.com" else null,
+        )
+        content()
+    }
+
+    private fun content() = compose.setContent {
         SplitVibeTheme {
             SettingsScreen(
                 settings = settings,
-                account = Account(installId = "settings-install", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
+                account = account,
                 accountUi = AccountUiState(),
                 canSignIn = true,
-                actions = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {}),
+                actions = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {}, onOpenPro = { proOpened++ }),
                 onSave = { _, _ -> },
                 onOpenPaymentMethods = {},
                 onBack = {},
@@ -77,5 +133,6 @@ class SettingsScreenTest {
 
     private companion object {
         const val SWITCH = "Use the phone's online speech service"
+        val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)
     }
 }

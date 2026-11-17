@@ -1,6 +1,8 @@
 package com.dantech.splitvibe
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -40,6 +42,16 @@ class AppStartupTest {
 
         pressBack()
         compose.onNodeWithText("Recent bills").assertIsDisplayed()
+    }
+
+    @Test
+    fun `Settings opens the Pro screen, and back returns to Settings`() {
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNode(hasText("Get Pro") and hasClickAction()).performClick()
+        compose.onNodeWithText("Split Vibe Pro").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Local currency").assertIsDisplayed()
     }
 
     @Test
