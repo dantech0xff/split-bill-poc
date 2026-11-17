@@ -226,7 +226,7 @@ Sửa:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 16 và 17/11/2026 trên nhánh feat/phase-07-ai-assistant-insights, chưa merge vào main -->
+<!-- Updated: thực hiện ngày 16 và 17/11/2026 trên nhánh feat/phase-07-ai-assistant-insights, đã fast-forward vào main ngày 17/11/2026 -->
 Bảy trên tám tiêu chí đạt và có bằng chứng. Tiêu chí về bộ đánh giá chưa đạt: bộ câu lệnh và công cụ chạy đã xong và đã thử với model giả, còn lần chạy với key Anthropic thật để sau, theo quyết định của chủ sản phẩm.
 
 | Tiêu chí | Kết quả | Bằng chứng |
