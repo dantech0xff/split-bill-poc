@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.assistant.SplitAssistant
 import com.dantech.splitvibe.assistant.VoiceInput
+import com.dantech.splitvibe.billing.BillingRepository
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.bills.BillPages
@@ -63,6 +64,7 @@ class AppModuleTest {
         assertNotNull(koin.get<ContactNames>())
         assertNotNull(koin.get<FxRepository>())
         assertNotNull(koin.get<SettingsViewModel>())
+        assertNotNull(koin.get<BillingRepository>())
         assertNotNull(koin.get<HistoryViewModel> { parametersOf(SavedStateHandle()) })
         // A screen hands the view model the state the system keeps for it.
         val split = koin.get<SplitBillViewModel> { parametersOf(SavedStateHandle()) }

@@ -11,6 +11,7 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.dantech.splitvibe.billing.BillingRepository
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.recurring.RecurringBillWorker
 import com.dantech.splitvibe.recurring.RecurringDrafts
@@ -26,6 +27,7 @@ import org.koin.android.ext.android.inject
 class MainActivity : ComponentActivity() {
 
     private val recurringDrafts: RecurringDrafts by inject()
+    private val billing: BillingRepository by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +35,10 @@ class MainActivity : ComponentActivity() {
         // Every time the app comes to the foreground: also back to a live activity, or to one the
         // system restored after it ended the app. A run that finds nothing due changes nothing.
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { catchUpOnRecurringBills() } }
+        // RevenueCat runs as the signed-in account from the moment the app opens, rather than once the
+        // Pro screen does, so a purchase it has not acknowledged yet reaches RevenueCat as that account.
+        // Here rather than when the application starts, which every local test does too.
+        lifecycleScope.launch { billing.follow() }
         // Photos shared from another app, and a link or a notice that opened the app, are taken
         // once, not again when the activity comes back.
         val shared = if (savedInstanceState == null) sharedImagesOf(intent, packageName) else emptyList()

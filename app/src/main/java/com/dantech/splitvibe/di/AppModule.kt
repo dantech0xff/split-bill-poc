@@ -3,6 +3,8 @@ package com.dantech.splitvibe.di
 import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.assistant.SplitAssistant
 import com.dantech.splitvibe.assistant.VoiceInput
+import com.dantech.splitvibe.billing.BillingRepository
+import com.dantech.splitvibe.billing.RevenueCatBilling
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CredentialManagerGoogleAccounts
@@ -54,6 +56,15 @@ val appModule = module {
     single { ProxyApi(BuildConfig.AI_PROXY_URL, account = get(), appVersion = BuildConfig.VERSION_CODE) }
     single<BillAnalyzer> { GatewayBillAnalyzer(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
     single { SplitAssistant(api = get(), account = get(), canSignIn = get<AccountRepository>().canSignIn) }
+    single {
+        BillingRepository(
+            // A build without RevenueCat's key sells no Pro.
+            billing = BuildConfig.REVENUECAT_API_KEY.takeIf { it.isNotBlank() }?.let { RevenueCatBilling(androidContext(), it) },
+            api = get(),
+            store = get(),
+            canSignIn = get<AccountRepository>().canSignIn,
+        )
+    }
     // One for each screen that listens, which lets go of the recognizer when the screen goes.
     factory { VoiceInput(androidContext(), settings = get()) }
     single {
