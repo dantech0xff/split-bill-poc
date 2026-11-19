@@ -105,6 +105,13 @@ Check these on the signed app bundle that will be uploaded to production.
       there works.
 - [ ] **Spend.** The caps in `proxy/src/policy.ts` fit the expected use, and a monthly spend limit
       is set in the Anthropic console ([runbook.md](runbook.md#spend-caps)).
+- [ ] **Workers Paid.** The Worker runs on Cloudflare's Workers Paid plan before launch. On the Free
+      plan every request to every path counts against one limit of 100,000 a day, after which the
+      whole service fails until midnight UTC, and a `workers.dev` address offers nowhere to put a
+      rate-limiting rule in front of it ([security-threat-model.md](security-threat-model.md)).
+- [ ] **`ABUSE_EMAIL` is set.** The payment request and bill link pages show what their senders wrote,
+      and their "Report abuse" link only appears with an address to write to. `release.yml` refuses a
+      tag whose `proxy/wrangler.jsonc` leaves it empty.
 - [ ] **The legal pages are reviewed** and their placeholders filled ([compliance.md](compliance.md)),
       and `https://<the proxy's host>/privacy`, `/terms` and `/delete-account` answer.
 

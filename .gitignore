@@ -19,9 +19,11 @@ captures/
 # Python caches of the release checks' scripts
 __pycache__/
 
-# Signing
+# Signing, and service-account keys, such as the FCM key that `wrangler secret put` reads from proxy/
 *.jks
 *.keystore
+service-account*.json
+*-service-account*.json
 
 # OS
 .DS_Store
