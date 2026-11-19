@@ -97,6 +97,24 @@ class ProxyApiTest {
     }
 
     @Test
+    fun `only the proxy's 204 counts as a deleted account, and a redirect is not followed`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", expiresAt = System.currentTimeMillis() + 60_000))
+        // A page in front of the proxy that answers 200, and a rule that sends the deletion to it.
+        server.enqueue(MockResponse().setResponseCode(200).setBody("<html>Welcome</html>"))
+        server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", server.url("/welcome")))
+
+        for (expected in listOf(200, 302)) {
+            try {
+                proxy.api.deleteAccount()
+                fail("An answer of $expected is no deletion")
+            } catch (e: ProxyException) {
+                assertEquals(expected, e.status)
+            }
+        }
+        assertEquals("the redirect went nowhere", 2, server.requestCount)
+    }
+
+    @Test
     fun `calls are read with their decimals, from the number as written`() = runBlocking {
         val usages = listOf(
             """{"limit":3,"used":0.2,"remaining":2.8,"period":"trial","resetsAt":null}""" to listOf("3", "0.2", "2.8"),

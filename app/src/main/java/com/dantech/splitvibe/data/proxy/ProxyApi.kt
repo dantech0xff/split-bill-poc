@@ -73,6 +73,9 @@ class ProxyApi(
 ) {
     private val base: HttpUrl? = baseUrl.toHttpUrlOrNull()
 
+    /** The same client, for the one call that must take the proxy's own answer and no other page's. */
+    private val withoutRedirects: OkHttpClient by lazy { client.newBuilder().followRedirects(false).followSslRedirects(false).build() }
+
     /** False in a build that was given no address for the proxy. */
     val isSetUp: Boolean get() = base != null
 
@@ -119,9 +122,14 @@ class ProxyApi(
         fxSnapshotOf(jsonOf(response)) ?: throw ProxyException(response.code, BAD_RESPONSE, null, null)
     }
 
-    /** `DELETE /v1/account`: deletes what the proxy keeps about the signed-in account. */
-    suspend fun deleteAccount() = send(request("v1/account").delete().build()) { response ->
-        if (!response.isSuccessful) throw failureOf(response)
+    /**
+     * `DELETE /v1/account`: deletes what the proxy keeps about the signed-in account. Only the 204
+     * the proxy answers a deletion with counts as one, and the call follows no redirect: a rule in
+     * front of the proxy that sends it to a page answering 200 would otherwise read as a deletion
+     * while the account is still there. Anything else is a [ProxyException].
+     */
+    suspend fun deleteAccount() = send(request("v1/account").delete().build(), withoutRedirects) { response ->
+        if (response.code != DELETED) throw failureOf(response)
     }
 
     /**
@@ -176,7 +184,8 @@ class ProxyApi(
         return builder
     }
 
-    private suspend fun <T> send(request: Request, read: (Response) -> T): T = client.newCall(request).await(read)
+    private suspend fun <T> send(request: Request, through: OkHttpClient = client, read: (Response) -> T): T =
+        through.newCall(request).await(read)
 
     /** A route that asks the model: refused before it starts, or wait lines and then one line with the answer or an error. */
     private suspend fun askModel(path: String, body: JsonObject): ModelReply = send(post(path, body)) { response ->
@@ -246,6 +255,9 @@ class ProxyApi(
 
         private val JSON = "application/json".toMediaType()
         private val BODY_METHODS = setOf("POST", "PUT", "PATCH")
+
+        /** What the proxy answers once it has deleted an account. */
+        private const val DELETED = 204
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
