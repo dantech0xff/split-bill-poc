@@ -14,7 +14,12 @@ const MIN_KEY_BYTES = 32;
 
 /** Sign-in works once the owner has set the app's web client ID and a signing key long enough for HS256. */
 export function signInReady(env: Env): boolean {
-  return env.GOOGLE_CLIENT_ID.trim() !== "" && signingKey(env).byteLength >= MIN_KEY_BYTES;
+  return clientIdOf(env) !== "" && signingKey(env).byteLength >= MIN_KEY_BYTES;
+}
+
+/** The app's web client ID, trimmed as the page's meta tag has it, so that a stray space in the setting changes nothing. */
+function clientIdOf(env: Env): string {
+  return env.GOOGLE_CLIENT_ID.trim();
 }
 
 /**
@@ -31,7 +36,7 @@ export async function googleAccountOf(
     const { payload } = await jwtVerify(idToken, GOOGLE_KEYS, {
       algorithms: ["RS256"],
       issuer: GOOGLE_ISSUERS,
-      audience: env.GOOGLE_CLIENT_ID,
+      audience: clientIdOf(env),
       requiredClaims: ["sub", "exp"],
     });
     if (typeof payload.sub !== "string" || payload.sub === "") return { ok: false, reason: "invalid" };

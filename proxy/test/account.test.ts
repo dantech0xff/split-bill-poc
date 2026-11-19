@@ -158,6 +158,14 @@ describe("signing in", () => {
     }
   });
 
+  it("takes the app's client ID set with a stray space or line break, as the page's tag does", async () => {
+    const settings = { GOOGLE_CLIENT_ID: ` ${CLIENT_ID}\n` };
+    const token = await idToken();
+
+    expect((await signIn(token, settings)).status).toBe(200);
+    expect((await deleteWithGoogle(token, settings)).status).toBe(204);
+  });
+
   it("stays off until the owner sets the app's client ID and a long enough signing key", async () => {
     const token = await idToken();
 
