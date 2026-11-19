@@ -245,7 +245,7 @@ Mọi việc làm được trong repo và trên Cloudflare đã xong, có test v
 
 Kiểm tra trên `c7a3707`, commit mã cuối của nhánh:
 - **App:** 493 unit test của bản prod, domain 200, hệ thiết kế 3, mọi ảnh chuẩn khớp; ktlint và lint sạch (0 lỗi); bản release và AAB dựng được với R8.
-- **Proxy và web:** proxy 508 test vitest và 27 test Node, typecheck sạch; web 235 test và dựng được bốn trang.
+- **Proxy và web:** proxy 508 test vitest và 27 test Node, typecheck sạch; web 235 test và dựng được bốn trang. Sau khi merge, CI trên `main` bắt được lỗi typecheck của proxy mà trên nhánh không lộ ra: không có `.dev.vars`, `wrangler types` sinh kiểu chữ cố định cho biến cấu hình (`GOOGLE_CLIENT_ID: ""`), và một test truyền vào chuỗi bất kỳ. Lỗi được sửa ở `cf9fd76` bằng `wrangler types --strict-vars=false`, và CI trên `main` xanh ở lượt 44491068479.
 - **Thiết bị:** trên Android 14, 13 test qua ở lượt 44478240987, gồm journey mới "từ chối AI rồi nhập tay". Trên API 26, 30 và 36, các journey qua ở lượt 44482956856; job API 30 phải chạy lại một lần vì lần đầu không tải được plugin.
 - **Checksum:** Maven Central trả 429 cho runner của GitHub, và Gradle chuyển sang Gradle Plugin Portal. Portal có marker POM riêng cho hai plugin Kotlin, khác byte với bản của Central. Marker của compose đã tin cả hai checksum từ trước, nay thêm cho marker của serialization. Jar và module của hai plugin trên Portal trùng từng byte với bản đã ghim.
 
