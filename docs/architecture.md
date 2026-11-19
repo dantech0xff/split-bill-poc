@@ -58,10 +58,13 @@ are worth knowing before changing it:
 
 ### Texts and languages
 
-Every text the person reads is a resource in `app/src/main/res/values/strings.xml`: a plurals
-resource wherever it holds a count, and a formatted string, with numbered arguments, wherever a
-sentence is built from parts. v1.0 is in English only, so a new language is a new
-`values-xx/strings.xml` and no change to the code.
+Every text the person reads is a resource in `app/src/main/res/values/strings.xml`, but for the
+text listed below that stays in code: a plurals resource wherever it holds a count, a formatted
+string, with numbered arguments, wherever a sentence is built from parts, and an ICU message where
+the grammar is more than a plural can hold, such as the ending of an ordinal ("the 31st",
+`selectordinal`, read through `UiText.Message`). v1.0 is in English only. A new language is a new
+`values-xx/strings.xml`, and also needs code changed: where text stays in code, and `TEXT_LOCALE`,
+which sets English for numbers.
 
 - Screens read their texts with `stringResource`, and through `UiText` every text that holds a
   count and every plural.
@@ -89,10 +92,9 @@ sentence is built from parts. v1.0 is in English only, so a new language is a ne
   was kept or sent stays in the language it was written in.
 - Some text stays in code, each for a reason: the sentences `:core:domain` writes (a reason a split
   does not add up, a proposed edit, a payment method's problem or name, a bill's warnings), which
-  the screens show as they come; the CSV files' headings and words, a format for spreadsheet apps
-  that stays the same in every language; and the PDF summary's headings, as the device test builds
-  `PdfSummary` without them. Log lines and messages of exceptions are for developers and stay in
-  code too.
+  the screens show as they come; and the CSV files' headings and words, a format for spreadsheet
+  apps that stays the same in every language. Log lines and messages of exceptions are for
+  developers and stay in code too. The PDF summary takes its words from the resources it is given.
 
 Debug builds carry the pseudolocales `en-XA`, which makes every text of the resources longer and
 accented, and `ar-XB`, which writes them right to left. Text that is cut off, overlaps or is not in

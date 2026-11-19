@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.export
 
+import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -9,21 +10,25 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import androidx.core.graphics.withTranslation
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.dayOf
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.dateText
+import com.dantech.splitvibe.text.labelRes
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.text
 import java.io.ByteArrayOutputStream
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 
 /**
  * The PDF summary of an export, on A4 pages: the period, what the bills add up to in the local
  * currency, by month, category, person and group, and then every bill in its own currency. It is
- * black and grey on white only, so it prints well anywhere.
+ * black and grey on white only, so it prints well anywhere. Its words come from [resources], in the
+ * app's language, and its numbers, amounts and dates are written as the app's texts write them.
  *
  * The pages are laid out first and drawn on any canvas afterwards, which is how the tests look at
  * them; [bytes] draws them into an [android.graphics.pdf.PdfDocument].
  */
-internal class PdfSummary(private val content: ExportContent, private val locale: Locale) {
+internal class PdfSummary(private val content: ExportContent, private val resources: Resources) {
 
     private val local = content.insights.currency
     private val titleText = paint(TITLE_SIZE, Typeface.DEFAULT_BOLD)
@@ -53,9 +58,9 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         (page.map { (_, block) -> block.text } + "${footer()} | ${pageNumber(index)}").joinToString("\n")
     }.joinToString("\n\n")
 
-    private fun footer() = "Split Vibe · ${content.period}"
+    private fun footer() = words(text(R.string.pdf_footer, content.period))
 
-    private fun pageNumber(index: Int) = "Page ${index + 1} of ${pages.size}"
+    private fun pageNumber(index: Int) = words(text(R.string.pdf_page, index + 1, pages.size))
 
     /** The summary as the bytes of a PDF file. */
     fun bytes(): ByteArray {
@@ -75,16 +80,19 @@ internal class PdfSummary(private val content: ExportContent, private val locale
     private fun blocks(): List<Block> = buildList {
         val insights = content.insights
         val overall = insights.overall
-        add(Paragraph("Spending summary", titleText))
-        add(Paragraph("${content.period}. Finished bills, in ${local.code}.", bodyText, above = SMALL_GAP))
-        val bills = if (overall.bills == 1) "1 bill came" else "${overall.bills} bills came"
-        add(Paragraph("$bills to ${money(overall.totalMinor)}. Your share was ${money(overall.myShareMinor)}.", strongText, above = GAP))
+        add(Paragraph(words(text(R.string.pdf_title)), titleText))
+        add(Paragraph(words(text(R.string.pdf_period, content.period, local.code)), bodyText, above = SMALL_GAP))
+        val came = plural(R.plurals.pdf_overall, overall.bills, overall.bills, money(overall.totalMinor), money(overall.myShareMinor))
+        add(Paragraph(words(came), strongText, above = GAP))
         content.notes.forEach { add(Paragraph(it, quietText, above = SMALL_GAP)) }
 
+        val bills = words(text(R.string.pdf_bills))
+        val total = words(text(R.string.pdf_total))
+        val yourShare = words(text(R.string.pdf_your_share))
         if (insights.byMonth.isNotEmpty()) {
             table(
-                "By month",
-                listOf("Month", "Bills", "Total", "Your share"),
+                words(text(R.string.insights_by_month)),
+                listOf(words(text(R.string.pdf_month)), bills, total, yourShare),
                 SUMMARY_COLUMNS,
                 insights.byMonth.entries.reversed().map { (month, spending) ->
                     listOf(Exporter.monthName(month), "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
@@ -93,18 +101,18 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         }
         if (insights.byCategory.isNotEmpty()) {
             table(
-                "By category",
-                listOf("Category", "Bills", "Total", "Your share"),
+                words(text(R.string.insights_by_category)),
+                listOf(words(text(R.string.pdf_category)), bills, total, yourShare),
                 SUMMARY_COLUMNS,
                 insights.byCategory.map { (category, spending) ->
-                    listOf(category.label, "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
+                    listOf(words(text(category.labelRes)), "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
                 },
             )
         }
         if (insights.byPerson.isNotEmpty()) {
             table(
-                "By person",
-                listOf("Person", "Bills", "Total", "Their share"),
+                words(text(R.string.insights_by_person)),
+                listOf(words(text(R.string.pdf_person)), bills, total, words(text(R.string.pdf_their_share))),
                 SUMMARY_COLUMNS,
                 insights.byPerson.map { person ->
                     listOf(person.name, "${person.bills}", money(person.totalMinor), money(person.shareMinor))
@@ -113,32 +121,41 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         }
         if (insights.byGroup.isNotEmpty()) {
             table(
-                "By group",
-                listOf("Group", "Bills", "Total", "Your share"),
+                words(text(R.string.insights_by_group)),
+                listOf(words(text(R.string.pdf_group)), bills, total, yourShare),
                 SUMMARY_COLUMNS,
                 insights.byGroup.map { (group, spending) ->
-                    listOf(Exporter.groupName(group), "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
+                    val name = group?.name ?: words(text(R.string.insights_no_group))
+                    listOf(name, "${spending.bills}", money(spending.totalMinor), money(spending.myShareMinor))
                 },
             )
         }
         if (content.bills.isNotEmpty()) {
             table(
-                "Bills",
-                listOf("Date", "Place", "Category", "Total", "Your share"),
+                words(text(R.string.pdf_bills_heading)),
+                listOf(
+                    words(text(R.string.pdf_date)),
+                    words(text(R.string.pdf_place)),
+                    words(text(R.string.pdf_category)),
+                    total,
+                    yourShare,
+                ),
                 BILL_COLUMNS,
                 content.bills.map { saved ->
                     val bill = saved.bill
                     listOf(
                         day(bill.date),
-                        bill.merchant?.takeIf { it.isNotBlank() } ?: "Bill",
-                        bill.category.label,
-                        bill.currency.format(bill.totalMinor, locale),
-                        bill.currency.format(saved.myShareMinor, locale),
+                        bill.merchant?.takeIf { it.isNotBlank() } ?: words(text(R.string.common_bill)),
+                        words(text(bill.category.labelRes)),
+                        bill.currency.format(bill.totalMinor),
+                        bill.currency.format(saved.myShareMinor),
                     )
                 },
             )
         }
     }
+
+    private fun words(text: UiText): String = text.resolve(resources)
 
     /** A table under [title]: a row of [headers], then [rows], laid out in [columns]. */
     private fun MutableList<Block>.table(title: String, headers: List<String>, columns: List<Column>, rows: List<List<String>>) {
@@ -175,13 +192,12 @@ internal class PdfSummary(private val content: ExportContent, private val locale
         return pages
     }
 
-    private fun money(minor: Long): String = local.format(minor, locale)
+    private fun money(minor: Long): String = local.format(minor)
 
     /** A bill's date as people read it, such as "Nov 13, 2026", or as written when it is no day. */
     private fun day(date: String?): String {
-        if (date.isNullOrBlank()) return "No date"
-        val day = dayOf(date) ?: return date
-        return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(day)
+        if (date.isNullOrBlank()) return words(text(R.string.pdf_no_date))
+        return dayOf(date)?.let(::dateText) ?: date
     }
 
     /** Something drawn on a page, [height] points tall, which says [text]. */

@@ -8,7 +8,6 @@ import android.provider.DocumentsContract
 import androidx.annotation.StringRes
 import androidx.core.content.FileProvider
 import com.dantech.splitvibe.data.bills.SavedBill
-import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.text.UiText
@@ -55,7 +54,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
     suspend fun files(content: ExportContent, format: ExportFormat): List<ExportFile> = withContext(Dispatchers.Default) {
         when (format) {
             ExportFormat.CSV -> CsvExport.files(content.bills, CsvConvention.of(locale()))
-            ExportFormat.PDF -> listOf(ExportFile(pdfName(content.periodKey), PDF_TYPE, PdfSummary(content, TEXT_LOCALE).bytes()))
+            ExportFormat.PDF -> listOf(ExportFile(pdfName(content.periodKey), PDF_TYPE, PdfSummary(content, context.resources).bytes()))
         }
     }
 
@@ -140,9 +139,6 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         fun pdfName(periodKey: String): String = "spending-$periodKey.pdf"
 
         /** [month] as a heading, such as "November 2026", in English as the app is. */
-        fun monthName(month: YearMonth): String = month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.ENGLISH))
-
-        /** What a group's line of the totals is called: its name, or "No group" for bills in none. */
-        fun groupName(group: InsightGroup?): String = group?.name ?: "No group"
+        fun monthName(month: YearMonth): String = month.format(DateTimeFormatter.ofPattern("LLLL yyyy", TEXT_LOCALE))
     }
 }

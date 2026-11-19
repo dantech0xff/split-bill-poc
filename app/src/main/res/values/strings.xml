@@ -897,11 +897,8 @@
     <string name="recurring_resume">Resume</string>
     <string name="recurring_pause">Pause</string>
     <string name="recurring_every_week">Every week on %1$s</string>
-    <string name="recurring_day_st">%1$dst</string>
-    <string name="recurring_day_nd">%1$dnd</string>
-    <string name="recurring_day_rd">%1$drd</string>
-    <string name="recurring_day_th">%1$dth</string>
-    <string name="recurring_every_month">Every month on the %1$s</string>
+    <!-- An ICU message: the day of the month takes the English ending of its ordinal, as in "the 31st". -->
+    <string name="recurring_every_month">Every month on the {0,selectordinal,one{#st} two{#nd} few{#rd} other{#th}}</string>
     <string name="recurring_or_last_day">%1$s, or the last day of a shorter month</string>
     <string name="recurring_paused">Paused</string>
     <string name="recurring_draft_due">Draft due %1$s</string>
@@ -956,6 +953,28 @@
     <string name="insights_by_person_hint">What each person\'s part of the bills came to</string>
     <string name="insights_by_group">By group</string>
     <string name="insights_no_group">No group</string>
+
+    <!-- The PDF summary of an export -->
+    <string name="pdf_title">Spending summary</string>
+    <string name="pdf_period">%1$s. Finished bills, in %2$s.</string>
+    <plurals name="pdf_overall">
+        <item quantity="one">%1$d bill came to %2$s. Your share was %3$s.</item>
+        <item quantity="other">%1$d bills came to %2$s. Your share was %3$s.</item>
+    </plurals>
+    <string name="pdf_month">Month</string>
+    <string name="pdf_bills">Bills</string>
+    <string name="pdf_total">Total</string>
+    <string name="pdf_your_share">Your share</string>
+    <string name="pdf_category">Category</string>
+    <string name="pdf_person">Person</string>
+    <string name="pdf_their_share">Their share</string>
+    <string name="pdf_group">Group</string>
+    <string name="pdf_bills_heading">Bills</string>
+    <string name="pdf_date">Date</string>
+    <string name="pdf_place">Place</string>
+    <string name="pdf_no_date">No date</string>
+    <string name="pdf_footer">Split Vibe · %1$s</string>
+    <string name="pdf_page">Page %1$d of %2$d</string>
     <string name="insights_spent_on">Spent on %1$s · Your share %2$s</string>
     <string name="insights_share_and_count">Your share %1$s · %2$s</string>
     <plurals name="insights_bill_count">

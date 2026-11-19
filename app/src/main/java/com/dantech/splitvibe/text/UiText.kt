@@ -1,6 +1,8 @@
 package com.dantech.splitvibe.text
 
 import android.content.res.Resources
+import android.icu.text.MessageFormat
+import android.icu.util.ULocale
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -26,6 +28,13 @@ sealed interface UiText {
     /** The plurals resource [id] in the form for [count], with [args] for its placeholders. */
     data class Plural(@param:PluralsRes val id: Int, val count: Int, val args: List<Any>) : UiText
 
+    /**
+     * The string resource [id], an ICU message such as "on the {0,selectordinal,one{#st} other{#th}}",
+     * with [args] for its arguments, read with the rules of [TEXT_LOCALE]: grammar a plural cannot
+     * hold, such as the ending of an ordinal, stays in the resources.
+     */
+    data class Message(@param:StringRes val id: Int, val args: List<Any>) : UiText
+
     /** Text shown as it is. */
     data class Raw(val text: String) : UiText
 
@@ -39,6 +48,7 @@ sealed interface UiText {
     fun resolve(resources: Resources): String = when (this) {
         is Res -> if (args.isEmpty()) resources.getString(id) else formatted(resources.getString(id), args, resources)
         is Plural -> formatted(resources.getQuantityString(id, count), args, resources)
+        is Message -> MessageFormat(resources.getString(id), ULocale.forLocale(TEXT_LOCALE)).format(resolved(args, resources))
         is Raw -> text
         is Lines -> parts.joinToString("\n") { it.resolve(resources) }
         is Joined -> parts.joinToString(separator) { it.resolve(resources) }
@@ -51,6 +61,9 @@ fun text(@StringRes id: Int, vararg args: Any): UiText = UiText.Res(id, args.toL
 /** The plurals resource [id] for [count], whose only placeholder is the count itself unless [args] are given. */
 fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): UiText = UiText.Plural(id, count, args.toList().ifEmpty { listOf(count) })
 
+/** The ICU message of the string resource [id] with [args] for its arguments. */
+fun message(@StringRes id: Int, vararg args: Any): UiText = UiText.Message(id, args.toList())
+
 /** Two sentences one after the other, the second left out when it is null. */
 fun sentences(first: UiText, second: UiText?): UiText = if (second == null) first else text(R.string.two_sentences, first, second)
 
@@ -61,4 +74,7 @@ fun UiText.resolve(): String = resolve(LocalResources.current)
 
 /** [pattern] with [args] in its placeholders, as [Resources.getString] fills them in but in [TEXT_LOCALE]. */
 private fun formatted(pattern: String, args: List<Any>, resources: Resources): String =
-    String.format(TEXT_LOCALE, pattern, *args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray())
+    String.format(TEXT_LOCALE, pattern, *resolved(args, resources))
+
+private fun resolved(args: List<Any>, resources: Resources): Array<Any> =
+    args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray()

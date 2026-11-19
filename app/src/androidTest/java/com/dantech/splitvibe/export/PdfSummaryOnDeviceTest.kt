@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.export
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.Bill
@@ -15,7 +16,6 @@ import com.dantech.splitvibe.domain.Payments
 import com.dantech.splitvibe.domain.SplitPlan
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -64,7 +64,7 @@ class PdfSummaryOnDeviceTest {
 
     @Test
     fun the_summary_is_a_pdf_file_with_an_a4_page_for_each_page_laid_out() {
-        val summary = PdfSummary(content, Locale.US)
+        val summary = PdfSummary(content, InstrumentationRegistry.getInstrumentation().targetContext.resources)
         val bytes = summary.bytes()
         val text = bytes.toString(Charsets.ISO_8859_1)
 

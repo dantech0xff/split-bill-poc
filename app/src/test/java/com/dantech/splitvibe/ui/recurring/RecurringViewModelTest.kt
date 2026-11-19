@@ -150,4 +150,13 @@ class RecurringViewModelTest {
         assertEquals("Every month on the 31st, or the last day of a shorter month", monthly(31))
         assertEquals("Every month on the 29th, or the last day of a shorter month", monthly(29))
     }
+
+    @Test
+    @Config(sdk = [34], qualifiers = "en-rXA")
+    fun `the ending of the ordinal is the resources' own, and reads in the pseudolocale too`() {
+        val said = describe(RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2027, 1, 22))).english()
+
+        assertTrue(said, said.contains("22"))
+        assertTrue("the resource's words, not the code's: $said", !said.startsWith("Every month"))
+    }
 }

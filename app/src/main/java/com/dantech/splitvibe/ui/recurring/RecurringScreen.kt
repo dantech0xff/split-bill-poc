@@ -41,6 +41,7 @@ import com.dantech.splitvibe.domain.RecurrenceSchedule
 import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.dateText
+import com.dantech.splitvibe.text.message
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.text
 import java.time.LocalDate
@@ -152,8 +153,8 @@ private fun RecurringBillRow(row: RecurringRow, position: SvRowPosition, actions
 
 /**
  * When [schedule] comes back, such as "Every month on the 31st, or the last day of a shorter month".
- * The day of the week is in English as the app is, and the day of the month takes the English
- * ending of its ordinal, each ending a string of its own.
+ * The day of the week is named in the language of the texts, and the resource gives the day of the
+ * month the ending of its ordinal.
  */
 internal fun describe(schedule: RecurrenceSchedule): UiText {
     val start = schedule.start
@@ -162,14 +163,7 @@ internal fun describe(schedule: RecurrenceSchedule): UiText {
 
         Frequency.MONTHLY -> {
             val day = start.dayOfMonth
-            val ordinal = when {
-                day in 11..13 -> R.string.recurring_day_th
-                day % 10 == 1 -> R.string.recurring_day_st
-                day % 10 == 2 -> R.string.recurring_day_nd
-                day % 10 == 3 -> R.string.recurring_day_rd
-                else -> R.string.recurring_day_th
-            }
-            val every = text(R.string.recurring_every_month, text(ordinal, day))
+            val every = message(R.string.recurring_every_month, day)
             if (day > SHORTEST_MONTH) text(R.string.recurring_or_last_day, every) else every
         }
     }

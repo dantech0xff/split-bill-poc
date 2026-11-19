@@ -1,10 +1,13 @@
 package com.dantech.splitvibe.export
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.SavedBill
@@ -45,7 +48,20 @@ class PdfSummaryTest {
     private val content = contentOf(
         insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords()),
     ) { it.english() }
-    private val summary = PdfSummary(content, Locale.US)
+    private val resources = ApplicationProvider.getApplicationContext<Context>().resources
+    private val summary = PdfSummary(content, resources)
+
+    @Test
+    @Config(sdk = [34], qualifiers = "en-rXA")
+    fun `its words are the app's own, in the app's language`() {
+        val pseudo = PdfSummary(content, resources).text()
+
+        assertTrue(pseudo, pseudo.startsWith(resources.getString(R.string.pdf_title)))
+        assertTrue(pseudo, pseudo.contains(resources.getString(R.string.pdf_page, 1, 2)))
+        for (english in listOf("Spending summary", "By person", "Their share", "Page 1 of")) {
+            assertTrue("$english is the code's, not the resources'", english !in pseudo)
+        }
+    }
 
     @Test
     fun `the pages say what the reference text says`() {
@@ -111,7 +127,7 @@ class PdfSummaryTest {
     /** What each page of the summary of [bills] draws as a line of text, as a PDF page gets it. */
     private fun drawn(bills: List<SavedBill>): List<Drawn> {
         val insights = insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords())
-        val summary = PdfSummary(contentOf(insights) { it.english() }, Locale.US)
+        val summary = PdfSummary(contentOf(insights) { it.english() }, resources)
         return summary.pages.indices.flatMap { index ->
             val page = Bitmap.createBitmap(PdfSummary.PAGE_WIDTH, PdfSummary.PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
             val canvas = TextCanvas(index, page)
