@@ -44,7 +44,11 @@ export const POLICY = {
   runsPerRequest: 3,
   /** How long a finished request id is remembered, so that running it again is not charged twice. */
   requestMemoryMs: 24 * 60 * 60 * 1000,
-  /** How long a session lasts after a Google sign-in before the app must sign in again. */
+  /**
+   * How long a session lasts after a Google sign-in before the app must sign in again. A deleted
+   * account's QuotaBook keeps the time of the deletion as long, so that it can refuse every session
+   * issued before it.
+   */
   sessionMs: 30 * 24 * 60 * 60 * 1000,
 
   minuteMs: 60 * 1000,

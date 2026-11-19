@@ -1,5 +1,5 @@
 import { forgetSharedData } from "./account-data";
-import { ALLOWANCES, accountName, callerOf, ledger, quotaBook, sessionAccountOf } from "./identity";
+import { ALLOWANCES, accountName, callerOf, ledger, quotaBook, sessionOfRequest, signedInAccountOf } from "./identity";
 import type { Env } from "./index";
 import { readJson } from "./input";
 import { count } from "./metrics";
@@ -47,6 +47,7 @@ export async function sessionRoute(request: Request, env: Env): Promise<Response
   }
   const now = Date.now();
   const { session, expiresAt } = await issueSession(checked.account, env, now);
+  // A session just issued has no earlier deletion to check, so the calls left always come back.
   const answer = jsonResponse(200, { session, expiresAt, ...(await callsAndPurchaser(env, checked.account, now)) });
   count(env, "sign_in", "ok");
   return answer;
@@ -54,7 +55,8 @@ export async function sessionRoute(request: Request, env: Env): Promise<Response
 
 /**
  * `GET /v1/usage`: the calls the caller has left, and whether bills can be read with AI at all; for
- * a signed-in caller, also its purchaser, as `POST /v1/session` gives it.
+ * a signed-in caller, also its purchaser, as `POST /v1/session` gives it. A session issued before
+ * its account was deleted is refused as 401 `session`.
  */
 export async function usageRoute(request: Request, env: Env): Promise<Response> {
   const who = await callerOf(request, env);
@@ -64,24 +66,30 @@ export async function usageRoute(request: Request, env: Env): Promise<Response> 
   if (caller.kind === "install") {
     return jsonResponse(200, { usage: await quotaBook(env, caller.name).usage(now, caller.allowance), aiEnabled: aiEnabled(env) });
   }
-  return jsonResponse(200, { ...(await callsAndPurchaser(env, caller.account, now)), aiEnabled: aiEnabled(env) });
+  const calls = await callsAndPurchaser(env, caller.account, now, caller.issuedAt);
+  if (calls === null) return errorResponse(401, "session");
+  return jsonResponse(200, { ...calls, aiEnabled: aiEnabled(env) });
 }
 
 /**
  * The calls [account] has left, and the account as its purchaser once its QuotaBook has recorded
- * that the id went out, as [QuotaBook.issuePurchaser] does. For a few minutes after the deploy that
- * brought Pro, the QuotaBook may still run the code from before it, which has no such method: the
- * answer then has the calls left alone, from [QuotaBook.usage], and no purchaser, which the app gets
- * on a later call. So an id never goes out without its record. Only the event's name is logged.
+ * that the id went out, as [QuotaBook.issuePurchaser] does; null when [issuedAt], the issue time of
+ * the session asking, is before the account was deleted, and nothing is recorded. For a few minutes
+ * after the deploy that brought Pro, the QuotaBook may still run the code from before it, which has
+ * no such method: the answer then has the calls left alone, from [QuotaBook.usage], and no
+ * purchaser, which the app gets on a later call. So an id never goes out without its record. That
+ * code recorded no deletion, so no session is refused then. Only the event's name is logged.
  */
-async function callsAndPurchaser(env: Env, account: string, now: number): Promise<{ usage: Usage; purchaser?: string }> {
+async function callsAndPurchaser(env: Env, account: string, now: number, issuedAt?: number): Promise<{ usage: Usage; purchaser?: string } | null> {
   const book = quotaBook(env, accountName(account));
+  let usage: Usage | null;
   try {
-    return { usage: await book.issuePurchaser(now, ALLOWANCES.monthly), purchaser: account };
+    usage = await book.issuePurchaser(now, ALLOWANCES.monthly, issuedAt);
   } catch {
     console.error(JSON.stringify({ event: "purchaser_not_recorded" }));
     return { usage: await book.usage(now, ALLOWANCES.monthly) };
   }
+  return usage === null ? null : { usage, purchaser: account };
 }
 
 /**
@@ -90,28 +98,32 @@ async function callsAndPurchaser(env: Env, account: string, now: number): Promis
  * and once a purchase, a restore or a change of plan is done, so as not to wait for RevenueCat's
  * webhook. Its body, empty or `{}`, is not read: the app has no say in its plan.
  *
- * It answers 503 `not_configured` without RevenueCat's key, 429 `rate_limited` past
- * [POLICY.planRefreshesPerHour] for the account, and 502 `subscription_unavailable` when RevenueCat
- * gives no plan that can be read, which leaves the plan kept as it was. Each refresh of a signed-in
- * account is counted as `plan_refresh`, with `ok` or the error code.
+ * It answers 503 `not_configured` without RevenueCat's key, 401 `session` for a session issued
+ * before the account was deleted, which counts nothing and asks RevenueCat nothing, 429
+ * `rate_limited` past [POLICY.planRefreshesPerHour] for the account, and 502
+ * `subscription_unavailable` when RevenueCat gives no plan that can be read, which leaves the plan
+ * kept as it was. Each refresh of a signed-in account is counted as `plan_refresh`, with `ok` or
+ * the error code.
  */
 export async function planRoute(request: Request, env: Env): Promise<Response> {
-  const account = await sessionAccountOf(request, env);
-  if (account === null) return errorResponse(401, "session");
+  const session = await sessionOfRequest(request, env);
+  if (session === null) return errorResponse(401, "session");
+  const { account } = session;
   const refused = (status: number, code: string, response: Response = errorResponse(status, code)): Response => {
     count(env, "plan_refresh", code);
     return response;
   };
   const key = revenueCatKey(env);
   if (key === null) return refused(503, "not_configured");
-  const limited = await hourlyRefusal(env.DB, account, "plan_refresh", POLICY.planRefreshesPerHour);
-  if (limited !== null) return refused(429, "rate_limited", limited);
   const book = quotaBook(env, accountName(account));
   // The answer hands the id out, so it is recorded as handed out before RevenueCat is asked: the
   // read may create the customer, whose events the webhook then follows. A QuotaBook that cannot
   // record it fails the request, answered 500, so RevenueCat is never asked about an id without
-  // its record.
-  await book.issuePurchaser(Date.now(), ALLOWANCES.monthly);
+  // its record. It is asked before the hourly count, so that a session the account's deletion
+  // ended counts nothing either.
+  if ((await book.issuePurchaser(Date.now(), ALLOWANCES.monthly, session.issuedAt)) === null) return refused(401, "session");
+  const limited = await hourlyRefusal(env.DB, account, "plan_refresh", POLICY.planRefreshesPerHour);
+  if (limited !== null) return refused(429, "rate_limited", limited);
   if (!(await refreshPlan(env, key, account))) return refused(502, "subscription_unavailable");
   const usage = await book.usage(Date.now(), ALLOWANCES.monthly);
   count(env, "plan_refresh", "ok");
@@ -120,10 +132,11 @@ export async function planRoute(request: Request, env: Env): Promise<Response> {
 
 /**
  * `DELETE /v1/account`: deletes the signed-in account, as [deleteAccount] does. The app then
- * forgets the session.
+ * forgets the session. A session issued before an earlier deletion of the account is refused as
+ * 401 `session`, before anything is asked or counted.
  */
 export async function accountRoute(request: Request, env: Env): Promise<Response> {
-  const account = await sessionAccountOf(request, env);
+  const account = await signedInAccountOf(request, env);
   if (account === null) return errorResponse(401, "session");
   return deleteAccount(env, account);
 }
@@ -145,15 +158,17 @@ export async function deleteWithGoogleRoute(request: Request, env: Env): Promise
  * when RevenueCat is set up; then its part in the shared data, which `forgetSharedData` takes out
  * without changing anyone else's balances; then its QuotaBook, but for the calls it used this
  * calendar month, which [QuotaBook.forget] keeps until the month ends so that deleting the account
- * and signing in again starts no new allowance, and its spend counter. When RevenueCat does not
- * take the deletion, the answer is 502 `subscription_unavailable` and nothing else is deleted, so
- * that it can be asked again. A subscription on Google Play goes on: the app and the page say so
- * before they delete.
+ * and signing in again starts no new allowance, and its spend counter. The QuotaBook also keeps
+ * the time of the deletion for as long as a session lasts, and every session issued before it is
+ * refused from then on, so that a phone still signed in brings nothing back. When RevenueCat does
+ * not take the deletion, the answer is 502 `subscription_unavailable` and nothing else is deleted,
+ * so that it can be asked again. A subscription on Google Play goes on: the app and the page say
+ * so before they delete.
  *
  * An account may ask for its deletion [POLICY.accountDeletionsPerHour] times an hour, by either
  * route, counted before RevenueCat is asked; past that the answer is 429 `rate_limited` and nothing
  * is deleted. The count outlives the deletion, as every hourly count of the account does until the
- * daily run, because a session outlives it too.
+ * daily run, so that deleting and signing in again starts no count over.
  */
 async function deleteAccount(env: Env, account: string): Promise<Response> {
   const refused = await hourlyRefusal(env.DB, account, "account_delete", POLICY.accountDeletionsPerHour);

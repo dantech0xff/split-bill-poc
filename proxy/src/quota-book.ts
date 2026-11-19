@@ -27,11 +27,13 @@ export type PlanState = { proUntil: number | null; checkedAt: number };
 
 /**
  * What a hold comes to. [first] is set on the first call ever held for an install that is not
- * signed in, once per install, so that the proxy can count new installs.
+ * signed in, once per install, so that the proxy can count new installs. `session` refuses a call
+ * whose session was issued before the account was deleted; see [QuotaBook.sessionEnded].
  */
 export type HoldResult =
   | { ok: true; usage: Usage; first?: true }
-  | { ok: false; code: "quota_exhausted" | "retry_limit" | "request_mismatch"; usage: Usage; retryAfter: number | null };
+  | { ok: false; code: "quota_exhausted" | "retry_limit" | "request_mismatch"; usage: Usage; retryAfter: number | null }
+  | { ok: false; code: "session" };
 
 /** Allowances are counted in hundredths of a call, so that a call of any weight is a whole number. */
 export const PER_CALL = 100;
@@ -78,6 +80,11 @@ const PLAN = "plan";
 const ISSUED = "issued";
 /** That an install has had a call held, so that its first call is told apart once; never when. */
 const FIRST_CALL = "firstCall";
+/**
+ * When a Google account was last deleted, in ms since the epoch. Every session issued before it is
+ * refused, so it is kept for as long as such a session could last, [POLICY.sessionMs].
+ */
+const DELETED = "deletedAt";
 /** The most keys one write of storage takes. */
 const MAX_PUT_KEYS = 128;
 
@@ -100,8 +107,12 @@ const MAX_PUT_KEYS = 128;
  * less. It runs only while what is left of the allowance is at least its weight, and its request id
  * keeps the weight it was first held with.
  *
- * A deleted account's object keeps the count of the calendar month it was deleted in, and nothing
- * else, until that month ends, then deletes itself; see [forget].
+ * A deleted account's object keeps the count of the calendar month it was deleted in until that
+ * month ends, and the time it was deleted for [POLICY.sessionMs], so that every session issued
+ * before the deletion is refused; an object left with nothing else then deletes itself. See
+ * [forget].
+ *
+ * Every method first forgets what has outlived its time, as the alarm would have; see [begin].
  */
 export class QuotaBook extends DurableObject {
   /** Whether this object has looked for counts in whole calls since it started; see [upgrade]. */
@@ -109,10 +120,13 @@ export class QuotaBook extends DurableObject {
 
   /**
    * Holds a call of [weight] for [requestId] while what is left of the allowance that holds at [now]
-   * is at least that. [allowance] is the caller's without Pro; see [termsAt].
+   * is at least that. [allowance] is the caller's without Pro; see [termsAt]. [issuedAt] is when
+   * the session of a signed-in caller was issued: a session issued before the account was deleted
+   * is refused as `session`, and nothing is held. A Worker deployed before deletions ended sessions
+   * sends none, and nothing is checked.
    */
-  async hold(now: number, requestId: string, allowance: Allowance, digest: string, weight: number): Promise<HoldResult> {
-    await this.upgrade();
+  async hold(now: number, requestId: string, allowance: Allowance, digest: string, weight: number, issuedAt?: number): Promise<HoldResult> {
+    if (endsSession(await this.begin(now), issuedAt)) return { ok: false, code: "session" };
     const terms = await this.termsAt(now, allowance);
     const book = await this.currentBook(now, terms.allowance);
     const requests = await this.liveRequests(now);
@@ -157,7 +171,7 @@ export class QuotaBook extends DurableObject {
    * back, as one that outlived [POLICY.holdMs].
    */
   async commit(now: number, requestId: string, allowance: Allowance, digest: string, weight: number): Promise<Usage> {
-    await this.upgrade();
+    await this.begin(now);
     const terms = await this.termsAt(now, allowance);
     const book = await this.currentBook(now, terms.allowance);
     const stored = await this.ctx.storage.get<RequestEntry>(REQUEST + requestId);
@@ -179,7 +193,7 @@ export class QuotaBook extends DurableObject {
    * is given back once no run holds it any more; a charged call stays charged.
    */
   async release(now: number, requestId: string): Promise<void> {
-    await this.upgrade();
+    await this.begin(now);
     const entry = await this.ctx.storage.get<RequestEntry>(REQUEST + requestId);
     if (!entry) return;
     entry.active = Math.max(0, entry.active - 1);
@@ -191,9 +205,8 @@ export class QuotaBook extends DurableObject {
   }
 
   async usage(now: number, allowance: Allowance): Promise<Usage> {
-    await this.upgrade();
-    const terms = await this.termsAt(now, allowance);
-    return usageOf(await this.currentBook(now, terms.allowance), await this.liveRequests(now), terms, now);
+    await this.begin(now);
+    return this.usageAt(now, allowance);
   }
 
   /**
@@ -201,15 +214,21 @@ export class QuotaBook extends DurableObject {
    * the app gives RevenueCat. The first time, the object records that the id went out: the proxy
    * asks RevenueCat only about ids it handed out, because RevenueCat's read creates a customer that
    * does not exist. The record goes with everything else when the account is deleted.
+   *
+   * [issuedAt] is when the session the id goes out to was issued. Null for a session issued before
+   * the account was deleted, and nothing is recorded; a Worker deployed before deletions ended
+   * sessions sends none, and nothing is checked.
    */
-  async issuePurchaser(now: number, allowance: Allowance): Promise<Usage> {
+  async issuePurchaser(now: number, allowance: Allowance, issuedAt?: number): Promise<Usage | null> {
+    if (endsSession(await this.begin(now), issuedAt)) return null;
     if ((await this.ctx.storage.get(ISSUED)) === undefined) await this.ctx.storage.put(ISSUED, now);
-    return this.usage(now, allowance);
+    return this.usageAt(now, allowance);
   }
 
   /** Whether the proxy handed this account's id out as a purchaser and has not forgotten it since. */
   async purchaserIssued(): Promise<boolean> {
-    return (await this.ctx.storage.get(ISSUED)) !== undefined;
+    await this.begin(Date.now());
+    return this.issued();
   }
 
   /**
@@ -219,55 +238,109 @@ export class QuotaBook extends DurableObject {
    * account's, nor for a plan that is not of the shape [PlanState] gives.
    */
   async storePlan(plan: PlanState): Promise<void> {
+    await this.begin(Date.now());
     const next = planStateOf(plan);
-    if (next === null || !(await this.purchaserIssued())) return;
+    if (next === null || !(await this.issued())) return;
     const stored = planStateOf(await this.ctx.storage.get(PLAN));
     if (stored === null || next.checkedAt >= stored.checkedAt) await this.ctx.storage.put(PLAN, next);
   }
 
   /**
-   * Forgets a deleted account as of [now]: its plan, the record of its purchaser, the request ids
-   * it remembers and everything else go, but the count of the calendar month of [now]. That count
-   * stays until the month ends, so that deleting the account and signing in again starts no new
-   * allowance; it holds nothing but the month and the calls used, under the account's salted
-   * hash. The object wakes when the month ends and deletes it; see [alarm]. A call still held
-   * runs on, and is charged to that count once the model answers. [now] defaults to the time of
-   * the call, as a Worker deployed before the count was kept sends none.
+   * Whether a session issued at [issuedAt] was issued before the account was last deleted, for a
+   * route that refuses such a session and has no other call to make to this object. Nothing about
+   * the session is recorded.
    */
-  async forget(now: number = Date.now()): Promise<void> {
-    const book = await this.ctx.storage.get<StoredBook>(BOOK);
-    if (book === undefined || book.period !== monthOf(now)) {
-      await this.ctx.storage.deleteAlarm();
-      await this.ctx.storage.deleteAll();
-      return;
-    }
-    const others = [...(await this.ctx.storage.list()).keys()].filter((key) => key !== BOOK);
-    const deletions: Array<Promise<number>> = [];
-    for (let start = 0; start < others.length; start += MAX_PUT_KEYS) {
-      deletions.push(this.ctx.storage.delete(others.slice(start, start + MAX_PUT_KEYS)));
-    }
-    // Issued with no wait between them, the deletions land in one write.
-    await Promise.all(deletions);
-    await this.ctx.storage.setAlarm(nextMonthStart(now));
+  async sessionEnded(now: number, issuedAt: number): Promise<boolean> {
+    return endsSession(await this.begin(now), issuedAt);
   }
 
   /**
-   * Forgets the request ids whose time is up, then sleeps until the next one is due. An object that
-   * holds nothing else but the count of one calendar month, as a deleted account's does, deletes
-   * itself once that month has ended, and otherwise wakes again when it ends.
+   * Forgets a deleted account as of [now]: its plan, the record of its purchaser, the request ids
+   * it remembers and everything else go, but two things, which hold nothing but times and counts,
+   * under the account's salted hash:
+   *
+   * - the count of the calendar month of [now], until the month ends, so that deleting the account
+   *   and signing in again starts no new allowance. A call still held runs on, and is charged to
+   *   that count once the model answers;
+   * - [now] itself, as the time the account was deleted, for [POLICY.sessionMs], as long as a
+   *   session lasts: every session issued before it is refused, so that a phone still signed in
+   *   brings nothing back. A sign-in after it gets a session that works.
+   *
+   * The object wakes when each is due and deletes it, so that once the later of the two has passed,
+   * nothing is left; see [alarm]. [now] defaults to the time of the call, as a Worker deployed
+   * before the count was kept sends none.
+   */
+  async forget(now: number = Date.now()): Promise<void> {
+    const kept = await this.ctx.storage.get([BOOK, DELETED]);
+    const book = kept.get(BOOK);
+    const keepBook = isRecord(book) && book.period === monthOf(now);
+    // A deletion recorded later, by a Worker whose clock runs ahead, stays the one that counts.
+    const earlier = kept.get(DELETED);
+    const deletedAt = typeof earlier === "number" ? Math.max(earlier, now) : now;
+    const others = [...(await this.ctx.storage.list()).keys()].filter((key) => key !== DELETED && !(keepBook && key === BOOK));
+    const writes: Array<Promise<unknown>> = [this.ctx.storage.put(DELETED, deletedAt)];
+    for (let start = 0; start < others.length; start += MAX_PUT_KEYS) {
+      writes.push(this.ctx.storage.delete(others.slice(start, start + MAX_PUT_KEYS)));
+    }
+    // Issued with no wait between them, the writes land as one.
+    await Promise.all(writes);
+    await this.arm(now);
+  }
+
+  /**
+   * Forgets the request ids whose time is up, and what a deleted account kept once its time is up,
+   * then sleeps until the next of them is due. An object left with nothing deletes itself.
    */
   async alarm(): Promise<void> {
     await this.upgrade();
     const now = Date.now();
-    const requests = await this.liveRequests(now);
-    const month = requests.size === 0 ? await this.loneMonth() : null;
-    if (month === null) {
-      await this.arm(now);
-    } else if (month === monthOf(now)) {
-      await this.ctx.storage.setAlarm(nextMonthStart(now));
-    } else {
+    await this.liveRequests(now);
+    await this.forgetEnded(now);
+    if ((await this.ctx.storage.list({ limit: 1 })).size === 0) {
       await this.ctx.storage.deleteAll();
+      return;
     }
+    await this.arm(now);
+  }
+
+  /**
+   * What every method does first, but [forget] and [alarm]: [upgrade], then [forgetEnded], as at a
+   * call after the alarm was missed. When that forgot something, or the account's deletion time is
+   * kept but no alarm is set, as when older code ran the alarm after a rollback, the alarm is set
+   * again for what is left. Answers the account's deletion time while it is kept, or null.
+   */
+  private async begin(now: number): Promise<number | null> {
+    await this.upgrade();
+    const { deletedAt, forgot } = await this.forgetEnded(now);
+    if (forgot || (deletedAt !== null && (await this.ctx.storage.getAlarm()) === null)) await this.arm(now);
+    return deletedAt;
+  }
+
+  /**
+   * Forgets a monthly count once its month has ended, as it counts for nothing then, and the
+   * account's deletion time once every session issued before it has run out. Answers that time
+   * while it is kept, or null, and whether anything was forgotten.
+   */
+  private async forgetEnded(now: number): Promise<{ deletedAt: number | null; forgot: boolean }> {
+    const kept = await this.ctx.storage.get([BOOK, DELETED]);
+    const ended: string[] = [];
+    const book = kept.get(BOOK);
+    if (isMonthlyBook(book) && book.period < monthOf(now)) ended.push(BOOK);
+    const stored = kept.get(DELETED);
+    const deletedAt = typeof stored === "number" && now < stored + POLICY.sessionMs ? stored : null;
+    if (stored !== undefined && deletedAt === null) ended.push(DELETED);
+    if (ended.length > 0) await this.ctx.storage.delete(ended);
+    return { deletedAt, forgot: ended.length > 0 };
+  }
+
+  /** The usage at [now], once [begin] has run. */
+  private async usageAt(now: number, allowance: Allowance): Promise<Usage> {
+    const terms = await this.termsAt(now, allowance);
+    return usageOf(await this.currentBook(now, terms.allowance), await this.liveRequests(now), terms, now);
+  }
+
+  private async issued(): Promise<boolean> {
+    return (await this.ctx.storage.get(ISSUED)) !== undefined;
   }
 
   /**
@@ -332,21 +405,39 @@ export class QuotaBook extends DurableObject {
     return live;
   }
 
-  /** The month of the count, when storage holds a monthly count and nothing else. */
-  private async loneMonth(): Promise<string | null> {
-    const stored = await this.ctx.storage.list<StoredBook>();
-    const book = stored.get(BOOK);
-    return stored.size === 1 && book !== undefined && book.period !== "trial" ? book.period : null;
-  }
-
-  /** Wakes the object when the next request id is due to be forgotten, so storage does not grow. */
+  /**
+   * Wakes the object when the next thing it keeps is due to be forgotten, so that storage does not
+   * grow: a request id; a deleted account's deletion time, once sessions issued before it have run
+   * out; and a deleted account's count, when its month ends. That count is the one kept beside the
+   * deletion time, or one kept alone, as the version before deletion times kept it.
+   */
   private async arm(now: number) {
-    const stored = await this.ctx.storage.list<RequestEntry>({ prefix: REQUEST });
-    const times = [...stored.values()].map(forgetAt).filter((time) => time > now);
-    if (times.length > 0) {
-      await this.ctx.storage.setAlarm(Math.min(...times));
+    const requests = await this.ctx.storage.list<RequestEntry>({ prefix: REQUEST });
+    const kept = await this.ctx.storage.get([BOOK, DELETED, ISSUED, PLAN]);
+    const times = [...requests.values()].map(forgetAt);
+    const deletedAt = kept.get(DELETED);
+    if (typeof deletedAt === "number") times.push(deletedAt + POLICY.sessionMs);
+    const alone = requests.size === 0 && !kept.has(ISSUED) && !kept.has(PLAN);
+    if (isMonthlyBook(kept.get(BOOK)) && (typeof deletedAt === "number" || alone)) times.push(nextMonthStart(now));
+    const due = times.filter((time) => time > now);
+    if (due.length > 0) {
+      await this.ctx.storage.setAlarm(Math.min(...due));
     }
   }
+}
+
+/**
+ * Whether a session issued at [issuedAt] was issued before [deletedAt], the time the account was
+ * last deleted, which ends it. A call that names no session, as an install's or as one from a
+ * Worker deployed before deletions ended sessions, ends none.
+ */
+function endsSession(deletedAt: number | null, issuedAt: unknown): boolean {
+  return deletedAt !== null && typeof issuedAt === "number" && issuedAt < deletedAt;
+}
+
+/** Whether [value] is the book of a monthly allowance, which counts for nothing once its month has ended. */
+function isMonthlyBook(value: unknown): value is StoredBook {
+  return isRecord(value) && typeof value.period === "string" && value.period !== "trial";
 }
 
 /**

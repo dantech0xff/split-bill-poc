@@ -131,8 +131,10 @@ export async function callModel<Input extends { requestId: string }>(
     // Ties the request id to what it asks, so that a run again under the same id is the same request.
     const digest = await hashed(prompt, env.HASH_SALT);
     const quota = quotaBook(env, caller.name);
-    const hold = await quota.hold(now, input.requestId, caller.allowance, digest, task.weight);
+    // A session issued before its account was deleted is refused there, and nothing is held.
+    const hold = await quota.hold(now, input.requestId, caller.allowance, digest, task.weight, caller.kind === "google" ? caller.issuedAt : undefined);
     if (!hold.ok) {
+      if (hold.code === "session") return refused(hold.code, errorResponse(401, "session"));
       if (hold.code === "request_mismatch") return refused(hold.code, errorResponse(400, "input"));
       return refused(hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
     }

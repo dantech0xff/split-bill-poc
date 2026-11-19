@@ -12,6 +12,13 @@ const AUDIENCE = "split-vibe-app";
 const ACCOUNT = /^[0-9a-f]{64}$/;
 const MIN_KEY_BYTES = 32;
 
+/**
+ * A session the proxy signed, as it checks out: the account it stands for, and when it was issued,
+ * in ms since the epoch. A session issued before its account was deleted no longer counts, which
+ * only the account's QuotaBook can tell; see `signedInAccountOf` in `identity.ts`.
+ */
+export type Session = { account: string; issuedAt: number };
+
 /** Sign-in works once the owner has set the app's web client ID and a signing key long enough for HS256. */
 export function signInReady(env: Env): boolean {
   return clientIdOf(env) !== "" && signingKey(env).byteLength >= MIN_KEY_BYTES;
@@ -64,7 +71,11 @@ export function verdictOf(error: unknown): "invalid" | "unavailable" {
   return tokenFaults.some((fault) => error instanceof fault) ? "invalid" : "unavailable";
 }
 
-/** A session for [account], signed by the proxy, that lasts [POLICY.sessionMs]. */
+/**
+ * A session for [account], signed by the proxy, that lasts [POLICY.sessionMs]. Its `iat` is [now] to
+ * the millisecond, in fractional seconds, so that a session issued just after the account was
+ * deleted is told apart from one issued just before.
+ */
 export async function issueSession(account: string, env: Env, now: number): Promise<{ session: string; expiresAt: number }> {
   const expiresAt = now + POLICY.sessionMs;
   const session = await new SignJWT({})
@@ -72,23 +83,29 @@ export async function issueSession(account: string, env: Env, now: number): Prom
     .setSubject(account)
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
-    .setIssuedAt(Math.floor(now / 1000))
+    .setIssuedAt(now / 1000)
     .setExpirationTime(Math.floor(expiresAt / 1000))
     .sign(signingKey(env));
   return { session, expiresAt };
 }
 
-/** The account a session stands for, or null when this proxy did not sign it, it was changed, or it has run out. */
-export async function accountOfSession(session: string, env: Env): Promise<string | null> {
+/**
+ * The session [token] is, or null when this proxy did not sign it, it was changed, or it has run
+ * out. Every session the proxy issued has its `iat`, in whole seconds before sessions had
+ * milliseconds; one without it is refused.
+ */
+export async function sessionOf(token: string, env: Env): Promise<Session | null> {
   if (!signInReady(env)) return null;
   try {
-    const { payload } = await jwtVerify(session, signingKey(env), {
+    const { payload } = await jwtVerify(token, signingKey(env), {
       algorithms: ["HS256"],
       issuer: ISSUER,
       audience: AUDIENCE,
-      requiredClaims: ["sub", "exp"],
+      requiredClaims: ["sub", "exp", "iat"],
     });
-    return typeof payload.sub === "string" && ACCOUNT.test(payload.sub) ? payload.sub : null;
+    const { sub, iat } = payload;
+    if (typeof sub !== "string" || !ACCOUNT.test(sub) || typeof iat !== "number" || !Number.isFinite(iat)) return null;
+    return { account: sub, issuedAt: Math.round(iat * 1000) };
   } catch {
     return null;
   }

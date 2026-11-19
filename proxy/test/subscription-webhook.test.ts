@@ -317,7 +317,8 @@ describe("an event", () => {
     expect(sent.status).toBe(200);
     expect(revenueCat.asked).toHaveLength(asked);
     expect(revenueCat.has(who.account)).toBe(false);
-    expect(await runInDurableObject(bookOf(who.account), async (_, state) => (await state.storage.list()).size)).toBe(0);
+    // The account's QuotaBook keeps nothing but the time of the deletion.
+    expect(await runInDurableObject(bookOf(who.account), async (_, state) => [...(await state.storage.list()).keys()])).toEqual(["deletedAt"]);
   });
 
   it("refreshes at most 20 accounts, each once", async () => {

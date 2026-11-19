@@ -180,10 +180,13 @@ describe("a plan", () => {
     expect(await storageOf(stub)).toEqual({ issued: now, plan });
     expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "pro", 0, 300));
 
+    // As a Worker deployed before the count was kept asks it, without a time.
     await stub.forget();
     await stub.storePlan({ ...plan, checkedAt: now + 1 });
     expect(await stub.purchaserIssued()).toBe(false);
-    expect(await storageOf(stub)).toEqual({});
+    const { deletedAt } = await storageOf(stub);
+    expect(await storageOf(stub)).toEqual({ deletedAt: expect.any(Number) });
+    expect(deletedAt).toBeGreaterThanOrEqual(now);
   });
 
   it("keeps the one RevenueCat gave last, whatever order its answers come in", async () => {
@@ -636,8 +639,18 @@ it("forgets old request ids, so its storage does not grow", async () => {
   expect(left).toBe(0);
 });
 
+/** When the object wakes again, if it set its alarm. */
+function alarmOf(stub: Book): Promise<number | null> {
+  return runInDurableObject(stub, (_, state) => state.storage.getAlarm());
+}
+
+/** When an account deleted at [deletedAt], whose count of that month is kept, is first woken: at the month's end, or once its sessions have run out. */
+function firstWake(deletedAt: number): number {
+  return Math.min(nextMonthStart(deletedAt), deletedAt + POLICY.sessionMs);
+}
+
 describe("a deleted account", () => {
-  it("keeps the count of the month alone, and wakes when the month ends", async () => {
+  it("keeps the count of the month and the time of the deletion alone, and wakes when the first of them is due", async () => {
     const now = Date.now();
     const stub = await accountBook({ proUntil: now + POLICY.dayMs, checkedAt: now });
     await call(stub, now, MONTHLY);
@@ -646,10 +659,10 @@ describe("a deleted account", () => {
 
     await stub.forget(now);
 
-    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 120, used: 2 } });
+    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 120, used: 2 }, deletedAt: now });
     expect(await stub.purchaserIssued()).toBe(false);
     expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "free", 1.2, 8.8));
-    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+    expect(await alarmOf(stub)).toBe(firstWake(now));
   });
 
   it("charges to that count a call that was held when it was deleted, once the model answers", async () => {
@@ -664,7 +677,7 @@ describe("a deleted account", () => {
     expect(await stub.commit(now, held, MONTHLY, BILL, READ)).toEqual(month(now, "free", 2, 8));
   });
 
-  it("keeps no count of a month that is over, nor anything else", async () => {
+  it("keeps no count of a month that is over, only the time of the deletion, until a session issued before it would have run out", async () => {
     const now = Date.now();
     const lastMonth = nextMonthStart(now) - 40 * POLICY.dayMs;
     const stub = await accountBook();
@@ -672,22 +685,46 @@ describe("a deleted account", () => {
 
     await stub.forget(now);
 
-    expect(await storageOf(stub)).toEqual({});
+    expect(await storageOf(stub)).toEqual({ deletedAt: now });
+    expect(await alarmOf(stub)).toBe(now + POLICY.sessionMs);
   });
 
-  it("deletes the count once its month is over", async () => {
+  it("deletes the count once its month is over, and wakes again when the sessions issued before the deletion have run out", async () => {
     const now = Date.now();
-    const lastMonth = nextMonthStart(now) - 40 * POLICY.dayMs;
-    const stub = await accountBook();
-    await call(stub, lastMonth, MONTHLY);
-    // Deleted last month: the alarm for the month's end is due now.
-    await stub.forget(lastMonth);
-    await runDurableObjectAlarm(stub);
+    const deletedAt = now - POLICY.dayMs;
+    const stub = await bookWith({ book: { period: periodOf(MONTHLY, nextMonthStart(now) - 40 * POLICY.dayMs), hundredths: 100, used: 1 }, deletedAt });
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
 
-    expect(await storageOf(stub)).toEqual({});
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await storageOf(stub)).toEqual({ deletedAt });
+    expect(await alarmOf(stub)).toBe(deletedAt + POLICY.sessionMs);
   });
 
-  it("wakes again when the month ends, when it was woken before that", async () => {
+  it("deletes the time of the deletion once the sessions issued before it have run out, and wakes again when the month of the count ends", async () => {
+    const now = Date.now();
+    const count = { period: periodOf(MONTHLY, now), hundredths: 100, used: 1 };
+    const stub = await bookWith({ book: count, deletedAt: now - POLICY.sessionMs });
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await storageOf(stub)).toEqual({ book: count });
+    expect(await alarmOf(stub)).toBe(nextMonthStart(now));
+  });
+
+  it("is left with nothing once both are over", async () => {
+    const now = Date.now();
+    const stub = await bookWith({ deletedAt: now - POLICY.sessionMs });
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await storageOf(stub)).toEqual({});
+    expect(await alarmOf(stub)).toBeNull();
+  });
+
+  it("wakes again when the first of them is due, when it was woken before that", async () => {
     const now = Date.now();
     const stub = book();
     await call(stub, now, MONTHLY);
@@ -696,8 +733,8 @@ describe("a deleted account", () => {
 
     expect(await runDurableObjectAlarm(stub)).toBe(true);
 
-    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 100, used: 1 } });
-    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 100, used: 1 }, deletedAt: now });
+    expect(await alarmOf(stub)).toBe(firstWake(now));
   });
 
   it("leaves the trial of an install alone, whenever it wakes", async () => {
@@ -709,6 +746,76 @@ describe("a deleted account", () => {
     await runDurableObjectAlarm(stub);
 
     expect((await storageOf(stub)).book).toEqual({ period: "trial", hundredths: 100, used: 1 });
+  });
+
+  it("forgets what it kept past its time when it is reached before its alarm ran, as after older code ran the alarm, and sets the alarm again for the rest", async () => {
+    const now = Date.now();
+    const lastMonth = { period: periodOf(MONTHLY, nextMonthStart(now) - 40 * POLICY.dayMs), hundredths: 100, used: 1 };
+    const deletedAt = now - POLICY.dayMs;
+
+    // Both over: nothing is left.
+    const over = await bookWith({ book: lastMonth, deletedAt: now - POLICY.sessionMs });
+    expect(await over.purchaserIssued()).toBe(false);
+    expect(await storageOf(over)).toEqual({});
+
+    // The month over: the time of the deletion stays, and the alarm is set for it.
+    const monthOver = await bookWith({ book: lastMonth, deletedAt });
+    expect(await monthOver.usage(now, MONTHLY)).toEqual(month(now, "free", 0, 10));
+    expect(await storageOf(monthOver)).toEqual({ deletedAt });
+    expect(await alarmOf(monthOver)).toBe(deletedAt + POLICY.sessionMs);
+
+    // Nothing over yet, but no alarm set: it is set again.
+    const thisMonth = { period: periodOf(MONTHLY, now), hundredths: 100, used: 1 };
+    const unarmed = await bookWith({ book: thisMonth, deletedAt });
+    expect(await unarmed.sessionEnded(now, now)).toBe(false);
+    expect(await storageOf(unarmed)).toEqual({ book: thisMonth, deletedAt });
+    expect(await alarmOf(unarmed)).toBe(Math.min(nextMonthStart(now), deletedAt + POLICY.sessionMs));
+
+    // The count of an install's trial is never over.
+    const trial = { period: "trial", hundredths: 300, used: 3 };
+    const install = await bookWith({ book: trial });
+    await install.usage(now, TRIAL);
+    expect(await storageOf(install)).toEqual({ book: trial });
+  });
+
+  it("ends every session issued before the deletion and no other, and records nothing for a session it ends", async () => {
+    const now = Date.now();
+    const stub = await accountBook();
+    await call(stub, now, MONTHLY);
+    await stub.forget(now);
+    const kept = await storageOf(stub);
+
+    expect(await stub.sessionEnded(now, now - 1)).toBe(true);
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, READ, now - 1)).toEqual({ ok: false, code: "session" });
+    expect(await stub.issuePurchaser(now, MONTHLY, now - 1)).toBeNull();
+    expect(await storageOf(stub)).toEqual(kept);
+
+    // A session issued once the account was deleted: a sign-in after it, which starts afresh but for the month's calls.
+    expect(await stub.sessionEnded(now, now)).toBe(false);
+    expect(await stub.issuePurchaser(now, MONTHLY, now + 1)).toEqual(month(now, "free", 1, 9));
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, READ, now + 1)).toMatchObject({ ok: true, usage: { used: 1, remaining: 8 } });
+    expect(await stub.purchaserIssued()).toBe(true);
+  });
+
+  it("checks no session for a call that names none: an install's, or one from a Worker deployed before deletions ended sessions", async () => {
+    const now = Date.now();
+    const stub = await accountBook();
+    await stub.forget(now);
+
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, READ)).toMatchObject({ ok: true });
+    expect(await stub.issuePurchaser(now, MONTHLY)).toMatchObject({ plan: "free", remaining: 9 });
+  });
+
+  it("keeps the later time when it is deleted again", async () => {
+    const now = Date.now();
+    const stub = book();
+
+    await stub.forget(now + 1_000);
+    await stub.forget(now);
+    expect((await storageOf(stub)).deletedAt).toBe(now + 1_000);
+
+    await stub.forget(now + 2_000);
+    expect((await storageOf(stub)).deletedAt).toBe(now + 2_000);
   });
 });
 

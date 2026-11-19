@@ -9,7 +9,7 @@ import { forgetExpired } from "../src/reminders";
 import { type Customer, type FakeRevenueCat, fakeRevenueCat, playCustomer, promotionalCustomer, subscriberAnswer, TEST_KEY } from "./fake-revenuecat";
 import { ANSWER, billAnswer, billRequest, last, model, proxyRequest, send } from "./requests";
 import { modelRevision, revisionRequest, SAMPLE_REVISION } from "./revisions";
-import { api, logsOf, type Person, person, rows } from "./shared";
+import { api, logsOf, type Person, person, rows, signedInAgain } from "./shared";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -128,8 +128,9 @@ describe("asking for the plan", () => {
     }
     expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status).toBe(204);
 
-    // A session outlives the deletion, so the same one asks again.
-    const refused = await refresh(who);
+    // The deletion ended the session, which counts nothing more; signing in again finds the count.
+    expect((await refresh(who)).body).toEqual({ error: "session" });
+    const refused = await refresh(await signedInAgain(who));
 
     expect(refused.status).toBe(429);
     expect(refused.body).toEqual({ error: "rate_limited" });

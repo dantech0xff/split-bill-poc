@@ -8,7 +8,7 @@ import { ALLOWANCES } from "../src/identity";
 import type { Env } from "../src/index";
 import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
-import { nextMonthStart, periodOf, type QuotaBook } from "../src/quota-book";
+import { type Allowance, nextMonthStart, periodOf, type QuotaBook } from "../src/quota-book";
 import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
@@ -16,6 +16,7 @@ import { type FakeRevenueCat, fakeRevenueCat, playCustomer, TEST_KEY } from "./f
 import { fakeTurnstile } from "./fake-turnstile";
 import { network } from "./network";
 import { ANSWER, billRequest, IP, last, model, proxyRequest, quotaOf, send, spendOf } from "./requests";
+import { revisionRequest } from "./revisions";
 import { newClaim, openShare, publish } from "./share-fixtures";
 import {
   addBill,
@@ -197,6 +198,22 @@ describe("a session", () => {
     expect(seen).toHaveLength(0);
   });
 
+  it("carries the time it was issued to the millisecond, still counts as one in whole seconds issued before that, and is refused without one", async () => {
+    const now = Date.now();
+    const { account, session } = await accountSession(now);
+    const signed = (issuedAt?: number) => {
+      const jwt = new SignJWT({}).setProtectedHeader({ alg: "HS256" }).setSubject(account).setIssuer("split-vibe-proxy").setAudience("split-vibe-app");
+      if (issuedAt !== undefined) jwt.setIssuedAt(issuedAt);
+      return jwt.setExpirationTime("1h").sign(new TextEncoder().encode(env.SESSION_SIGNING_KEY));
+    };
+
+    expect(decodeJwt(session).iat).toBe(now / 1000);
+    expect((await send(proxyRequest("GET", "/v1/usage", { session: await signed(Math.floor(now / 1000)) }))).status).toBe(200);
+    const withoutTime = await send(proxyRequest("GET", "/v1/usage", { session: await signed() }));
+    expect(withoutTime.status).toBe(401);
+    expect(JSON.parse(withoutTime.body)).toEqual({ error: "session" });
+  });
+
   it("gives an account ten calls a month and refuses the eleventh until the next month begins", async () => {
     const { session } = await accountSession();
     model(ANSWER);
@@ -306,6 +323,61 @@ describe("while an account's QuotaBook still runs the code from before Pro", () 
   });
 });
 
+/**
+ * The QuotaBooks as the Worker finds them while they still run the code from before deletions ended
+ * sessions, for a few minutes after the deploy that brought that: `sessionEnded`, which that code
+ * lacks, fails as the runtime fails a call of a method an object does not have; `hold` and
+ * `issuePurchaser` take no issue time of a session; and `forget` keeps no time of the deletion.
+ * Everything else is the real object's.
+ */
+function booksFromBeforeDeletionTimes(): DurableObjectNamespace<QuotaBook> {
+  return new Proxy(env.QUOTA_BOOK, {
+    get(books, property) {
+      if (property === "get") {
+        return (id: DurableObjectId) => {
+          const book = books.get(id);
+          const older: Record<string, unknown> = {
+            sessionEnded: () => Promise.reject(new TypeError('The RPC receiver does not implement "sessionEnded".')),
+            hold: (now: number, requestId: string, allowance: Allowance, digest: string, weight: number) => book.hold(now, requestId, allowance, digest, weight),
+            issuePurchaser: (now: number, allowance: Allowance) => book.issuePurchaser(now, allowance),
+            forget: async (now: number) => {
+              await book.forget(now);
+              await runInDurableObject(book, (_, state) => state.storage.delete("deletedAt"));
+            },
+          };
+          return new Proxy(book, { get: (target, method) => (typeof method === "string" && method in older ? older[method] : Reflect.get(target, method)) });
+        };
+      }
+      const value: unknown = Reflect.get(books, property);
+      return typeof value === "function" ? value.bind(books) : value;
+    },
+  });
+}
+
+describe("while an account's QuotaBook still runs the code from before deletions ended sessions", () => {
+  it("takes a session on every kind of route, as that code recorded no deletion that could end it", async () => {
+    const who = await person();
+    const books = { QUOTA_BOOK: booksFromBeforeDeletionTimes() };
+    model(ANSWER);
+
+    expect((await api(who, "PUT", `/v1/devices/${crypto.randomUUID()}`, { token: "token-of-the-phone" }, books)).status).toBe(204);
+    expect((await api(who, "GET", "/v1/groups", undefined, books)).body).toEqual({ groups: [] });
+    expect((await api(who, "GET", "/v1/usage", undefined, books)).body).toMatchObject({ purchaser: who.account });
+    expect((await api(who, "POST", "/v1/plan", {}, books)).status).toBe(200);
+    expect(last(await send(billRequest({ session: who.session }), books))).toMatchObject({ type: "result" });
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }), books)).status).toBe(204);
+  });
+
+  it("deletes an account but ends none of its sessions, since that code keeps no time of the deletion", async () => {
+    const who = await person();
+
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }), { QUOTA_BOOK: booksFromBeforeDeletionTimes() })).status).toBe(204);
+
+    expect((await heldFor(who.account)).book).toEqual({});
+    expect((await api(who, "GET", "/v1/groups")).status).toBe(200);
+  });
+});
+
 /** Someone signed in with Google: the `sub` Google names them by, the account the proxy names them by, and a session for it. */
 type GooglePerson = Person & { sub: string };
 
@@ -346,6 +418,44 @@ async function activeAccount() {
 /** The count an account's QuotaBook keeps of the month of [now], once [calls] bill reads were charged. */
 function monthsCount(calls: number, now: number = Date.now()) {
   return { period: periodOf(ALLOWANCES.monthly, now), hundredths: calls * 100, used: calls };
+}
+
+/** The time a deleted account's QuotaBook keeps as that of its deletion. */
+async function deletionOf(account: string): Promise<{ deletedAt: number }> {
+  const deletedAt = await runInDurableObject(bookOf(account), (_, state) => state.storage.get("deletedAt"));
+  if (typeof deletedAt !== "number") throw new Error(`The QuotaBook keeps no time of a deletion, but ${String(deletedAt)}`);
+  return { deletedAt };
+}
+
+/** The hourly counts of [account], straight from the database. */
+function windowsOf(account: string) {
+  return rows("SELECT kind, used FROM rate_windows WHERE account = ?1 ORDER BY kind", account);
+}
+
+/**
+ * A request of each kind that takes a session but a bill read or an edit: the calls left, the plan,
+ * deleting the account, devices, groups, invites, payment requests and bill links. [group] is a
+ * group the account was in.
+ */
+function sessionRoutes(group: string): Array<[method: string, path: string, body?: unknown]> {
+  const id = crypto.randomUUID();
+  const token = "AAAAAAAAAAAAAAAAAAAAAA";
+  return [
+    ["GET", "/v1/usage"],
+    ["POST", "/v1/plan", {}],
+    ["DELETE", "/v1/account"],
+    ["PUT", `/v1/devices/${id}`, { token: "token-of-a-phone-still-signed-in" }],
+    ["DELETE", `/v1/devices/${id}`],
+    ["GET", "/v1/groups"],
+    ["POST", "/v1/groups", { id, name: "Flat 4B", currency: VND, memberId: crypto.randomUUID(), memberName: "Lan" }],
+    ["GET", `/v1/groups/${group}`],
+    ["POST", `/v1/groups/${group}/invites`],
+    ["POST", "/v1/invites/join", { token, memberId: crypto.randomUUID(), name: "Lan" }],
+    ["GET", "/v1/requests"],
+    ["POST", "/v1/requests", { id, amountMinor: 70_000, currency: VND, payerName: "Minh", creditorName: "Lan", method: { kind: "PayPalMe", handle: "lan" } }],
+    ["POST", "/v1/request-links/accept", { token }],
+    ["GET", `/v1/shares/${id}`],
+  ];
 }
 
 /** What each member's balance is made of: their shares and payments of bills, and the settlements they paid and received. */
@@ -402,7 +512,7 @@ describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
     expect(await rows("SELECT account, token FROM devices")).toEqual([{ account: other.account, token: "token-of-someone-else" }]);
   });
 
-  it("the calls used this month: stay in its QuotaBook until the month ends, alone, so that signing in again starts no new allowance", async () => {
+  it("the calls used this month: stay in its QuotaBook until the month ends, so that signing in again starts no new allowance", async () => {
     const { who } = await activeAccount();
     model(ANSWER);
     expect(last(await send(billRequest({ session: who.session, ip: "198.51.100.9" })))).toMatchObject({ type: "result" });
@@ -411,12 +521,81 @@ describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
 
     expect((await remove(who)).status).toBe(204);
 
-    expect((await heldFor(who.account)).book).toEqual({ book: monthsCount(2, now) });
-    expect(await runInDurableObject(bookOf(who.account), (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+    const { deletedAt } = await deletionOf(who.account);
+    expect((await heldFor(who.account)).book).toEqual({ book: monthsCount(2, now), deletedAt });
+    // The object wakes when the month ends, or when the sessions issued before the deletion have run out, if that is sooner.
+    expect(await runInDurableObject(bookOf(who.account), (_, state) => state.storage.getAlarm())).toBe(
+      Math.min(nextMonthStart(deletedAt), deletedAt + POLICY.sessionMs),
+    );
     // Signing in again with the same Google account finds the month's calls used, on the free plan.
     const again = await signIn(await idToken({ subject: who.sub }));
     expect(again.status).toBe(200);
     expect(JSON.parse(again.body)).toMatchObject({ usage: monthly(2), purchaser: who.account });
+  });
+
+  it("the time of the deletion: stays in its QuotaBook, under the account's salted hash alone, for as long as a session lasts", async () => {
+    const who = await googlePerson();
+    const before = Date.now();
+
+    expect((await remove(who)).status).toBe(204);
+
+    const { deletedAt } = await deletionOf(who.account);
+    expect(deletedAt).toBeGreaterThanOrEqual(before);
+    expect(deletedAt).toBeLessThanOrEqual(Date.now());
+    expect((await heldFor(who.account)).book).toEqual({ deletedAt });
+    expect(await runInDurableObject(bookOf(who.account), (_, state) => state.storage.getAlarm())).toBe(deletedAt + POLICY.sessionMs);
+  });
+
+  it("sessions issued before it: are refused wherever a session is taken, and bring nothing of the account back", async () => {
+    const { who, group } = await activeAccount();
+    // Another phone signed in to the same account, a moment before the deletion.
+    const otherPhone = { ...who, session: (await issueSession(who.account, env, Date.now() - 1)).session };
+    const seen = model(ANSWER);
+
+    expect((await remove(who)).status).toBe(204);
+    const asked = revenueCat.asked.length;
+    const held = await heldFor(who.account);
+    const counted = await windowsOf(who.account);
+
+    for (const phone of [who, otherPhone]) {
+      for (const [method, path, body] of sessionRoutes(group.id)) {
+        const sent = await api(phone, method, path, body);
+        expect(sent.status, `${method} ${path}`).toBe(401);
+        expect(sent.body, `${method} ${path}`).toEqual({ error: "session" });
+      }
+      for (const request of [billRequest({ session: phone.session }), revisionRequest({ session: phone.session })]) {
+        const sent = await send(request);
+        expect(sent.status, new URL(request.url).pathname).toBe(401);
+        expect(JSON.parse(sent.body)).toEqual({ error: "session" });
+      }
+    }
+
+    expect(seen).toHaveLength(0);
+    expect(revenueCat.asked).toHaveLength(asked);
+    expect(revenueCat.has(who.account)).toBe(false);
+    expect(await heldFor(who.account)).toEqual(held);
+    expect(await bookOf(who.account).purchaserIssued()).toBe(false);
+    expect(await rows("SELECT * FROM devices")).toEqual([]);
+    expect(JSON.stringify(await rows("SELECT * FROM members"))).not.toContain(who.account);
+    expect(await windowsOf(who.account)).toEqual(counted);
+  });
+
+  it("a sign-in after it: gets a session that works everywhere, on the calls the month has left", async () => {
+    const { who } = await activeAccount();
+
+    expect((await remove(who)).status).toBe(204);
+
+    const signedIn = await signIn(await idToken({ subject: who.sub }));
+    expect(signedIn.status).toBe(200);
+    const again = { ...who, session: (JSON.parse(signedIn.body) as { session: string }).session };
+    const device = crypto.randomUUID();
+    expect((await api(again, "PUT", `/v1/devices/${device}`, { token: "token-after-the-deletion" })).status).toBe(204);
+    expect((await api(again, "GET", "/v1/usage")).body).toEqual({ usage: monthly(1), aiEnabled: true, purchaser: who.account });
+    expect((await api(again, "POST", "/v1/plan")).body).toMatchObject({ purchaser: who.account, usage: { plan: "free", used: 1 } });
+    model(ANSWER);
+    expect(last(await send(billRequest({ session: again.session })))).toMatchObject({ type: "result", usage: monthly(2) });
+    expect((await api(again, "GET", "/v1/groups")).body).toEqual({ groups: [] });
+    expect(await rows("SELECT id, account FROM devices")).toEqual([{ id: device, account: who.account }]);
   });
 
   it("the plan and the record of the purchaser: are deleted", async () => {
@@ -426,7 +605,7 @@ describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
     expect((await remove(who)).status).toBe(204);
 
     expect(await bookOf(who.account).purchaserIssued()).toBe(false);
-    expect(Object.keys((await heldFor(who.account)).book)).toEqual(["book"]);
+    expect(Object.keys((await heldFor(who.account)).book)).toEqual(["book", "deletedAt"]);
     expect(await quotaOf(`google:${who.account}`)).toEqual(monthly(1));
   });
 
@@ -470,7 +649,7 @@ describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
     expect(revenueCat.has(who.account)).toBe(true);
     revenueCat.answer = undefined;
     expect((await remove(who)).status).toBe(204);
-    expect(await heldFor(who.account)).toEqual({ book: { book: monthsCount(1) }, ledger: {} });
+    expect(await heldFor(who.account)).toEqual({ book: { book: monthsCount(1), ...(await deletionOf(who.account)) }, ledger: {} });
   });
 
   it("the spend counter: is deleted", async () => {
@@ -647,17 +826,20 @@ describe("deleting an account", () => {
 
   it("is taken 5 times an hour for one account, by either route, and 429 with Retry-After past that, deleting nothing", async () => {
     const who = await googlePerson();
+    // Each deletion ends the sessions issued before it, so the app deletes with one from a sign-in after the last.
+    const signedInNow = async (): Promise<GooglePerson> => ({ ...who, ...(await signedInAgain(who)) });
     for (let count = 0; count < POLICY.accountDeletionsPerHour; count++) {
       const deletion = DELETIONS[count % DELETIONS.length];
-      expect((await deletion.remove(who)).status, `deletion ${count + 1} through ${deletion.route}`).toBe(204);
+      expect((await deletion.remove(await signedInNow())).status, `deletion ${count + 1} through ${deletion.route}`).toBe(204);
     }
-    // A session outlives the deletion: the same one makes a group and has its purchaser recorded again.
-    const group = await newGroup(who);
-    expect((await api(who, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
+    // A sign-in after the deletions makes a group and has its purchaser recorded again.
+    const again = await signedInNow();
+    const group = await newGroup(again);
+    expect((await api(again, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
     const before = { held: await heldFor(who.account), group: await stateOf(group) };
 
     for (const deletion of DELETIONS) {
-      const refused = await deletion.remove(who);
+      const refused = await deletion.remove(again);
       expect(refused.status, deletion.route).toBe(429);
       expect(JSON.parse(refused.body)).toEqual({ error: "rate_limited" });
       const wait = Number(refused.headers.get("retry-after"));
@@ -678,7 +860,7 @@ describe("deleting an account", () => {
 
     expect(deleted.status).toBe(204);
     expect(revenueCat.asked.map((asked) => asked.method)).toEqual(["DELETE"]);
-    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
+    expect(await heldFor(who.account)).toEqual({ book: await deletionOf(who.account), ledger: {} });
   });
 
   it("deletes as before without RevenueCat's key, asking RevenueCat nothing", async () => {
@@ -690,6 +872,6 @@ describe("deleting an account", () => {
 
     expect(deleted.status).toBe(204);
     expect(revenueCat.asked).toEqual([]);
-    expect(await heldFor(account)).toEqual({ book: { book: monthsCount(1) }, ledger: {} });
+    expect(await heldFor(account)).toEqual({ book: { book: monthsCount(1), ...(await deletionOf(account)) }, ledger: {} });
   });
 });
