@@ -99,10 +99,11 @@ Check these on the signed app bundle that will be uploaded to production.
       name `com.dantech.splitvibe` cannot change after the first upload. If the name is taken, change
       the display name and the package first.
 - [ ] **The proxy is set up for production** as [proxy.md](proxy.md#deploy-it) describes:
-      `GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256` with the Play app signing key, the Turnstile keys,
-      `ABUSE_EMAIL`, and the secrets for the AI, push and RevenueCat. Add the address of the
-      `/delete-account` page to the OAuth client's Authorized JavaScript origins, so that signing in
-      there works.
+      `GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256` with the upload key and the Play app signing key,
+      the Turnstile keys, `ABUSE_EMAIL`, and the secrets for the AI, push and RevenueCat.
+      `ANDROID_DEV_CERT_SHA256` stays empty on production, so that no app signed with a debug key
+      opens its links. Add the address of the `/delete-account` page to the OAuth client's
+      Authorized JavaScript origins, so that signing in there works.
 - [ ] **Spend.** The caps in `proxy/src/policy.ts` fit the expected use, and a monthly spend limit
       is set in the Anthropic console ([runbook.md](runbook.md#spend-caps)).
 - [ ] **Workers Paid.** The Worker runs on Cloudflare's Workers Paid plan before launch. On the Free
