@@ -2,11 +2,13 @@ package com.dantech.splitvibe.e2e
 
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -34,8 +36,8 @@ import org.koin.core.context.GlobalContext
 /**
  * Asks someone to pay, signed in: a bill typed in by hand is split with Minh, the request to him
  * goes out through the share sheet and is kept on the fake proxy as the user's, and the list of
- * requests shows it. The session comes from the app's own store, as Google's sign-in cannot run in
- * a test; see [FakeProxyRule].
+ * requests shows it as the proxy lists it. The session comes from the app's own store, as Google's
+ * sign-in cannot run in a test; see [FakeProxyRule].
  */
 @RunWith(AndroidJUnit4::class)
 class PaymentRequestJourneyTest {
@@ -101,14 +103,22 @@ class PaymentRequestJourneyTest {
         assertEquals(currency.code, (request.getValue("currency") as JsonObject).textOf("code"))
         assertTrue("The request carries no way to get paid: ${created.body}", (request["method"] as? JsonObject)?.isNotEmpty() == true)
 
-        // The list of requests, as the proxy gives it, shows the request as the user's own.
+        // Minh takes the request on in his own app. Only the proxy's list can tell: the answer that
+        // made the request, which the phone keeps until the list replaces it, says nobody has.
+        fake.proxy.payerTakesOn(checkNotNull(request.textOf("id")) { "The request has no id: ${created.body}" })
+
+        // The list of requests, as the proxy gives it, shows the request as the user's own, with Minh
+        // on it.
         compose.onNodeWithText("Done").tap()
         compose.onNodeWithText("Requests").tap()
         compose.waitUntil(TIMEOUT_MS) { fake.proxy.callsTo("GET", "/v1/requests").isNotEmpty() }
-        compose.awaitNode(hasText("You asked for"))
+        compose.awaitNode(hasText("Not paid yet"))
+        compose.onNodeWithText("You asked for").assertIsDisplayed()
         compose.onNodeWithText("Minh · Pho 24").assertIsDisplayed()
         compose.onNodeWithText(owed).assertIsDisplayed()
-        compose.onNodeWithText("Not opened in the app yet").assertIsDisplayed()
+        compose.onAllNodesWithText("Not opened in the app yet").assertCountEquals(0)
+        // A call that failed would show its message in a card with an OK button, the only one here.
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
     }
 
     private fun JsonObject.textOf(key: String): String? = this[key]?.jsonPrimitive?.content

@@ -36,17 +36,38 @@ class FakeProxyRule(private val signedIn: Boolean = false) : ExternalResource() 
     private val server = MockWebServer()
 
     override fun before() {
-        server.dispatcher = proxy
-        server.start()
-        val address = server.url("/").toString()
-        makeAppObjectsAgain(module { single { ProxyApi(address, account = get(), appVersion = BuildConfig.VERSION_CODE) } })
-        if (signedIn) signIn() else signOut()
+        try {
+            server.dispatcher = proxy
+            server.start()
+            val address = server.url("/").toString()
+            makeAppObjectsAgain(module { single { ProxyApi(address, account = get(), appVersion = BuildConfig.VERSION_CODE) } })
+            if (signedIn) signIn() else signOut()
+        } catch (failure: Throwable) {
+            // JUnit runs after() only once before() has passed, so a setup that failed part-way is
+            // undone here; otherwise the fake's address and the server would stay for later tests.
+            undo()?.let(failure::addSuppressed)
+            throw failure
+        }
     }
 
     override fun after() {
-        signOut()
-        makeAppObjectsAgain()
-        server.shutdown()
+        undo()?.let { throw it }
+    }
+
+    /**
+     * Signs out, loads the app's modules again as the app loads them, and stops the server, each step
+     * whatever became of the one before. Returns the first failure, with any later ones suppressed.
+     */
+    private fun undo(): Throwable? {
+        var first: Throwable? = null
+        for (step in listOf(::signOut, { makeAppObjectsAgain() }, server::shutdown)) {
+            try {
+                step()
+            } catch (failure: Throwable) {
+                first?.addSuppressed(failure) ?: run { first = failure }
+            }
+        }
+        return first
     }
 }
 

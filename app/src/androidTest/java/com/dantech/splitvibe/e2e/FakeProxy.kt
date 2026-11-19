@@ -31,7 +31,8 @@ import okhttp3.mockwebserver.RecordedRequest
  *   for the sample bill when it was recorded, whatever the bill, and the calls left after it;
  * - `GET /v1/usage` gives the calls left, and `POST /v1/session` signs any ID token in as [SESSION];
  * - `GET /v1/fx-rates` gives a few of the day's rates against the euro;
- * - `POST` and `GET /v1/requests` keep and list the payment requests of [SESSION].
+ * - `POST` and `GET /v1/requests` keep and list the payment requests of [SESSION]; [payerTakesOn]
+ *   stands for the payer taking one on in their app.
  *
  * Any other path is 404 `path`, as on the proxy. Every request is kept, in order, in [received].
  */
@@ -58,6 +59,18 @@ class FakeProxy : Dispatcher() {
 
     /** The requests the app sent to [path] with [method], in order. */
     fun callsTo(method: String, path: String): List<Call> = calls.filter { it.method == method && it.path == path }
+
+    /**
+     * The payer of request [id] takes it on in their own app, as `POST /v1/request-links/accept` does
+     * on the proxy. From then on the list shows it as bound to its debtor, which the answer that made
+     * the request never says.
+     */
+    fun payerTakesOn(id: String) {
+        synchronized(requests) {
+            val (view, url) = checkNotNull(requests[id]) { "The fake has no request $id" }
+            requests[id] = JsonObject(view + ("debtorBound" to JsonPrimitive(true))) to url
+        }
+    }
 
     override fun dispatch(request: RecordedRequest): MockResponse {
         val call = Call(request.method.orEmpty(), request.requestUrl?.encodedPath.orEmpty(), request.headers, request.body.readUtf8())
