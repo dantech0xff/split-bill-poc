@@ -2,7 +2,9 @@ name: Release
 
 # Releases the commit of a version tag: the app bundle, signed with the upload key, to Google Play's
 # internal testing track, and the Worker after its D1 migrations. A pushed tag v* starts it, and it
-# goes on only when main holds the tagged commit; pull requests never start it.
+# goes on only when main holds the tagged commit; pull requests never start it. Nothing is signed
+# before ci.yml's checks and the device tests on Android 14 pass on that commit, and the Worker's
+# variables in its proxy/wrangler.jsonc, which the deploy sets, have every value they need.
 #
 # Every job that touches a secret runs in the environment production, whose reviewers approve each
 # such job before it starts, and so before it can read a secret: once for the signed bundle, then
@@ -77,9 +79,35 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
 
+  # The device tests on an Android 14 emulator, the end-to-end journeys among them, on this commit.
+  device-tests:
+    name: Device tests
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/device-tests.yml
+
+  # The variables that the deploy sets on the Worker, from proxy/wrangler.jsonc of this commit, in
+  # place of any value changed in the Cloudflare dashboard. All of them are public. They go into the
+  # run's summary for the reviewers, and the run stops here, before any approval, when one that the
+  # service needs is empty.
+  worker-settings:
+    name: The Worker's settings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The variables the deploy sets
+        run: python3 scripts/worker-settings.py --summary "$GITHUB_STEP_SUMMARY" proxy/wrangler.jsonc
+
   bundle:
     name: Signed app bundle
-    needs: [version, checks]
+    needs: [version, checks, device-tests, worker-settings]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: production
@@ -232,8 +260,9 @@ jobs:
           done
           echo "All ${#apks[@]} split APKs are aligned for 16 KB pages."
 
-      # Not debuggable, no plain HTTP, the https proxy address in the code, no secret key; on the
-      # split APKs together, which is what a phone installs.
+      # Not debuggable, no plain HTTP, the https proxy address in the code, no secret key, and every
+      # 64-bit native library aligned for 16 KB pages; on the split APKs together, which is what a
+      # phone installs.
       - name: Release checks
         env:
           AI_PROXY_URL: ${{ vars.AI_PROXY_URL }}

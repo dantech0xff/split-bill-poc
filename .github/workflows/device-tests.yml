@@ -1,8 +1,11 @@
 name: Device tests
 
 # The work that needs a real Android runtime. Gradle starts its own emulator for it.
-# It runs every night, on request, and whenever the device tests, the data they share with the
-# local tests, the profile module, the dependencies or this workflow change.
+# It runs every night, on request, and whenever the app's code or build file, the core modules, the
+# device tests, the data they share with the local tests, the profile module, the dependencies or
+# this workflow change.
+# release.yml calls it before anything is signed and goes on only once it passes. Such a run has
+# only the tests on Android 14; it records no baseline profile, as a release ships the committed one.
 # Started by hand with api-levels ticked, it runs only the end-to-end tests, on Android 8.0, 11 and
 # 16, to measure them; nothing waits for that run (docs/testing.md).
 on:
@@ -14,10 +17,19 @@ on:
         description: Only measure the end-to-end tests on API 26, 30 and 36
         type: boolean
         default: false
+  workflow_call:
+    inputs:
+      release:
+        description: Only the tests that a release waits for
+        type: boolean
+        default: true
   push:
     paths:
+      - app/src/main/**
       - app/src/androidTest/**
       - app/src/sharedTest/**
+      - app/build.gradle.kts
+      - core/**
       - baseline-profile/**
       - gradle/libs.versions.toml
       - gradle/verification-metadata.xml
@@ -27,27 +39,20 @@ permissions:
   contents: read
 
 concurrency:
-  # A measuring run has a group of its own, so that a push neither cancels it nor is cancelled by it.
-  group: device-tests-${{ github.ref }}${{ inputs.api-levels && '-api-levels' || '' }}
-  cancel-in-progress: true
+  # A newer push replaces a run of the same branch or tag. A measuring run and a run for a release
+  # each have a group of their own, so that no push cancels them and they cancel no push; in a run
+  # that release.yml calls, github.ref is the release's tag. A run for a release is never cancelled.
+  group: device-tests-${{ github.ref }}${{ inputs.api-levels && '-api-levels' || '' }}${{ inputs.release && '-release' || '' }}
+  cancel-in-progress: ${{ !inputs.release }}
 
 jobs:
-  emulator:
-    name: ${{ matrix.name }}
+  # Starting the app, the keystore, ML Kit text recognition and the HTTP client, and the end-to-end
+  # journeys against a fake proxy, all on the debug build. A release waits for these to pass.
+  android-14:
+    name: Tests on an Android 14 emulator
     if: ${{ !inputs.api-levels }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Starting the app, the keystore, ML Kit text recognition and the HTTP client, and the
-          # end-to-end journeys against a fake proxy. A release waits for these to pass.
-          - name: Tests on an Android 14 emulator
-            task: :app:pixel6Api34ProdDebugAndroidTest
-          # Records which code runs at startup, so a release can ship it precompiled.
-          - name: Record the baseline profile
-            task: :app:generateProdReleaseBaselineProfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,15 +74,56 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: ${{ matrix.name }}
+      - name: Tests on an Android 14 emulator
         run: >
-          ./gradlew ${{ matrix.task }}
+          ./gradlew :app:pixel6Api34ProdDebugAndroidTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
 
-      # Only the recording job keeps it. Every checkout holds the committed profile, so without
-      # this condition the test job would upload that old copy under the same name.
+      - name: Keep the reports of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reports-android-14
+          path: |
+            **/reports/androidTests/
+            **/outputs/androidTest-results/
+          retention-days: 7
+
+  # Records which code runs at startup, so a release can ship it precompiled. It installs the
+  # app's prodNonMinifiedRelease build, which the Baseline Profile plugin makes from the release
+  # build type with R8 and resource shrinking off.
+  profile:
+    name: Record the baseline profile
+    if: ${{ !inputs.api-levels && !inputs.release }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          validate-wrappers: true
+
+      # Without this the emulator cannot use the runner's hardware virtualisation and is far too slow.
+      - name: Let the emulator use hardware virtualisation
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Record the baseline profile
+        run: >
+          ./gradlew :app:generateProdReleaseBaselineProfile
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+
       - name: Keep the recorded profile
-        if: matrix.task == ':app:generateProdReleaseBaselineProfile'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: baseline-profile
@@ -89,7 +135,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: reports-${{ strategy.job-index }}
+          name: reports-profile
           path: |
             **/reports/androidTests/
             **/outputs/androidTest-results/

@@ -86,8 +86,13 @@ jobs:
       - name: Tests of the release checks
         run: python3 scripts/release-checks.test.py
 
-      # Not debuggable, no plain HTTP, no secret key. This package is built without a proxy
-      # address, so the check of that address runs only in release.yml, which has one.
+      # The check of the Worker's settings that release.yml makes before any approval.
+      - name: Tests of the Worker settings check
+        run: python3 scripts/worker-settings.test.py
+
+      # Not debuggable, no plain HTTP, no secret key, and every 64-bit native library aligned for
+      # 16 KB pages. This package is built without a proxy address, so the check of that address
+      # runs only in release.yml, which has one.
       - name: Release checks
         run: python3 scripts/release-checks.py app/build/outputs/apk/prod/release/app-prod-release-unsigned.apk
 
