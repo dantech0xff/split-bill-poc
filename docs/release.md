@@ -1,13 +1,16 @@
 # Releasing Split Vibe
 
 A release starts when a version tag is pushed. The workflow
-[`release.yml`](../.github/workflows/release.yml) then checks the tagged commit again, builds the
-app bundle and signs it with the upload key, puts it on Google Play's internal testing track,
-records a D1 bookmark, applies the D1 migrations and deploys the Worker. Promoting a build to the
-closed, open and production tracks stays a step in Play Console.
+[`release.yml`](../.github/workflows/release.yml) then checks the tagged commit again, runs the
+device tests on it, checks the Worker's settings, builds the app bundle and signs it with the
+upload key, puts it on Google Play's internal testing track, records a D1 bookmark, applies the D1
+migrations and deploys the Worker. Promoting a build to the closed, open and production tracks
+stays a step in Play Console.
 
 A pushed tag `v*` starts the workflow, which goes on only when `main` holds the tagged commit; a
-pull request never starts it.
+pull request never starts it. That check is part of the tagged commit's own `release.yml`, so it
+binds only with the repository settings in [Only the owner pushes release
+tags](#only-the-owner-pushes-release-tags).
 Every job that touches a secret runs in the GitHub environment `production`, and that environment's
 reviewers approve each such job before it starts. Until then the job cannot read a secret, so no
 key, token or account is reached without an approval.
@@ -44,28 +47,73 @@ key, token or account is reached without an approval.
 
 4. The run first checks that the tag is on `main` and works out the version, then runs every check
    of `ci.yml` on the commit: code style, unit tests and screenshots, lint, the packages, the
-   release checks, `npm audit`, and the tests of the proxy and the web app. Nothing needs approval
-   yet.
+   release checks, `npm audit`, and the tests of the proxy and the web app. Beside them it runs
+   the device tests on an Android 14 emulator, the end-to-end journeys among them
+   ([testing.md](testing.md#in-ci)), and lists the Worker's settings in the run's summary,
+   stopping when one it needs is empty ([below](#the-workers-settings)). Nothing needs approval
+   yet, and nothing is signed unless all of these pass.
 5. **First approval: the signed bundle.** In the run on the Actions tab, choose *Review deployments*,
    tick `production` and approve. The job writes `local.properties` from the environment's
    variables, builds `:app:bundleProdRelease` signed with the upload key, deletes the key file, makes
    the split APKs with bundletool and checks their 16 KB alignment, and runs the release checks on
    them. A variable that is not set shows as a warning that names the feature the build has off.
 6. Before the second approval, read the run's summary: the version, the SHA-256 fingerprint of the
-   certificate that signed the bundle, and any warnings. The fingerprint must be the upload key's,
-   which Play Console shows under *Test and release > App integrity*.
+   certificate that signed the bundle, the Worker's settings that the deploy will set, and any
+   warnings. The fingerprint must be the upload key's, which Play Console shows under *Test and
+   release > App integrity*.
 7. **Second approval: publishing.** Approve `production` again. Two jobs start together:
    - *Google Play internal testing* uploads the bundle through the Android Publisher API's edits flow
      and gives the internal track a release of it, which reaches the internal testers once Google
      Play has processed it.
    - *Worker and its database* records the D1 bookmark in the run's summary, applies the migrations
-     of `proxy/migrations` that the database does not have, and deploys the Worker.
-
-   The Worker must keep serving every app version that is out, as it always has (see
-   [proxy.md](proxy.md)); the two jobs do not wait for each other.
+     of `proxy/migrations` that the database does not have, and deploys the Worker, moving every
+     Durable Object to the new code at once (`--durable-objects-code-update-mode immediate`, as
+     [proxy.md](proxy.md) asks of deploys that change what the objects keep).
+8. **Check that both publishing jobs succeeded.** They do not wait for each other, so one can fail
+   while the other goes through. The Worker keeps serving every app version that is out, as it
+   always has ([proxy.md](proxy.md)), so a new Worker with the old app is fine. A new app with the
+   old Worker is not: it gets 404 `path` from any route it needs that the old Worker lacks. Run the
+   failed job again, or fix it and release the next PATCH.
 
 A job that waits for approval and is rejected fails, and nothing after it runs. A failed job can be
 run again from the run's page; it asks for approval again.
+
+One release runs at a time. GitHub keeps one more run waiting behind it, and a run for a newer tag
+takes the place of one still waiting, which is cancelled before any of its jobs runs. So push one
+tag at a time, and reject or cancel a run that you will not approve: a run left waiting for
+approval holds back every later release.
+
+## The Worker's settings
+
+`proxy/wrangler.jsonc` of the tagged commit is the Worker's production configuration. The deploy
+sets every variable in its `vars` to the file's value, and so overwrites any value changed in the
+Cloudflare dashboard since. Only the secrets set with `wrangler secret put` stay as they are.
+Wrangler's own help says so: without `--keep-vars`, a deploy "will delete all vars before setting
+those found in the Wrangler configuration".
+
+An emergency switch made in the dashboard must therefore be committed too. This covers `AI_ENABLED`
+set to `false` and a raised `MIN_APP_VERSION` ([runbook.md](runbook.md#switching-ai-off)). Commit
+the same value to `proxy/wrangler.jsonc` on `main` before the next release, or make no release
+until the switch is undone in the dashboard. A release made in between undoes the switch.
+
+Before any approval, the job *The Worker's settings* writes every variable that the deploy will
+set into the run's summary. It stops the run when one of these required values is empty in the
+file:
+
+| Variable | Without it |
+|---|---|
+| `GOOGLE_CLIENT_ID` | The Worker turns away every session and every sign-in |
+| `ANDROID_CERT_SHA256` | The Worker leaves the app out of its App Links file, so invite and payment links no longer open in the app |
+| `ABUSE_EMAIL` | The public pages, which show what people wrote on their payment requests and bill links, have no "Report abuse" link |
+
+All three are public ([proxy.md](proxy.md), "Deploy it"). To fix an empty one, commit its value to
+`main`, then tag that commit. The stopped run used no version code, so the same tag can be deleted
+([as below](#rehearsing-on-a-test-tag)) and pushed again on the new commit. To run the same check
+on a computer:
+
+```bash
+python3 scripts/worker-settings.py proxy/wrangler.jsonc
+```
 
 ## What the release checks look at
 
@@ -79,10 +127,20 @@ with the name of each check that fails:
 - **Proxy address is https:** the address given with `--proxy-url` is https and is in the app's
   code, and the code holds no plain-http address of that host. `ci.yml` builds the release package
   without an address and skips this check; `release.yml` gives the address the build was made with.
-- **No secret keys:** no file in any APK holds a private key, an Anthropic API key, a secret API key
-  that starts with `sk_`, or a Google OAuth client secret, as text or as UTF-16. The public keys
-  that every copy of the app carries, such as RevenueCat's `goog_` key and Firebase's API key, are
-  fine. A finding names the file and the kind of key, never the key.
+- **No secret keys:** no file in any APK holds a private key, encrypted or not, a PGP private key
+  block, an Anthropic API key, a secret API key that starts with `sk_`, or a Google OAuth client
+  secret, as text, as UTF-16 or in base64, and no file is a Java (JKS) or PKCS#12 key store, by the
+  bytes such a file begins with. Zip files inside the APKs, such as a zipped asset, are searched
+  too. The public keys that every copy of the app carries, such as RevenueCat's `goog_` key and
+  Firebase's API key, are fine. A finding names the file and the kind of key, never the key.
+- **16 KB page alignment:** every loadable (PT_LOAD) segment of every 64-bit native library is
+  aligned to 16 KB or more, which phones with 16 KB memory pages need to load it. 32-bit libraries
+  only ever run with 4 KB pages. `release.yml` also checks with `zipalign` that each library starts
+  on a 16 KB boundary inside the split APKs.
+
+Android reads the manifest's attributes by their resource ID and those of the network security
+config by their name, whatever namespace prefix they are written with, so the checks read them the
+same way.
 
 `ci.yml` runs it on the release APK for every pull request and every push to `main`, together with
 its tests, which build one APK made like a release and several deliberately bad ones. To run them on
@@ -96,15 +154,52 @@ ANDROID_HOME=<the Android SDK> python3 scripts/release-checks.test.py
 ANDROID_HOME=<the Android SDK> python3 scripts/release-checks.py app/build/outputs/apk/prod/release/app-prod-release-unsigned.apk
 ```
 
-The other scans live outside `release.yml`: `security.yml` runs gitleaks over the whole history for
-every push, to any branch or tag, and for every pull request, and reviews the dependencies that a
-pull request adds; `ci.yml` runs `npm audit --audit-level=high` for `proxy/` and `web/`; and
-Dependabot proposes updates of the Gradle dependencies, the npm packages of both and the actions.
+The other scans live outside `release.yml`:
+
+- `security.yml` runs gitleaks over the whole history for every push, to any branch or tag, and for
+  every pull request. Its rules and the findings it ignores are
+  [`.github/gitleaks.toml`](../.github/gitleaks.toml) and
+  [`.github/gitleaksignore`](../.github/gitleaksignore) as they are on `main`, or for a pull request
+  on the branch it merges into, so a change to them applies once it is merged. `gitleaks:allow`
+  comments count for nothing. It also reviews the dependencies that a pull request adds or
+  updates, and fails on a known vulnerability of high or critical severity in any of them, whether
+  it ships or is only for development.
+- `ci.yml` runs `npm audit --audit-level=high` for `proxy/` and `web/`.
+- [`dependency-graph.yml`](../.github/workflows/dependency-graph.yml) sends the libraries the app
+  ships, the `prodReleaseRuntimeClasspath` of `:app`, to GitHub's dependency graph on every push to
+  `main`, so Dependabot raises an alert for a known vulnerability in one of them. A pull request's
+  dependency review does not see its Gradle changes. GitHub reviews the Gradle dependencies only of
+  a commit that has a submitted graph, and only `main` gets one. Submitting a graph needs write
+  access to the repository, which a run for a pull request from a fork or from Dependabot does not
+  get. The usual way around that is a second workflow that submits the graph a pull request's run
+  made, and it would take whatever graph that pull request's code wrote. So a Gradle change shows
+  up in Dependabot's alerts once it is merged, not in the review before.
+- Dependabot proposes updates of the Gradle dependencies, the npm packages of both and the actions.
 
 ## One-time setup
 
 The owner does this once, in GitHub, Google Cloud, Play Console and Cloudflare. No value below ever
 goes into the repository, a workflow file or a chat.
+
+### Only the owner pushes release tags
+
+For a pushed tag, GitHub runs the `release.yml` of the commit that the tag points at, not the one
+on `main`. The check that `main` holds the tagged commit is part of that file. A tag on a commit
+whose `release.yml` leaves the check out, or prints the secrets once approved, would therefore ask
+for the same `production` approval as a real release. Two repository settings make the check
+binding:
+
+- **A tag ruleset**, under *Settings > Rules > Rulesets > New ruleset > New tag ruleset*. Name it
+  `release tags` and set *Enforcement status* to *Active*. Under *Target tags*, add the pattern
+  `v*`, then tick *Restrict creations*, *Restrict updates* and *Restrict deletions*. In *Bypass
+  list*, add only the role *Repository admin*, which in this repository, owned by a personal
+  account, is the owner alone. No collaborator, deploy key, app or bot can then create, move or
+  delete a `v*` tag.
+- **The `production` environment**, set up as below: only `v*` tags may use it, and the owner is its
+  required reviewer.
+
+So every run that can reach a secret starts from a tag that the owner pushed, and each of its jobs
+waits for the owner's approval.
 
 ### The `production` environment
 
@@ -229,7 +324,10 @@ internal track also needs its list of testers in Play Console.
 The commit of an edit is made with `changesInReviewBehavior=ERROR_IF_IN_REVIEW`: while other
 changes of the app are in review, such as a production release, the upload fails and says so,
 instead of cancelling that review as the API's default would. Run the job again once the review is
-over.
+over. The run keeps the signed bundle for 30 days. After that the job can no longer find it: run
+the whole run again (*Re-run all jobs*), which checks, builds and signs the same version again and
+asks for both approvals. That is safe, as the failed upload's edit was deleted without being
+committed, so Google Play never took its version code.
 
 ### The Cloudflare token
 
@@ -249,15 +347,17 @@ If an account token does not work for a step, a user token under *My Profile > A
 same two permissions, for the one account, does the same.
 
 The token deploys only. The Worker's secrets stay as the owner set them with `wrangler secret put`
-([proxy.md](proxy.md), "Deploy it"), and the first deploy of the Worker is made by hand, as the
-token cannot create one.
+([proxy.md](proxy.md), "Deploy it"); its variables are those of `proxy/wrangler.jsonc`
+([above](#the-workers-settings)). The first deploy of the Worker is made by hand, as the token
+cannot create one.
 
 ## Rehearsing on a test tag
 
 The two approvals make a rehearsal that changes nothing outside GitHub:
 
-1. Once the setup above is done, push a test tag on `main`, such as `v0.9.0`, with a version code
-   below that of the first real release.
+1. Once the setup above is done and the Worker's required settings are committed
+   ([above](#the-workers-settings)), push a test tag on `main`, such as `v0.9.0`, with a version
+   code below that of the first real release.
 2. Approve the signed bundle, then read its job: the build settings, the signature, the 16 KB check
    and the release checks.
 3. Reject the second approval. Nothing reaches Google Play or Cloudflare, and the version code is

@@ -36,17 +36,20 @@ exactly `"true"`. Use it when the AI costs run away, when the model misbehaves, 
 1. In the Cloudflare dashboard, go to Workers & Pages > `split-vibe-proxy` > Settings > Variables and
    Secrets, edit `AI_ENABLED` to `false`, and select Deploy. This takes effect at once, without a
    release.
-2. Change `proxy/wrangler.jsonc` to match in the same hour: a deploy from the file sets the
-   variables back to the file's values.
+2. Commit the same value to `proxy/wrangler.jsonc` on `main` in the same hour. Every release
+   deploys the repository's values and overwrites any change made in the dashboard
+   ([release.md](release.md#the-workers-settings)), so a release made before that commit turns AI
+   back on. Until the commit is on `main`, make no release.
 3. Check: a bill read from the app answers 503 `ai_off`.
 
 What people see: "Reading bills with AI is switched off for now. Please try again later." Typing a
 bill in by hand, splitting it, groups, requests and everything else keep working, and nothing is
 charged. `GET /v1/usage` reports `aiEnabled: false`, so the app knows before the next read.
 
-To switch it back, set `"true"` the same way. The plan's drill: switch it off, check that the very
-next read in the app falls back to typing in by hand, switch it on, and note the result in
-`plans/reports/`.
+To switch it back, set `"true"` the same way, in the dashboard and in the file on `main`: while the
+file still says `"false"`, the next release switches AI off again. The plan's drill: switch it off,
+check that the very next read in the app falls back to typing in by hand, switch it on, and note
+the result in `plans/reports/`.
 
 ## Forcing an update
 
@@ -56,9 +59,12 @@ keep changing splits with AI." Signing in, the calls left, the plan, the exchang
 data and deleting the account keep working for old apps, so nobody is locked out of their data.
 
 Raise it the way `AI_ENABLED` is changed, to the version code of the release that must be the
-minimum. The release workflow sets the version code from the tag ([release.md](release.md)). Raise
-it only once that release is at 100% on Google Play and has had a day to reach phones, or the people
-still waiting for the update lose the AI.
+minimum: in the dashboard, and committed to `proxy/wrangler.jsonc` on `main`. A release deploys the
+file's value and overwrites the dashboard's, so a value raised only in the dashboard drops back at
+the next release; until the commit is on `main`, make no release. The release workflow sets the
+version code from the tag ([release.md](release.md)). Raise it only once that release is at 100% on
+Google Play and has had a day to reach phones, or the people still waiting for the update lose the
+AI.
 
 ## Spend caps
 
