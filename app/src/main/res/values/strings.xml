@@ -261,4 +261,9 @@
     <string name="settings_delete_with_phone_data">Also delete the bills, people and payment methods on this phone</string>
     <string name="settings_account_and_phone_data_deleted">Your account was deleted, and so were the bills, people and payment methods on this phone.</string>
     <string name="settings_phone_data_not_deleted">Your account was deleted, but the bills, people and payment methods on this phone could not all be deleted. Clearing Split Vibe\'s storage in the phone\'s settings deletes them.</string>
+
+    <!-- The privacy policy and the terms of use -->
+    <string name="legal_privacy_policy">Privacy policy</string>
+    <string name="legal_terms_of_use">Terms of use</string>
+    <string name="legal_cannot_open">No app on this phone opens web pages.</string>
 </resources>

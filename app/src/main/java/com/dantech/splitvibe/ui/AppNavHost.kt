@@ -32,6 +32,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
+import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
@@ -45,6 +46,7 @@ import com.dantech.splitvibe.ui.claim.ClaimActions
 import com.dantech.splitvibe.ui.claim.ClaimPayment
 import com.dantech.splitvibe.ui.claim.ClaimScreen
 import com.dantech.splitvibe.ui.claim.ClaimViewModel
+import com.dantech.splitvibe.ui.common.LegalLinks
 import com.dantech.splitvibe.ui.common.ShareEffect
 import com.dantech.splitvibe.ui.groups.GroupActions
 import com.dantech.splitvibe.ui.groups.GroupScreen
@@ -155,6 +157,8 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val settings by settingsStore.settings.collectAsStateWithLifecycle()
     val account by accountStore.account.collectAsStateWithLifecycle()
     val bills by remember(billRepository) { billRepository.listings() }.collectAsStateWithLifecycle(emptyList())
+    // The privacy policy and the terms of use on the proxy's address; none in a build without one.
+    val legalLinks = remember { LegalLinks.of(BuildConfig.AI_PROXY_URL) }
 
     // Photos shared from another app start a split of their own.
     LaunchedEffect(sharedImages) {
@@ -357,6 +361,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onBack = { backStack.remove(SettingsKey) },
+                            legalLinks = legalLinks,
                         )
                     }
                 }
@@ -381,6 +386,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                     onBack = { backStack.remove(ProKey) },
                                 )
                             },
+                            legalLinks = legalLinks,
                         )
                     }
                 }

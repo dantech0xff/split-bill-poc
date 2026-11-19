@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.ui.settings
 
+import android.app.Application
+import android.content.Intent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
@@ -25,11 +28,13 @@ import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.ui.common.LegalLinks
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -47,6 +52,7 @@ class SettingsScreenTest {
     private var account by mutableStateOf(Account(installId = "settings", session = null, callsLeft = null, ai = AiStatus.AVAILABLE))
     private val answers = mutableListOf<Boolean>()
     private var proOpened = 0
+    private var legalLinks: LegalLinks? = null
     private val deletions = mutableListOf<Boolean>()
 
     @Test
@@ -142,6 +148,28 @@ class SettingsScreenTest {
         compose.onNode(hasText("Minh") and hasSetTextAction()).assertDoesNotExist()
     }
 
+    @Test
+    fun `the privacy policy and the terms of use open on the proxy's address`() {
+        legalLinks = LegalLinks.of(PROXY)
+        show()
+
+        compose.onNode(hasText("Privacy policy") and hasClickAction()).performScrollTo().performClick()
+        assertEquals("$PROXY/privacy", nextOpened()?.dataString)
+        compose.onNode(hasText("Terms of use") and hasClickAction()).performScrollTo().performClick()
+        assertEquals("$PROXY/terms", nextOpened()?.dataString)
+    }
+
+    @Test
+    fun `a build without the proxy's address shows no link to the privacy policy or the terms`() {
+        show()
+
+        compose.onNodeWithText("Privacy policy").assertDoesNotExist()
+        compose.onNodeWithText("Terms of use").assertDoesNotExist()
+    }
+
+    private fun nextOpened(): Intent? = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity
+        ?.takeIf { it.action == Intent.ACTION_VIEW }
+
     private fun show(callsLeft: CallsLeft? = null, signedIn: Boolean = false) {
         account = Account(
             installId = "settings-install",
@@ -164,6 +192,7 @@ class SettingsScreenTest {
                 onSave = { _, _ -> },
                 onOpenPaymentMethods = {},
                 onBack = {},
+                legalLinks = legalLinks,
                 onAllowSpeechService = { allowed ->
                     answers += allowed
                     settings = settings.copy(speechServiceAllowed = allowed)
@@ -177,6 +206,7 @@ class SettingsScreenTest {
             node.config.getOrNull(SemanticsProperties.Text)?.any { it.text.isEmpty() } == true
         }
         const val SWITCH = "Use the phone's online speech service"
+        const val PROXY = "https://split-vibe-proxy.example.workers.dev"
         const val WITH_PHONE_DATA = "Also delete the bills, people and payment methods on this phone"
         val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)
     }

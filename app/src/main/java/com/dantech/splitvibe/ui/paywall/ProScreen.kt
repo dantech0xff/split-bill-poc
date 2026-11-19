@@ -1,8 +1,5 @@
 package com.dantech.splitvibe.ui.paywall
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -50,7 +47,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.billing.ProPeriod
 import com.dantech.splitvibe.billing.ProPlan
@@ -64,6 +60,9 @@ import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.ui.common.LegalLinks
+import com.dantech.splitvibe.ui.common.LegalLinksRow
+import com.dantech.splitvibe.ui.common.openLink
 import com.dantech.splitvibe.ui.settings.callsLeftText
 
 /** What the Pro screen asks the app to do. */
@@ -87,11 +86,16 @@ class ProActions(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProScreen(state: ProUiState, actions: ProActions) {
+fun ProScreen(
+    state: ProUiState,
+    actions: ProActions,
+    /** The privacy policy and the terms of use, beside the terms of renewal; none in a build without the proxy's address. */
+    legalLinks: LegalLinks? = null,
+) {
     val context = LocalContext.current
     // Set when no app on the phone opens Google Play's subscriptions.
     var cannotOpen by rememberSaveable { mutableStateOf(false) }
-    val manage = { cannotOpen = !open(context, state.manageUrl) }
+    val manage = { cannotOpen = !openLink(context, state.manageUrl) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -121,7 +125,7 @@ fun ProScreen(state: ProUiState, actions: ProActions) {
             state.callsLeft?.let { Text(callsLeftText(it).resolve(), style = MaterialTheme.typography.bodyLarge) }
             if (state.sold) {
                 Offer(state, actions)
-                Terms(state, actions, onManage = manage, cannotOpen = cannotOpen)
+                Terms(state, actions, legalLinks, onManage = manage, cannotOpen = cannotOpen)
             }
         }
     }
@@ -294,15 +298,16 @@ private fun SwitchCard(target: ProPlan, enabled: Boolean, onSwitch: (ProPlan) ->
     }
 }
 
-/** How a plan renews and where to cancel it, and restoring purchases made before. */
+/** How a plan renews and where to cancel it, the privacy policy and the terms of use, and restoring purchases made before. */
 @Composable
-private fun Terms(state: ProUiState, actions: ProActions, onManage: () -> Unit, cannotOpen: Boolean) {
+private fun Terms(state: ProUiState, actions: ProActions, legalLinks: LegalLinks?, onManage: () -> Unit, cannotOpen: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
         Text(
             stringResource(R.string.pro_renewal_terms),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        legalLinks?.let { LegalLinksRow(it) }
         // A flow row: with large text the second button moves to its own line instead of wrapping its label.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             OutlinedButton(onClick = onManage) { Text(stringResource(R.string.pro_manage)) }
@@ -372,14 +377,6 @@ private fun workingText(work: ProWork?): Int? = when (work) {
     ProWork.BUYING, ProWork.SWITCHING -> R.string.pro_waiting_for_play
     ProWork.RESTORING -> R.string.pro_restoring
     null -> null
-}
-
-/** Opens [url], in Google Play when it is installed; false when no app on the phone opens it. */
-private fun open(context: Context, url: String): Boolean = try {
-    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-    true
-} catch (e: ActivityNotFoundException) {
-    false
 }
 
 /** Read out by TalkBack when it appears or changes: the outcome of what the person just did. */

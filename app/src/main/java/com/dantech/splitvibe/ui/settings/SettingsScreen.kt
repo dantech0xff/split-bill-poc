@@ -65,6 +65,8 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.ui.common.LegalLinks
+import com.dantech.splitvibe.ui.common.LegalLinksRow
 import org.koin.compose.koinInject
 
 /** What the account part of Settings can do. */
@@ -79,7 +81,7 @@ class AccountActions(
 /**
  * The app's own settings: the AI calls left with the plan they are counted against and the Google
  * account behind them, the currency the app works in, and, once the user let it hear them, the
- * phone's online speech service.
+ * phone's online speech service. The privacy policy and the terms of use are linked at the end.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +94,8 @@ fun SettingsScreen(
     onSave: (localCurrency: String, myName: String) -> Unit,
     onOpenPaymentMethods: () -> Unit,
     onBack: () -> Unit,
+    /** The privacy policy and the terms of use; none in a build without the proxy's address. */
+    legalLinks: LegalLinks? = null,
     /** Takes back, or gives again, the user's consent to the phone's online speech service; it takes effect at once. */
     onAllowSpeechService: (Boolean) -> Unit = speechServiceConsent(),
 ) {
@@ -170,6 +174,8 @@ fun SettingsScreen(
             }
 
             SvPrimaryButton(stringResource(R.string.common_save), onClick = { onSave(localCurrency, myName) }, enabled = currencyIsValid)
+
+            legalLinks?.let { LegalLinksRow(it) }
         }
     }
 }

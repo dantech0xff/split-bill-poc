@@ -31,6 +31,7 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.ui.common.LegalLinks
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -195,9 +196,29 @@ class ProScreenTest {
         compose.onNodeWithText("Restore purchases").assertDoesNotExist()
     }
 
-    private fun show(shown: ProUiState) {
+    @Test
+    fun `the privacy policy and the terms of use are beside the terms of renewal, on the proxy's address`() {
+        show(SIGNED_IN, legalLinks = LegalLinks.of(PROXY))
+
+        compose.onNodeWithText("A plan renews automatically", substring = true).performScrollTo()
+        compose.onNode(hasText("Privacy policy") and hasClickAction()).performScrollTo().performClick()
+        assertEquals("$PROXY/privacy", shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity.dataString)
+        compose.onNode(hasText("Terms of use") and hasClickAction()).performScrollTo().performClick()
+        assertEquals("$PROXY/terms", shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity.dataString)
+    }
+
+    @Test
+    fun `a build without the proxy's address shows no link to the privacy policy or the terms`() {
+        show(SIGNED_IN, legalLinks = null)
+
+        compose.onNodeWithText("A plan renews automatically", substring = true).assertExists()
+        compose.onNodeWithText("Privacy policy").assertDoesNotExist()
+        compose.onNodeWithText("Terms of use").assertDoesNotExist()
+    }
+
+    private fun show(shown: ProUiState, legalLinks: LegalLinks? = null) {
         state = shown
-        compose.setContent { SplitVibeTheme { ProScreen(state = state, actions = actions) } }
+        compose.setContent { SplitVibeTheme { ProScreen(state = state, actions = actions, legalLinks = legalLinks) } }
     }
 
     /** Neither Pro's pitch nor a plan to buy or switch to. */
@@ -209,6 +230,7 @@ class ProScreenTest {
     }
 
     private companion object {
+        const val PROXY = "https://split-vibe-proxy.example.workers.dev"
         val TRIAL = CallsLeft(BigDecimal(3), BigDecimal(1), BigDecimal(2), period = "trial", resetsAt = null)
         val FREE = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), "2026-11", resetsAt = 1_796_083_200_000, plan = Plan.FREE)
         val SIGNED_IN = ProUiState(sold = true, signedIn = true, callsLeft = FREE, plans = listOf(FakeBilling.MONTHLY, FakeBilling.YEARLY))
