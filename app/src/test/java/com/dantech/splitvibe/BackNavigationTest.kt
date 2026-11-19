@@ -103,7 +103,7 @@ class BackNavigationTest {
         compose.onNodeWithText("Split a bill").performClick()
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { splitViewModel.state.value.let { it.photo != null && !it.isBusy } }
-        compose.runOnUiThread { splitViewModel.analyze() }
+        compose.runOnUiThread { splitViewModel.analyze(defaultInstruction = "Split this bill") }
         awaitState { splitViewModel.state.value.progress == Progress.READING_TEXT }
 
         onBackDispatcher { onBackPressed() }

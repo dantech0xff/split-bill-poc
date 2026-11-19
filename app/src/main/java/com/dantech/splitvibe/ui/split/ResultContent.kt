@@ -44,11 +44,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
@@ -85,6 +89,7 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.groups.AddToGroupSheet
 import java.math.BigDecimal
 import org.koin.androidx.compose.koinViewModel
@@ -146,21 +151,22 @@ fun ResultContent(
     val byItem = mode == SplitMode.BY_ITEM
     val sharing = plan.sharingIds
     val entry = rememberSvEntryState()
+    val differenceLabel = stringResource(R.string.split_difference)
 
     Scaffold(
         // The assistant's field is typed into, so the page ends above the keyboard.
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text(bill.merchant ?: "Bill", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(bill.merchant ?: stringResource(R.string.common_bill), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = actions.onEditBill) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit bill")
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.split_edit_bill))
                     }
                 },
             )
@@ -202,7 +208,7 @@ fun ResultContent(
                     SvMessageCard(
                         text = note,
                         isError = false,
-                        action = "Edit bill",
+                        action = stringResource(R.string.split_edit_bill),
                         onAction = actions.onEditBill,
                         modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
                     )
@@ -219,9 +225,9 @@ fun ResultContent(
             assistant.applied?.let { applied ->
                 item(key = "applied") {
                     SvMessageCard(
-                        text = applied,
+                        text = applied.resolve(),
                         isError = false,
-                        action = "Undo",
+                        action = stringResource(R.string.common_undo),
                         onAction = assistantActions.onUndo,
                         modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
                     )
@@ -240,37 +246,38 @@ fun ResultContent(
             item(key = "people") {
                 Column(modifier = rowMotion()) {
                     SvSectionHeader(
-                        "Who is on the bill?",
-                        hint = "Tap You to share the bill or not, and anyone else to rename or remove them.",
+                        stringResource(R.string.split_who_is_on_the_bill),
+                        hint = stringResource(R.string.split_who_hint),
                     )
                     FlowRow(
                         modifier = Modifier.padding(horizontal = SvSpacing.lg),
                         horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                     ) {
                         val meSharing = ME_ID in sharing
+                        val meSharingState = stringResource(if (meSharing) R.string.split_you_share else R.string.split_you_do_not_share)
                         SvPersonChip(
-                            name = ME_LABEL,
+                            name = stringResource(R.string.common_you),
                             selected = meSharing,
                             onClick = actions.onToggleMe,
                             modifier = Modifier
                                 .bounceOnChange(meSharing)
-                                .semantics { stateDescription = if (meSharing) "You share the bill" else "You do not share the bill" },
+                                .semantics { stateDescription = meSharingState },
                         )
                         plan.participants.filterNot { it.isMe }.forEach { participant ->
                             // Keyed by person, so a chip stays itself when others are added or removed.
                             key(participant.id) {
-                                val name = result.nameOf(participant.id)
+                                val name = result.nameOf(participant.id).resolve()
                                 SvPersonChip(
                                     name = name,
                                     onClick = { changingPerson = participant.id },
-                                    onClickLabel = "Change $name",
+                                    onClickLabel = stringResource(R.string.split_change_person, name),
                                     modifier = Modifier.popIn(entry),
                                 )
                             }
                         }
                         AssistChip(
                             onClick = { addingPerson = true },
-                            label = { Text("Add someone") },
+                            label = { Text(stringResource(R.string.split_add_someone)) },
                             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
                     }
@@ -279,9 +286,9 @@ fun ResultContent(
 
             item(key = "mode") {
                 Column(modifier = rowMotion()) {
-                    SvSectionHeader("How is it split?")
+                    SvSectionHeader(stringResource(R.string.split_how_is_it_split))
                     SvChoiceChips(
-                        options = MODES.map { it.second },
+                        options = MODES.map { stringResource(it.second) },
                         selected = MODES.indexOfFirst { it.first == mode },
                         onSelect = { index -> actions.onSetMode(MODES[index].first) },
                         modifier = Modifier.padding(horizontal = SvSpacing.lg),
@@ -292,9 +299,9 @@ fun ResultContent(
             if (bill.items.isNotEmpty()) {
                 item(key = "items header") {
                     SvSectionHeader(
-                        "Items",
+                        stringResource(R.string.split_items),
                         modifier = rowMotion(),
-                        hint = if (byItem) "Tap an item to choose who had it." else "Choose By item to split them one by one.",
+                        hint = stringResource(if (byItem) R.string.split_items_hint_by_item else R.string.split_items_hint),
                     )
                 }
                 itemsIndexed(bill.items, key = { _, item -> "item ${item.id}" }) { index, item ->
@@ -309,13 +316,13 @@ fun ResultContent(
                 }
             }
 
-            val chargeRows = bill.charges + listOfNotNull(differenceCharge(bill))
+            val chargeRows = bill.charges + listOfNotNull(differenceCharge(bill, differenceLabel))
             if (chargeRows.isNotEmpty()) {
                 item(key = "charges header") {
                     SvSectionHeader(
-                        "Taxes, fees and discounts",
+                        stringResource(R.string.split_charges),
                         modifier = rowMotion(),
-                        hint = if (byItem) "Shared in proportion to each person's items." else "Part of the total, divided the same way.",
+                        hint = stringResource(if (byItem) R.string.split_charges_hint_by_item else R.string.split_charges_hint),
                     )
                 }
                 itemsIndexed(chargeRows, key = { _, charge -> "charge ${charge.id}" }) { index, charge ->
@@ -323,7 +330,7 @@ fun ResultContent(
                 }
             }
 
-            item(key = "shares header") { SvSectionHeader("Each person pays", modifier = rowMotion()) }
+            item(key = "shares header") { SvSectionHeader(stringResource(R.string.split_each_person_pays), modifier = rowMotion()) }
             itemsIndexed(plan.participants, key = { _, participant -> "share ${participant.id}" }) { index, participant ->
                 ShareRow(
                     result = result,
@@ -358,7 +365,7 @@ fun ResultContent(
                 )
             }
 
-            item(key = "paid header") { SvSectionHeader("Paid by", modifier = rowMotion()) }
+            item(key = "paid header") { SvSectionHeader(stringResource(R.string.split_paid_by), modifier = rowMotion()) }
             item(key = "paid") {
                 PaidRow(result = result, onClick = { changingPayments = true }, modifier = rowMotion())
             }
@@ -368,7 +375,7 @@ fun ResultContent(
                     Spacer(Modifier.height(SvSpacing.sm))
                     if (result.ocrDocument.isNotBlank()) {
                         TextButton(onClick = { showOcrText = !showOcrText }, modifier = Modifier.padding(horizontal = SvSpacing.sm)) {
-                            Text(if (showOcrText) "Hide what was sent to Claude" else "Show what was sent to Claude")
+                            Text(stringResource(if (showOcrText) R.string.split_hide_sent else R.string.split_show_sent))
                         }
                         if (showOcrText) {
                             Text(
@@ -389,7 +396,7 @@ fun ResultContent(
 
     AssistantVoicePrompts(voice = assistant.voice, actions = assistantActions)
 
-    val sheetPeople = plan.participants.map { SheetPerson(it.id, result.nameOf(it.id)) }
+    val sheetPeople = plan.participants.map { SheetPerson(it.id, result.nameOf(it.id).resolve()) }
 
     if (addingPerson) {
         AddPersonSheet(
@@ -506,7 +513,7 @@ private fun TotalCard(result: SplitResultState, onChangeRate: () -> Unit, modifi
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Column(modifier = Modifier.padding(SvSpacing.xl)) {
-            Text("Bill total", style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.split_bill_total), style = MaterialTheme.typography.labelLarge)
             SvAmount(bill.totalMinor, format = bill::format, style = MaterialTheme.typography.amountLarge, countUp = true)
             bill.date?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (result.summary.isNotBlank()) {
@@ -518,22 +525,28 @@ private fun TotalCard(result: SplitResultState, onChangeRate: () -> Unit, modifi
                 val converted = result.converted(bill.totalMinor)
                 val rate = result.exchangeRate
                 if (converted != null && rate != null) {
-                    Text("About $converted", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.split_about, converted), style = MaterialTheme.typography.titleMedium)
                     Text(rateNote(rate), style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Text("Add an exchange rate to see this bill in ${result.localCurrency}.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.split_add_rate_hint, result.localCurrency), style = MaterialTheme.typography.bodySmall)
                 }
-                TextButton(onClick = onChangeRate) { Text(if (rate == null) "Add a rate" else "Change the rate") }
+                TextButton(onClick = onChangeRate) {
+                    Text(stringResource(if (rate == null) R.string.split_add_rate else R.string.split_change_rate))
+                }
             }
         }
     }
 }
 
 /** Where a rate comes from, such as "1 USD = 25,350 VND, Frankfurter rate of 2026-11-14". */
-private fun rateNote(rate: ExchangeRate): String = when {
-    rate.isByHand -> "${rate.describe()}, a rate you entered"
-    rate.date != null -> "${rate.describe()}, ${rate.source} rate of ${rate.date}"
-    else -> "${rate.describe()}, ${rate.source}"
+@Composable
+private fun rateNote(rate: ExchangeRate): String {
+    val date = rate.date
+    return when {
+        rate.isByHand -> stringResource(R.string.split_rate_by_hand, rate.describe())
+        date != null -> stringResource(R.string.split_rate_of_day, rate.describe(), rate.source, date)
+        else -> stringResource(R.string.split_rate_source, rate.describe(), rate.source)
+    }
 }
 
 @Composable
@@ -545,10 +558,10 @@ private fun ItemRow(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val name = item.name.ifBlank { "Item" }
+    val name = item.name.ifBlank { stringResource(R.string.common_item) }
     val unitPrice = item.unitPriceMinor
     val quantity = if (unitPrice != null && item.quantity.compareTo(BigDecimal.ONE) != 0) {
-        "${item.quantity.stripTrailingZeros().toPlainString()} × ${bill.format(unitPrice)}"
+        stringResource(R.string.split_quantity_times, item.quantity.stripTrailingZeros().toPlainString(), bill.format(unitPrice))
     } else {
         null
     }
@@ -570,7 +583,7 @@ private fun ItemRow(
         SvListRow(
             position = position,
             label = listOfNotNull(name, quantity, amount, sharers).joinToString(", "),
-            onClickLabel = "Choose who had $name",
+            onClickLabel = stringResource(R.string.split_choose_who_had, name),
             onClick = onClick,
             modifier = modifier,
             content = content,
@@ -602,20 +615,20 @@ private fun ShareRow(
     val bill = result.bill
     val plan = result.plan
     val mode = plan.mode
-    val name = result.nameOf(participant.id)
+    val name = result.nameOf(participant.id).resolve()
     val sharing = participant.id in plan.sharingIds
     val share = result.split.shareOf(participant.id)
     val paid = plan.payments.filter { it.participantId == participant.id }.sumOf { it.amountMinor }
     val hasInput = sharing && (mode == SplitMode.BY_SHARES || mode == SplitMode.BY_PERCENT || mode == SplitMode.BY_AMOUNT)
     val detail = buildList {
         when {
-            !sharing -> add("Not sharing the bill")
+            !sharing -> add(stringResource(R.string.split_not_sharing))
             share == null -> Unit
-            hasInput -> add("Pays ${bill.format(share.totalMinor)}")
-            else -> add("Items ${bill.format(share.itemsMinor)} · charges ${bill.format(share.chargesMinor)}")
+            hasInput -> add(stringResource(R.string.split_pays, bill.format(share.totalMinor)))
+            else -> add(stringResource(R.string.split_items_and_charges, bill.format(share.itemsMinor), bill.format(share.chargesMinor)))
         }
-        if (share != null && sharing) result.converted(share.totalMinor)?.let { add("about $it") }
-        if (paid != 0L) add("paid ${bill.format(paid)}")
+        if (share != null && sharing) result.converted(share.totalMinor)?.let { add(stringResource(R.string.split_about_in_sentence, it)) }
+        if (paid != 0L) add(stringResource(R.string.split_paid_in_sentence, bill.format(paid)))
     }.joinToString(" · ")
 
     SvListRow(position = position, modifier = modifier) {
@@ -656,7 +669,7 @@ private fun SharesTotalRow(bill: Bill, total: Long, modifier: Modifier = Modifie
             tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(Modifier.width(SvSpacing.sm))
-        Text("Adds up to the bill total", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.split_adds_up), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         SvAmount(total, format = bill::format, style = MaterialTheme.typography.amountMedium)
     }
 }
@@ -665,12 +678,22 @@ private fun SharesTotalRow(bill: Bill, total: Long, modifier: Modifier = Modifie
 private fun PaidRow(result: SplitResultState, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val bill = result.bill
     val payments = result.plan.payments
+    val resources = LocalResources.current
+    val names = payments.associate { it.participantId to result.nameOf(it.participantId).resolve() }
     val text = when {
-        payments.isEmpty() -> "Choose who paid"
-        payments.size == 1 -> "${result.nameOf(payments.single().participantId)} paid ${bill.format(payments.single().amountMinor)}"
-        else -> payments.joinToString(", ") { "${result.nameOf(it.participantId)} ${bill.format(it.amountMinor)}" }
+        payments.isEmpty() -> stringResource(R.string.split_choose_who_paid)
+
+        payments.size == 1 -> {
+            val payment = payments.single()
+            stringResource(R.string.split_one_paid, names.getValue(payment.participantId), bill.format(payment.amountMinor))
+        }
+
+        else -> payments.joinToString(", ") { payment ->
+            resources.getString(R.string.split_person_part, names.getValue(payment.participantId), bill.format(payment.amountMinor))
+        }
     }
-    SvListRow(position = SvRowPosition.Single, label = text, onClickLabel = "Change who paid", onClick = onClick, modifier = modifier) {
+    val changeLabel = stringResource(R.string.split_change_who_paid)
+    SvListRow(position = SvRowPosition.Single, label = text, onClickLabel = changeLabel, onClick = onClick, modifier = modifier) {
         Text(text, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
     }
@@ -689,38 +712,47 @@ private fun FinishBar(
     val others = result.split.shares.filter { it.personId != ME_ID && it.totalMinor > 0 }
     // A bill shared in a group is kept there; one already in a group is sent to it again after a change.
     val inGroup = result.saved.group
-    val toGroup = SvMenuOption(inGroup?.let { "Update in ${it.groupName}" } ?: "Add to a group", onAddToGroup)
+    val toGroup = SvMenuOption(
+        inGroup?.let { stringResource(R.string.split_update_in_group, it.groupName) } ?: stringResource(R.string.split_add_to_group),
+        onAddToGroup,
+    )
     // Everyone at the table picks what they had on a page of their own; the bill's link opens with it.
-    val pickLabel = if (result.saved.share == null) "Let everyone pick their items" else "See what everyone picked"
+    val pickLabel = stringResource(if (result.saved.share == null) R.string.split_pick_together else R.string.split_see_picks)
     val pickTogether = SvMenuOption(pickLabel, onPickTogether)
+    val finishSplit = stringResource(R.string.split_finish)
+    val moreWays = stringResource(R.string.split_more_ways)
     SvBottomBar {
         when {
-            result.problems.isNotEmpty() -> SvPrimaryButton("Finish the split", onClick = {}, enabled = false)
+            result.problems.isNotEmpty() -> SvPrimaryButton(finishSplit, onClick = {}, enabled = false)
 
             // In a group, people settle up across all its bills, so this bill is not asked for person by person.
             inGroup != null -> SvSplitButton(
-                text = "Update in ${inGroup.groupName}",
+                text = stringResource(R.string.split_update_in_group, inGroup.groupName),
                 onClick = onAddToGroup,
-                moreLabel = "More ways to finish",
-                options = listOf(SvMenuOption("Finish the split", onFinish), pickTogether),
+                moreLabel = moreWays,
+                options = listOf(SvMenuOption(finishSplit, onFinish), pickTogether),
             )
 
             iPaidItAll && others.isNotEmpty() -> {
-                val people = if (others.size == 1) "1 person" else "${others.size} people"
                 SvSplitButton(
-                    text = "Request ${result.bill.format(others.sumOf { it.totalMinor })} from $people",
+                    text = pluralStringResource(
+                        R.plurals.split_request_from,
+                        others.size,
+                        result.bill.format(others.sumOf { it.totalMinor }),
+                        others.size,
+                    ),
                     onClick = onSendRequests,
-                    moreLabel = "More ways to finish",
-                    options = listOf(toGroup, pickTogether, SvMenuOption("Finish without asking", onFinish)),
+                    moreLabel = moreWays,
+                    options = listOf(toGroup, pickTogether, SvMenuOption(stringResource(R.string.split_finish_without_asking), onFinish)),
                     // The button turns into the mark that confirms the requests on the next step.
                     modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true),
                 )
             }
 
             else -> SvSplitButton(
-                text = "Finish the split",
+                text = finishSplit,
                 onClick = onFinish,
-                moreLabel = "More ways to finish",
+                moreLabel = moreWays,
                 options = listOf(toGroup, pickTogether),
             )
         }
@@ -728,40 +760,44 @@ private fun FinishBar(
 }
 
 /** Who has an item and how, as its row says it: "Everyone", "Minh, Lan" or "Minh 60%, Lan 40%". */
+@Composable
 private fun describe(division: Division?, result: SplitResultState): String {
     val bill = result.bill
     val sharing = result.plan.sharingIds
-    fun names(ids: Collection<String>) = sharing.filter { it in ids }.joinToString(", ") { result.nameOf(it) }
-    fun parts(values: Map<String, Long>, show: (Long) -> String) =
-        sharing.filter { (values[it] ?: 0L) != 0L }.joinToString(", ") { "${result.nameOf(it)} ${show(values.getValue(it))}" }
+    val resources = LocalResources.current
+    val nameOf = sharing.associateWith { result.nameOf(it).resolve() }
+    val everyone = stringResource(R.string.split_everyone)
+    fun names(ids: Collection<String>) = sharing.filter { it in ids }.joinToString(", ") { nameOf.getValue(it) }
+    fun parts(values: Map<String, Long>, show: (Long) -> String) = sharing.filter { (values[it] ?: 0L) != 0L }
+        .joinToString(", ") { resources.getString(R.string.split_person_part, nameOf.getValue(it), show(values.getValue(it))) }
     return when (division) {
-        null -> "Everyone"
+        null -> everyone
 
         is Division.Equally -> {
             val among = if (division.among.isEmpty()) sharing else sharing.filter { it in division.among }
             val chosen = among.filter { it !in division.except }
-            if (chosen.isEmpty() || chosen.size == sharing.size) "Everyone" else names(chosen)
+            if (chosen.isEmpty() || chosen.size == sharing.size) everyone else names(chosen)
         }
 
-        is Division.ByShares -> parts(division.shares) { if (it == 1L) "1 share" else "$it shares" }
+        is Division.ByShares -> parts(division.shares) { resources.getQuantityString(R.plurals.split_shares, it.toInt(), it) }
 
-        is Division.ByPercent -> parts(division.basisPoints) { "${percentText(it)}%" }
+        is Division.ByPercent -> parts(division.basisPoints) { resources.getString(R.string.split_percent, percentText(it)) }
 
         is Division.ByAmount -> parts(division.amounts) { bill.format(it) }
-    }.ifEmpty { "Nobody yet" }
+    }.ifEmpty { stringResource(R.string.split_nobody_yet) }
 }
 
 /** The gap between the printed total and the lines, as a line of its own so the shares can be followed. */
-private fun differenceCharge(bill: Bill): BillCharge? = if (bill.differenceMinor == 0L || bill.items.isEmpty()) {
+private fun differenceCharge(bill: Bill, label: String): BillCharge? = if (bill.differenceMinor == 0L || bill.items.isEmpty()) {
     null
 } else {
-    BillCharge("difference", "Difference to the printed total", ChargeKind.OTHER, bill.differenceMinor)
+    BillCharge("difference", label, ChargeKind.OTHER, bill.differenceMinor)
 }
 
 private val MODES = listOf(
-    SplitMode.EQUAL to "Equally",
-    SplitMode.BY_ITEM to "By item",
-    SplitMode.BY_SHARES to "By shares",
-    SplitMode.BY_PERCENT to "By percent",
-    SplitMode.BY_AMOUNT to "By amount",
+    SplitMode.EQUAL to R.string.split_mode_equal,
+    SplitMode.BY_ITEM to R.string.split_mode_by_item,
+    SplitMode.BY_SHARES to R.string.split_mode_by_shares,
+    SplitMode.BY_PERCENT to R.string.split_mode_by_percent,
+    SplitMode.BY_AMOUNT to R.string.split_mode_by_amount,
 )

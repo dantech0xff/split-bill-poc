@@ -19,8 +19,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.GroupLink
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -30,6 +32,8 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.ExchangeRate
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.resolve
 
 /**
  * Adds the bill on screen to a group, or sends it to its group again after a change: which group,
@@ -39,7 +43,7 @@ import com.dantech.splitvibe.domain.ExchangeRate
 fun AddToGroupSheet(
     saved: SavedBill,
     viewModel: AddToGroupViewModel,
-    nameOf: (String) -> String,
+    nameOf: (String) -> UiText,
     onLinked: (GroupLink) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -53,17 +57,17 @@ fun AddToGroupSheet(
     val again = saved.group != null && saved.group.groupId == group?.group?.id
     SvBottomSheet(
         title = when {
-            group == null -> "Add to a group"
-            again -> "Update in ${group.group.name}"
-            else -> "Add to ${group.group.name}"
+            group == null -> stringResource(R.string.split_add_to_group)
+            again -> stringResource(R.string.split_update_in_group, group.group.name)
+            else -> stringResource(R.string.groups_add_to, group.group.name)
         },
-        supportingText = "Everyone in the group sees what was bought and who had what. The photos stay on this phone.",
+        supportingText = stringResource(R.string.groups_add_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             if (group != null) {
                 Button(onClick = { viewModel.submit(saved) }, enabled = amounts != null && !state.working) {
-                    Text(if (again) "Update" else "Add the bill")
+                    Text(stringResource(if (again) R.string.groups_update else R.string.groups_add_the_bill))
                 }
             }
         },
@@ -75,19 +79,21 @@ fun AddToGroupSheet(
                 .padding(horizontal = SvSpacing.xl),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
-            state.message?.let { SvMessageCard(text = it, isError = true, action = "OK", onAction = viewModel::dismissMessage) }
+            state.message?.let {
+                SvMessageCard(text = it, isError = true, action = stringResource(R.string.common_ok), onAction = viewModel::dismissMessage)
+            }
             when (state.conflict) {
                 GroupConflict.DELETED -> SvMessageCard(
-                    text = "This bill was deleted from the group. It can go in again as a new bill.",
+                    text = stringResource(R.string.groups_bill_deleted),
                     isError = true,
-                    action = "Add it again",
+                    action = stringResource(R.string.groups_add_again),
                     onAction = { viewModel.addAgain(saved) },
                 )
 
                 GroupConflict.CHANGED -> SvMessageCard(
-                    text = "Someone changed this bill in the group since you last sent it. Sending yours replaces their change.",
+                    text = stringResource(R.string.groups_bill_changed),
                     isError = true,
-                    action = "Send mine",
+                    action = stringResource(R.string.groups_send_mine),
                     onAction = { viewModel.replaceTheirs(saved) },
                 )
 
@@ -95,8 +101,7 @@ fun AddToGroupSheet(
             }
             if (state.askedPersonally) {
                 SvMessageCard(
-                    text = "You already asked people for this bill one by one. Paying those requests does not count in the group, " +
-                        "so withdraw them in Requests, or record the payments in the group once they arrive.",
+                    text = stringResource(R.string.groups_asked_personally),
                     isError = false,
                 )
             }
@@ -106,7 +111,7 @@ fun AddToGroupSheet(
                 val list = choices.orEmpty()
                 if (choices != null && list.isEmpty()) {
                     Text(
-                        "You are not in a group yet. Make one in Groups, from the home screen.",
+                        stringResource(R.string.groups_none_yet),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -121,10 +126,10 @@ fun AddToGroupSheet(
                 return@Column
             }
 
-            Text("Who is who in the group", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.groups_who_is_who), style = MaterialTheme.typography.titleSmall)
             saved.plan.participants.forEach { participant ->
                 Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                    Text(nameOf(participant.id), style = MaterialTheme.typography.bodyLarge)
+                    Text(nameOf(participant.id).resolve(), style = MaterialTheme.typography.bodyLarge)
                     val members = group.members
                     SvChoiceChips(
                         options = members.map { group.nameOf(it.id) },
@@ -140,11 +145,11 @@ fun AddToGroupSheet(
 
             amounts?.let {
                 Text(
-                    "Comes to ${group.currency.format(it.totalMinor)} in the group.",
+                    stringResource(R.string.groups_comes_to, group.currency.format(it.totalMinor)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
-            } ?: Text("Match everyone on the bill to a member.", style = MaterialTheme.typography.bodyMedium)
+            } ?: Text(stringResource(R.string.groups_match_everyone), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -160,15 +165,15 @@ private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, 
             typed = text.take(RATE_LENGTH)
             onRate(text)
         },
-        label = { Text("$groupCode for 1 $from") },
+        label = { Text(stringResource(R.string.groups_rate_label, groupCode, from)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         supportingText = {
             Text(
                 when {
-                    rate == null -> "No rate for today yet. Type the one you were charged at."
-                    rate.isByHand -> "The rate you typed."
-                    else -> "${rate.source}'s rate for ${rate.date}. Change it to the one you were charged at."
+                    rate == null -> stringResource(R.string.groups_no_rate)
+                    rate.isByHand -> stringResource(R.string.groups_rate_typed)
+                    else -> stringResource(R.string.groups_rate_of_day, rate.source, rate.date.toString())
                 },
             )
         },

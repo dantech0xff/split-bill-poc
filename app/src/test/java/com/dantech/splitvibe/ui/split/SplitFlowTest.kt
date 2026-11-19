@@ -25,6 +25,7 @@ import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.AiStatus
@@ -92,7 +93,7 @@ class SplitFlowTest {
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
-        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(context.getString(R.string.split_default_instruction)).performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)

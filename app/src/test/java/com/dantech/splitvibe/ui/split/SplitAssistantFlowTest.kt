@@ -29,6 +29,7 @@ import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitEdits
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.inEnglish
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
@@ -108,8 +109,8 @@ class SplitAssistantFlowTest {
         // The beer is 45,000 each for the user and Minh, the pho 50,000 each for all three: items of
         // 95,000, 95,000 and 50,000, and the service charge in proportion: 4,750, 4,750 and 2,500.
         assertEquals(
-            listOf(ShareChange("You", 84_000, 99_750), ShareChange("Minh", 84_000, 99_750), ShareChange("Lan", 84_000, 52_500)),
-            proposal.shares,
+            listOf(Triple("You", 84_000L, 99_750L), Triple("Minh", 84_000L, 99_750L), Triple("Lan", 84_000L, 52_500L)),
+            proposal.shares.map { Triple(it.name.english(), it.beforeMinor, it.afterMinor) },
         )
         assertEquals("nothing changes before the user applies it", before, onScreen())
 
@@ -121,7 +122,7 @@ class SplitAssistantFlowTest {
         assertEquals(listOf(99_750L, 99_750L, 52_500L), calculated)
         assertEquals(calculated, sharesOf(after))
         assertEquals(after.bill.totalMinor, calculated.sum())
-        assertEquals("Lan không uống bia nên không chia tiền bia.", assistant.ui().applied)
+        assertEquals("Lan không uống bia nên không chia tiền bia.", assistant.ui().applied.inEnglish())
         awaitStored { it.plan == after.plan }
 
         assistant.undo()
@@ -308,7 +309,7 @@ class SplitAssistantFlowTest {
         val proposal = checkNotNull(assistant.ui().proposal)
         assertEquals(listOf<String?>(null, null), proposal.edits.map { it.reason })
         assertEquals(ProposalOutcome.NO_CHANGE, proposal.outcome)
-        assertEquals("The changes that are kept leave the split as it is.", proposal.outcome.note)
+        assertEquals("The changes that are kept leave the split as it is.", proposal.outcome.note?.let { context.getString(it) })
         assertFalse(proposal.outcome.isError)
         assertFalse(proposal.canApply)
     }
@@ -434,7 +435,7 @@ class SplitAssistantFlowTest {
         val voice = assistant.ui().voice
         assertFalse(voice.listening)
         assertFalse(voice.askingPermission)
-        assertTrue(voice.note.orEmpty().contains("You can type it instead"))
+        assertTrue(voice.note.inEnglish().orEmpty().contains("You can type it instead"))
         assertNull(assistant.ui().error)
         ask("Lan didn't have beer", answer(LAN_NO_BEER))
         assertTrue(assistant.ui().proposal != null)
@@ -489,7 +490,8 @@ class SplitAssistantFlowTest {
         TestVoice.latest().triggerOnError(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
         awaitOnMain { !assistant.ui().voice.listening }
 
-        assertEquals("This phone cannot turn speech in its language into text. Type the change instead.", assistant.ui().voice.note)
+        val unavailable = "This phone cannot turn speech in its language into text. Type the change instead."
+        assertEquals(unavailable, assistant.ui().voice.note.inEnglish())
     }
 
     /** Opens a bill typed in by hand, and an assistant for the split screen it is on. */

@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
@@ -70,16 +73,16 @@ internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, curr
         SplitMode.BY_SHARES -> ShareStepper(name = name, value = value, onValue = onValue)
 
         SplitMode.BY_PERCENT -> NumberField(
-            label = "Percent for $name",
+            label = stringResource(R.string.split_percent_for, name),
             text = percentText(value),
-            suffix = "%",
+            suffix = stringResource(R.string.split_percent_sign),
             parse = ::parsePercent,
             onValue = onValue,
             modifier = Modifier.width(NUMBER_FIELD_WIDTH),
         )
 
         SplitMode.BY_AMOUNT -> NumberField(
-            label = "Amount for $name",
+            label = stringResource(R.string.split_amount_for, name),
             text = currency.inputText(value),
             suffix = currency.code.ifEmpty { null },
             parse = currency::parse,
@@ -111,11 +114,11 @@ internal fun DivisionValueRow(name: String, mode: SplitMode, value: Long, curren
 private fun ShareStepper(name: String, value: Long, onValue: (Long) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { onValue((value - 1).coerceAtLeast(0)) }, enabled = value > 0) {
-            Icon(MINUS, contentDescription = "One share less for $name")
+            Icon(MINUS, contentDescription = stringResource(R.string.split_share_less, name))
         }
         Text(value.toString(), style = MaterialTheme.typography.titleMedium)
         IconButton(onClick = { onValue(value + 1) }) {
-            Icon(Icons.Default.Add, contentDescription = "One share more for $name")
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.split_share_more, name))
         }
     }
 }
@@ -128,18 +131,18 @@ private fun ShareStepper(name: String, value: Long, onValue: (Long) -> Unit) {
 internal fun DivisionTotalRow(mode: SplitMode, given: Long, amountMinor: Long, currency: BillCurrency, modifier: Modifier = Modifier) {
     val target = targetOf(mode, amountMinor)
     val text = when (mode) {
-        SplitMode.BY_PERCENT -> "${percentText(given)}% of 100%"
+        SplitMode.BY_PERCENT -> stringResource(R.string.split_percent_of_whole, percentText(given))
 
         SplitMode.BY_AMOUNT -> {
             val left = amountMinor - given
             when {
-                left == 0L -> "All of ${currency.format(amountMinor)} is given out"
-                left > 0 -> "${currency.format(left)} of ${currency.format(amountMinor)} still to give out"
-                else -> "${currency.format(-left)} more than ${currency.format(amountMinor)}"
+                left == 0L -> stringResource(R.string.split_all_given_out, currency.format(amountMinor))
+                left > 0 -> stringResource(R.string.split_still_to_give_out, currency.format(left), currency.format(amountMinor))
+                else -> stringResource(R.string.split_more_than, currency.format(-left), currency.format(amountMinor))
             }
         }
 
-        SplitMode.BY_SHARES -> if (given == 1L) "1 share in all" else "$given shares in all"
+        SplitMode.BY_SHARES -> pluralStringResource(R.plurals.split_shares_in_all, given.toInt(), given)
 
         SplitMode.EQUAL, SplitMode.BY_ITEM -> return
     }

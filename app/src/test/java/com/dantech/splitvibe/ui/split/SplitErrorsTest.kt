@@ -134,7 +134,7 @@ class SplitErrorsTest {
         viewModel.onSamplePicked()
         awaitOnMain { viewModel.state.value.let { it.photo != null && !it.isBusy } }
 
-        viewModel.analyze()
+        viewModel.analyze(defaultInstruction = "Split this bill")
         awaitOnMain { viewModel.state.value.let { it.error != null && !it.isBusy } }
 
         return viewModel.state.value.let { it.errorOpensSettings to it.errorOpensPro }
@@ -146,7 +146,7 @@ class SplitErrorsTest {
 
         viewModel.onInstructionChanged("Split it. ".repeat(200))
 
-        assertEquals(MAX_INSTRUCTION_CHARS, viewModel.state.value.instruction.length)
+        assertEquals(MAX_INSTRUCTION_CHARS, viewModel.state.value.instruction?.length)
     }
 
     @Test

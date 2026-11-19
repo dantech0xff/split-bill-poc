@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -94,7 +95,7 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
                 SvMessageCard(
                     text = question,
                     isError = false,
-                    action = "Ask something else",
+                    action = stringResource(R.string.assistant_ask_something_else),
                     onAction = actions.onForgetQuestion,
                     modifier = announced,
                 )
@@ -105,30 +106,32 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
                 onValueChange = actions.onTextChange,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.working && !voice.listening,
-                label = { Text(if (answering) "Your answer" else "Change the split") },
+                label = { Text(stringResource(if (answering) R.string.assistant_your_answer else R.string.assistant_change_the_split)) },
                 trailingIcon = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (voice.available) {
                             IconButton(onClick = actions.onMic, enabled = !state.working) {
                                 Icon(
                                     MIC,
-                                    contentDescription = if (voice.listening) "Stop listening" else "Say the change",
+                                    contentDescription = stringResource(
+                                        if (voice.listening) R.string.assistant_stop_listening else R.string.assistant_say_the_change,
+                                    ),
                                     tint = if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                                 )
                             }
                         }
                         IconButton(onClick = actions.onSend, enabled = state.canSend) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Ask Claude")
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.assistant_ask_claude))
                         }
                     }
                 },
                 supportingText = {
                     Text(
                         when {
-                            voice.listening -> "Listening… Tap the mic again when you are done."
-                            voice.note != null -> voice.note
-                            answering -> "Answer the question, and Claude works the change out again."
-                            else -> HINT
+                            voice.listening -> stringResource(R.string.assistant_listening)
+                            voice.note != null -> voice.note.resolve()
+                            answering -> stringResource(R.string.assistant_answer_hint)
+                            else -> stringResource(R.string.assistant_hint, CallsLeft.text(CallsLeft.REVISION))
                         },
                     )
                 },
@@ -138,7 +141,11 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
             )
 
             if (state.working) {
-                SvWorkingRow(status = "Claude is working out the changes…", cancelLabel = "Cancel", onCancel = actions.onCancel)
+                SvWorkingRow(
+                    status = stringResource(R.string.assistant_working),
+                    cancelLabel = stringResource(R.string.common_cancel),
+                    onCancel = actions.onCancel,
+                )
             }
             state.error?.let { error ->
                 SvMessageCard(
@@ -157,7 +164,7 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
                     modifier = announced,
                 )
             }
-            state.note?.let { Text(it, modifier = announced, style = MaterialTheme.typography.bodyMedium) }
+            state.note?.let { Text(it.resolve(), modifier = announced, style = MaterialTheme.typography.bodyMedium) }
         }
     }
 }
@@ -172,9 +179,13 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
     SvCard(modifier = modifier.fillMaxWidth(), elevation = SvElevation.Level2) {
         Column(modifier = Modifier.padding(vertical = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             Column(modifier = Modifier.padding(horizontal = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                Text("Proposed changes", modifier = announced, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "You asked: “${proposal.instruction}”",
+                    stringResource(R.string.assistant_proposed_changes),
+                    modifier = announced,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    stringResource(R.string.assistant_you_asked, proposal.instruction),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -183,21 +194,20 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
 
             proposal.edits.forEach { edit -> EditRow(edit, onToggle = { actions.onToggleEdit(edit.index) }) }
             if (proposal.unreadable > 0) {
-                val changes = if (proposal.unreadable == 1) "1 more change" else "${proposal.unreadable} more changes"
-                Note("$changes Claude proposed could not be read, so they are left out.")
+                Note(pluralStringResource(R.plurals.assistant_unreadable, proposal.unreadable, proposal.unreadable))
             }
 
             // A proposal that could not be worked out has no amounts to show.
             if (proposal.shares.isNotEmpty()) {
                 Text(
-                    "Each person pays",
+                    stringResource(R.string.split_each_person_pays),
                     modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.lg, top = SvSpacing.sm),
                     style = MaterialTheme.typography.titleSmall,
                 )
             }
             proposal.shares.forEach { ShareChangeRow(it, proposal.currency) }
-            proposal.problems.forEach { problem -> Note("After these changes: $problem", isError = true) }
-            proposal.outcome.note?.let { Note(it, isError = proposal.outcome.isError) }
+            proposal.problems.forEach { problem -> Note(stringResource(R.string.assistant_after_changes, problem), isError = true) }
+            proposal.outcome.note?.let { Note(stringResource(it), isError = proposal.outcome.isError) }
 
             Row(
                 modifier = Modifier
@@ -205,8 +215,8 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
                     .padding(horizontal = SvSpacing.lg),
                 horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm, Alignment.End),
             ) {
-                TextButton(onClick = actions.onDiscard) { Text("Discard") }
-                FilledTonalButton(onClick = actions.onApply, enabled = proposal.canApply) { Text("Apply") }
+                TextButton(onClick = actions.onDiscard) { Text(stringResource(R.string.assistant_discard)) }
+                FilledTonalButton(onClick = actions.onApply, enabled = proposal.canApply) { Text(stringResource(R.string.assistant_apply)) }
             }
         }
     }
@@ -230,15 +240,14 @@ internal fun AssistantVoicePrompts(voice: VoiceUi, actions: AssistantActions) {
     if (voice.askingNetwork) {
         AlertDialog(
             onDismissRequest = { actions.onNetworkVoice(false) },
-            title = { Text("Use the phone's speech service?") },
+            title = { Text(stringResource(R.string.assistant_speech_service_title)) },
             text = {
-                Text(
-                    "This phone cannot turn speech into text by itself. Its speech service may send what you say over the " +
-                        "internet to do it. You can type the change instead.",
-                )
+                Text(stringResource(R.string.assistant_speech_service_text))
             },
-            confirmButton = { TextButton(onClick = { actions.onNetworkVoice(true) }) { Text("Use it") } },
-            dismissButton = { TextButton(onClick = { actions.onNetworkVoice(false) }) { Text("Type instead") } },
+            confirmButton = { TextButton(onClick = { actions.onNetworkVoice(true) }) { Text(stringResource(R.string.assistant_use_it)) } },
+            dismissButton = {
+                TextButton(onClick = { actions.onNetworkVoice(false) }) { Text(stringResource(R.string.assistant_type_instead)) }
+            },
         )
     }
 }
@@ -248,8 +257,8 @@ internal fun AssistantVoicePrompts(voice: VoiceUi, actions: AssistantActions) {
 private fun EditRow(edit: ProposedEdit, onToggle: () -> Unit) {
     val label = listOfNotNull(
         edit.text,
-        if (edit.kept) null else "dropped",
-        edit.reason?.let { "cannot be applied: $it" },
+        if (edit.kept) null else stringResource(R.string.assistant_dropped),
+        edit.reason?.let { stringResource(R.string.assistant_cannot_apply_in_sentence, it) },
     ).joinToString(", ")
     Row(
         modifier = Modifier
@@ -270,7 +279,11 @@ private fun EditRow(edit: ProposedEdit, onToggle: () -> Unit) {
                 textDecoration = if (edit.kept) null else TextDecoration.LineThrough,
             )
             edit.reason?.let {
-                Text("Cannot be applied: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(
+                    stringResource(R.string.assistant_cannot_apply, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
@@ -281,11 +294,13 @@ private fun EditRow(edit: ProposedEdit, onToggle: () -> Unit) {
 private fun ShareChangeRow(change: ShareChange, currency: BillCurrency) {
     val before = change.beforeMinor?.takeIf { change.onBillBefore }?.let(currency::format)
     val after = change.afterMinor?.takeIf { change.onBillAfter }?.let(currency::format)
+    val name = change.name.resolve()
+    val notWorkedOut = stringResource(R.string.assistant_part_not_worked_out)
     val said = when {
-        !change.onBillBefore -> "${change.name} joins the bill and pays ${after ?: "a part not worked out yet"}"
-        !change.onBillAfter -> "${change.name} is taken off the bill"
-        !change.changed -> "${change.name} still pays ${after ?: "a part not worked out yet"}"
-        else -> "${change.name} pays ${after ?: "a part not worked out yet"} in place of ${before ?: "a part not worked out yet"}"
+        !change.onBillBefore -> stringResource(R.string.assistant_joins, name, after ?: notWorkedOut)
+        !change.onBillAfter -> stringResource(R.string.assistant_taken_off, name)
+        !change.changed -> stringResource(R.string.assistant_still_pays, name, after ?: notWorkedOut)
+        else -> stringResource(R.string.assistant_pays_instead, name, after ?: notWorkedOut, before ?: notWorkedOut)
     }
     Row(
         modifier = Modifier
@@ -294,9 +309,9 @@ private fun ShareChangeRow(change: ShareChange, currency: BillCurrency) {
             .clearAndSetSemantics { contentDescription = said },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SvAvatar(change.name)
+        SvAvatar(name)
         Spacer(Modifier.width(SvSpacing.md))
-        Text(change.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Text(before ?: NONE, style = MaterialTheme.typography.amountSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Icon(
             Icons.AutoMirrored.Filled.ArrowForward,
@@ -329,10 +344,6 @@ private val announced = Modifier.semantics(mergeDescendants = true) { liveRegion
 
 /** Shown in place of an amount a person does not have on one side of the change. */
 private const val NONE = "—"
-
-/** What the field is for, and what asking takes of the calls. */
-private val HINT = "For example: Lan didn't have beer, or add a 10% tip. You check the changes before they apply. " +
-    "Asking takes ${CallsLeft.text(CallsLeft.REVISION)} of a call."
 
 /** The microphone of Material's icons, which the small set of icons the app ships does not hold. */
 private val MIC = materialIcon(name = "Filled.Mic") {

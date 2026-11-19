@@ -27,8 +27,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
@@ -74,12 +76,17 @@ internal fun AddPersonSheet(
     val add = { if (name.isNotBlank()) onAdd(name.trim(), NameMatcher.find(name, people)?.id) }
 
     SvBottomSheet(
-        title = "Add someone",
-        supportingText = "Type a name, pick someone you split with before, or choose from your contacts.",
+        title = stringResource(R.string.split_add_someone),
+        supportingText = stringResource(R.string.split_add_someone_hint),
         onDismiss = onDismiss,
         actions = {
-            OutlinedButton(onClick = onPickContact) { Text("From contacts") }
-            SvPrimaryButton(text = "Add", onClick = add, modifier = Modifier.weight(1f), enabled = name.isNotBlank())
+            OutlinedButton(onClick = onPickContact) { Text(stringResource(R.string.split_from_contacts)) }
+            SvPrimaryButton(
+                text = stringResource(R.string.common_add),
+                onClick = add,
+                modifier = Modifier.weight(1f),
+                enabled = name.isNotBlank(),
+            )
         },
     ) {
         OutlinedTextField(
@@ -88,12 +95,12 @@ internal fun AddPersonSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = SvSpacing.xl),
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.common_name)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { add() }),
         )
-        if (contactsMissing) ErrorText("No contacts app is available on this phone. Type the name instead.")
+        if (contactsMissing) ErrorText(stringResource(R.string.split_no_contacts))
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
             items(suggestions, key = { it.id }) { person ->
                 ListItem(
@@ -101,11 +108,11 @@ internal fun AddPersonSheet(
                     leadingContent = { SvAvatar(person.name) },
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { onAdd(person.name, person.id) }) { Text("Add") }
+                            TextButton(onClick = { onAdd(person.name, person.id) }) { Text(stringResource(R.string.common_add)) }
                             IconButton(onClick = { onForget(person) }) {
                                 Icon(
                                     Icons.Default.Close,
-                                    contentDescription = "Stop suggesting ${person.name}",
+                                    contentDescription = stringResource(R.string.split_stop_suggesting, person.name),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -127,8 +134,15 @@ internal fun PersonSheet(person: SheetPerson, onRename: (String) -> Unit, onRemo
         title = person.name,
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onRemove) { Text("Remove from the bill", color = MaterialTheme.colorScheme.error) }
-            SvPrimaryButton(text = "Save", onClick = { onRename(name) }, modifier = Modifier.weight(1f), enabled = name.isNotBlank())
+            TextButton(onClick = onRemove) {
+                Text(stringResource(R.string.split_remove_from_bill), color = MaterialTheme.colorScheme.error)
+            }
+            SvPrimaryButton(
+                text = stringResource(R.string.common_save),
+                onClick = { onRename(name) },
+                modifier = Modifier.weight(1f),
+                enabled = name.isNotBlank(),
+            )
         },
     ) {
         OutlinedTextField(
@@ -137,7 +151,7 @@ internal fun PersonSheet(person: SheetPerson, onRename: (String) -> Unit, onRemo
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = SvSpacing.xl),
-            label = { Text("Name") },
+            label = { Text(stringResource(R.string.common_name)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onRename(name) }),
@@ -191,16 +205,21 @@ internal fun ItemSplitSheet(
     }
 
     SvBottomSheet(
-        title = item.name.ifBlank { "Item" },
-        supportingText = "${currency.format(item.amountMinor)}. Choose who had it and how they divide it.",
+        title = item.name.ifBlank { stringResource(R.string.common_item) },
+        supportingText = stringResource(R.string.split_item_sheet_hint, currency.format(item.amountMinor)),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = { startOver(mode, everyone) }) { Text("Everyone") }
-            SvPrimaryButton(text = "Done", onClick = { onConfirm(result) }, modifier = Modifier.weight(1f), enabled = complete)
+            TextButton(onClick = { startOver(mode, everyone) }) { Text(stringResource(R.string.split_everyone)) }
+            SvPrimaryButton(
+                text = stringResource(R.string.common_done),
+                onClick = { onConfirm(result) },
+                modifier = Modifier.weight(1f),
+                enabled = complete,
+            )
         },
     ) {
         SvChoiceChips(
-            options = ITEM_MODES.map { it.second },
+            options = ITEM_MODES.map { stringResource(it.second) },
             selected = ITEM_MODES.indexOfFirst { it.first == mode },
             onSelect = { index -> ITEM_MODES[index].first.takeIf { it != mode }?.let { startOver(it, inNow()) } },
             modifier = Modifier.padding(horizontal = SvSpacing.xl),
@@ -232,7 +251,7 @@ internal fun ItemSplitSheet(
                         currency = currency,
                     )
 
-                    sharing.isEmpty() -> ErrorText("Tick at least one person.")
+                    sharing.isEmpty() -> ErrorText(stringResource(R.string.split_tick_someone))
                 }
             }
         }
@@ -264,15 +283,20 @@ internal fun PaymentsSheet(
     val complete = if (several) chosen.isNotEmpty() && chosen.all { it.amountMinor > 0 } && given == totalMinor else payer != null
 
     SvBottomSheet(
-        title = "Who paid?",
-        supportingText = "The bill total is ${currency.format(totalMinor)}.",
+        title = stringResource(R.string.split_who_paid),
+        supportingText = stringResource(R.string.split_bill_total_is, currency.format(totalMinor)),
         onDismiss = onDismiss,
         actions = {
-            SvPrimaryButton(text = "Done", onClick = { onConfirm(chosen) }, modifier = Modifier.weight(1f), enabled = complete)
+            SvPrimaryButton(
+                text = stringResource(R.string.common_done),
+                onClick = { onConfirm(chosen) },
+                modifier = Modifier.weight(1f),
+                enabled = complete,
+            )
         },
     ) {
         SvChoiceGroup(
-            options = listOf("One person", "Several people"),
+            options = listOf(stringResource(R.string.split_one_payer), stringResource(R.string.split_several_payers)),
             selected = if (several) 1 else 0,
             onSelect = { index ->
                 several = index == 1
@@ -321,16 +345,21 @@ internal fun ExchangeRateSheet(
 ) {
     var typed by remember { mutableStateOf(rate?.rate) }
     SvBottomSheet(
-        title = "Exchange rate",
-        supportingText = "What one $from is worth in $to. The bill and everyone's share stay in $from.",
+        title = stringResource(R.string.split_exchange_rate),
+        supportingText = stringResource(R.string.split_exchange_rate_hint, from, to),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onUseDayRate) { Text("Use the day's rate") }
-            SvPrimaryButton(text = "Save", onClick = { typed?.let(onSave) }, modifier = Modifier.weight(1f), enabled = typed != null)
+            TextButton(onClick = onUseDayRate) { Text(stringResource(R.string.split_use_day_rate)) }
+            SvPrimaryButton(
+                text = stringResource(R.string.common_save),
+                onClick = { typed?.let(onSave) },
+                modifier = Modifier.weight(1f),
+                enabled = typed != null,
+            )
         },
     ) {
         NumberField(
-            label = "1 $from in $to",
+            label = stringResource(R.string.split_rate_label, from, to),
             // Without grouping, so it reads back as the number it is.
             text = rate?.rate?.let { ExchangeRate.rateText(it, Locale.ROOT).replace(",", "") }.orEmpty(),
             parse = ::positiveRate,
@@ -366,10 +395,10 @@ internal fun positiveRate(text: String): BigDecimal? {
 private val RATE_TEXT = Regex("""\d{1,10}([.,]\d{1,12})?""")
 
 private val ITEM_MODES = listOf(
-    SplitMode.EQUAL to "Equally",
-    SplitMode.BY_SHARES to "By shares",
-    SplitMode.BY_PERCENT to "By percent",
-    SplitMode.BY_AMOUNT to "By amount",
+    SplitMode.EQUAL to R.string.split_mode_equal,
+    SplitMode.BY_SHARES to R.string.split_mode_by_shares,
+    SplitMode.BY_PERCENT to R.string.split_mode_by_percent,
+    SplitMode.BY_AMOUNT to R.string.split_mode_by_amount,
 )
 
 private fun modeOf(division: Division?): SplitMode = when (division) {

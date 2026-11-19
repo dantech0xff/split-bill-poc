@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.assistant.SplitAssistant
@@ -51,7 +52,6 @@ import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
-import com.dantech.splitvibe.ui.split.DEFAULT_INSTRUCTION
 import com.dantech.splitvibe.ui.split.Progress
 import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
@@ -227,7 +227,7 @@ class ScreenGalleryTest {
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
-        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(context.getString(R.string.split_default_instruction)).performTextReplacement(INSTRUCTION)
         shot("03-photo-and-instruction")
 
         // The working state shows an endless animation. Its clock is stopped and then moved on by a
@@ -313,7 +313,7 @@ class ScreenGalleryTest {
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
-        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(context.getString(R.string.split_default_instruction)).performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
@@ -347,7 +347,7 @@ class ScreenGalleryTest {
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
-        compose.onNodeWithText(DEFAULT_INSTRUCTION).performTextReplacement(INSTRUCTION)
+        compose.onNodeWithText(context.getString(R.string.split_default_instruction)).performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)

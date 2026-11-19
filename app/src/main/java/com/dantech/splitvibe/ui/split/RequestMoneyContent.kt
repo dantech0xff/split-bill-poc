@@ -35,9 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
@@ -59,6 +61,7 @@ import com.dantech.splitvibe.share.ShareCardRenderer
 import com.dantech.splitvibe.share.ShareCardState
 import com.dantech.splitvibe.share.rememberShareCardState
 import com.dantech.splitvibe.share.shareCard
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -97,12 +100,12 @@ fun RequestMoneyContent(
                 withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "pay-${UUID.randomUUID()}") }
             }.getOrNull()
         }
-        if (context.open(ShareCardRenderer.shareIntent(prepared.text, image, title = "Payment request"))) {
+        if (context.open(ShareCardRenderer.shareIntent(prepared.text, image, title = context.getString(R.string.requests_share_title)))) {
             viewModel.markShared(person.participant.id)
         }
     }
 
-    Scaffold(bottomBar = { SvBottomBar { SvPrimaryButton("Done", onClick = onDone) } }) { padding ->
+    Scaffold(bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             item {
                 Column(
@@ -114,10 +117,10 @@ fun RequestMoneyContent(
                     // The request button of the step before turns into this mark.
                     SvSuccessMark(Icons.Default.Check, modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true))
                     Spacer(Modifier.height(SvSpacing.lg))
-                    Text("Ask for the money", style = MaterialTheme.typography.headlineSmallEmphasized)
+                    Text(stringResource(R.string.requests_ask_for_money), style = MaterialTheme.typography.headlineSmallEmphasized)
                     Spacer(Modifier.height(SvSpacing.sm))
                     Text(
-                        "Each person gets their own message to send in any chat app. Split Vibe never holds or moves money.",
+                        stringResource(R.string.requests_ask_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -132,7 +135,7 @@ fun RequestMoneyContent(
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null)
                     Spacer(Modifier.width(SvSpacing.sm))
-                    Text("Share the split as a picture")
+                    Text(stringResource(R.string.requests_share_picture))
                 }
             }
             item {
@@ -149,8 +152,8 @@ fun RequestMoneyContent(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it.take(NAME_LENGTH) },
-                        label = { Text("Your name on the requests") },
-                        supportingText = { Text("People who open a request in Split Vibe see it, and can say there when they have paid.") },
+                        label = { Text(stringResource(R.string.requests_your_name)) },
+                        supportingText = { Text(stringResource(R.string.requests_your_name_hint)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier
@@ -186,7 +189,7 @@ fun RequestMoneyContent(
     message?.let {
         AlertDialog(
             onDismissRequest = viewModel::dismissMessage,
-            confirmButton = { TextButton(onClick = viewModel::dismissMessage) { Text("OK") } },
+            confirmButton = { TextButton(onClick = viewModel::dismissMessage) { Text(stringResource(R.string.common_ok)) } },
             text = { Text(it) },
         )
     }
@@ -199,19 +202,27 @@ private fun SummaryCard(result: SplitResultState, state: ShareCardState, modifie
     SvCard(modifier = modifier.fillMaxWidth().shareCard(state), elevation = SvElevation.Level2) {
         Column(modifier = Modifier.padding(SvSpacing.xl), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             Text(
-                listOfNotNull(bill.merchant?.takeIf { it.isNotBlank() } ?: "The bill", bill.date).joinToString(" · "),
+                listOfNotNull(
+                    bill.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_the_bill),
+                    bill.date,
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(bill.format(bill.totalMinor), style = MaterialTheme.typography.amountLarge)
             result.split.shares.forEach { share ->
+                val name = result.nameOf(share.personId).resolve()
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SvAvatar(result.nameOf(share.personId))
+                    SvAvatar(name)
                     Spacer(Modifier.width(SvSpacing.md))
-                    Text(result.nameOf(share.personId), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                     Text(bill.format(share.totalMinor), style = MaterialTheme.typography.amountMedium)
                 }
             }
-            Text("Split with Split Vibe", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.requests_split_with),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -226,26 +237,28 @@ private fun MethodPart(
 ) {
     if (method == null) {
         SvMessageCard(
-            text = "Add how you get paid, such as your bank account or PayPal, and each request carries it with the amount.",
+            text = stringResource(R.string.requests_add_method_hint),
             isError = false,
             modifier = modifier,
-            action = "Add a way to get paid",
+            action = stringResource(R.string.requests_add_method),
             onAction = onOpenPaymentMethods,
         )
         return
     }
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Paid back by ${method.method.title}", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.requests_paid_back_by, method.method.title), style = MaterialTheme.typography.titleSmall)
             Text(method.method.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        TextButton(onClick = if (hasChoice) onChoose else onOpenPaymentMethods) { Text(if (hasChoice) "Change" else "Add another") }
+        TextButton(onClick = if (hasChoice) onChoose else onOpenPaymentMethods) {
+            Text(stringResource(if (hasChoice) R.string.requests_change_method else R.string.requests_add_another))
+        }
     }
 }
 
 @Composable
 private fun PersonRow(result: SplitResultState, request: PersonRequest, position: SvRowPosition, shared: Boolean, onShare: () -> Unit) {
-    val name = result.nameOf(request.participant.id)
+    val name = result.nameOf(request.participant.id).resolve()
     SvListRow(position = position) {
         SvAvatar(name)
         Spacer(Modifier.width(SvSpacing.md))
@@ -253,21 +266,29 @@ private fun PersonRow(result: SplitResultState, request: PersonRequest, position
             Text(name, style = MaterialTheme.typography.bodyLarge)
             Text(result.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
             result.converted(request.amountMinor)?.let {
-                Text("About $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    stringResource(R.string.split_about, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         Spacer(Modifier.width(SvSpacing.md))
         FilledTonalButton(onClick = onShare) {
             Icon(if (shared) Icons.Default.Check else Icons.Default.Share, contentDescription = null)
             Spacer(Modifier.width(SvSpacing.xs))
-            Text(if (shared) "Again" else "Send")
+            Text(stringResource(if (shared) R.string.requests_send_again else R.string.requests_send))
         }
     }
 }
 
 @Composable
 private fun MethodSheet(methods: List<SavedPaymentMethod>, chosen: String?, onChoose: (String) -> Unit, onDismiss: () -> Unit) {
-    SvBottomSheet(title = "Get paid by", onDismiss = onDismiss, actions = { TextButton(onClick = onDismiss) { Text("Cancel") } }) {
+    SvBottomSheet(
+        title = stringResource(R.string.requests_get_paid_by),
+        onDismiss = onDismiss,
+        actions = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    ) {
         Column {
             methods.forEach { saved ->
                 SvPersonChoiceRow(
@@ -287,11 +308,16 @@ private suspend fun shareSummary(context: Context, card: ShareCardState, result:
         val bitmap = card.toBitmap()
         withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "split-${UUID.randomUUID()}") }
     }.getOrNull()
+    val resources = context.resources
     val text = buildList {
-        add("${bill.merchant?.takeIf { it.isNotBlank() } ?: "The bill"}: ${bill.format(bill.totalMinor)}")
-        result.split.shares.forEach { add("${result.nameOf(it.personId)}: ${bill.format(it.totalMinor)}") }
+        val title = bill.merchant?.takeIf { it.isNotBlank() } ?: resources.getString(R.string.common_the_bill)
+        add(resources.getString(R.string.requests_summary_line, title, bill.format(bill.totalMinor)))
+        result.split.shares.forEach { share ->
+            val name = result.nameOf(share.personId).resolve(resources)
+            add(resources.getString(R.string.requests_summary_line, name, bill.format(share.totalMinor)))
+        }
     }.joinToString("\n")
-    context.open(ShareCardRenderer.shareIntent(text, image, title = "The split"))
+    context.open(ShareCardRenderer.shareIntent(text, image, title = resources.getString(R.string.requests_summary_share_title)))
 }
 
 /** Opens [intent]; false when no app on the phone can take it. */

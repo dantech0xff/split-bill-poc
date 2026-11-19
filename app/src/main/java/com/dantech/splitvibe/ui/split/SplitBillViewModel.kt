@@ -73,12 +73,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** What the instruction field holds until the user types something else. */
-const val DEFAULT_INSTRUCTION = "Split this bill"
-
-/** What the screen calls the app's own user. */
-const val ME_LABEL = "You"
-
 enum class Progress { IDLE, LOADING_PHOTO, READING_TEXT, ASKING_CLAUDE }
 
 /** What one person is asked to pay back for a bill: their share of it. */
@@ -127,16 +121,18 @@ data class SplitResultState(
         return rate.convert(minor, bill.currency, to)?.let(to::format)
     }
 
-    fun nameOf(participantId: String): String {
-        val participant = plan.participant(participantId) ?: return participantId
-        return if (participant.isMe) ME_LABEL else participant.name.ifBlank { "Someone" }
+    /** What the screen calls [participantId]: the user is "You", and someone without a name "Someone". */
+    fun nameOf(participantId: String): UiText {
+        val participant = plan.participant(participantId) ?: return UiText.Raw(participantId)
+        return nameOf(participant)
     }
 }
 
 data class SplitUiState(
     /** The photos of the bill's pages, in order. */
     val pages: List<Bitmap> = emptyList(),
-    val instruction: String = DEFAULT_INSTRUCTION,
+    /** What the user typed for how to split the bill; null until they type, while the field shows the default instruction. */
+    val instruction: String? = null,
     val progress: Progress = Progress.IDLE,
     val error: UiText? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
@@ -149,7 +145,7 @@ data class SplitUiState(
     /** The people asked to pay back, once the user chose to ask them. */
     val sentRequests: List<PersonRequest>? = null,
     /** Something to tell the person once, such as a bill that was changed elsewhere. */
-    val notice: String? = null,
+    val notice: UiText? = null,
     /** The bill was opened from the list of bills, so leaving it goes back there rather than to its photos. */
     val openedFromHistory: Boolean = false,
 ) {
@@ -283,7 +279,7 @@ class SplitBillViewModel(
         work = viewModelScope.launch {
             val saved = bills.get(id)
             if (saved == null) {
-                mutableState.update { it.copy(notice = "This bill is no longer on this phone.") }
+                mutableState.update { it.copy(notice = text(R.string.split_bill_gone)) }
                 return@launch
             }
             forgetUnsavedPages()
@@ -337,8 +333,13 @@ class SplitBillViewModel(
         showSaved(saved, shown, editing = true)
     }
 
-    fun analyze() {
+    /**
+     * Reads the bill on screen with the instruction typed, or [defaultInstruction], which the field
+     * shows until the user types and the screen reads from the resources.
+     */
+    fun analyze(defaultInstruction: String) {
         val current = mutableState.value
+        val instruction = current.instruction ?: defaultInstruction
         if (current.pages.isEmpty() || current.isBusy) return
         val appSettings = settings.value
         // When AI is only switched off, the request still goes out: the proxy may have turned it back on.
@@ -359,7 +360,7 @@ class SplitBillViewModel(
             }
 
             mutableState.update { it.copy(progress = Progress.ASKING_CLAUDE) }
-            when (val analysis = analyzer.analyze(read, current.instruction, appSettings.localCurrency)) {
+            when (val analysis = analyzer.analyze(read, instruction, appSettings.localCurrency)) {
                 // The reason is the model's, or the domain's, in English.
                 is BillAnalysis.Rejected -> showError(UiText.Raw(analysis.reason))
 
@@ -372,7 +373,7 @@ class SplitBillViewModel(
                         updatedAt = now,
                         bill = bill,
                         plan = SplitPlanner.fromHint(analysis.splitHint, bill, people.value),
-                        instruction = current.instruction,
+                        instruction = instruction,
                         summary = analysis.message,
                         ocrDocument = OcrLayoutEncoder.encode(read),
                         pages = pages,
@@ -436,7 +437,7 @@ class SplitBillViewModel(
         viewModelScope.launch {
             val name = contactNames.nameOf(contact)
             if (name == null) {
-                mutableState.update { it.copy(notice = "That contact has no name to add. Type the name instead.") }
+                mutableState.update { it.copy(notice = text(R.string.split_contact_without_name)) }
             } else {
                 addPerson(name)
             }
@@ -578,7 +579,7 @@ class SplitBillViewModel(
         mutableState.update {
             it.copy(
                 pages = pages,
-                instruction = saved.instruction.ifEmpty { it.instruction },
+                instruction = saved.instruction.ifEmpty { null } ?: it.instruction,
                 result = resultOf(saved),
                 editing = editing,
                 error = null,
@@ -612,7 +613,7 @@ class SplitBillViewModel(
             if (current.bill.currency.code != from || current.localCurrency != to) return@launch
             if (found == null) {
                 if (tellWhenMissing) {
-                    mutableState.update { it.copy(notice = "The day's rate could not be fetched. Check the connection and try again.") }
+                    mutableState.update { it.copy(notice = text(R.string.split_rate_not_fetched)) }
                 }
                 return@launch
             }
@@ -675,7 +676,7 @@ class SplitBillViewModel(
                 // The change stays on screen and goes with the next save.
                 if (!saveFailing) {
                     saveFailing = true
-                    mutableState.update { it.copy(notice = "The bill could not be saved on this phone. Your changes stay on screen.") }
+                    mutableState.update { it.copy(notice = text(R.string.split_not_saved)) }
                 }
             }
         }
@@ -727,9 +728,9 @@ class SplitBillViewModel(
         mutableState.update { state ->
             if (state.result?.saved?.id != bill.id) return@update state
             if (stored == null) {
-                state.copy(result = null, editing = false, notice = "This bill was deleted, so the last change was not saved.")
+                state.copy(result = null, editing = false, notice = text(R.string.split_deleted_elsewhere))
             } else {
-                state.copy(result = resultOf(stored), notice = "This bill was changed elsewhere, so it now shows the latest version.")
+                state.copy(result = resultOf(stored), notice = text(R.string.split_changed_elsewhere))
             }
         }
     }
@@ -799,8 +800,15 @@ class SplitBillViewModel(
         const val KEY_EDITING = "editing"
         const val KEY_OPENED = "opened"
         const val KEY_ON_INPUT = "onInput"
-        const val UNSETTLED = "The bill changed, so its link no longer shows what everyone owes. Open the link to send the amounts again."
+        val UNSETTLED = text(R.string.split_unsettled)
     }
+}
+
+/** What the screen calls [participant]: the user is "You", and someone without a name "Someone". */
+internal fun nameOf(participant: Participant): UiText = when {
+    participant.isMe -> text(R.string.common_you)
+    participant.name.isBlank() -> text(R.string.common_someone)
+    else -> UiText.Raw(participant.name)
 }
 
 /** Nothing has been put on the bill yet: no place, item, charge or total. */

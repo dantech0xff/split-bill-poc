@@ -247,7 +247,7 @@ class BillSafetyTest {
 
     private fun readAgain(viewModel: SplitBillViewModel) {
         server.enqueue(Fixtures.proxyAnswer())
-        viewModel.analyze()
+        viewModel.analyze(defaultInstruction = "Split this bill")
         awaitOnMain { viewModel.state.value.let { (it.result != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
     }

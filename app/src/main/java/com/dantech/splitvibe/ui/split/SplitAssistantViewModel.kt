@@ -1,7 +1,9 @@
 package com.dantech.splitvibe.ui.split
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.assistant.SplitAssistant
 import com.dantech.splitvibe.assistant.VoiceEnd
 import com.dantech.splitvibe.assistant.VoiceInput
@@ -26,6 +28,7 @@ import com.dantech.splitvibe.llm.proHelps
 import com.dantech.splitvibe.llm.signInHelps
 import com.dantech.splitvibe.llm.text
 import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +68,7 @@ data class ProposedEdit(
 
 /** What one person pays before the proposed changes and after them; an amount is null while the split does not add up. */
 data class ShareChange(
-    val name: String,
+    val name: UiText,
     val beforeMinor: Long?,
     val afterMinor: Long?,
     val onBillBefore: Boolean = true,
@@ -77,20 +80,20 @@ data class ShareChange(
 /** What applying the kept edits of a proposal would do to the split, and what the proposal then says about it. */
 enum class ProposalOutcome(
     /** What the proposal says when the split would not change; null when it would. */
-    val note: String?,
+    @param:StringRes val note: Int?,
     val isError: Boolean,
 ) {
     /** The split changes. */
     CHANGES(note = null, isError = false),
 
     /** Kept edits can be applied, but they change nothing, such as a split into the way it is split already. */
-    NO_CHANGE(note = "The changes that are kept leave the split as it is.", isError = false),
+    NO_CHANGE(note = R.string.assistant_no_change, isError = false),
 
     /** None of the kept edits can be applied. */
-    NONE_APPLIES(note = "None of the changes that are kept can be applied, so the split stays as it is.", isError = true),
+    NONE_APPLIES(note = R.string.assistant_none_applies, isError = true),
 
     /** Working the kept edits out on this bill failed, which the app does not expect of any edit; nothing is applied. */
-    NOT_WORKED_OUT(note = "These changes could not be worked out on this bill. Change the split by hand instead.", isError = true),
+    NOT_WORKED_OUT(note = R.string.assistant_not_worked_out, isError = true),
 }
 
 /** The changes the AI proposed, worked out on the split on screen, for the user to check before anything changes. */
@@ -122,7 +125,7 @@ data class VoiceUi(
     /** The screen is to ask for the microphone now. */
     val askingPermission: Boolean = false,
     /** What to tell the user about listening, such as a microphone that is not allowed; never an error, as typing still works. */
-    val note: String? = null,
+    val note: UiText? = null,
 )
 
 /** What the assistant on the result screen shows. */
@@ -134,9 +137,9 @@ data class AssistantUiState(
     val question: String? = null,
     val proposal: ProposalUi? = null,
     /** What the last applied change did, while it can still be undone. */
-    val applied: String? = null,
+    val applied: UiText? = null,
     /** Something to tell the user that is not an error, such as that nothing needs changing. */
-    val note: String? = null,
+    val note: UiText? = null,
     val error: UiText? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
@@ -256,7 +259,7 @@ class SplitAssistantViewModel(
         }
         if (result.bill == saved.bill && result.plan == saved.plan) return
         host.replaceSplit(result.bill, result.plan, saved.status)
-        val summary = proposal.explanation.ifBlank { "The split was changed." }
+        val summary = proposal.explanation.takeIf { it.isNotBlank() }?.let(UiText::Raw) ?: text(R.string.assistant_split_changed)
         val undo = Undo(saved.id, saved.bill, saved.plan, saved.status, result.bill, result.plan, summary)
         draft.update { it.copy(proposal = null, undo = undo) }
     }
@@ -351,7 +354,7 @@ class SplitAssistantViewModel(
                 revision.edits.isEmpty() -> current.copy(
                     question = null,
                     proposal = null,
-                    note = revision.explanation.ifBlank { "Claude found nothing to change." },
+                    note = revision.explanation.takeIf { it.isNotBlank() }?.let(UiText::Raw) ?: text(R.string.assistant_nothing_to_change),
                 )
 
                 else -> current.copy(
@@ -478,8 +481,6 @@ class SplitAssistantViewModel(
         return stayed + added
     }
 
-    private fun nameOf(person: Participant): String = if (person.isMe) ME_LABEL else person.name.ifBlank { "Someone" }
-
     /** What the assistant keeps between the user's steps; what it shows follows from this and the bill on screen. */
     private data class Draft(
         val text: String = "",
@@ -487,7 +488,7 @@ class SplitAssistantViewModel(
         val question: Question? = null,
         val proposal: Proposal? = null,
         val undo: Undo? = null,
-        val note: String? = null,
+        val note: UiText? = null,
         val error: UiText? = null,
         val errorOpensSettings: Boolean = false,
         val errorOpensPro: Boolean = false,
@@ -495,7 +496,7 @@ class SplitAssistantViewModel(
         val listening: Boolean = false,
         val askingNetwork: Boolean = false,
         val askingPermission: Boolean = false,
-        val voiceNote: String? = null,
+        val voiceNote: UiText? = null,
     )
 
     /** What the AI asked back about [instruction]. */
@@ -524,7 +525,7 @@ class SplitAssistantViewModel(
         val status: BillStatus,
         val changedBill: Bill,
         val changedPlan: SplitPlan,
-        val summary: String,
+        val summary: UiText,
     ) {
         fun holdsFor(saved: SavedBill): Boolean = saved.id == billId && saved.bill == changedBill && saved.plan == changedPlan
     }
@@ -533,15 +534,14 @@ class SplitAssistantViewModel(
         /** Blank, so the sentences call the user "you", as the result screen does. */
         const val ME_NAME = ""
 
-        const val NO_MICROPHONE = "To speak a change, allow the microphone for Split Vibe in the phone's settings. You can type it instead."
-        const val NOTHING_HEARD = "Nothing was heard. Tap the mic to try again, or type the change."
-        const val TRY_SPEECH_SERVICE =
-            "This phone cannot turn speech in its language into text by itself. Tap the mic to try its speech service, or type the change."
-        const val LANGUAGE_UNAVAILABLE = "This phone cannot turn speech in its language into text. Type the change instead."
+        val NO_MICROPHONE = text(R.string.assistant_no_microphone)
+        val NOTHING_HEARD = text(R.string.assistant_nothing_heard)
+        val TRY_SPEECH_SERVICE = text(R.string.assistant_try_speech_service)
+        val LANGUAGE_UNAVAILABLE = text(R.string.assistant_language_unavailable)
 
         /** What to tell the user when the recognizer cannot take the phone's language: whether the speech service is worth a try. */
-        fun noteOf(end: VoiceEnd.LanguageUnavailable): String = if (end.speechServiceNext) TRY_SPEECH_SERVICE else LANGUAGE_UNAVAILABLE
-        const val NOT_TURNED_INTO_TEXT = "Speech could not be turned into text just now. Type the change instead."
+        fun noteOf(end: VoiceEnd.LanguageUnavailable): UiText = if (end.speechServiceNext) TRY_SPEECH_SERVICE else LANGUAGE_UNAVAILABLE
+        val NOT_TURNED_INTO_TEXT = text(R.string.assistant_not_turned_into_text)
 
         /**
          * The answer to a question the AI asked, sent with what it asked about, so the AI has the whole

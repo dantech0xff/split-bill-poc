@@ -32,9 +32,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
@@ -51,6 +53,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.ChargeKind
+import com.dantech.splitvibe.text.labelRes
 import com.dantech.splitvibe.ui.common.InputField
 import com.dantech.splitvibe.ui.common.NumberField
 import java.math.BigDecimal
@@ -69,13 +72,15 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text("Edit bill") },
+                title = { Text(stringResource(R.string.split_edit_bill)) },
                 navigationIcon = {
-                    IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onDone) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
-        bottomBar = { SvBottomBar { SvPrimaryButton("Done", onClick = onDone) } },
+        bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             item(key = "bill") {
@@ -86,18 +91,18 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                     InputField(
                         text = bill.merchant.orEmpty(),
                         onTextChange = { text -> onEdit { BillEditor.withMerchant(it, text) } },
-                        label = "Where",
+                        label = stringResource(R.string.editor_where),
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = "Restaurant or shop",
+                        placeholder = stringResource(R.string.editor_where_placeholder),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                         InputField(
                             text = bill.date.orEmpty(),
                             onTextChange = { text -> onEdit { BillEditor.withDate(it, text) } },
-                            label = "Date",
+                            label = stringResource(R.string.editor_date),
                             modifier = Modifier.weight(1f),
-                            placeholder = "2026-11-14",
+                            placeholder = stringResource(R.string.editor_date_placeholder),
                         )
                         InputField(
                             text = currency.code,
@@ -109,7 +114,7 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                                     }
                                 }
                             },
-                            label = "Currency",
+                            label = stringResource(R.string.editor_currency),
                             modifier = Modifier.width(CURRENCY_FIELD_WIDTH),
                             sameValue = { typed, stored -> typed.trim().equals(stored.trim(), ignoreCase = true) },
                             isError = { typed -> !BillCurrency.isKnownCode(typed) },
@@ -125,9 +130,9 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
 
             item(key = "category") {
                 Column(modifier = rowMotion()) {
-                    SvSectionHeader("Category", hint = "What the bill was spent on, which the insights add up by.")
+                    SvSectionHeader(stringResource(R.string.editor_category), hint = stringResource(R.string.editor_category_hint))
                     SvChoiceChips(
-                        options = BillCategory.entries.map { it.label },
+                        options = BillCategory.entries.map { stringResource(it.labelRes) },
                         selected = bill.category.ordinal,
                         onSelect = { index -> onEdit { it.copy(category = BillCategory.entries[index]) } },
                         modifier = Modifier.padding(horizontal = SvSpacing.lg),
@@ -135,7 +140,7 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                 }
             }
 
-            item(key = "items header") { SvSectionHeader("Items", modifier = rowMotion()) }
+            item(key = "items header") { SvSectionHeader(stringResource(R.string.split_items), modifier = rowMotion()) }
             itemsIndexed(bill.items, key = { _, item -> "item ${item.id}" }) { index, item ->
                 ItemEditor(item, currency, SvRowPosition.of(index, bill.items.size), onEdit, modifier = rowMotion())
             }
@@ -146,12 +151,16 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(SvSpacing.sm))
-                    Text("Add an item")
+                    Text(stringResource(R.string.editor_add_item))
                 }
             }
 
             item(key = "charges header") {
-                SvSectionHeader("Taxes, fees and discounts", modifier = rowMotion(), hint = "Type a discount as the amount taken off.")
+                SvSectionHeader(
+                    stringResource(R.string.split_charges),
+                    modifier = rowMotion(),
+                    hint = stringResource(R.string.editor_charges_hint),
+                )
             }
             itemsIndexed(bill.charges, key = { _, charge -> "charge ${charge.id}" }) { index, charge ->
                 ChargeEditor(charge, currency, SvRowPosition.of(index, bill.charges.size), onEdit, modifier = rowMotion())
@@ -164,14 +173,14 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                     ADDABLE_CHARGES.forEach { kind ->
                         AssistChip(
                             onClick = { onEdit { BillEditor.withChargeAdded(it, "", kind, 0L) } },
-                            label = { Text("Add ${BillEditor.defaultLabel(kind).lowercase(Locale.ROOT)}") },
+                            label = { Text(stringResource(addLabelOf(kind))) },
                             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         )
                     }
                 }
             }
 
-            item(key = "total header") { SvSectionHeader("Total", modifier = rowMotion()) }
+            item(key = "total header") { SvSectionHeader(stringResource(R.string.editor_total), modifier = rowMotion()) }
             item(key = "total") {
                 TotalEditor(bill, onEdit, modifier = rowMotion())
             }
@@ -188,30 +197,34 @@ private fun ItemEditor(
     onEdit: ((Bill) -> Bill) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val name = item.name.ifBlank { "this item" }
+    val name = item.name.ifBlank { stringResource(R.string.editor_this_item) }
     SvListRow(position = position, modifier = modifier) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 InputField(
                     text = item.name,
                     onTextChange = { text -> onEdit { BillEditor.withItemName(it, item.id, text) } },
-                    label = "Item",
+                    label = stringResource(R.string.common_item),
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { onEdit { BillEditor.withoutItem(it, item.id) } }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Remove $name", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.editor_remove, name),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                 NumberField(
-                    label = "Qty",
+                    label = stringResource(R.string.editor_quantity),
                     text = item.quantity.stripTrailingZeros().toPlainString(),
                     parse = ::positiveQuantity,
                     onValue = { quantity -> onEdit { BillEditor.withItemQuantity(it, item.id, quantity) } },
                     modifier = Modifier.width(QUANTITY_FIELD_WIDTH),
                 )
                 NumberField(
-                    label = "Price each",
+                    label = stringResource(R.string.editor_price_each),
                     text = item.unitPriceMinor?.let(currency::inputText).orEmpty(),
                     parse = currency::parse,
                     onValue = { price -> onEdit { BillEditor.withItemUnitPrice(it, item.id, price) } },
@@ -220,7 +233,7 @@ private fun ItemEditor(
                     onEmpty = { onEdit { BillEditor.withItemUnitPrice(it, item.id, null) } },
                 )
                 NumberField(
-                    label = "Amount",
+                    label = stringResource(R.string.editor_amount),
                     text = amountText(item.amountMinor, currency),
                     parse = currency::parse,
                     onValue = { amount -> onEdit { BillEditor.withItemAmount(it, item.id, amount) } },
@@ -247,14 +260,14 @@ private fun ChargeEditor(
         InputField(
             text = charge.label,
             onTextChange = { text -> onEdit { BillEditor.withCharge(it, charge.id, text, charge.kind, charge.amountMinor) } },
-            label = BillEditor.defaultLabel(charge.kind),
+            label = stringResource(charge.kind.labelRes),
             modifier = Modifier.weight(1f),
             // A label left empty is saved as the kind's own name, which is not a change to undo while typing.
             sameValue = { typed, stored -> typed.trim().ifEmpty { BillEditor.defaultLabel(charge.kind) } == stored.trim() },
         )
         Spacer(Modifier.width(SvSpacing.sm))
         NumberField(
-            label = "Amount",
+            label = stringResource(R.string.editor_amount),
             text = amountText(shown, currency),
             parse = currency::parse,
             onValue = { entered ->
@@ -265,7 +278,11 @@ private fun ChargeEditor(
             emptyValue = 0L,
         )
         IconButton(onClick = { onEdit { BillEditor.withoutCharge(it, charge.id) } }) {
-            Icon(Icons.Default.Delete, contentDescription = "Remove ${charge.label}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.editor_remove, charge.label),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -279,7 +296,7 @@ private fun TotalEditor(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, modifier: 
     val currency = bill.currency
     Column(modifier = modifier.padding(horizontal = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
         NumberField(
-            label = "Total printed on the bill",
+            label = stringResource(R.string.editor_printed_total),
             text = bill.printedTotalMinor?.let(currency::inputText).orEmpty(),
             parse = currency::parse,
             onValue = { total -> onEdit { BillEditor.withPrintedTotal(it, total) } },
@@ -291,9 +308,9 @@ private fun TotalEditor(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, modifier: 
         )
         Text(
             if (bill.printedTotalMinor == null) {
-                "Left empty, the total is what the lines add up to: ${currency.format(bill.linesTotalMinor)}."
+                stringResource(R.string.editor_total_empty, currency.format(bill.linesTotalMinor))
             } else {
-                "The lines add up to ${currency.format(bill.linesTotalMinor)}."
+                stringResource(R.string.editor_lines_add_up, currency.format(bill.linesTotalMinor))
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -303,14 +320,17 @@ private fun TotalEditor(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, modifier: 
                 Column(modifier = Modifier.padding(SvSpacing.lg)) {
                     val gap = bill.differenceMinor
                     Text(
-                        "The total is ${currency.format(Math.abs(gap))} ${if (gap > 0) "more" else "less"} than the lines add up to.",
+                        stringResource(
+                            if (gap > 0) R.string.editor_total_more else R.string.editor_total_less,
+                            currency.format(Math.abs(gap)),
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
-                    TextButton(onClick = { onEdit(BillEditor::withLinesAsTotal) }) { Text("Use the lines as the total") }
+                    TextButton(onClick = { onEdit(BillEditor::withLinesAsTotal) }) { Text(stringResource(R.string.editor_use_lines)) }
                     TextButton(onClick = {
                         onEdit(BillEditor::withDifferenceAsCharge)
-                    }) { Text("Keep the total and add the difference as a line") }
+                    }) { Text(stringResource(R.string.editor_keep_total)) }
                 }
             }
         }
@@ -333,6 +353,16 @@ private val MAX_QUANTITY = BigDecimal(10_000)
 
 /** The charges a person adds by hand; rounding and the difference come from the bill itself. */
 private val ADDABLE_CHARGES = listOf(ChargeKind.TAX, ChargeKind.SERVICE_CHARGE, ChargeKind.TIP, ChargeKind.DISCOUNT, ChargeKind.OTHER)
+
+/** What the chip that adds a charge of [kind] says, such as "Add tax". */
+private fun addLabelOf(kind: ChargeKind): Int = when (kind) {
+    ChargeKind.TAX -> R.string.editor_add_tax
+    ChargeKind.SERVICE_CHARGE -> R.string.editor_add_service_charge
+    ChargeKind.TIP -> R.string.editor_add_tip
+    ChargeKind.DISCOUNT -> R.string.editor_add_discount
+    ChargeKind.ROUNDING -> R.string.editor_add_rounding
+    ChargeKind.OTHER -> R.string.editor_add_other
+}
 
 private val CURRENCY_FIELD_WIDTH = 112.dp
 private val QUANTITY_FIELD_WIDTH = 80.dp

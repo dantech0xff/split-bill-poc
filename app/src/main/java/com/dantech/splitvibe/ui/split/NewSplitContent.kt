@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AiStatus
@@ -73,25 +74,27 @@ fun NewSplitContent(
     onSamplePicked: () -> Unit,
     onManualEntry: () -> Unit,
     onInstructionChanged: (String) -> Unit,
-    onAnalyze: () -> Unit,
+    /** Reads the bill, with the default instruction the field shows until the user types. */
+    onAnalyze: (defaultInstruction: String) -> Unit,
     onCancel: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPro: () -> Unit,
 ) {
+    val defaultInstruction = stringResource(R.string.split_default_instruction)
     Scaffold(
         modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text("New split") },
+                title = { Text(stringResource(R.string.split_new_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
         },
         bottomBar = {
-            AnalyzeBar(state = state, onAnalyze = onAnalyze, onCancel = onCancel)
+            AnalyzeBar(state = state, onAnalyze = { onAnalyze(defaultInstruction) }, onCancel = onCancel)
         },
     ) { padding ->
         Column(
@@ -112,12 +115,12 @@ fun NewSplitContent(
             )
 
             OutlinedTextField(
-                value = state.instruction,
+                value = state.instruction ?: defaultInstruction,
                 onValueChange = onInstructionChanged,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !state.isBusy,
-                label = { Text("How should it be split?") },
-                supportingText = { Text("For example: Split with Minh and Lan. Minh had the beers.") },
+                label = { Text(stringResource(R.string.split_instruction_label)) },
+                supportingText = { Text(stringResource(R.string.split_instruction_hint)) },
                 minLines = 2,
             )
 
@@ -179,15 +182,21 @@ private fun PhotoSection(
                 val pages = state.pages.size
                 SvBillPhoto(
                     photo = image,
-                    contentDescription = if (pages > 1) "First of $pages pages of the bill" else "Bill photo",
+                    contentDescription = if (pages > 1) {
+                        pluralStringResource(R.plurals.split_photo_first_page, pages, pages)
+                    } else {
+                        stringResource(R.string.split_photo)
+                    },
                     // From reading the text until the bill is worked out, not while the photo is still opening.
                     scanning = state.isBusy && state.progress != Progress.LOADING_PHOTO,
                 )
-                if (pages > 1) Text("$pages pages, read as one bill", style = MaterialTheme.typography.labelLarge)
+                if (pages > 1) {
+                    Text(pluralStringResource(R.plurals.split_pages_as_one, pages, pages), style = MaterialTheme.typography.labelLarge)
+                }
             } else {
-                Text("Add the bill", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.split_add_the_bill), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Scan it or take a photo. The text is read on this phone; the photo itself is never uploaded.",
+                    stringResource(R.string.split_add_the_bill_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -210,7 +219,7 @@ private fun PhotoSection(
                             }
                         }
                     },
-                ) { Text(if (photo == null) "Scan the bill" else "Scan again") }
+                ) { Text(stringResource(if (photo == null) R.string.split_scan else R.string.split_scan_again)) }
             }
 
             // A flow row: with large text the second button moves to its own line instead of wrapping its label.
@@ -227,29 +236,29 @@ private fun PhotoSection(
                             cameraMissing = true
                         }
                     },
-                ) { Text("Take photo") }
+                ) { Text(stringResource(R.string.split_take_photo)) }
                 OutlinedButton(
                     enabled = !state.isBusy,
                     onClick = {
                         pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
-                ) { Text("Choose photos") }
+                ) { Text(stringResource(R.string.split_choose_photos)) }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm, Alignment.CenterHorizontally)) {
-                TextButton(enabled = !state.isBusy, onClick = onSamplePicked) { Text("Use the sample bill") }
-                TextButton(enabled = !state.isBusy, onClick = onManualEntry) { Text("Type it in by hand") }
+                TextButton(enabled = !state.isBusy, onClick = onSamplePicked) { Text(stringResource(R.string.split_use_sample)) }
+                TextButton(enabled = !state.isBusy, onClick = onManualEntry) { Text(stringResource(R.string.split_type_by_hand)) }
             }
 
             if (scannerFailed) {
                 Text(
-                    "The scanner could not start. It needs Google Play services, and the first time it may still be getting ready. Take a photo or choose one instead.",
+                    stringResource(R.string.split_scanner_failed),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (cameraMissing) {
                 Text(
-                    "No camera app is available on this device. Choose a photo instead.",
+                    stringResource(R.string.split_no_camera),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -264,16 +273,16 @@ private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () 
         if (state.isBusy) {
             SvWorkingRow(
                 status = when (state.progress) {
-                    Progress.LOADING_PHOTO -> "Opening the photo…"
-                    Progress.READING_TEXT -> "Reading the bill on this phone…"
-                    Progress.ASKING_CLAUDE -> "Claude is working out the bill…"
+                    Progress.LOADING_PHOTO -> stringResource(R.string.split_opening_photo)
+                    Progress.READING_TEXT -> stringResource(R.string.split_reading_on_phone)
+                    Progress.ASKING_CLAUDE -> stringResource(R.string.split_asking_claude)
                     Progress.IDLE -> ""
                 },
-                cancelLabel = "Cancel",
+                cancelLabel = stringResource(R.string.common_cancel),
                 onCancel = onCancel,
             )
         } else {
-            SvPrimaryButton("Read and split the bill", onClick = onAnalyze, enabled = state.pages.isNotEmpty())
+            SvPrimaryButton(stringResource(R.string.split_read_and_split), onClick = onAnalyze, enabled = state.pages.isNotEmpty())
         }
     }
 }

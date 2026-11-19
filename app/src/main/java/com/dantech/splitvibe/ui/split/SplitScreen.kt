@@ -11,12 +11,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.designsystem.motion.SvSteps
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.editor.BillEditorContent
 import kotlinx.coroutines.Dispatchers
@@ -176,8 +179,8 @@ fun SplitScreen(
     state.notice?.let { notice ->
         AlertDialog(
             onDismissRequest = viewModel::dismissNotice,
-            confirmButton = { TextButton(onClick = viewModel::dismissNotice) { Text("OK") } },
-            text = { Text(notice) },
+            confirmButton = { TextButton(onClick = viewModel::dismissNotice) { Text(stringResource(R.string.common_ok)) } },
+            text = { Text(notice.resolve()) },
         )
     }
 }

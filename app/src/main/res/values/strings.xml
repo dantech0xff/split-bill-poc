@@ -266,4 +266,283 @@
     <string name="legal_privacy_policy">Privacy policy</string>
     <string name="legal_terms_of_use">Terms of use</string>
     <string name="legal_cannot_open">No app on this phone opens web pages.</string>
+
+    <!-- A new split -->
+    <string name="split_new_title">New split</string>
+    <string name="split_instruction_label">How should it be split?</string>
+    <string name="split_instruction_hint">For example: Split with Minh and Lan. Minh had the beers.</string>
+    <plurals name="split_photo_first_page">
+        <item quantity="one">First of %d page of the bill</item>
+        <item quantity="other">First of %d pages of the bill</item>
+    </plurals>
+    <string name="split_photo">Bill photo</string>
+    <plurals name="split_pages_as_one">
+        <item quantity="one">%d page, read as one bill</item>
+        <item quantity="other">%d pages, read as one bill</item>
+    </plurals>
+    <string name="split_add_the_bill">Add the bill</string>
+    <string name="split_add_the_bill_hint">Scan it or take a photo. The text is read on this phone; the photo itself is never uploaded.</string>
+    <string name="split_scan">Scan the bill</string>
+    <string name="split_scan_again">Scan again</string>
+    <string name="split_take_photo">Take photo</string>
+    <string name="split_choose_photos">Choose photos</string>
+    <string name="split_use_sample">Use the sample bill</string>
+    <string name="split_type_by_hand">Type it in by hand</string>
+    <string name="split_scanner_failed">The scanner could not start. It needs Google Play services, and the first time it may still be getting ready. Take a photo or choose one instead.</string>
+    <string name="split_no_camera">No camera app is available on this device. Choose a photo instead.</string>
+    <string name="split_opening_photo">Opening the photo…</string>
+    <string name="split_reading_on_phone">Reading the bill on this phone…</string>
+    <string name="split_asking_claude">Claude is working out the bill…</string>
+    <string name="split_read_and_split">Read and split the bill</string>
+
+    <!-- Reading a bill, continued -->
+    <string name="split_bill_gone">This bill is no longer on this phone.</string>
+    <string name="split_contact_without_name">That contact has no name to add. Type the name instead.</string>
+    <string name="split_rate_not_fetched">The day\'s rate could not be fetched. Check the connection and try again.</string>
+    <string name="split_not_saved">The bill could not be saved on this phone. Your changes stay on screen.</string>
+    <string name="split_deleted_elsewhere">This bill was deleted, so the last change was not saved.</string>
+    <string name="split_changed_elsewhere">This bill was changed elsewhere, so it now shows the latest version.</string>
+    <string name="split_unsettled">The bill changed, so its link no longer shows what everyone owes. Open the link to send the amounts again.</string>
+    <string name="common_you">You</string>
+    <string name="common_someone">Someone</string>
+
+    <!-- A new split, continued -->
+    <string name="split_default_instruction">Split this bill</string>
+
+    <!-- The result of a split -->
+    <string name="common_bill">Bill</string>
+    <string name="split_edit_bill">Edit bill</string>
+    <string name="common_undo">Undo</string>
+    <string name="split_who_is_on_the_bill">Who is on the bill?</string>
+    <string name="split_who_hint">Tap You to share the bill or not, and anyone else to rename or remove them.</string>
+    <string name="split_you_share">You share the bill</string>
+    <string name="split_you_do_not_share">You do not share the bill</string>
+    <string name="split_change_person">Change %1$s</string>
+    <string name="split_add_someone">Add someone</string>
+    <string name="split_how_is_it_split">How is it split?</string>
+    <string name="split_items">Items</string>
+    <string name="split_items_hint_by_item">Tap an item to choose who had it.</string>
+    <string name="split_items_hint">Choose By item to split them one by one.</string>
+    <string name="split_charges">Taxes, fees and discounts</string>
+    <string name="split_charges_hint_by_item">Shared in proportion to each person\'s items.</string>
+    <string name="split_charges_hint">Part of the total, divided the same way.</string>
+    <string name="split_each_person_pays">Each person pays</string>
+    <string name="split_paid_by">Paid by</string>
+    <string name="split_hide_sent">Hide what was sent to Claude</string>
+    <string name="split_show_sent">Show what was sent to Claude</string>
+
+    <!-- The result of a split, continued -->
+    <string name="split_bill_total">Bill total</string>
+    <string name="split_about">About %1$s</string>
+    <string name="split_add_rate_hint">Add an exchange rate to see this bill in %1$s.</string>
+    <string name="split_add_rate">Add a rate</string>
+    <string name="split_change_rate">Change the rate</string>
+    <string name="split_rate_by_hand">%1$s, a rate you entered</string>
+    <string name="split_rate_of_day">%1$s, %2$s rate of %3$s</string>
+    <string name="split_rate_source">%1$s, %2$s</string>
+    <string name="common_item">Item</string>
+    <string name="split_quantity_times">%1$s × %2$s</string>
+    <string name="split_choose_who_had">Choose who had %1$s</string>
+    <string name="split_not_sharing">Not sharing the bill</string>
+    <string name="split_pays">Pays %1$s</string>
+    <string name="split_items_and_charges">Items %1$s · charges %2$s</string>
+    <string name="split_about_in_sentence">about %1$s</string>
+    <string name="split_paid_in_sentence">paid %1$s</string>
+    <string name="split_adds_up">Adds up to the bill total</string>
+    <string name="split_choose_who_paid">Choose who paid</string>
+    <string name="split_one_paid">%1$s paid %2$s</string>
+    <string name="split_person_part">%1$s %2$s</string>
+    <string name="split_change_who_paid">Change who paid</string>
+    <string name="split_update_in_group">Update in %1$s</string>
+    <string name="split_add_to_group">Add to a group</string>
+    <string name="split_pick_together">Let everyone pick their items</string>
+    <string name="split_see_picks">See what everyone picked</string>
+    <string name="split_finish">Finish the split</string>
+    <string name="split_more_ways">More ways to finish</string>
+    <plurals name="split_request_from">
+        <item quantity="one">Request %1$s from %2$d person</item>
+        <item quantity="other">Request %1$s from %2$d people</item>
+    </plurals>
+    <string name="split_finish_without_asking">Finish without asking</string>
+    <string name="split_everyone">Everyone</string>
+    <plurals name="split_shares">
+        <item quantity="one">%d share</item>
+        <item quantity="other">%d shares</item>
+    </plurals>
+    <string name="split_percent">%1$s%%</string>
+    <string name="split_nobody_yet">Nobody yet</string>
+    <string name="split_difference">Difference to the printed total</string>
+
+    <!-- The result of a split, continued -->
+    <string name="split_mode_equal">Equally</string>
+    <string name="split_mode_by_item">By item</string>
+    <string name="split_mode_by_shares">By shares</string>
+    <string name="split_mode_by_percent">By percent</string>
+    <string name="split_mode_by_amount">By amount</string>
+
+    <!-- The sheets of the split screen -->
+    <string name="split_add_someone_hint">Type a name, pick someone you split with before, or choose from your contacts.</string>
+    <string name="split_from_contacts">From contacts</string>
+    <string name="common_add">Add</string>
+    <string name="common_name">Name</string>
+    <string name="split_no_contacts">No contacts app is available on this phone. Type the name instead.</string>
+    <string name="split_stop_suggesting">Stop suggesting %1$s</string>
+    <string name="split_remove_from_bill">Remove from the bill</string>
+    <string name="split_item_sheet_hint">%1$s. Choose who had it and how they divide it.</string>
+    <string name="common_done">Done</string>
+    <string name="split_tick_someone">Tick at least one person.</string>
+    <string name="split_who_paid">Who paid?</string>
+    <string name="split_bill_total_is">The bill total is %1$s.</string>
+    <string name="split_one_payer">One person</string>
+    <string name="split_several_payers">Several people</string>
+    <string name="split_exchange_rate">Exchange rate</string>
+    <string name="split_exchange_rate_hint">What one %1$s is worth in %2$s. The bill and everyone\'s share stay in %1$s.</string>
+    <string name="split_use_day_rate">Use the day\'s rate</string>
+    <string name="split_rate_label">1 %1$s in %2$s</string>
+
+    <!-- Dividing a bill or an item -->
+    <string name="split_percent_for">Percent for %1$s</string>
+    <string name="split_percent_sign" formatted="false">%</string>
+    <string name="split_amount_for">Amount for %1$s</string>
+    <string name="split_share_less">One share less for %1$s</string>
+    <string name="split_share_more">One share more for %1$s</string>
+    <string name="split_percent_of_whole">%1$s%% of 100%%</string>
+    <string name="split_all_given_out">All of %1$s is given out</string>
+    <string name="split_still_to_give_out">%1$s of %2$s still to give out</string>
+    <string name="split_more_than">%1$s more than %2$s</string>
+    <plurals name="split_shares_in_all">
+        <item quantity="one">%d share in all</item>
+        <item quantity="other">%d shares in all</item>
+    </plurals>
+
+    <!-- Changing a split by a sentence -->
+    <string name="assistant_no_change">The changes that are kept leave the split as it is.</string>
+    <string name="assistant_none_applies">None of the changes that are kept can be applied, so the split stays as it is.</string>
+    <string name="assistant_not_worked_out">These changes could not be worked out on this bill. Change the split by hand instead.</string>
+    <string name="assistant_split_changed">The split was changed.</string>
+    <string name="assistant_nothing_to_change">Claude found nothing to change.</string>
+    <string name="assistant_no_microphone">To speak a change, allow the microphone for Split Vibe in the phone\'s settings. You can type it instead.</string>
+    <string name="assistant_nothing_heard">Nothing was heard. Tap the mic to try again, or type the change.</string>
+    <string name="assistant_try_speech_service">This phone cannot turn speech in its language into text by itself. Tap the mic to try its speech service, or type the change.</string>
+    <string name="assistant_language_unavailable">This phone cannot turn speech in its language into text. Type the change instead.</string>
+    <string name="assistant_not_turned_into_text">Speech could not be turned into text just now. Type the change instead.</string>
+
+    <!-- Changing a split by a sentence, continued -->
+    <string name="assistant_ask_something_else">Ask something else</string>
+    <string name="assistant_your_answer">Your answer</string>
+    <string name="assistant_change_the_split">Change the split</string>
+    <string name="assistant_stop_listening">Stop listening</string>
+    <string name="assistant_say_the_change">Say the change</string>
+    <string name="assistant_ask_claude">Ask Claude</string>
+    <string name="assistant_listening">Listening… Tap the mic again when you are done.</string>
+    <string name="assistant_answer_hint">Answer the question, and Claude works the change out again.</string>
+    <string name="assistant_hint">For example: Lan didn\'t have beer, or add a 10%% tip. You check the changes before they apply. Asking takes %1$s of a call.</string>
+    <string name="assistant_working">Claude is working out the changes…</string>
+    <string name="assistant_proposed_changes">Proposed changes</string>
+    <string name="assistant_you_asked">You asked: “%1$s”</string>
+    <plurals name="assistant_unreadable">
+        <item quantity="one">%d more change Claude proposed could not be read, so they are left out.</item>
+        <item quantity="other">%d more changes Claude proposed could not be read, so they are left out.</item>
+    </plurals>
+    <string name="assistant_after_changes">After these changes: %1$s</string>
+    <string name="assistant_discard">Discard</string>
+    <string name="assistant_apply">Apply</string>
+    <string name="assistant_speech_service_title">Use the phone\'s speech service?</string>
+    <string name="assistant_speech_service_text">This phone cannot turn speech into text by itself. Its speech service may send what you say over the internet to do it. You can type the change instead.</string>
+    <string name="assistant_use_it">Use it</string>
+    <string name="assistant_type_instead">Type instead</string>
+    <string name="assistant_dropped">dropped</string>
+    <string name="assistant_cannot_apply_in_sentence">cannot be applied: %1$s</string>
+    <string name="assistant_cannot_apply">Cannot be applied: %1$s</string>
+    <string name="assistant_part_not_worked_out">a part not worked out yet</string>
+    <string name="assistant_joins">%1$s joins the bill and pays %2$s</string>
+    <string name="assistant_taken_off">%1$s is taken off the bill</string>
+    <string name="assistant_still_pays">%1$s still pays %2$s</string>
+    <string name="assistant_pays_instead">%1$s pays %2$s in place of %3$s</string>
+
+    <!-- Asking for the money after a split -->
+    <string name="requests_share_title">Payment request</string>
+    <string name="requests_ask_for_money">Ask for the money</string>
+    <string name="requests_ask_hint">Each person gets their own message to send in any chat app. Split Vibe never holds or moves money.</string>
+    <string name="requests_share_picture">Share the split as a picture</string>
+    <string name="requests_your_name">Your name on the requests</string>
+    <string name="requests_your_name_hint">People who open a request in Split Vibe see it, and can say there when they have paid.</string>
+    <string name="common_the_bill">The bill</string>
+    <string name="requests_split_with">Split with Split Vibe</string>
+    <string name="requests_add_method_hint">Add how you get paid, such as your bank account or PayPal, and each request carries it with the amount.</string>
+    <string name="requests_add_method">Add a way to get paid</string>
+    <string name="requests_paid_back_by">Paid back by %1$s</string>
+    <string name="requests_change_method">Change</string>
+    <string name="requests_add_another">Add another</string>
+    <string name="requests_send_again">Again</string>
+    <string name="requests_send">Send</string>
+    <string name="requests_get_paid_by">Get paid by</string>
+    <string name="requests_summary_line">%1$s: %2$s</string>
+    <string name="requests_summary_share_title">The split</string>
+
+    <!-- Categories of bills and kinds of charges -->
+    <string name="category_food_and_drink">Food &amp; drink</string>
+    <string name="category_groceries">Groceries</string>
+    <string name="category_transport">Transport</string>
+    <string name="category_lodging">Lodging</string>
+    <string name="category_entertainment">Entertainment</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_utilities">Utilities</string>
+    <string name="category_rent">Rent</string>
+    <string name="category_other">Other</string>
+    <string name="charge_tax">Tax</string>
+    <string name="charge_service">Service charge</string>
+    <string name="charge_tip">Tip</string>
+    <string name="charge_discount">Discount</string>
+    <string name="charge_rounding">Rounding</string>
+    <string name="charge_other">Other</string>
+
+    <!-- Editing a bill -->
+    <string name="editor_where">Where</string>
+    <string name="editor_where_placeholder">Restaurant or shop</string>
+    <string name="editor_date">Date</string>
+    <string name="editor_date_placeholder">2026-11-14</string>
+    <string name="editor_currency">Currency</string>
+    <string name="editor_category">Category</string>
+    <string name="editor_category_hint">What the bill was spent on, which the insights add up by.</string>
+    <string name="editor_add_item">Add an item</string>
+    <string name="editor_charges_hint">Type a discount as the amount taken off.</string>
+    <string name="editor_total">Total</string>
+    <string name="editor_this_item">this item</string>
+    <string name="editor_remove">Remove %1$s</string>
+    <string name="editor_quantity">Qty</string>
+    <string name="editor_price_each">Price each</string>
+    <string name="editor_amount">Amount</string>
+    <string name="editor_printed_total">Total printed on the bill</string>
+    <string name="editor_total_empty">Left empty, the total is what the lines add up to: %1$s.</string>
+    <string name="editor_lines_add_up">The lines add up to %1$s.</string>
+    <string name="editor_total_more">The total is %1$s more than the lines add up to.</string>
+    <string name="editor_total_less">The total is %1$s less than the lines add up to.</string>
+    <string name="editor_use_lines">Use the lines as the total</string>
+    <string name="editor_keep_total">Keep the total and add the difference as a line</string>
+    <string name="editor_add_tax">Add tax</string>
+    <string name="editor_add_service_charge">Add service charge</string>
+    <string name="editor_add_tip">Add tip</string>
+    <string name="editor_add_discount">Add discount</string>
+    <string name="editor_add_rounding">Add rounding</string>
+    <string name="editor_add_other">Add other</string>
+
+    <!-- Adding a bill to a group -->
+    <string name="groups_add_to">Add to %1$s</string>
+    <string name="groups_add_hint">Everyone in the group sees what was bought and who had what. The photos stay on this phone.</string>
+    <string name="groups_update">Update</string>
+    <string name="groups_add_the_bill">Add the bill</string>
+    <string name="groups_bill_deleted">This bill was deleted from the group. It can go in again as a new bill.</string>
+    <string name="groups_add_again">Add it again</string>
+    <string name="groups_bill_changed">Someone changed this bill in the group since you last sent it. Sending yours replaces their change.</string>
+    <string name="groups_send_mine">Send mine</string>
+    <string name="groups_asked_personally">You already asked people for this bill one by one. Paying those requests does not count in the group, so withdraw them in Requests, or record the payments in the group once they arrive.</string>
+    <string name="groups_none_yet">You are not in a group yet. Make one in Groups, from the home screen.</string>
+    <string name="groups_who_is_who">Who is who in the group</string>
+    <string name="groups_comes_to">Comes to %1$s in the group.</string>
+    <string name="groups_match_everyone">Match everyone on the bill to a member.</string>
+    <string name="groups_rate_label">%1$s for 1 %2$s</string>
+    <string name="groups_no_rate">No rate for today yet. Type the one you were charged at.</string>
+    <string name="groups_rate_typed">The rate you typed.</string>
+    <string name="groups_rate_of_day">%1$s\'s rate for %2$s. Change it to the one you were charged at.</string>
 </resources>

@@ -30,6 +30,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.inEnglish
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
@@ -195,7 +196,7 @@ class BillLifecycleTest {
         viewModel.editBill { BillEditor.withMerchant(it, "Changed here") }
 
         awaitOnMain { viewModel.state.value.notice != null }
-        assertEquals("This bill was changed elsewhere, so it now shows the latest version.", viewModel.state.value.notice)
+        assertEquals("This bill was changed elsewhere, so it now shows the latest version.", viewModel.state.value.notice.inEnglish())
         assertEquals("Changed elsewhere", viewModel.state.value.result?.bill?.merchant)
     }
 
@@ -342,7 +343,7 @@ class BillLifecycleTest {
         viewModel.onSamplePicked()
         awaitOnMain { viewModel.state.value.let { it.photo != null && !it.isBusy } }
         viewModel.onInstructionChanged("Split with Minh and Lan. Minh had the beers.")
-        viewModel.analyze()
+        viewModel.analyze(defaultInstruction = "Split this bill")
         awaitOnMain { viewModel.state.value.let { (it.result != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
         return viewModel
