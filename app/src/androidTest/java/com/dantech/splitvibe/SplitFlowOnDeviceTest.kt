@@ -21,6 +21,7 @@ import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -31,8 +32,8 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
- * Splits the sample bill on a device, from the photo to the sent requests, and checks every screen
- * on the way for accessibility. The text is read by the real recognizer on the device; the model's
+ * Splits the sample bill on a device, from the photo to the sent requests, through the consent to
+ * the AI, and checks every screen on the way for accessibility. The text is read by the real recognizer on the device; the model's
  * answer is the one recorded for this bill, so the test needs neither the AI proxy nor the network.
  */
 @RunWith(AndroidJUnit4::class)
@@ -44,8 +45,11 @@ class SplitFlowOnDeviceTest {
         override fun before() = loadKoinModules(
             module {
                 viewModel {
+                    // Not agreed to the AI yet, so the consent screen is checked on the way too.
+                    val settings = MutableStateFlow(AppSettings(localCurrency = "VND"))
                     SplitBillViewModel(
-                        settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+                        settings = settings,
+                        allowAi = { allowed -> settings.update { it.copy(aiAllowed = allowed) } },
                         account = MutableStateFlow(
                             Account(installId = "on-device-test", session = null, callsLeft = null, ai = AiStatus.AVAILABLE),
                         ),
@@ -84,6 +88,8 @@ class SplitFlowOnDeviceTest {
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitNode(hasText("Read and split the bill") and isEnabled())
         compose.onNodeWithText("Read and split the bill").performClick()
+        awaitNode(hasText("Agree") and hasClickAction())
+        compose.onNode(hasText("Agree") and hasClickAction()).performClick()
 
         val request = hasText("Request", substring = true) and hasClickAction()
         awaitNode(request)

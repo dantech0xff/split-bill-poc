@@ -8,6 +8,7 @@ import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.di.appModule
 import com.dantech.splitvibe.di.spendingModule
 import kotlinx.coroutines.runBlocking
@@ -28,7 +29,9 @@ import org.koin.dsl.module
  * asked for. After the test they are let go once more, and made again as the app makes them.
  *
  * The test starts [signedIn] as the session the fake takes, or signed out, and ends signed out. It
- * has to be the outer rule, so that it runs before the activity starts and after it ends.
+ * starts and ends without the consent to the AI, so a journey that reads a bill first answers the
+ * consent screen. It has to be the outer rule, so that it runs before the activity starts and after
+ * it ends.
  */
 class FakeProxyRule(private val signedIn: Boolean = false) : ExternalResource() {
 
@@ -42,6 +45,7 @@ class FakeProxyRule(private val signedIn: Boolean = false) : ExternalResource() 
             val address = server.url("/").toString()
             makeAppObjectsAgain(module { single { ProxyApi(address, account = get(), appVersion = BuildConfig.VERSION_CODE) } })
             if (signedIn) signIn() else signOut()
+            withoutAiConsent()
         } catch (failure: Throwable) {
             // JUnit runs after() only once before() has passed, so a setup that failed part-way is
             // undone here; otherwise the fake's address and the server would stay for later tests.
@@ -60,7 +64,7 @@ class FakeProxyRule(private val signedIn: Boolean = false) : ExternalResource() 
      */
     private fun undo(): Throwable? {
         var first: Throwable? = null
-        for (step in listOf(::signOut, { makeAppObjectsAgain() }, server::shutdown)) {
+        for (step in listOf(::signOut, ::withoutAiConsent, { makeAppObjectsAgain() }, server::shutdown)) {
             try {
                 step()
             } catch (failure: Throwable) {
@@ -107,6 +111,9 @@ private fun signOut() {
     koin.get<AccountStore>().clearSession()
     runBlocking { koin.get<ProxyCache>().clear() }
 }
+
+/** Takes the consent to the AI back, as Settings does, so the consent screen shows before the next bill read. */
+private fun withoutAiConsent() = GlobalContext.get().get<SettingsStore>().allowAi(false)
 
 /** Long enough for any test, short enough that a session left behind runs out the same day. */
 private const val SESSION_MS = 60 * 60 * 1000L

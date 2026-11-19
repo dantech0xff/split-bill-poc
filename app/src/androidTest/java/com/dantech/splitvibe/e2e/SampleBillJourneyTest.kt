@@ -21,9 +21,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Splits the sample bill through AI, from the home screen to what each person pays. The bill's
- * text is read on the phone by the real recognizer, and the app's own client sends it to the fake
- * proxy, which answers with what Claude said about this bill when it was recorded.
+ * Splits the sample bill through AI, from the home screen to what each person pays, agreeing to
+ * the AI on the consent screen first. The bill's text is read on the phone by the real recognizer,
+ * and the app's own client sends it to the fake proxy, which answers with what Claude said about this
+ * bill when it was recorded.
  */
 @RunWith(AndroidJUnit4::class)
 class SampleBillJourneyTest {
@@ -41,6 +42,11 @@ class SampleBillJourneyTest {
         compose.awaitNode(hasText("Read and split the bill") and isEnabled())
         compose.field("How should it be split?").performScrollTo().performTextReplacement(INSTRUCTION)
         compose.onNodeWithText("Read and split the bill").tap()
+
+        // The first call to the AI waits for the person's consent; nothing went to the proxy before it.
+        compose.awaitNode(hasText("Use the AI for your bills?"))
+        assertTrue(fake.proxy.callsTo("POST", "/v1/bill-analysis").isEmpty())
+        compose.answerTheAiConsent("Agree")
 
         // The bill as Claude read it, under the restaurant's name.
         compose.awaitNode(hasText("Bill total"))

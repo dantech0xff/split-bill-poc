@@ -7,7 +7,7 @@ tests in `app/src/androidTest`, which need an Android runtime: an emulator or a 
 | Tests | What they prove |
 |---|---|
 | `AppLaunchTest` | The app starts as the launcher starts it, opens Settings and a new split, and keeps the open screen when the activity is recreated. |
-| `SplitFlowOnDeviceTest` | The sample bill is split from its photo to the sent requests, with the real recognizer and a recorded answer in place of the AI. |
+| `SplitFlowOnDeviceTest` | The sample bill is split from its photo to the sent requests, through the consent to the AI, with the real recognizer and a recorded answer in place of the AI. |
 | `KeystoreCipherTest`, `GatewayBillAnalyzerOnDeviceTest`, `MlKitBillTextRecognizerTest`, `PdfSummaryOnDeviceTest` | On the Android runtime: the Keystore encryption, the proxy client reading a streamed answer, ML Kit on the sample bill, and the PDF summary written as a real PDF file. |
 | `e2e/` | The end-to-end journeys below: the real app, from its home screen, against a fake proxy. |
 
@@ -25,7 +25,8 @@ out.
 
 | Test | Journey | What it checks |
 |---|---|---|
-| `SampleBillJourneyTest` | Split a bill, use the sample bill, type "Split with Minh and Lan. Minh had the beers.", read and split it | The real recognizer reads the photo on the phone, and one bill read goes to the proxy with that text and the instruction and nothing else, as the install, signed out. The split shows the restaurant and what each person pays: you ₫250,993, Minh ₫400,680, Lan ₫250,991. |
+| `SampleBillJourneyTest` | Split a bill, use the sample bill, type "Split with Minh and Lan. Minh had the beers.", read and split it, agree on the consent to the AI | Nothing goes to the proxy before the consent. Then the real recognizer reads the photo on the phone, and one bill read goes to the proxy with that text and the instruction and nothing else, as the install, signed out. The split shows the restaurant and what each person pays: you ₫250,993, Minh ₫400,680, Lan ₫250,991. |
+| `DeclinedAiJourneyTest` | Split a bill, use the sample bill, read and split it, choose "Type it in by hand" on the consent to the AI, type the bill (one item of 90) | The editor of a bill typed in by hand opens, the user pays 90, the proxy hears of no bill read and no change of a split, and the consent stays not given. |
 | `ManualEntryJourneyTest` | Split a bill, type it in by hand (one item of 90), add Minh and Lan | Each of the three pays 30 in the currency the app works in, the user is offered to ask the other two for 60, and the proxy hears of no bill read and no change of a split. |
 | `PaymentRequestJourneyTest` | Signed in: type a bill in by hand (90 at Pho 24), add Minh, request his 45, send it; Minh takes it on in his app; open Requests | The request goes to the proxy with the session, Minh's share, the user's name and the way to get paid; the share sheet is asked for. Requests then shows what only the proxy's list can say: the request under "You asked for" as not paid yet, since Minh took it on, where the answer that made it said "Not opened in the app yet". No error message shows. |
 
@@ -63,7 +64,9 @@ modules are loaded again as the app loads them. Nothing in `app/src/main` knows 
 
 The rule also starts each test signed out or signed in. Signing in keeps the fake's session in the
 app's own `AccountStore`, where a Google sign-in leaves its session, and empties the proxy cache,
-as a sign-in does. Every test ends signed out.
+as a sign-in does. Every test ends signed out. Each test also starts and ends without the consent
+to the AI, as after Settings took it back, so a journey that reads a bill first answers the consent
+screen.
 
 ## Running them on a computer
 

@@ -4,11 +4,13 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -59,6 +61,22 @@ fun ComposeTestRule.list(): SemanticsNodeInteraction = onNode(hasScrollToIndexAc
  */
 fun ComposeTestRule.typeBillByHand(where: String, item: String, amount: String) {
     onNodeWithText("Type it in by hand").performScrollTo().performClick()
+    fillInTheBill(where, item, amount)
+}
+
+/** On the consent to the AI, which shows over the screen that asked for the AI: the answer on [button]. */
+fun ComposeTestRule.answerTheAiConsent(button: String) {
+    val answer = hasText(button) and hasClickAction() and hasAnyAncestor(isDialog())
+    awaitNode(answer)
+    onNode(answer).tap()
+    awaitNoNode(isDialog())
+}
+
+/**
+ * In the editor of a bill typed in by hand: [where], one [item] of [amount], in the currency the app
+ * works in, and on to the split, where only the user is on the bill.
+ */
+fun ComposeTestRule.fillInTheBill(where: String, item: String, amount: String) {
     awaitNode(hasText("Edit bill"))
     field("Where").performTextInput(where)
     list().performScrollToNode(hasText("Add an item"))
