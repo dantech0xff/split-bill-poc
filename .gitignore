@@ -16,6 +16,9 @@ captures/
 # Kotlin
 .kotlin/
 
+# Python caches of the release checks' scripts
+__pycache__/
+
 # Signing
 *.jks
 *.keystore
