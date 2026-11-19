@@ -27,7 +27,7 @@ flowchart LR
 
 | Module | Kind | Holds |
 |---|---|---|
-| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`), Pro (`Billing`, `RevenueCatBilling`, `BillingRepository`, `ProViewModel`) |
+| `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`), Pro (`Billing`, `RevenueCatBilling`, `BillingRepository`, `ProViewModel`), the texts in `res/values/strings.xml` with `UiText` and `ContentWords`, deleting what only the phone keeps (`PhoneData`) |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `BillCategory`, `SplitEdit` and `SplitEdits`, `Insights`, `Recurrence`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser`, `SplitRevisionParser`, `SplitRevisionRequest` |
 | `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
@@ -55,6 +55,59 @@ are worth knowing before changing it:
   `DesignSystemBoundaryTest` fails when a screen does, and names the line.
 
 ## Inside the app
+
+### Texts and languages
+
+Every text the person reads is a resource in `app/src/main/res/values/strings.xml`: a plurals
+resource wherever it holds a count, and a formatted string, with numbered arguments, wherever a
+sentence is built from parts. v1.0 is in English only, so a new language is a new
+`values-xx/strings.xml` and no change to the code.
+
+- Screens read their texts with `stringResource` and `pluralStringResource`.
+- View models, repositories and `llm/` say what to show as a `UiText` (`text/UiText.kt`): a string
+  or plurals resource with its arguments, which may be `UiText`s themselves, or text that is not
+  the app's own, such as a name someone typed or what the model wrote (`UiText.Raw`). The screen
+  reads it with `resolve()`; code with a `Context`, such as a notice, the share sheet or the
+  exporter, with `resolve(resources)`. None of them reads resources itself, and none gets a
+  `Context` for it.
+- A failed call to the model carries its text as the cause of the domain's `BillAnalyzerException`
+  (`ModelCallFailure`), as that exception holds only a message for developers; `e.text` reads it.
+- What the app writes into what it keeps or sends, rather than shows, comes from `ContentWords`,
+  read from the resources once when the app starts: the user as "You" in the stored list of a
+  bill's people and in the totals by person, the name of a recurring bill without one, the lines
+  and people without a name on a bill's page, and whom a group request greets or comes from. What
+  was kept or sent stays in the language it was written in.
+- Some text stays in code, each for a reason: the sentences `:core:domain` writes (a reason a split
+  does not add up, a proposed edit, a payment method's problem or name, a bill's warnings), which
+  the screens show as they come; dates, written with English month and day names as before; the CSV
+  files' headings and words, a format for spreadsheet apps that stays the same in every language;
+  and the PDF summary's headings, as the device test builds `PdfSummary` without them. Log lines and
+  messages of exceptions are for developers and stay in code too.
+
+Debug builds carry the pseudolocales `en-XA`, which makes every text of the resources longer and
+accented, and `ar-XB`, which writes them right to left. Text that is cut off, overlaps or is not in
+the resources shows up in them; `PseudoLocaleGalleryTest` draws four main screens in `en-XA`.
+
+### Deleting the account
+
+Settings deletes the account only once the person confirms it, and the confirmation has a box, off
+each time it opens, to delete what only this phone keeps with it.
+
+1. The proxy deletes what it keeps about the account (`DELETE /v1/account`, see
+   [proxy.md](proxy.md)). When it refuses, limits the deletion (429) or cannot reach RevenueCat
+   (502), nothing on the phone changes and the account stays signed in.
+2. Once it has, the phone forgets the session and the groups and requests kept from the proxy, as
+   it always did.
+3. With the box ticked, `PhoneData` then deletes the bills and their drafts with the photos of their
+   pages, the recurring bills, the people split with, the ways to get paid, the copies waiting in
+   the cache to be shared, and the user's name. The rows go in one transaction, so a failure leaves
+   every table as it was, and the screen then says what is left. The currency and the consent to
+   the speech service stay. Without the box ticked, all of it stays as before.
+
+It runs to the end once the proxy has deleted the account, also when the person leaves Settings
+meanwhile. Deleting the account does not cancel Pro, which the dialog says. Settings and the Pro
+screen link the privacy policy and the terms of use, which the proxy serves at `/privacy` and
+`/terms`; a build without the proxy's address shows neither link.
 
 ### Dependency wiring
 
@@ -402,8 +455,12 @@ flowchart LR
 | Dimension | Values | Effect |
 |---|---|---|
 | Flavor `environment` | `dev`, `prod` | `dev` has the application id `com.dantech.splitvibe.dev`, so it installs next to the real app and never shares its data. It is built without RevenueCat's key, as Google Play sells Pro only to `prod`, so it sells no Pro and never calls RevenueCat. `prod` is `com.dantech.splitvibe`. |
-| Build type | `debug`, `release` | `release` is shrunk with R8. |
+| Build type | `debug`, `release` | `release` is shrunk with R8. `debug` carries the pseudolocales `en-XA` and `ar-XB`. |
 | Added by the baseline profile plugin | `nonMinifiedRelease`, `benchmarkRelease` | Used only to record the profile and to run the benchmarks. |
+
+The version is `versionCode` 1 and `versionName` "0.1.0" unless the Gradle properties
+`splitvibe.versionCode` and `splitvibe.versionName` say otherwise, which is how a release build
+takes the version of its tag. A code that is not a whole number from 1 to 2100000000 stops the build.
 
 ### Release signing
 
@@ -466,7 +523,8 @@ like code.
 
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
 them with the reference images. Every screen has a light and a dark image, and the four main
-screens have one more with text at twice its size, where nothing may be cut off.
+screens have one more with text at twice its size, where nothing may be cut off. Home, a split's
+result, Settings and the Pro screen also have one in the pseudolocale `en-XA`.
 `ComponentCatalogTest` does the same for the catalog of design system components, so a change to
 a token or a component shows up even when no screen uses it yet.
 
