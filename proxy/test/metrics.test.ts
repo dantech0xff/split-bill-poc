@@ -1,11 +1,16 @@
-import { createScheduledController } from "cloudflare:test";
+import { createExecutionContext, createScheduledController, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
+import { WEIGHTS } from "../src/identity";
 import worker, { type Env } from "../src/index";
+import { type BillRequest, billRequestOf } from "../src/input";
 import { hashed } from "../src/ledger";
 import type { MetricEvent } from "../src/metrics";
+import { callModel, type ModelTask, TIMING } from "../src/model-call";
+import { POLICY } from "../src/policy";
+import { BILL_SCHEMA } from "../src/schema";
 import { fakeRevenueCat, playCustomer, TEST_WEBHOOK_AUTH, webhookEvent } from "./fake-revenuecat";
 import { fakeTurnstile } from "./fake-turnstile";
 import { network } from "./network";
@@ -24,6 +29,22 @@ function dataset(write: (point: AnalyticsEngineDataPoint) => void = () => undefi
     },
   };
   return { points, settings: { METRICS: binding } satisfies Partial<Env> };
+}
+
+/** The QuotaBooks with a `hold` that fails, as the call to an object fails while it is reset by a deploy or overloaded. */
+function booksThatCannotHold(): Env["QUOTA_BOOK"] {
+  return new Proxy(env.QUOTA_BOOK, {
+    get(books, property) {
+      if (property === "get") {
+        return (id: DurableObjectId) =>
+          new Proxy(books.get(id), {
+            get: (book, method) => (method === "hold" ? () => Promise.reject(new Error("Durable Object reset because its code was updated.")) : Reflect.get(book, method)),
+          });
+      }
+      const value: unknown = Reflect.get(books, property);
+      return typeof value === "function" ? value.bind(books) : value;
+    },
+  });
 }
 
 /** The events and outcomes of [points], in order. */
@@ -105,6 +126,59 @@ describe("the counters", () => {
       ["bill_analysis", "upstream"],
       ["install_first_call", "upstream"],
       ["bill_analysis", "ok"],
+    ]);
+  });
+
+  it("count a bill read or an edit that an error cuts short as internal: one the Worker answers 500, before the stream starts", async () => {
+    const { points, settings } = dataset();
+    model(ANSWER);
+    const failing = { ...settings, QUOTA_BOOK: booksThatCannotHold() };
+
+    const { result } = await logsOf(async () => [
+      await send(billRequest({ install: crypto.randomUUID() }), failing),
+      await send(revisionRequest({ install: crypto.randomUUID() }), failing),
+    ]);
+
+    for (const sent of result) {
+      expect(sent.status).toBe(500);
+      expect(JSON.parse(sent.body)).toEqual({ error: "internal" });
+    }
+    expect(counted(points)).toEqual([
+      ["bill_analysis", "internal"],
+      ["split_revision", "internal"],
+    ]);
+  });
+
+  it("count a call that an error cuts short as internal: one whose stream then ends with the error line internal", async () => {
+    const { points, settings } = dataset();
+    model(ANSWER);
+    const broken: ModelTask<BillRequest> = {
+      event: "bill_analysis",
+      weight: WEIGHTS.billAnalysis,
+      maxBodyBytes: POLICY.maxBodyBytes,
+      inputOf: billRequestOf,
+      system: "Read the bill.",
+      schema: BILL_SCHEMA,
+      userMessage: (input) => input.ocrDocument,
+      settings: () => ({ model: POLICY.model, maxTokens: 1_000, effort: "low", fallback: false, report: false }),
+      answerOf: () => {
+        throw new TypeError("The answer could not be handled");
+      },
+      chargeBadAnswer: true,
+    };
+    const ctx = createExecutionContext();
+
+    const { result: lines } = await logsOf(async () => {
+      const response = await callModel(billRequest({ install: crypto.randomUUID() }), { ...env, ...settings }, ctx, broken, TIMING);
+      const body = await response.text();
+      await waitOnExecutionContext(ctx);
+      return body.trim().split("\n").map((line) => JSON.parse(line) as unknown);
+    });
+
+    expect(lines[lines.length - 1]).toEqual({ type: "error", code: "internal" });
+    expect(counted(points)).toEqual([
+      ["bill_analysis", "internal"],
+      ["install_first_call", "internal"],
     ]);
   });
 

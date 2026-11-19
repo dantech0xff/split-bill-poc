@@ -83,8 +83,10 @@ export type ModelTask<Input extends { requestId: string }> = {
  * given back. Spend is settled at what the call cost, exactly once.
  *
  * Every call ends in one log line and one data point of [ModelTask.event], with its outcome, its
- * time and, once the model answered, its tokens and cost. The first call an install holds is also
- * counted as `install_first_call`, with the same outcome.
+ * time and, once the model answered, its tokens and cost. A call cut short by an error thrown on
+ * the way, which the Worker answers 500 `internal`, or the stream ends with the error line
+ * `internal`, ends as `internal`. The first call an install holds is also counted as
+ * `install_first_call`, with the same outcome.
  */
 export async function callModel<Input extends { requestId: string }>(
   request: Request,
@@ -95,7 +97,9 @@ export async function callModel<Input extends { requestId: string }>(
 ): Promise<Response> {
   const started = Date.now();
   let first = false;
+  let counted = false;
   const ended = (outcome: string, fields: Record<string, unknown>, numbers: MetricNumbers = {}) => {
+    counted = true;
     const ms = Date.now() - started;
     log(task.event, { outcome, ...fields, ms });
     count(env, task.event, outcome, { ...numbers, ms });
@@ -105,111 +109,121 @@ export async function callModel<Input extends { requestId: string }>(
     ended(outcome, {});
     return response;
   };
-  if (!aiEnabled(env)) return refused("ai_off", errorResponse(503, "ai_off"));
-  if ((env.ANTHROPIC_API_KEY ?? "").trim() === "") return refused("not_configured", errorResponse(503, "not_configured"));
-  if (!appVersionOk(request, env)) return refused("update_required", errorResponse(426, "update_required"));
-  const who = await callerOf(request, env);
-  if (!who.ok) return refused(who.code, errorResponse(401, who.code));
-  const caller = who.caller;
-  const input = task.inputOf(await readJson(request, task.maxBodyBytes), request);
-  if (input === null) return refused("input", errorResponse(400, "input"));
-  const ip = clientIp(request);
-  if (!ip.ok) return refused("input", errorResponse(400, "input"));
-
-  const now = Date.now();
-  const ipLedger = ledger(env, `ip:${await hashed(ipKey(ip.ip), env.HASH_SALT)}`);
-  const rate = await ipLedger.admit(now, POLICY.ip);
-  if (!rate.ok) return refused("rate_limited", errorResponse(429, "rate_limited", { retryAfter: rate.retryAfter }));
-
-  const prompt = task.userMessage(input);
-  const settings = task.settings(input);
-  // Ties the request id to what it asks, so that a run again under the same id is the same request.
-  const digest = await hashed(prompt, env.HASH_SALT);
-  const quota = quotaBook(env, caller.name);
-  const hold = await quota.hold(now, input.requestId, caller.allowance, digest, task.weight);
-  if (!hold.ok) {
-    if (hold.code === "request_mismatch") return refused(hold.code, errorResponse(400, "input"));
-    return refused(hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
-  }
-  first = hold.first === true;
-
-  // A call without a fallback is answered by its own model only, and held at that model's price.
-  const held = holdMicro(
-    byteLength(task.system) + byteLength(prompt) + byteLength(JSON.stringify(task.schema)),
-    settings.maxTokens,
-    settings.fallback ? undefined : settings.model,
-  );
-  const caps: SpendCap[] = [
-    { ledger: ledger(env, caller.name), cap: POLICY.callerCapMicro, code: "spend_limited" },
-    { ledger: ipLedger, cap: POLICY.ipCapMicro, code: "spend_limited" },
-    { ledger: ledger(env, "global"), cap: POLICY.globalCapMicro, code: "busy" },
-  ];
-  let spend: Awaited<ReturnType<typeof holdAll>>;
   try {
-    spend = await holdAll(caps, now, held);
+    if (!aiEnabled(env)) return refused("ai_off", errorResponse(503, "ai_off"));
+    if ((env.ANTHROPIC_API_KEY ?? "").trim() === "") return refused("not_configured", errorResponse(503, "not_configured"));
+    if (!appVersionOk(request, env)) return refused("update_required", errorResponse(426, "update_required"));
+    const who = await callerOf(request, env);
+    if (!who.ok) return refused(who.code, errorResponse(401, who.code));
+    const caller = who.caller;
+    const input = task.inputOf(await readJson(request, task.maxBodyBytes), request);
+    if (input === null) return refused("input", errorResponse(400, "input"));
+    const ip = clientIp(request);
+    if (!ip.ok) return refused("input", errorResponse(400, "input"));
+
+    const now = Date.now();
+    const ipLedger = ledger(env, `ip:${await hashed(ipKey(ip.ip), env.HASH_SALT)}`);
+    const rate = await ipLedger.admit(now, POLICY.ip);
+    if (!rate.ok) return refused("rate_limited", errorResponse(429, "rate_limited", { retryAfter: rate.retryAfter }));
+
+    const prompt = task.userMessage(input);
+    const settings = task.settings(input);
+    // Ties the request id to what it asks, so that a run again under the same id is the same request.
+    const digest = await hashed(prompt, env.HASH_SALT);
+    const quota = quotaBook(env, caller.name);
+    const hold = await quota.hold(now, input.requestId, caller.allowance, digest, task.weight);
+    if (!hold.ok) {
+      if (hold.code === "request_mismatch") return refused(hold.code, errorResponse(400, "input"));
+      return refused(hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
+    }
+    first = hold.first === true;
+
+    // A call without a fallback is answered by its own model only, and held at that model's price.
+    const held = holdMicro(
+      byteLength(task.system) + byteLength(prompt) + byteLength(JSON.stringify(task.schema)),
+      settings.maxTokens,
+      settings.fallback ? undefined : settings.model,
+    );
+    const caps: SpendCap[] = [
+      { ledger: ledger(env, caller.name), cap: POLICY.callerCapMicro, code: "spend_limited" },
+      { ledger: ipLedger, cap: POLICY.ipCapMicro, code: "spend_limited" },
+      { ledger: ledger(env, "global"), cap: POLICY.globalCapMicro, code: "busy" },
+    ];
+    let spend: Awaited<ReturnType<typeof holdAll>>;
+    try {
+      spend = await holdAll(caps, now, held);
+    } catch (error) {
+      await quota.release(now, input.requestId).catch(() => undefined);
+      throw error;
+    }
+    if (!spend.ok) {
+      await quota.release(now, input.requestId);
+      return refused(spend.code, errorResponse(429, spend.code, { retryAfter: spend.retryAfter }));
+    }
+
+    return lineStream(ctx, { waitMs: timing.waitLineMs, afterHangUpMs: timing.afterHangUpMs }, async (send, hungUp) => {
+      // Whatever happens below, the hold is given back or charged, and the spend settled, once.
+      let reachedModel = false;
+      let cost: number | null = null;
+      let charged = false;
+      try {
+        const reply = await askModel(env, task, prompt, settings, AbortSignal.any([AbortSignal.timeout(timing.modelDeadlineMs), hungUp]));
+        reachedModel = reply.reachedModel;
+        if (!reply.ok) {
+          const code = hungUp.aborted ? "client_gone" : failureCode(reply.error);
+          send({ type: "error", code });
+          ended(code, { caller: caller.kind, model: settings.model });
+          return;
+        }
+        const message = reply.message;
+        cost = costMicro(message);
+        const answer = outcomeOf(message, task);
+        let usage: Usage | undefined;
+        if (answer.charged) {
+          charged = true;
+          // The answer is paid for, so it goes out even if the count cannot be updated just now.
+          usage = await quota.commit(Date.now(), input.requestId, caller.allowance, digest, task.weight).catch((error: unknown) => {
+            console.error(JSON.stringify({ event: "commit_failed", error: errorName(error) }));
+            return undefined;
+          });
+        }
+        const report = settings.report
+          ? { eval: { model: message.model, inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens, costMicro: cost } }
+          : {};
+        send(answer.ok ? { type: "result", answer: answer.value, usage, ...report } : { type: "error", code: answer.code, usage, ...report });
+        const tokens = { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens };
+        ended(
+          answer.ok ? "ok" : answer.code,
+          {
+            caller: caller.kind,
+            model: message.model,
+            ...tokens,
+            costMicro: cost,
+            refusal: message.stop_reason === "refusal" ? (message.stop_details?.category ?? null) : undefined,
+            clientGone: hungUp.aborted || undefined,
+          },
+          { ...tokens, costMicro: cost },
+        );
+      } catch (error) {
+        // The stream then ends with the error line `internal`.
+        if (!counted) ended("internal", { caller: caller.kind, model: settings.model });
+        throw error;
+      } finally {
+        // When the model was reached but did not answer, what it was billed for cannot be known, so
+        // the whole hold counts as spent.
+        await settleAll(caps, held, cost ?? (reachedModel ? held : 0));
+        if (!charged) {
+          await quota.release(Date.now(), input.requestId).catch((error: unknown) => {
+            console.error(JSON.stringify({ event: "release_failed", error: errorName(error) }));
+          });
+        }
+      }
+    });
   } catch (error) {
-    await quota.release(now, input.requestId).catch(() => undefined);
+    // The fetch handler answers it 500 `internal`.
+    if (!counted) ended("internal", {});
     throw error;
   }
-  if (!spend.ok) {
-    await quota.release(now, input.requestId);
-    return refused(spend.code, errorResponse(429, spend.code, { retryAfter: spend.retryAfter }));
-  }
-
-  return lineStream(ctx, { waitMs: timing.waitLineMs, afterHangUpMs: timing.afterHangUpMs }, async (send, hungUp) => {
-    // Whatever happens below, the hold is given back or charged, and the spend settled, once.
-    let reachedModel = false;
-    let cost: number | null = null;
-    let charged = false;
-    try {
-      const reply = await askModel(env, task, prompt, settings, AbortSignal.any([AbortSignal.timeout(timing.modelDeadlineMs), hungUp]));
-      reachedModel = reply.reachedModel;
-      if (!reply.ok) {
-        const code = hungUp.aborted ? "client_gone" : failureCode(reply.error);
-        send({ type: "error", code });
-        ended(code, { caller: caller.kind, model: settings.model });
-        return;
-      }
-      const message = reply.message;
-      cost = costMicro(message);
-      const answer = outcomeOf(message, task);
-      let usage: Usage | undefined;
-      if (answer.charged) {
-        charged = true;
-        // The answer is paid for, so it goes out even if the count cannot be updated just now.
-        usage = await quota.commit(Date.now(), input.requestId, caller.allowance, digest, task.weight).catch((error: unknown) => {
-          console.error(JSON.stringify({ event: "commit_failed", error: errorName(error) }));
-          return undefined;
-        });
-      }
-      const report = settings.report
-        ? { eval: { model: message.model, inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens, costMicro: cost } }
-        : {};
-      send(answer.ok ? { type: "result", answer: answer.value, usage, ...report } : { type: "error", code: answer.code, usage, ...report });
-      const tokens = { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens };
-      ended(
-        answer.ok ? "ok" : answer.code,
-        {
-          caller: caller.kind,
-          model: message.model,
-          ...tokens,
-          costMicro: cost,
-          refusal: message.stop_reason === "refusal" ? (message.stop_details?.category ?? null) : undefined,
-          clientGone: hungUp.aborted || undefined,
-        },
-        { ...tokens, costMicro: cost },
-      );
-    } finally {
-      // When the model was reached but did not answer, what it was billed for cannot be known, so
-      // the whole hold counts as spent.
-      await settleAll(caps, held, cost ?? (reachedModel ? held : 0));
-      if (!charged) {
-        await quota.release(Date.now(), input.requestId).catch((error: unknown) => {
-          console.error(JSON.stringify({ event: "release_failed", error: errorName(error) }));
-        });
-      }
-    }
-  });
 }
 
 type ModelReply = { ok: true; message: Message; reachedModel: true } | { ok: false; error: unknown; reachedModel: boolean };
