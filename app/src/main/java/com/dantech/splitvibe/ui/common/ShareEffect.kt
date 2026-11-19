@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import com.dantech.splitvibe.share.QrCodes
 import com.dantech.splitvibe.share.ShareCardRenderer
 import com.dantech.splitvibe.ui.groups.ShareText
@@ -15,6 +16,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ShareEffect(share: ShareText?, onShared: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(share) {
         val shown = share ?: return@LaunchedEffect
         // A name of its own for every share, so an app that reads it late never gets a later request's code.
@@ -26,7 +28,7 @@ fun ShareEffect(share: ShareText?, onShared: () -> Unit) {
             }.getOrNull()
         }
         try {
-            context.startActivity(ShareCardRenderer.shareIntent(shown.text.resolve(context.resources), image))
+            context.startActivity(ShareCardRenderer.shareIntent(shown.text.resolve(resources), image))
         } catch (e: ActivityNotFoundException) {
             // No app takes text on this phone; there is nothing more to offer.
         }

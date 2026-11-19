@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui.split
 
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -82,6 +84,8 @@ fun RequestMoneyContent(
     onDone: () -> Unit,
 ) {
     val context = LocalContext.current
+    // Read here, where a change of configuration reaches it, for the texts that go to the share sheet.
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val methods by viewModel.methods.collectAsStateWithLifecycle()
     val method by viewModel.method.collectAsStateWithLifecycle()
@@ -100,8 +104,8 @@ fun RequestMoneyContent(
                 withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "pay-${UUID.randomUUID()}") }
             }.getOrNull()
         }
-        val text = prepared.text.resolve(context.resources)
-        if (context.open(ShareCardRenderer.shareIntent(text, image, title = context.getString(R.string.requests_share_title)))) {
+        val text = prepared.text.resolve(resources)
+        if (context.open(ShareCardRenderer.shareIntent(text, image, title = resources.getString(R.string.requests_share_title)))) {
             viewModel.markShared(person.participant.id)
         }
     }
@@ -131,7 +135,7 @@ fun RequestMoneyContent(
             item {
                 SummaryCard(result = result, state = card, modifier = Modifier.padding(horizontal = SvSpacing.lg))
                 OutlinedButton(
-                    onClick = { scope.launch { shareSummary(context, card, result) } },
+                    onClick = { scope.launch { shareSummary(context, resources, card, result) } },
                     modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
                 ) {
                     Icon(Icons.Default.Share, contentDescription = null)
@@ -303,13 +307,12 @@ private fun MethodSheet(methods: List<SavedPaymentMethod>, chosen: String?, onCh
     }
 }
 
-private suspend fun shareSummary(context: Context, card: ShareCardState, result: SplitResultState) {
+private suspend fun shareSummary(context: Context, resources: Resources, card: ShareCardState, result: SplitResultState) {
     val bill = result.bill
     val image = runCatching {
         val bitmap = card.toBitmap()
         withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "split-${UUID.randomUUID()}") }
     }.getOrNull()
-    val resources = context.resources
     val text = buildList {
         val title = bill.merchant?.takeIf { it.isNotBlank() } ?: resources.getString(R.string.common_the_bill)
         add(resources.getString(R.string.requests_summary_line, title, bill.format(bill.totalMinor)))

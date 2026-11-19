@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import com.dantech.splitvibe.R
@@ -245,6 +246,7 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
 @Composable
 private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, locale: Locale) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val clipboard = LocalClipboardManager.current
     val url = state.url
     SvCard(modifier = Modifier.fillMaxWidth()) {
@@ -265,7 +267,6 @@ private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, loca
                 Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                     FilledTonalButton(onClick = {
-                        val resources = context.resources
                         val title = saved.bill.merchant?.takeIf { it.isNotBlank() }
                             ?: resources.getString(R.string.requests_message_the_bill)
                         try {
