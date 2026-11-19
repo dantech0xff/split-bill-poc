@@ -70,6 +70,15 @@ check(firebase.isEmpty() || firebase.size == firebaseSettings.size) {
         (firebaseSettings.keys - firebase.keys).joinToString { firebaseSettings.getValue(it) }
 }
 
+// The release workflow sets the version from the tag it builds, with -Psplitvibe.versionCode and
+// -Psplitvibe.versionName. Without them a build is version 1, "0.1.0". A blank value counts as not set;
+// a code that is not a whole number Google Play takes stops the build.
+val appVersionCode: Int = providers.gradleProperty("splitvibe.versionCode").orNull?.trim()?.takeIf { it.isNotEmpty() }?.let { code ->
+    code.toIntOrNull()?.takeIf { it in 1..2_100_000_000 }
+        ?: throw GradleException("splitvibe.versionCode must be a whole number from 1 to 2100000000, but it is $code")
+} ?: 1
+val appVersionName: String = providers.gradleProperty("splitvibe.versionName").orNull?.trim()?.takeIf { it.isNotEmpty() } ?: "0.1.0"
+
 // Invite and payment links point at the proxy's own address, which opens them in the app once
 // Android has checked the proxy's assetlinks.json.
 fun linkHostOf(url: String): String = runCatching { URI(url).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "links.invalid"
@@ -98,8 +107,8 @@ android {
         applicationId = "com.dantech.splitvibe"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
@@ -124,6 +133,9 @@ android {
         debug {
             buildConfigField("String", "AI_PROXY_URL", "\"$debugAiProxyUrl\"")
             manifestPlaceholders["linkHost"] = linkHostOf(debugAiProxyUrl)
+            // The pseudolocales en-XA (longer text with accents) and ar-XB (right to left), to find text
+            // that is cut off, overlaps or is not in the resources. Release builds leave them out.
+            isPseudoLocalesEnabled = true
         }
         release {
             buildConfigField("String", "AI_PROXY_URL", "\"$releaseAiProxyUrl\"")
