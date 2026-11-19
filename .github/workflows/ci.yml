@@ -111,6 +111,13 @@ jobs:
       - name: Packages
         run: npm ci
 
+      # Known vulnerabilities of high or critical severity in the packages of the proxy and of the
+      # web app, development ones included: they run here and in the release, next to its token.
+      - name: Audit packages
+        run: |
+          npm audit --audit-level=high
+          npm audit --audit-level=high --prefix ../web
+
       # The web app the Worker serves, from exactly the versions in web/'s own lock file. The
       # typecheck and the tests put it into the Worker; without a lock file in web/ they use the
       # placeholder page the proxy makes instead.
