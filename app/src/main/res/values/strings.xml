@@ -590,10 +590,10 @@
     <string name="groups_keep_place">Keep a place for someone</string>
     <string name="groups_keep_place_hint">For someone without the app. When they join with an invite link, they can ask for this place, and you decide.</string>
     <string name="groups_take_out_title">Take %1$s out of the group?</string>
-    <string name="groups_take_out_text">They will no longer see the group. What they paid and owe stays under their name, so nobody\'s balance changes, and their place can be given back through an invite.</string>
+    <string name="groups_take_out_text">They will no longer see the group. What they paid and owe stays under their name, so nobody\'s balance changes. The group\'s current invite links stop working, and a new invite gives their place back.</string>
     <string name="groups_take_out">Take out</string>
     <string name="groups_leave_title">Leave the group?</string>
-    <string name="groups_leave_text">What you paid and owe stays in the group under your name, so the others\' balances do not change.</string>
+    <string name="groups_leave_text">What you paid and owe stays in the group under your name, so the others\' balances do not change. The group\'s invite links stop working, so coming back needs a new invite from someone in the group.</string>
     <string name="groups_leave_confirm">Leave</string>
     <string name="groups_got_it_title">Did you get %1$s?</string>
     <string name="groups_got_it_confirms">This confirms the request you sent %1$s, which records the payment. It cannot be undone.</string>
