@@ -17,6 +17,7 @@ import com.dantech.splitvibe.SpendingFixtures.FLAT
 import com.dantech.splitvibe.SpendingFixtures.TRIP
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
@@ -36,6 +37,7 @@ import com.dantech.splitvibe.domain.InsightShare
 import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.Spending
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.export.CsvExport
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
@@ -77,7 +79,7 @@ class InsightsViewModelTest {
 
     /** A clock that moves on by one at every save, so the bill saved last is the latest. */
     private var now = 0L
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { ++now }
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { ++now }
     private val clock = SpendingFixtures.clock
     private val watching = MainScope()
     private lateinit var viewModel: InsightsViewModel
@@ -95,7 +97,7 @@ class InsightsViewModelTest {
             SpendingFixtures.finished("d1", "2026-11-14", "Draft", FOOD_AND_DRINK, 999_000, listOf("Minh")).copy(status = BillStatus.DRAFT),
         )
         val settings = MutableStateFlow(AppSettings(localCurrency = "VND"))
-        viewModel = InsightsViewModel(bills, settings, Exporter(context), clock, SavedStateHandle())
+        viewModel = InsightsViewModel(bills, settings, Exporter(context), clock, SavedStateHandle(), contentWords())
         // The screen watches the state while it shows.
         watching.launch { viewModel.state.collect {} }
         Unit
@@ -108,8 +110,14 @@ class InsightsViewModelTest {
     }
 
     /** A screen's view model that nothing watches yet, as one the system just made again, on the day [clock] tells. */
-    private fun viewModelOn(clock: Clock) =
-        InsightsViewModel(bills, MutableStateFlow(AppSettings(localCurrency = "VND")), Exporter(context), clock, SavedStateHandle())
+    private fun viewModelOn(clock: Clock) = InsightsViewModel(
+        bills,
+        MutableStateFlow(AppSettings(localCurrency = "VND")),
+        Exporter(context),
+        clock,
+        SavedStateHandle(),
+        contentWords(),
+    )
 
     private fun shown(period: InsightsPeriod): InsightsState {
         viewModel.choose(period)
@@ -125,7 +133,7 @@ class InsightsViewModelTest {
     fun `this month takes the bills of November, the undated ones by the day they were saved, and adds them up by hand`() {
         val month = shown(InsightsPeriod.THIS_MONTH)
 
-        assertEquals("November 2026", month.periodName)
+        assertEquals("November 2026", month.periodName.english())
         assertEquals("2026-11", month.periodKey)
         // By the day each counts on: 9 was saved on the 13th, and 8 on the 1st, in Ho Chi Minh City.
         assertEquals(listOf("b10", "b9", "b1", "b11", "b12", "b5", "b2", "b8"), month.bills.map { it.id })
@@ -159,14 +167,14 @@ class InsightsViewModelTest {
             ),
             people(month),
         )
-        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), month.notes)
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), month.notes.map { it.english() })
     }
 
     @Test
     fun `the last 12 months start on 1 December 2025 and add up to the table worked out by hand`() {
         val year = shown(InsightsPeriod.LAST_12_MONTHS)
 
-        assertEquals("December 2025 to November 2026", year.periodName)
+        assertEquals("December 2025 to November 2026", year.periodName.english())
         assertEquals("2025-12-to-2026-11", year.periodKey)
         // Bill 7, of 30 November 2025, is a day too early.
         assertEquals(listOf("b10", "b9", "b1", "b11", "b12", "b5", "b2", "b8", "b4", "b3", "b6"), year.bills.map { it.id })
@@ -216,14 +224,14 @@ class InsightsViewModelTest {
             ),
             people(year),
         )
-        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), year.notes)
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), year.notes.map { it.english() })
     }
 
     @Test
     fun `all time counts every bill, each in a month, and the trip's group under its name now`() {
         val all = shown(InsightsPeriod.ALL_TIME)
 
-        assertEquals("All time", all.periodName)
+        assertEquals("All time", all.periodName.english())
         assertEquals(12, all.bills.size)
         // Every bill but the euros and the baht of 5: the year's, plus 7: + 2,400,000; + 600,000.
         assertEquals(Spending(10, 24_711_433, 8_004_050), all.insights.overall)
@@ -266,14 +274,14 @@ class InsightsViewModelTest {
             ),
             people(all),
         )
-        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), all.notes)
+        assertEquals(listOf(RATE_NOTE, SAVED_DAY_NOTE), all.notes.map { it.english() })
     }
 
     @Test
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
 
-        val counted = insightBillOf(saved, "VND", clock.zone)
+        val counted = insightBillOf(saved, "VND", clock.zone, contentWords())
 
         assertEquals(LocalDate.of(2025, 12, 5), counted.day)
         assertEquals(TRANSPORT, counted.category)
@@ -292,7 +300,7 @@ class InsightsViewModelTest {
             counted.shares,
         )
         assertNull(counted.rate)
-        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone).rate
+        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone, contentWords()).rate
         // The day's rate saved as the bill was finished, and a rate the user typed.
         assertEquals(SpendingFixtures.usdDayRate, rateOf("b4"))
         assertEquals(ExchangeRate("THB", "VND", BigDecimal("745.5")), rateOf("b12"))
@@ -300,12 +308,14 @@ class InsightsViewModelTest {
         assertNull(rateOf("b11"))
         assertNull(rateOf("b5"))
         // Without a date that can be read, the day it was saved in Ho Chi Minh City, not in UTC.
-        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(runBlocking { checkNotNull(bills.get("b8")) }, "VND", clock.zone).day)
+        val b8 = runBlocking { checkNotNull(bills.get("b8")) }
+        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(b8, "VND", clock.zone, contentWords()).day)
     }
 
     @Test
     fun `a period's notes say how many bills each note is about, and how to count one without a rate`() {
-        fun notes(vararg bills: SavedBill) = insightsOf(bills.toList(), "VND", InsightsPeriod.ALL_TIME, clock).notes
+        fun notes(vararg bills: SavedBill) =
+            insightsOf(bills.toList(), "VND", InsightsPeriod.ALL_TIME, clock, contentWords()).notes.map { it.english() }
         val yen = SpendingFixtures.finished("y1", "2026-11-02", "Ichiran", FOOD_AND_DRINK, 1_980, emptyList(), BillCurrency("JPY", 0))
         val undated = SpendingFixtures.finished("u1", null, "Chợ", OTHER, 50_000, emptyList())
 
@@ -336,7 +346,8 @@ class InsightsViewModelTest {
             .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))
             .withPersonIds("Lan" to "lan-again")
 
-        val people = Insights.of(listOf(newer, older).map { insightBillOf(it, "VND", clock.zone) }, SpendingFixtures.vnd).byPerson
+        val counted = listOf(newer, older).map { insightBillOf(it, "VND", clock.zone, contentWords()) }
+        val people = Insights.of(counted, SpendingFixtures.vnd).byPerson
 
         // 100,000 + 70,000 each, and Minh named as the newer bill names him.
         assertEquals(listOf("Lan", "You", "minh"), people.map { it.name })
@@ -367,7 +378,8 @@ class InsightsViewModelTest {
         files.forEach { assertEquals("${context.packageName}.fileprovider", it.authority) }
         assertEquals(1, files.map { it.pathSegments.dropLast(1) }.distinct().size)
         // What each one holds is what the export wrote for the period.
-        val written = runBlocking { Exporter(context).files(contentOf(checkNotNull(viewModel.state.value)), ExportFormat.CSV) }
+        val content = contentOf(checkNotNull(viewModel.state.value)) { it.english() }
+        val written = runBlocking { Exporter(context).files(content, ExportFormat.CSV) }
         files.zip(written).forEach { (uri, file) ->
             assertArrayEquals(file.bytes, File(context.cacheDir, uri.pathSegments.joinToString("/")).readBytes())
         }
@@ -384,8 +396,9 @@ class InsightsViewModelTest {
         viewModel.saveToFolder(DocumentsContract.buildTreeDocumentUri(PickedFolder.AUTHORITY, "Downloads"))
         awaitOnMain { viewModel.export.value.message != null }
 
-        assertEquals(ExportMessage("Saved bills.csv, items.csv and shares.csv.", isError = false), viewModel.export.value.message)
-        val written = runBlocking { Exporter(context).files(contentOf(checkNotNull(viewModel.state.value)), ExportFormat.CSV) }
+        assertEquals(SAVED to false, viewModel.export.value.message?.let { it.text.english() to it.isError })
+        val content = contentOf(checkNotNull(viewModel.state.value)) { it.english() }
+        val written = runBlocking { Exporter(context).files(content, ExportFormat.CSV) }
         written.forEach { file -> assertArrayEquals(file.bytes, File(context.cacheDir, "picked/${file.name}").readBytes()) }
         viewModel.dismissMessage()
         assertNull(viewModel.export.value.message)
@@ -401,7 +414,7 @@ class InsightsViewModelTest {
         restored.saveToFolder(DocumentsContract.buildTreeDocumentUri(PickedFolder.AUTHORITY, "Downloads"))
         awaitOnMain { restored.export.value.message != null }
 
-        assertEquals(ExportMessage("Saved bills.csv, items.csv and shares.csv.", isError = false), restored.export.value.message)
+        assertEquals(SAVED to false, restored.export.value.message?.let { it.text.english() to it.isError })
         assertEquals(CsvExport.BILLS, File(context.cacheDir, "picked").list()?.sorted()?.first())
     }
 
@@ -414,7 +427,7 @@ class InsightsViewModelTest {
         empty.share(ExportFormat.CSV)
         awaitOnMain { empty.export.value.message != null }
 
-        assertEquals(ExportMessage(NOTHING_TO_EXPORT, isError = true), empty.export.value.message)
+        assertEquals(NOTHING_TO_EXPORT to true, empty.export.value.message?.let { it.text.english() to it.isError })
         assertNull(empty.export.value.share)
         assertEquals(false, empty.export.value.working)
     }
@@ -432,6 +445,7 @@ class InsightsViewModelTest {
     }
 
     private companion object {
+        const val SAVED = "Saved bills.csv, items.csv and shares.csv."
         const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
         const val RATE_NOTE = "2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB. " +
             "To count one, open it and type a rate."

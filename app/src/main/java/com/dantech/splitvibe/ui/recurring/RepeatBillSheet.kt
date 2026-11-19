@@ -24,10 +24,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -36,6 +38,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.Recurrence
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.text.resolve
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
@@ -70,13 +73,13 @@ fun RepeatBillSheet(
     val firstDraft = picked ?: firstDraftDay(schedule, today)
 
     SvBottomSheet(
-        title = "Repeat this bill",
-        supportingText = "A draft of it is made on each day it comes back, for you to check and finish.",
+        title = stringResource(R.string.history_repeat),
+        supportingText = stringResource(R.string.recurring_repeat_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             Spacer(Modifier.weight(1f))
-            Button(onClick = { onRepeat(typed.trim(), schedule, firstDraft) }) { Text("Repeat") }
+            Button(onClick = { onRepeat(typed.trim(), schedule, firstDraft) }) { Text(stringResource(R.string.recurring_repeat)) }
         },
     ) {
         Column(
@@ -87,27 +90,32 @@ fun RepeatBillSheet(
                 value = typed,
                 onValueChange = { typed = it.take(RecurringBillRepository.MAX_NAME) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Name") },
-                placeholder = { Text("Rent") },
+                label = { Text(stringResource(R.string.common_name)) },
+                placeholder = { Text(stringResource(R.string.recurring_name_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
             )
             SvChoiceGroup(
-                options = listOf("Weekly", "Monthly"),
+                options = listOf(stringResource(R.string.recurring_weekly), stringResource(R.string.recurring_monthly)),
                 selected = if (frequency == Frequency.WEEKLY) 0 else 1,
                 onSelect = { frequency = if (it == 0) Frequency.WEEKLY else Frequency.MONTHLY },
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
+                val changeLabel = stringResource(R.string.recurring_change_first_draft)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("First draft ${dayText(firstDraft)}", style = MaterialTheme.typography.bodyLarge)
-                    Text(describe(schedule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.recurring_first_draft, dayText(firstDraft)), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        describe(schedule).resolve(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 TextButton(
                     onClick = { picking = true },
                     // Said in full, as "Change" alone does not tell someone who hears the screen what it changes.
-                    modifier = Modifier.semantics { contentDescription = "Change the day of the first draft" },
-                ) { Text("Change") }
+                    modifier = Modifier.semantics { contentDescription = changeLabel },
+                ) { Text(stringResource(R.string.requests_change_method)) }
             }
         }
     }
@@ -129,9 +137,9 @@ fun RepeatBillSheet(
                     // The picker counts days in UTC, from midnight.
                     picker.selectedDateMillis?.let { pickedDay = Math.floorDiv(it, DAY_MS) }
                     picking = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.common_ok)) }
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.common_cancel)) } },
         ) {
             DatePicker(state = picker)
         }

@@ -5,10 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.annotation.StringRes
 import androidx.core.content.FileProvider
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.Insights
+import com.dantech.splitvibe.text.UiText
 import java.io.File
 import java.io.IOException
 import java.time.YearMonth
@@ -44,6 +46,9 @@ class ExportContent(
  */
 class Exporter(private val context: Context, private val locale: () -> Locale = Locale::getDefault) {
 
+    /** What [text] says in the files, in the app's language. */
+    fun text(text: UiText): String = text.resolve(context.resources)
+
     /** The files of [format] for [content]. */
     suspend fun files(content: ExportContent, format: ExportFormat): List<ExportFile> = withContext(Dispatchers.Default) {
         when (format) {
@@ -58,7 +63,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
      *
      * @throws IOException when the files cannot be written, such as on a full disk.
      */
-    suspend fun shareIntent(files: List<ExportFile>, title: String): Intent = withContext(Dispatchers.IO) {
+    suspend fun shareIntent(files: List<ExportFile>, @StringRes title: Int): Intent = withContext(Dispatchers.IO) {
         require(files.isNotEmpty()) { "Nothing to share" }
         val root = File(context.cacheDir, FOLDER)
         val dayAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(1)
@@ -79,7 +84,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         // The share sheet's preview and the app picked both read the files through this.
         send.clipData = ClipData.newRawUri(null, uris.first()).apply { uris.drop(1).forEach { addItem(ClipData.Item(it)) } }
         send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        Intent.createChooser(send, title)
+        Intent.createChooser(send, context.getString(title))
     }
 
     /**

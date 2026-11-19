@@ -27,12 +27,16 @@ sealed interface UiText {
     /** [parts] one to a line, as in a message to send. */
     data class Lines(val parts: List<UiText>) : UiText
 
+    /** [parts] one after the other with [separator] between them, such as the commas of a list. */
+    data class Joined(val parts: List<UiText>, val separator: String) : UiText
+
     /** The text in the language of [resources]. */
     fun resolve(resources: Resources): String = when (this) {
         is Res -> if (args.isEmpty()) resources.getString(id) else resources.getString(id, *resolved(args, resources))
         is Plural -> resources.getQuantityString(id, count, *resolved(args, resources))
         is Raw -> text
         is Lines -> parts.joinToString("\n") { it.resolve(resources) }
+        is Joined -> parts.joinToString(separator) { it.resolve(resources) }
     }
 }
 

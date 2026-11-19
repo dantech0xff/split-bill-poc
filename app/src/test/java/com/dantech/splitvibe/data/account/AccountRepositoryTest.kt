@@ -8,6 +8,7 @@ import com.dantech.splitvibe.FakeGoogleAccounts
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.proxy.ProxyApi
@@ -48,7 +49,7 @@ class AccountRepositoryTest {
     private val storage = TestStorage(context)
     private val cache = ProxyCache(storage.database.proxyCache())
     private val settings = SettingsStore(context)
-    private val recurring = RecurringBillRepository(storage.database, SpendingFixtures.clock)
+    private val recurring = RecurringBillRepository(storage.database, SpendingFixtures.clock, contentWords())
     private val methods = PaymentMethodRepository(storage.database)
     private lateinit var proxy: TestProxy
     private lateinit var repository: AccountRepository

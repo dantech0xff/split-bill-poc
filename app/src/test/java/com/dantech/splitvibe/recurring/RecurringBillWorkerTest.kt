@@ -19,6 +19,7 @@ import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestClock
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.recurring.RecurringBill
@@ -59,8 +60,8 @@ class RecurringBillWorkerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val storage = TestStorage(context)
     private val clock = TestClock(LocalDate.of(2026, 11, 16))
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { clock.millis() }
-    private val recurring = RecurringBillRepository(storage.database, clock)
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { clock.millis() }
+    private val recurring = RecurringBillRepository(storage.database, clock, contentWords())
     private val notifications = context.getSystemService(NotificationManager::class.java)
 
     @Before

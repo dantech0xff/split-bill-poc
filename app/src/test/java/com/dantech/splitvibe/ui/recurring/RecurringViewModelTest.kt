@@ -7,11 +7,13 @@ import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestClock
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.english
 import java.time.LocalDate
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -36,8 +38,8 @@ class RecurringViewModelTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val storage = TestStorage(context)
     private val clock = TestClock(LocalDate.of(2026, 11, 16))
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { clock.millis() }
-    private val recurring = RecurringBillRepository(storage.database, clock)
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { clock.millis() }
+    private val recurring = RecurringBillRepository(storage.database, clock, contentWords())
 
     /** How often the drafts were asked to be made at once. */
     private var runs = 0
@@ -73,7 +75,7 @@ class RecurringViewModelTest {
         assertEquals("Flat rent", row.bill.name)
         assertEquals(rent.bill, row.bill.bill)
         assertEquals(LocalDate.of(2026, 12, 1), row.next)
-        assertEquals("Next draft Dec 1, 2026", detailOf(row))
+        assertEquals("Next draft Dec 1, 2026", detailOf(row).english())
         assertEquals(1, runs)
     }
 
@@ -90,8 +92,8 @@ class RecurringViewModelTest {
         val row = checkNotNull(later.rows.value).single()
         assertEquals(LocalDate.of(2026, 11, 17), row.next)
         assertTrue(row.due)
-        assertEquals("Draft due Nov 17, 2026", detailOf(row))
-        assertEquals("Paused", detailOf(row.copy(bill = row.bill.copy(paused = true))))
+        assertEquals("Draft due Nov 17, 2026", detailOf(row).english())
+        assertEquals("Paused", detailOf(row.copy(bill = row.bill.copy(paused = true))).english())
     }
 
     @Test
@@ -131,15 +133,15 @@ class RecurringViewModelTest {
         assertEquals(LocalDate.of(2026, 10, 31) to LocalDate.of(2026, 11, 30), suggested("2026-10-31", Frequency.MONTHLY))
         assertEquals(
             "Every month on the 31st, or the last day of a shorter month",
-            describe(suggestedSchedule("2026-10-31", Frequency.MONTHLY, today)),
+            describe(suggestedSchedule("2026-10-31", Frequency.MONTHLY, today)).english(),
         )
     }
 
     @Test
     fun `a schedule is described in words, with the day of the month as an ordinal`() {
-        fun monthly(day: Int) = describe(RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2027, 1, day)))
+        fun monthly(day: Int) = describe(RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2027, 1, day))).english()
 
-        assertEquals("Every week on Tuesday", describe(RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17))))
+        assertEquals("Every week on Tuesday", describe(RecurrenceSchedule(Frequency.WEEKLY, LocalDate.of(2026, 11, 17))).english())
         assertEquals(
             listOf("1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd").map { "Every month on the $it" },
             listOf(1, 2, 3, 4, 11, 12, 13, 21, 22, 23).map(::monthly),

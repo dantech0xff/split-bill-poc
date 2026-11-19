@@ -1,7 +1,6 @@
 package com.dantech.splitvibe.export
 
 import com.dantech.splitvibe.data.bills.SavedBill
-import com.dantech.splitvibe.data.bills.YOU
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.ME_ID
@@ -44,6 +43,12 @@ object CsvExport {
     const val MIME_TYPE = "text/csv"
 
     private val BYTE_ORDER_MARK = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
+
+    /**
+     * The user in the files' column of people. The files are a format for spreadsheet apps, with the
+     * same headings and words in every language, so that what reads them reads every export alike.
+     */
+    private const val YOU = "You"
 
     /** The three files for [bills], in this order, written for [convention]. */
     fun files(bills: List<SavedBill>, convention: CsvConvention): List<ExportFile> = listOf(

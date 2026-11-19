@@ -36,33 +36,32 @@ object Notices {
     /** The kind of the notice about a new draft of a recurring bill, in [EXTRA_KIND]. */
     const val KIND_DRAFT = "draft"
 
-    private const val CLAIM_TEXT = "A person asked to take a place in one of your groups. Open Split Vibe to approve or reject it."
-
     /** Extras that tell the app what a tapped notice is about. */
     const val EXTRA_KIND = "com.dantech.splitvibe.notice.kind"
     const val EXTRA_GROUP_ID = "com.dantech.splitvibe.notice.group"
     const val EXTRA_BILL_ID = "com.dantech.splitvibe.notice.bill"
 
     fun createChannel(context: Context) {
-        val channel = NotificationChannel(CHANNEL, "Payment requests and groups", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "When someone asks you to pay, says they paid, confirms a payment or asks to join a group."
+        val name = context.getString(R.string.notice_channel_requests)
+        val channel = NotificationChannel(CHANNEL, name, NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = context.getString(R.string.notice_channel_requests_description)
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     /**
-     * The words of a notice of [kind], or null for a kind this version of the app does not know.
-     * They are the proxy's own words (`proxy/src/push.ts`), which the system shows while the app is
-     * in the background, so a notice reads the same either way.
+     * The title and text of a notice of [kind], as string resources, or null for a kind this version
+     * of the app does not know. Their English is the proxy's own words (`proxy/src/push.ts`), which
+     * the system shows while the app is in the background, so a notice reads the same either way.
      */
-    fun textOf(kind: String?): Pair<String, String>? = when (kind) {
-        "request" -> "New payment request" to "Someone asked you to pay them back. Open Split Vibe to see the request."
-        "reported" -> "Payment reported" to "A payment you asked for was reported as paid. Open Split Vibe to confirm it."
-        "confirmed" -> "Payment confirmed" to "A payment you reported was confirmed. Open Split Vibe to see it."
-        "reminder" -> "Payment reminder" to "A payment request is still waiting for you. Open Split Vibe to see it."
-        "claim" -> "Someone asked to join" to CLAIM_TEXT
-        "unpaid" -> "Payment still open" to "Someone has not paid you back yet. Open Split Vibe to send them a reminder."
-        "unconfirmed" -> "Payment to confirm" to "A payment was reported to you. Open Split Vibe to confirm it once it arrived."
+    fun textOf(kind: String?): Pair<Int, Int>? = when (kind) {
+        "request" -> R.string.notice_request_title to R.string.notice_request_text
+        "reported" -> R.string.notice_reported_title to R.string.notice_reported_text
+        "confirmed" -> R.string.notice_confirmed_title to R.string.notice_confirmed_text
+        "reminder" -> R.string.notice_reminder_title to R.string.notice_reminder_text
+        "claim" -> R.string.notice_claim_title to R.string.notice_claim_text
+        "unpaid" -> R.string.notice_unpaid_title to R.string.notice_unpaid_text
+        "unconfirmed" -> R.string.notice_unconfirmed_title to R.string.notice_unconfirmed_text
         else -> null
     }
 
@@ -83,8 +82,8 @@ object Notices {
         )
         val notice = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(text)
+            .setContentTitle(context.getString(title))
+            .setContentText(context.getString(text))
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
@@ -100,9 +99,11 @@ object Notices {
     fun showDrafts(context: Context, name: String, drafts: List<SavedBill>) {
         val newest = drafts.lastOrNull() ?: return
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(DRAFTS_CHANNEL, "Recurring bills", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "When a recurring bill, such as the rent, is due and its draft is ready to check."
-            },
+            NotificationChannel(
+                DRAFTS_CHANNEL,
+                context.getString(R.string.notice_channel_drafts),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply { description = context.getString(R.string.notice_channel_drafts_description) },
         )
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -114,16 +115,15 @@ object Notices {
         }
         val tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val day = dayOf(newest.bill.date)?.let { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(it) }
+        val resources = context.resources
         val text = when {
-            drafts.size == 1 && day != null -> "Its draft for $day is ready to check and finish."
-            drafts.size == 1 -> "Its draft is ready to check and finish."
-            day != null -> "${drafts.size} drafts are ready to check and finish, the newest for $day."
-            else -> "${drafts.size} drafts are ready to check and finish."
+            day != null -> resources.getQuantityString(R.plurals.notice_drafts_on, drafts.size, drafts.size, day)
+            else -> resources.getQuantityString(R.plurals.notice_drafts, drafts.size, drafts.size)
         }
         // What a lock screen that hides private notices shows instead: nothing the user typed.
         val hidden = NotificationCompat.Builder(context, DRAFTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(DRAFTS_DUE)
+            .setContentTitle(context.getString(R.string.notice_drafts_due))
             .build()
         val notice = NotificationCompat.Builder(context, DRAFTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
@@ -149,9 +149,6 @@ object Notices {
         }
         NotificationManagerCompat.from(context).notify(tag, id, notice)
     }
-
-    /** What the notice of a recurring bill's drafts says where private notices are hidden. */
-    private const val DRAFTS_DUE = "A recurring bill is due"
 
     /** The scheme of the address that tells apart the taps of the drafts' notices; nothing opens it. */
     private const val DRAFT_SCHEME = "splitvibe-draft"

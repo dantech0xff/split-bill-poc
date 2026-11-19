@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestClock
 import com.dantech.splitvibe.TestStorage
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.GroupLink
@@ -50,8 +51,8 @@ class RecurringDraftsTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val storage = TestStorage(context)
     private val clock = TestClock(LocalDate.of(2026, 11, 16))
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { clock.millis() }
-    private val recurring = RecurringBillRepository(storage.database, clock)
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { clock.millis() }
+    private val recurring = RecurringBillRepository(storage.database, clock, contentWords())
 
     /** The drafts of each notice, in the order the notices were posted; the runs at once post from two threads. */
     private val notices: MutableList<List<String>> = Collections.synchronizedList(mutableListOf())

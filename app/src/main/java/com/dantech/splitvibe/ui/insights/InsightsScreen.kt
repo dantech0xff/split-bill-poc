@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
@@ -58,6 +61,11 @@ import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.Spending
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.labelRes
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.text.text
 
 /** What the insights screen can ask for. */
 class InsightsActions(
@@ -102,22 +110,30 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Insights") },
+                title = { Text(stringResource(R.string.home_insights)) },
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
         bottomBar = {
             if (!state?.bills.isNullOrEmpty()) {
-                SvBottomBar { SvPrimaryButton("Export these bills", onClick = { exporting = true }, enabled = !export.working) }
+                SvBottomBar {
+                    SvPrimaryButton(
+                        stringResource(R.string.insights_export_bills),
+                        onClick = { exporting = true },
+                        enabled = !export.working,
+                    )
+                }
             }
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             item(key = "period") {
                 SvChoiceGroup(
-                    options = InsightsPeriod.entries.map { it.label },
+                    options = InsightsPeriod.entries.map { stringResource(it.label) },
                     selected = (state?.period ?: InsightsPeriod.THIS_MONTH).ordinal,
                     onSelect = { actions.onChoosePeriod(InsightsPeriod.entries[it]) },
                     modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
@@ -126,9 +142,9 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
             export.message?.let { message ->
                 item(key = "message") {
                     SvMessageCard(
-                        text = message.text,
+                        text = message.text.resolve(),
                         isError = message.isError,
-                        action = "OK",
+                        action = stringResource(R.string.common_ok),
                         onAction = actions.onDismissMessage,
                         modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
                     )
@@ -140,7 +156,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
                 !state.anyFinished -> item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.Default.ShoppingCart,
-                        text = "Bills you finish are added up here: by month, category, person and group.",
+                        text = stringResource(R.string.insights_empty),
                         modifier = rowMotion(),
                     )
                 }
@@ -178,42 +194,45 @@ private fun LazyListScope.insights(state: InsightsState) {
     val currency = insights.currency
     item(key = "overview") { Overview(state, modifier = rowMotion()) }
     itemsIndexed(state.notes, key = { index, _ -> "note $index" }) { _, note ->
-        SvMessageCard(note, isError = false, modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
+        SvMessageCard(note.resolve(), isError = false, modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs))
     }
     if (state.bills.isEmpty()) {
         item(key = "none") {
-            SvEmptyState(Icons.Default.ShoppingCart, "No finished bill is dated in this period.", modifier = rowMotion())
+            SvEmptyState(Icons.Default.ShoppingCart, stringResource(R.string.insights_none_in_period), modifier = rowMotion())
         }
         return
     }
     section(
         key = "month",
-        title = "By month",
+        title = R.string.insights_by_month,
         lines = insights.byMonth.entries.reversed().map { (month, spending) ->
-            SpendingLine("$month", Exporter.monthName(month), spending.totalMinor, shareAndCount(spending, currency::format))
+            SpendingLine("$month", UiText.Raw(Exporter.monthName(month)), spending.totalMinor, shareAndCount(spending, currency::format))
         },
         format = currency::format,
     )
     section(
         key = "category",
-        title = "By category",
+        title = R.string.insights_by_category,
         lines = insights.byCategory.map { (category, spending) ->
-            SpendingLine(category.wireValue, category.label, spending.totalMinor, shareAndCount(spending, currency::format))
+            SpendingLine(category.wireValue, text(category.labelRes), spending.totalMinor, shareAndCount(spending, currency::format))
         },
         format = currency::format,
     )
     section(
         key = "person",
-        title = "By person",
-        hint = "What each person's part of the bills came to",
-        lines = insights.byPerson.map { person -> SpendingLine(person.personKey, person.name, person.shareMinor, billCount(person.bills)) },
+        title = R.string.insights_by_person,
+        hint = R.string.insights_by_person_hint,
+        lines = insights.byPerson.map { person ->
+            SpendingLine(person.personKey, UiText.Raw(person.name), person.shareMinor, billCount(person.bills))
+        },
         format = currency::format,
     )
     section(
         key = "group",
-        title = "By group",
+        title = R.string.insights_by_group,
         lines = insights.byGroup.map { (group, spending) ->
-            SpendingLine(group?.id.orEmpty(), Exporter.groupName(group), spending.totalMinor, shareAndCount(spending, currency::format))
+            val name = group?.name?.let(UiText::Raw) ?: text(R.string.insights_no_group)
+            SpendingLine(group?.id.orEmpty(), name, spending.totalMinor, shareAndCount(spending, currency::format))
         },
         format = currency::format,
     )
@@ -233,11 +252,11 @@ private fun Overview(state: InsightsState, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Column(modifier = Modifier.padding(SvSpacing.xl)) {
-            Text(state.periodName, style = MaterialTheme.typography.titleMedium)
+            Text(state.periodName.resolve(), style = MaterialTheme.typography.titleMedium)
             SvAmount(amountMinor = overall.totalMinor, format = currency::format, style = MaterialTheme.typography.amountLarge)
             Spacer(Modifier.height(SvSpacing.xs))
             Text(
-                "Spent on ${billCount(overall.bills)} · Your share ${currency.format(overall.myShareMinor)}",
+                stringResource(R.string.insights_spent_on, billCount(overall.bills).resolve(), currency.format(overall.myShareMinor)),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -245,25 +264,31 @@ private fun Overview(state: InsightsState, modifier: Modifier = Modifier) {
 }
 
 /** One line of a breakdown: what it is, its amount, and a line about it. */
-private class SpendingLine(val key: String, val label: String, val amountMinor: Long, val detail: String)
+private class SpendingLine(val key: String, val label: UiText, val amountMinor: Long, val detail: UiText)
 
 /** A breakdown under [title], each line with a bar as long as its share of the largest line; nothing when it has no lines. */
-private fun LazyListScope.section(key: String, title: String, lines: List<SpendingLine>, format: (Long) -> String, hint: String? = null) {
+private fun LazyListScope.section(
+    key: String,
+    @StringRes title: Int,
+    lines: List<SpendingLine>,
+    format: (Long) -> String,
+    @StringRes hint: Int? = null,
+) {
     if (lines.isEmpty()) return
     val largest = lines.maxOf { it.amountMinor }.coerceAtLeast(1)
-    item(key = "$key header") { SvSectionHeader(title, modifier = rowMotion(), hint = hint) }
+    item(key = "$key header") { SvSectionHeader(stringResource(title), modifier = rowMotion(), hint = hint?.let { stringResource(it) }) }
     itemsIndexed(lines, key = { _, line -> "$key ${line.key}" }) { index, line ->
         SvListRow(position = SvRowPosition.of(index, lines.size), modifier = rowMotion()) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(line.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text(line.label.resolve(), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(SvSpacing.md))
                     Text(format(line.amountMinor), style = MaterialTheme.typography.amountSmall)
                 }
                 Spacer(Modifier.height(SvSpacing.xs))
                 Bar(fraction = (line.amountMinor.coerceAtLeast(0).toFloat() / largest).coerceIn(0f, 1f))
                 Spacer(Modifier.height(SvSpacing.xs))
-                Text(line.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(line.detail.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -293,9 +318,9 @@ private fun Bar(fraction: Float, modifier: Modifier = Modifier) {
     }
 }
 
-private fun shareAndCount(spending: Spending, format: (Long) -> String): String =
-    "Your share ${format(spending.myShareMinor)} · ${billCount(spending.bills)}"
+private fun shareAndCount(spending: Spending, format: (Long) -> String): UiText =
+    text(R.string.insights_share_and_count, format(spending.myShareMinor), billCount(spending.bills))
 
-private fun billCount(bills: Int): String = if (bills == 1) "1 bill" else "$bills bills"
+private fun billCount(bills: Int): UiText = plural(R.plurals.insights_bill_count, bills)
 
 private val BAR_HEIGHT = 8.dp

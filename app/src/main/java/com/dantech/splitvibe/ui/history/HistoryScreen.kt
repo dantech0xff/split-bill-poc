@@ -29,7 +29,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
@@ -44,6 +46,7 @@ import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.text.labelRes
 import com.dantech.splitvibe.ui.recurring.RepeatBillSheet
 import java.time.Instant
 import java.time.LocalDate
@@ -76,9 +79,11 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Bills") },
+                title = { Text(stringResource(R.string.groups_bills)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
@@ -94,7 +99,7 @@ fun HistoryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
-                    placeholder = { Text("Search by place, item or person") },
+                    placeholder = { Text(stringResource(R.string.history_search)) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -106,7 +111,11 @@ fun HistoryScreen(
                 listings.isEmpty() -> item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.AutoMirrored.Filled.List,
-                        text = if (typed.isBlank()) NO_BILLS else "No bill matches “${typed.trim()}”.",
+                        text = if (typed.isBlank()) {
+                            stringResource(R.string.history_none)
+                        } else {
+                            stringResource(R.string.history_no_match, typed.trim())
+                        },
                         modifier = rowMotion(),
                     )
                 }
@@ -143,18 +152,18 @@ fun HistoryScreen(
     }
 
     deleting?.let { id ->
-        val title = listings?.firstOrNull { it.id == id }?.let(::titleOf) ?: "this bill"
+        val title = listings?.firstOrNull { it.id == id }?.let { titleOf(it) } ?: stringResource(R.string.history_this_bill)
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete $title?") },
-            text = { Text("The bill, its split and its photos are deleted from this phone. This cannot be undone.") },
+            title = { Text(stringResource(R.string.history_delete_title, title)) },
+            text = { Text(stringResource(R.string.history_delete_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(id)
                     deleting = null
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 }
@@ -176,14 +185,14 @@ internal fun BillListingRow(
     val total = BillCurrency(listing.currency, listing.fractionDigits).format(listing.totalMinor)
     val detail = listOfNotNull(
         listing.date ?: dayOf(listing.updatedAt),
-        (BillCategory.fromWire(listing.category) ?: BillCategory.OTHER).label,
+        stringResource((BillCategory.fromWire(listing.category) ?: BillCategory.OTHER).labelRes),
         listing.people.takeIf { it.isNotBlank() },
-        "Draft".takeIf { listing.status == BillStatus.DRAFT.name },
+        stringResource(R.string.history_draft).takeIf { listing.status == BillStatus.DRAFT.name },
     ).joinToString(" · ")
     SvListRow(
         position = position,
-        label = "$title, $total, $detail",
-        onClickLabel = "Open $title",
+        label = stringResource(R.string.history_row_label, title, total, detail),
+        onClickLabel = stringResource(R.string.history_open, title),
         onClick = onOpen,
         modifier = modifier,
     ) {
@@ -195,16 +204,18 @@ internal fun BillListingRow(
         Text(total, style = MaterialTheme.typography.amountSmall)
         if (onDelete != null) {
             SvOverflowMenu(
-                label = "More for $title",
-                options = listOfNotNull(onRepeat?.let { SvMenuOption("Repeat this bill", it) }, SvMenuOption("Delete", onDelete)),
+                label = stringResource(R.string.groups_more_for, title),
+                options = listOfNotNull(
+                    onRepeat?.let { SvMenuOption(stringResource(R.string.history_repeat), it) },
+                    SvMenuOption(stringResource(R.string.common_delete), onDelete),
+                ),
             )
         }
     }
 }
 
-private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: "Bill"
+@Composable
+private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_bill)
 
 private fun dayOf(millis: Long): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
-
-private const val NO_BILLS = "No bills yet. Every bill you split is kept here."

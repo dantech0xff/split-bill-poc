@@ -25,6 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -36,6 +38,9 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.text.text
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -62,9 +67,11 @@ fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Recurring bills") },
+                title = { Text(stringResource(R.string.recurring_title)) },
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
@@ -76,8 +83,7 @@ fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
                 rows.isEmpty() -> item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.Default.DateRange,
-                        text = "No recurring bills yet. To repeat a bill such as the rent, open the menu of a finished bill " +
-                            "in your bills and choose Repeat this bill.",
+                        text = stringResource(R.string.recurring_none),
                         modifier = rowMotion(),
                     )
                 }
@@ -85,7 +91,7 @@ fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
                 else -> {
                     item(key = "intro") {
                         Text(
-                            "On each day a recurring bill comes back, a draft of it is made for you to check and finish.",
+                            stringResource(R.string.recurring_intro),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
@@ -100,18 +106,18 @@ fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
     }
 
     deleting?.let { id ->
-        val name = rows?.firstOrNull { it.bill.id == id }?.bill?.name ?: "this recurring bill"
+        val name = rows?.firstOrNull { it.bill.id == id }?.bill?.name ?: stringResource(R.string.recurring_this_bill)
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete $name?") },
-            text = { Text("No more drafts of it are made. The drafts it made already stay with your bills.") },
+            title = { Text(stringResource(R.string.history_delete_title, name)) },
+            text = { Text(stringResource(R.string.recurring_delete_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     actions.onDelete(id)
                     deleting = null
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 }
@@ -122,51 +128,59 @@ private fun RecurringBillRow(row: RecurringRow, position: SvRowPosition, actions
     SvListRow(position = position) {
         Column(modifier = Modifier.weight(1f)) {
             Text(bill.name, style = MaterialTheme.typography.bodyLarge)
-            Text(describe(bill.schedule), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(detailOf(row), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                describe(bill.schedule).resolve(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(detailOf(row).resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(SvSpacing.md))
         Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountSmall)
         SvOverflowMenu(
-            label = "More for ${bill.name}",
+            label = stringResource(R.string.groups_more_for, bill.name),
             options = listOf(
                 if (bill.paused) {
-                    SvMenuOption("Resume") { actions.onResume(bill.id) }
+                    SvMenuOption(stringResource(R.string.recurring_resume)) { actions.onResume(bill.id) }
                 } else {
-                    SvMenuOption("Pause") { actions.onPause(bill.id) }
+                    SvMenuOption(stringResource(R.string.recurring_pause)) { actions.onPause(bill.id) }
                 },
-                SvMenuOption("Delete", onDelete),
+                SvMenuOption(stringResource(R.string.common_delete), onDelete),
             ),
         )
     }
 }
 
-/** When [schedule] comes back, in English as the app is, such as "Every month on the 31st, or the last day of a shorter month". */
-internal fun describe(schedule: RecurrenceSchedule): String {
+/**
+ * When [schedule] comes back, such as "Every month on the 31st, or the last day of a shorter month".
+ * The day of the week is in English as the app is, and the day of the month takes the English
+ * ending of its ordinal, each ending a string of its own.
+ */
+internal fun describe(schedule: RecurrenceSchedule): UiText {
     val start = schedule.start
     return when (schedule.frequency) {
-        Frequency.WEEKLY -> "Every week on ${start.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)}"
+        Frequency.WEEKLY -> text(R.string.recurring_every_week, start.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
 
         Frequency.MONTHLY -> {
             val day = start.dayOfMonth
-            val suffix = when {
-                day in 11..13 -> "th"
-                day % 10 == 1 -> "st"
-                day % 10 == 2 -> "nd"
-                day % 10 == 3 -> "rd"
-                else -> "th"
+            val ordinal = when {
+                day in 11..13 -> R.string.recurring_day_th
+                day % 10 == 1 -> R.string.recurring_day_st
+                day % 10 == 2 -> R.string.recurring_day_nd
+                day % 10 == 3 -> R.string.recurring_day_rd
+                else -> R.string.recurring_day_th
             }
-            val shorter = if (day > SHORTEST_MONTH) ", or the last day of a shorter month" else ""
-            "Every month on the $day$suffix$shorter"
+            val every = text(R.string.recurring_every_month, text(ordinal, day))
+            if (day > SHORTEST_MONTH) text(R.string.recurring_or_last_day, every) else every
         }
     }
 }
 
 /** Where [row] is: paused, with a draft due and not made yet, or with the day of its next draft. */
-internal fun detailOf(row: RecurringRow): String = when {
-    row.bill.paused -> "Paused"
-    row.due -> "Draft due ${dayText(row.next)}"
-    else -> "Next draft ${dayText(row.next)}"
+internal fun detailOf(row: RecurringRow): UiText = when {
+    row.bill.paused -> text(R.string.recurring_paused)
+    row.due -> text(R.string.recurring_draft_due, dayText(row.next))
+    else -> text(R.string.recurring_next_draft, dayText(row.next))
 }
 
 /** A day as the app shows dates, such as "Dec 1, 2026". */

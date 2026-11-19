@@ -20,7 +20,7 @@ import org.koin.dsl.module
  * that make a draft on their days. It sits next to [appModule], which holds what they build on.
  */
 val spendingModule = module {
-    single { RecurringBillRepository(database = get(), clock = PhoneClock) }
+    single { RecurringBillRepository(database = get(), clock = PhoneClock, words = get()) }
     single {
         val context = androidContext()
         RecurringDrafts(
@@ -33,7 +33,14 @@ val spendingModule = module {
     single { Exporter(androidContext()) }
 
     viewModel {
-        InsightsViewModel(bills = get(), settings = get<SettingsStore>().settings, exporter = get(), clock = PhoneClock, savedState = get())
+        InsightsViewModel(
+            bills = get(),
+            settings = get<SettingsStore>().settings,
+            exporter = get(),
+            clock = PhoneClock,
+            savedState = get(),
+            words = get(),
+        )
     }
     viewModel {
         val context = androidContext()

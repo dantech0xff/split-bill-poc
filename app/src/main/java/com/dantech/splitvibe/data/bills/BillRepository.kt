@@ -2,6 +2,7 @@ package com.dantech.splitvibe.data.bills
 
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.domain.NameMatcher
+import com.dantech.splitvibe.text.ContentWords
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -16,6 +17,8 @@ class BillRepository(
     private val database: SplitVibeDatabase,
     private val people: PeopleRepository,
     private val pages: BillPages,
+    /** What the list of the people on a bill calls the user. */
+    private val words: ContentWords,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val bills = database.bills()
@@ -88,7 +91,7 @@ class BillRepository(
     }
 
     private fun SavedBill.toEntity(): BillEntity {
-        val names = plan.participants.map { if (it.isMe) YOU else it.name }
+        val names = plan.participants.map { if (it.isMe) words.you else it.name }
         return BillEntity(
             id = id,
             revision = revision,

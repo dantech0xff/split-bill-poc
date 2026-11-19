@@ -2,12 +2,13 @@ package com.dantech.splitvibe.ui.insights
 
 import android.content.Intent
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SavedBill
-import com.dantech.splitvibe.data.bills.YOU
 import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.BillCurrency
@@ -21,6 +22,10 @@ import com.dantech.splitvibe.export.ExportContent
 import com.dantech.splitvibe.export.ExportFile
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
+import com.dantech.splitvibe.text.ContentWords
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.text
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
@@ -43,10 +48,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Which finished bills the insights add up, by the date on each bill. */
-enum class InsightsPeriod(val label: String) {
-    THIS_MONTH("This month"),
-    LAST_12_MONTHS("12 months"),
-    ALL_TIME("All time"),
+enum class InsightsPeriod(@param:StringRes val label: Int) {
+    THIS_MONTH(R.string.insights_this_month),
+    LAST_12_MONTHS(R.string.insights_12_months),
+    ALL_TIME(R.string.insights_all_time),
     ;
 
     /** The first and the last day of the period [today] is in; null for all time. */
@@ -69,20 +74,20 @@ enum class InsightsPeriod(val label: String) {
 data class InsightsState(
     val period: InsightsPeriod,
     /** What the period is called, such as "November 2026". */
-    val periodName: String,
+    val periodName: UiText,
     /** A short form of [periodName] for file names, such as "2026-11". */
     val periodKey: String,
     val insights: Insights,
     /** The finished bills of the period, by the day each counts on, the latest first. */
     val bills: List<SavedBill>,
     /** What the totals leave out and why. */
-    val notes: List<String>,
+    val notes: List<UiText>,
     /** Whether there is a finished bill at all, in this period or another. */
     val anyFinished: Boolean,
 )
 
 /** A message about the last export: that it was saved, or why it was not. */
-data class ExportMessage(val text: String, val isError: Boolean)
+data class ExportMessage(val text: UiText, val isError: Boolean)
 
 /** Where exporting is: files being written, a share sheet to hand over, or the outcome of the last export. */
 data class ExportStatus(val working: Boolean = false, val share: Intent? = null, val message: ExportMessage? = null)
@@ -98,6 +103,8 @@ class InsightsViewModel(
     private val exporter: Exporter,
     private val clock: Clock,
     private val savedState: SavedStateHandle,
+    /** What the user and someone without a name are called in the totals by person. */
+    private val words: ContentWords,
 ) : ViewModel() {
 
     /** Null until the bills have been read. */
@@ -107,7 +114,7 @@ class InsightsViewModel(
         savedState.getStateFlow(KEY_PERIOD, InsightsPeriod.THIS_MONTH.name),
     ) { finished, localCurrency, period ->
         val chosen = InsightsPeriod.entries.firstOrNull { it.name == period } ?: InsightsPeriod.THIS_MONTH
-        insightsOf(finished, localCurrency, chosen, clock)
+        insightsOf(finished, localCurrency, chosen, clock, words)
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MS), null)
@@ -121,27 +128,27 @@ class InsightsViewModel(
 
     /** Gets the files of [format] ready for the share sheet, which [export] then carries. */
     fun share(format: ExportFormat) = exportAs(format, failure = SHARE_FAILED) { files ->
-        val sheet = exporter.shareIntent(files, title = "Send the bills")
+        val sheet = exporter.shareIntent(files, title = R.string.insights_send_title)
         exportStatus.update { it.copy(share = sheet) }
     }
 
     /** Writes the three CSV files into [folder], a folder the user picked. */
     fun saveToFolder(folder: Uri) = exportAs(ExportFormat.CSV, failure = SAVE_FAILED) { files ->
         exporter.saveToFolder(folder, files)
-        tell("Saved ${andList(files.map { it.name })}.")
+        tell(text(R.string.insights_saved, andList(files.map { UiText.Raw(it.name) })))
     }
 
     /** Writes the PDF summary to [document], a file the user made. */
     fun saveTo(document: Uri) = exportAs(ExportFormat.PDF, failure = SAVE_FAILED) { files ->
         exporter.saveTo(document, files.single())
-        tell("Saved the summary.")
+        tell(text(R.string.insights_saved_summary))
     }
 
     /** The share sheet was handed over. */
     fun shared() = exportStatus.update { it.copy(share = null) }
 
     /** The phone has no file picker to save with. */
-    fun pickerMissing() = tell("This phone has no app to save files with. Share them instead.", isError = true)
+    fun pickerMissing() = tell(text(R.string.insights_no_picker), isError = true)
 
     fun dismissMessage() = exportStatus.update { it.copy(message = null) }
 
@@ -151,13 +158,17 @@ class InsightsViewModel(
      * is never dropped: after the system ended the app behind the file picker, the answer comes
      * before the bills are read again, and the export waits for them.
      */
-    private fun exportAs(format: ExportFormat, failure: String, deliver: suspend (List<ExportFile>) -> Unit) {
+    private fun exportAs(format: ExportFormat, failure: UiText, deliver: suspend (List<ExportFile>) -> Unit) {
         if (exportStatus.value.working) return
         exportStatus.update { it.copy(working = true, message = null) }
         viewModelScope.launch {
             try {
                 val shown = state.filterNotNull().first()
-                if (shown.bills.isEmpty()) tell(NOTHING_TO_EXPORT, isError = true) else deliver(exporter.files(contentOf(shown), format))
+                if (shown.bills.isEmpty()) {
+                    tell(NOTHING_TO_EXPORT, isError = true)
+                } else {
+                    deliver(exporter.files(contentOf(shown, exporter::text), format))
+                }
             } catch (e: IOException) {
                 tell(failure, isError = true)
             } finally {
@@ -166,24 +177,27 @@ class InsightsViewModel(
         }
     }
 
-    private fun tell(text: String, isError: Boolean = false) = exportStatus.update { it.copy(message = ExportMessage(text, isError)) }
+    private fun tell(said: UiText, isError: Boolean = false) = exportStatus.update { it.copy(message = ExportMessage(said, isError)) }
 
     private companion object {
         const val KEY_PERIOD = "period"
         const val STOP_AFTER_MS = 5_000L
-        const val SHARE_FAILED = "The files could not be written. Check the space left on the phone."
-        const val SAVE_FAILED = "The files could not be saved there. Pick another place, or share them instead."
-        const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
+        val SHARE_FAILED = text(R.string.insights_share_failed)
+        val SAVE_FAILED = text(R.string.insights_save_failed)
+        val NOTHING_TO_EXPORT = text(R.string.insights_nothing_to_export)
     }
 }
 
-/** What the files of [state] hold: its bills by the day each counts on, the latest first, and what they add up to. */
-internal fun contentOf(state: InsightsState) = ExportContent(
-    period = state.periodName,
+/**
+ * What the files of [state] hold: its bills by the day each counts on, the latest first, and what
+ * they add up to, with its words as [read] gives them, such as [Exporter.text].
+ */
+internal fun contentOf(state: InsightsState, read: (UiText) -> String) = ExportContent(
+    period = read(state.periodName),
     periodKey = state.periodKey,
     bills = state.bills,
     insights = state.insights,
-    notes = state.notes,
+    notes = state.notes.map(read),
 )
 
 /**
@@ -191,12 +205,18 @@ internal fun contentOf(state: InsightsState) = ExportContent(
  * [clock] tells, in the currency [localCurrency] names. A bill counts on its own date, or on the day
  * it was saved when it has none that can be read, in the zone [clock] is in.
  */
-internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period: InsightsPeriod, clock: Clock): InsightsState {
+internal fun insightsOf(
+    finished: List<SavedBill>,
+    localCurrency: String,
+    period: InsightsPeriod,
+    clock: Clock,
+    words: ContentWords,
+): InsightsState {
     val local = BillCurrency.resolve(localCurrency, null, emptyList())
     val today = LocalDate.now(clock)
     val days = period.days(today)
     // The sort keeps the latest saved first among bills of the same day.
-    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone) }
+    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone, words) }
         .filter { (_, counted) -> days == null || counted.day?.let { it in days } == true }
         .sortedByDescending { (_, counted) -> counted.day }
     val insights = Insights.of(inPeriod.map { (_, counted) -> counted }, local)
@@ -204,9 +224,13 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
     return InsightsState(
         period = period,
         periodName = when (period) {
-            InsightsPeriod.THIS_MONTH -> Exporter.monthName(month)
-            InsightsPeriod.LAST_12_MONTHS -> "${Exporter.monthName(month.minusMonths(11))} to ${Exporter.monthName(month)}"
-            InsightsPeriod.ALL_TIME -> "All time"
+            InsightsPeriod.THIS_MONTH -> UiText.Raw(Exporter.monthName(month))
+
+            InsightsPeriod.LAST_12_MONTHS -> {
+                text(R.string.insights_months_to, Exporter.monthName(month.minusMonths(11)), Exporter.monthName(month))
+            }
+
+            InsightsPeriod.ALL_TIME -> text(R.string.insights_all_time)
         },
         periodKey = when (period) {
             InsightsPeriod.THIS_MONTH -> "$month"
@@ -230,7 +254,7 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
  * tells the people it remembers apart. So is someone forgotten and added again, who is remembered
  * under a new id, and someone of the same name who joined a bill from its link.
  */
-internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId): InsightBill {
+internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId, words: ContentWords): InsightBill {
     val bill = saved.bill
     return InsightBill(
         day = dayOf(bill.date) ?: Instant.ofEpochMilli(saved.createdAt).atZone(zone).toLocalDate(),
@@ -242,10 +266,10 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId
             val name = saved.plan.participant(share.personId)?.name?.trim().orEmpty()
             val key = NameMatcher.normalize(name).takeIf { it.isNotEmpty() }?.let { "name:$it" }
             if (share.personId == ME_ID) {
-                InsightShare(ME_ID, YOU, share.totalMinor)
+                InsightShare(ME_ID, words.you, share.totalMinor)
             } else {
                 // Someone without a name is someone of this bill alone.
-                InsightShare(key ?: "${saved.id}/${share.personId}", name.ifEmpty { SOMEONE }, share.totalMinor)
+                InsightShare(key ?: "${saved.id}/${share.personId}", name.ifEmpty { words.someone }, share.totalMinor)
             }
         },
         myShareMinor = saved.myShareMinor,
@@ -257,35 +281,26 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId
  * What the totals of [insights] leave out and how to count it: bills without a rate, which a rate
  * typed on the bill counts. And how [bySavedDay] bills without a date that can be read are counted.
  */
-private fun notesOf(insights: Insights, bySavedDay: Int): List<String> = buildList {
+private fun notesOf(insights: Insights, bySavedDay: Int): List<UiText> = buildList {
     val withoutRate = insights.withoutRate
     val count = withoutRate.values.sum()
     if (count > 0) {
         val local = insights.currency.code
         add(
-            when {
-                withoutRate.size > 1 ->
-                    "$count bills are left out of the totals, as no rate to $local is saved with them: " +
-                        andList(withoutRate.map { (code, bills) -> "$bills in $code" }) + ". To count one, open it and type a rate."
-
-                count == 1 ->
-                    "1 bill in ${withoutRate.keys.single()} is left out of the totals, as no rate to $local is saved with it. " +
-                        "To count it, open it and type a rate."
-
-                else ->
-                    "$count bills in ${withoutRate.keys.single()} are left out of the totals, as no rate to $local is saved with them. " +
-                        "To count one, open it and type a rate."
+            if (withoutRate.size > 1) {
+                val parts = withoutRate.map { (code, bills) -> plural(R.plurals.insights_bills_in, bills, bills, code) }
+                plural(R.plurals.insights_without_rates, count, count, local, andList(parts))
+            } else {
+                plural(R.plurals.insights_without_rate, count, count, withoutRate.keys.single(), local)
             },
         )
     }
-    when {
-        bySavedDay == 1 -> add("1 bill has no date that can be read, so it is counted on the day it was saved.")
-        bySavedDay > 1 -> add("$bySavedDay bills have no date that can be read, so each is counted on the day it was saved.")
-    }
+    if (bySavedDay > 0) add(plural(R.plurals.insights_by_saved_day, bySavedDay))
 }
 
 /** [items] as a list in a sentence, such as "A, B and C". */
-private fun andList(items: List<String>): String =
-    if (items.size < 2) items.joinToString() else items.dropLast(1).joinToString() + " and " + items.last()
-
-private const val SOMEONE = "Someone"
+private fun andList(items: List<UiText>): UiText = if (items.size < 2) {
+    items.singleOrNull() ?: UiText.Raw("")
+} else {
+    text(R.string.insights_and_list, UiText.Joined(items.dropLast(1), ", "), items.last())
+}

@@ -37,7 +37,7 @@ class NoticesAndDevicesTest {
     fun `every notice has fixed words of the app's own, and an unknown kind shows nothing`() {
         listOf("request", "reported", "confirmed", "reminder", "claim", "unpaid", "unconfirmed").forEach { kind ->
             val (title, text) = checkNotNull(Notices.textOf(kind))
-            assertTrue(kind, title.isNotBlank() && text.isNotBlank())
+            assertTrue(kind, context.getString(title).isNotBlank() && context.getString(text).isNotBlank())
         }
         assertNull(Notices.textOf("anything else"))
         assertNull(Notices.textOf(null))

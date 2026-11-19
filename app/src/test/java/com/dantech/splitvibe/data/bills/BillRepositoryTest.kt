@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.TestStorage
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
@@ -34,7 +35,7 @@ class BillRepositoryTest {
 
     /** A clock that moves on by one at every save, so the newest bill is always the one saved last. */
     private var now = 0L
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { ++now }
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { ++now }
 
     @After
     fun tearDown() = storage.close()

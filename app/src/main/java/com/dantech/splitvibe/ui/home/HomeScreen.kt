@@ -75,14 +75,14 @@ fun HomeScreen(
                 scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))
                     }
                 },
             )
         },
         floatingActionButton = {
             SvPrimaryFab(
-                text = "Split a bill",
+                text = stringResource(R.string.home_split_a_bill),
                 icon = Icons.Default.Add,
                 onClick = onSplitBill,
                 modifier = Modifier.sharedSurface(SPLIT_SURFACE, resize = true),
@@ -109,10 +109,10 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.xs),
                 ) {
-                    PlaceButton("Groups", Icons.Default.Person, onOpenGroups)
-                    PlaceButton("Requests", Icons.AutoMirrored.Filled.List, onOpenRequests)
-                    PlaceButton("Insights", Icons.Default.ShoppingCart, onOpenInsights)
-                    PlaceButton("Recurring bills", Icons.Default.DateRange, onOpenRecurring)
+                    PlaceButton(stringResource(R.string.groups_title), Icons.Default.Person, onOpenGroups)
+                    PlaceButton(stringResource(R.string.requests_title), Icons.AutoMirrored.Filled.List, onOpenRequests)
+                    PlaceButton(stringResource(R.string.home_insights), Icons.Default.ShoppingCart, onOpenInsights)
+                    PlaceButton(stringResource(R.string.recurring_title), Icons.Default.DateRange, onOpenRecurring)
                 }
             }
             item {
@@ -120,14 +120,18 @@ fun HomeScreen(
                     modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.sm, top = SvSpacing.lg, bottom = SvSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = "Recent bills", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    if (bills.isNotEmpty()) TextButton(onClick = onSeeAllBills) { Text("See all") }
+                    Text(
+                        text = stringResource(R.string.home_recent_bills),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (bills.isNotEmpty()) TextButton(onClick = onSeeAllBills) { Text(stringResource(R.string.home_see_all)) }
                 }
             }
             val recent = bills.take(RECENT_BILLS)
             if (recent.isEmpty()) {
                 item {
-                    SvEmptyState(icon = Icons.AutoMirrored.Filled.List, text = "Bills you split are kept here, also without a connection.")
+                    SvEmptyState(icon = Icons.AutoMirrored.Filled.List, text = stringResource(R.string.home_no_bills))
                 }
             }
             itemsIndexed(recent, key = { _, listing -> listing.id }) { index, listing ->
@@ -155,14 +159,13 @@ private fun IntroCard(modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Text(
-            text = "Split a bill with AI",
+            text = stringResource(R.string.home_intro_title),
             style = MaterialTheme.typography.titleLargeEmphasized,
             modifier = Modifier.padding(start = SvSpacing.xl, end = SvSpacing.xl, top = SvSpacing.xl),
         )
         Spacer(Modifier.height(SvSpacing.sm))
         Text(
-            text = "Scan the bill and say how to split it. The bill is read on this phone, " +
-                "worked out by Claude, and you choose who pays what.",
+            text = stringResource(R.string.home_intro_text),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(start = SvSpacing.xl, end = SvSpacing.xl, bottom = SvSpacing.xl),
         )

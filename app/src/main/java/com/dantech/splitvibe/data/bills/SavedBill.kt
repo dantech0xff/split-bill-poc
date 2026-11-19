@@ -129,9 +129,6 @@ data class ShareLink(
 /** Another writer saved this bill since it was read, so this copy would overwrite their change. */
 class BillConflictException(val billId: String) : Exception("The bill $billId was changed elsewhere")
 
-/** What the app calls its user, who has no stored name, wherever the people of a bill are named. */
-const val YOU = "You"
-
 /**
  * How the phone keeps its bills as JSON, the recurring ones too. Reading one back skips what a newer
  * version added, and reads a choice this version does not know, such as a new category, as its

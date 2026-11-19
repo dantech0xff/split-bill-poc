@@ -6,6 +6,7 @@ import com.dantech.splitvibe.data.bills.SplitVibeDatabase
 import com.dantech.splitvibe.data.bills.storedJson
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.text.ContentWords
 import java.time.Clock
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.map
 class RecurringBillRepository(
     private val database: SplitVibeDatabase,
     private val clock: Clock,
+    /** What a recurring bill is called when it has no name of its own and its bill no merchant. */
+    private val words: ContentWords,
     private val newId: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val dao = database.recurringBills()
@@ -46,7 +49,7 @@ class RecurringBillRepository(
         val strangers = saved.share?.added?.values.orEmpty()
         val recurring = RecurringBill(
             id = newId(),
-            name = name.trim().take(MAX_NAME).ifEmpty { saved.bill.merchant?.trim()?.take(MAX_NAME)?.ifEmpty { null } ?: DEFAULT_NAME },
+            name = name.trim().take(MAX_NAME).ifEmpty { saved.bill.merchant?.trim()?.take(MAX_NAME)?.ifEmpty { null } ?: words.bill },
             schedule = schedule,
             bill = bill,
             plan = strangers.fold(saved.plan) { plan, id -> plan.withParticipantRemoved(id, bill) },
@@ -114,8 +117,5 @@ class RecurringBillRepository(
     companion object {
         /** As long as a name the user types for anything else. */
         const val MAX_NAME = 80
-
-        /** The name of a recurring bill made from a bill without a merchant, when none is given. */
-        const val DEFAULT_NAME = "Bill"
     }
 }

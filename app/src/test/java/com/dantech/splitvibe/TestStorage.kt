@@ -37,7 +37,7 @@ class TestStorage(context: Context) : AutoCloseable {
         .build()
     val pages = BillPages(context)
     val people = PeopleRepository(database)
-    val bills = BillRepository(database, people, pages)
+    val bills = BillRepository(database, people, pages, contentWords())
     val contactNames = ContactNames(context.contentResolver)
 
     /** Exchange rates as a build without a proxy address has them: none. */

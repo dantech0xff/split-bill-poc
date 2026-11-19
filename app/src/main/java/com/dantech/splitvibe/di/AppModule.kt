@@ -106,7 +106,7 @@ val appModule = module {
     single { SplitVibeDatabase.create(androidContext()) }
     single { BillPages(androidContext()) }
     single { PeopleRepository(database = get()) }
-    single { BillRepository(database = get(), people = get(), pages = get()) }
+    single { BillRepository(database = get(), people = get(), pages = get(), words = get()) }
     single { ContactNames(androidContext().contentResolver) }
     single { FxRepository(api = get(), file = File(androidContext().filesDir, "fx-rates.json")) }
 

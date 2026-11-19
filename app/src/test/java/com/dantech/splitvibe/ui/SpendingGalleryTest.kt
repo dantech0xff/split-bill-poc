@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.SpendingFixtures
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.SavedBill
@@ -58,7 +59,7 @@ class SpendingGalleryTest {
     val compose = createComposeRule()
 
     private val today = LocalDate.of(2026, 11, 16)
-    private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, SpendingFixtures.clock)
+    private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, SpendingFixtures.clock, contentWords())
 
     @Test
     @Config(sdk = [34], qualifiers = WHOLE_PAGE)

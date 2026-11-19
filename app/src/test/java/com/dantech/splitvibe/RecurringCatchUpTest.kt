@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.Configuration
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.recurring.RecurringBill
@@ -46,8 +47,8 @@ class RecurringCatchUpTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val storage = TestStorage(context)
     private val clock = TestClock(LocalDate.of(2026, 11, 16))
-    private val bills = BillRepository(storage.database, storage.people, storage.pages) { clock.millis() }
-    private val recurring = RecurringBillRepository(storage.database, clock)
+    private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { clock.millis() }
+    private val recurring = RecurringBillRepository(storage.database, clock, contentWords())
 
     /** Whether each notice was posted from the main thread, in order. */
     private val onMainThread: MutableList<Boolean> = Collections.synchronizedList(mutableListOf())
@@ -110,7 +111,8 @@ class RecurringCatchUpTest {
 
             override fun instant(): Instant = clock.instant().also { read.incrementAndGet() }
         }
-        useDrafts(RecurringDrafts(RecurringBillRepository(broken.database, counting), broken.bills, notify = { _, _ -> }, counting))
+        val brokenRecurring = RecurringBillRepository(broken.database, counting, contentWords())
+        useDrafts(RecurringDrafts(brokenRecurring, broken.bills, notify = { _, _ -> }, counting))
         broken.close()
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

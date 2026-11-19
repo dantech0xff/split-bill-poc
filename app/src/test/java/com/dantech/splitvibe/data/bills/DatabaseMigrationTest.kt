@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.SpendingFixtures
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.data.recurring.RecurringBillEntity
 import com.dantech.splitvibe.domain.BillCategory
@@ -97,7 +98,7 @@ class DatabaseMigrationTest {
             assertEquals(mapOf("rent" to "rent", "older" to "other", "unknown" to "other"), listings.associate { it.id to it.category })
 
             // The bills read as they were saved, and the new table takes recurring bills.
-            val bills = BillRepository(database, PeopleRepository(database), BillPages(context))
+            val bills = BillRepository(database, PeopleRepository(database), BillPages(context), contentWords())
             assertEquals(rent, runBlocking { bills.get("rent") })
             assertEquals(BillCategory.OTHER, runBlocking { bills.get("older") }?.bill?.category)
             // A category this version does not know reads as other in the document too, as in the list.

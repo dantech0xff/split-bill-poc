@@ -831,4 +831,144 @@
     <string name="claim_too_many_people">That would put more than 30 people on the bill, more than its link shows. Say who some of them are on the bill, or take strangers off the link.</string>
     <string name="claim_sign_in_in_settings">Sign in with Google in Settings to share a bill\'s link.</string>
     <string name="claim_not_set_up">Bill links are not set up on Split Vibe\'s server yet.</string>
+
+    <!-- Notices -->
+    <string name="notice_channel_requests">Payment requests and groups</string>
+    <string name="notice_channel_requests_description">When someone asks you to pay, says they paid, confirms a payment or asks to join a group.</string>
+    <string name="notice_request_title">New payment request</string>
+    <string name="notice_request_text">Someone asked you to pay them back. Open Split Vibe to see the request.</string>
+    <string name="notice_reported_title">Payment reported</string>
+    <string name="notice_reported_text">A payment you asked for was reported as paid. Open Split Vibe to confirm it.</string>
+    <string name="notice_confirmed_title">Payment confirmed</string>
+    <string name="notice_confirmed_text">A payment you reported was confirmed. Open Split Vibe to see it.</string>
+    <string name="notice_reminder_title">Payment reminder</string>
+    <string name="notice_reminder_text">A payment request is still waiting for you. Open Split Vibe to see it.</string>
+    <string name="notice_claim_title">Someone asked to join</string>
+    <string name="notice_claim_text">A person asked to take a place in one of your groups. Open Split Vibe to approve or reject it.</string>
+    <string name="notice_unpaid_title">Payment still open</string>
+    <string name="notice_unpaid_text">Someone has not paid you back yet. Open Split Vibe to send them a reminder.</string>
+    <string name="notice_unconfirmed_title">Payment to confirm</string>
+    <string name="notice_unconfirmed_text">A payment was reported to you. Open Split Vibe to confirm it once it arrived.</string>
+    <string name="notice_channel_drafts">Recurring bills</string>
+    <string name="notice_channel_drafts_description">When a recurring bill, such as the rent, is due and its draft is ready to check.</string>
+    <plurals name="notice_drafts_on">
+        <item quantity="one">Its draft for %2$s is ready to check and finish.</item>
+        <item quantity="other">%1$d drafts are ready to check and finish, the newest for %2$s.</item>
+    </plurals>
+    <plurals name="notice_drafts">
+        <item quantity="one">Its draft is ready to check and finish.</item>
+        <item quantity="other">%d drafts are ready to check and finish.</item>
+    </plurals>
+    <string name="notice_drafts_due">A recurring bill is due</string>
+
+    <!-- Home -->
+    <string name="home_split_a_bill">Split a bill</string>
+    <string name="home_insights">Insights</string>
+    <string name="home_recent_bills">Recent bills</string>
+    <string name="home_see_all">See all</string>
+    <string name="home_no_bills">Bills you split are kept here, also without a connection.</string>
+    <string name="home_intro_title">Split a bill with AI</string>
+    <string name="home_intro_text">Scan the bill and say how to split it. The bill is read on this phone, worked out by Claude, and you choose who pays what.</string>
+
+    <!-- Recurring bills -->
+    <string name="recurring_title">Recurring bills</string>
+
+    <!-- The list of bills -->
+    <string name="history_search">Search by place, item or person</string>
+    <string name="history_none">No bills yet. Every bill you split is kept here.</string>
+    <string name="history_no_match">No bill matches “%1$s”.</string>
+    <string name="history_this_bill">this bill</string>
+    <string name="history_delete_title">Delete %1$s?</string>
+    <string name="history_delete_text">The bill, its split and its photos are deleted from this phone. This cannot be undone.</string>
+    <string name="history_draft">Draft</string>
+    <string name="history_row_label">%1$s, %2$s, %3$s</string>
+    <string name="history_open">Open %1$s</string>
+    <string name="history_repeat">Repeat this bill</string>
+
+    <!-- Recurring bills, continued -->
+    <string name="recurring_none">No recurring bills yet. To repeat a bill such as the rent, open the menu of a finished bill in your bills and choose Repeat this bill.</string>
+    <string name="recurring_intro">On each day a recurring bill comes back, a draft of it is made for you to check and finish.</string>
+    <string name="recurring_this_bill">this recurring bill</string>
+    <string name="recurring_delete_text">No more drafts of it are made. The drafts it made already stay with your bills.</string>
+    <string name="recurring_resume">Resume</string>
+    <string name="recurring_pause">Pause</string>
+    <string name="recurring_every_week">Every week on %1$s</string>
+    <string name="recurring_day_st">%1$dst</string>
+    <string name="recurring_day_nd">%1$dnd</string>
+    <string name="recurring_day_rd">%1$drd</string>
+    <string name="recurring_day_th">%1$dth</string>
+    <string name="recurring_every_month">Every month on the %1$s</string>
+    <string name="recurring_or_last_day">%1$s, or the last day of a shorter month</string>
+    <string name="recurring_paused">Paused</string>
+    <string name="recurring_draft_due">Draft due %1$s</string>
+    <string name="recurring_next_draft">Next draft %1$s</string>
+
+    <!-- Recurring bills, continued -->
+    <string name="recurring_repeat_hint">A draft of it is made on each day it comes back, for you to check and finish.</string>
+    <string name="recurring_repeat">Repeat</string>
+    <string name="recurring_name_placeholder">Rent</string>
+    <string name="recurring_weekly">Weekly</string>
+    <string name="recurring_monthly">Monthly</string>
+    <string name="recurring_first_draft">First draft %1$s</string>
+    <string name="recurring_change_first_draft">Change the day of the first draft</string>
+
+    <!-- Insights and export -->
+    <string name="insights_this_month">This month</string>
+    <string name="insights_12_months">12 months</string>
+    <string name="insights_all_time">All time</string>
+    <string name="insights_send_title">Send the bills</string>
+    <string name="insights_saved">Saved %1$s.</string>
+    <string name="insights_saved_summary">Saved the summary.</string>
+    <string name="insights_no_picker">This phone has no app to save files with. Share them instead.</string>
+    <string name="insights_share_failed">The files could not be written. Check the space left on the phone.</string>
+    <string name="insights_save_failed">The files could not be saved there. Pick another place, or share them instead.</string>
+    <string name="insights_nothing_to_export">Nothing was exported, as this period has no finished bills.</string>
+    <string name="insights_months_to">%1$s to %2$s</string>
+    <plurals name="insights_bills_in">
+        <item quantity="one">%1$d in %2$s</item>
+        <item quantity="other">%1$d in %2$s</item>
+    </plurals>
+    <plurals name="insights_without_rates">
+        <item quantity="one">%1$d bill is left out of the totals, as no rate to %2$s is saved with it: %3$s. To count it, open it and type a rate.</item>
+        <item quantity="other">%1$d bills are left out of the totals, as no rate to %2$s is saved with them: %3$s. To count one, open it and type a rate.</item>
+    </plurals>
+    <plurals name="insights_without_rate">
+        <item quantity="one">%1$d bill in %2$s is left out of the totals, as no rate to %3$s is saved with it. To count it, open it and type a rate.</item>
+        <item quantity="other">%1$d bills in %2$s are left out of the totals, as no rate to %3$s is saved with them. To count one, open it and type a rate.</item>
+    </plurals>
+    <plurals name="insights_by_saved_day">
+        <item quantity="one">%d bill has no date that can be read, so it is counted on the day it was saved.</item>
+        <item quantity="other">%d bills have no date that can be read, so each is counted on the day it was saved.</item>
+    </plurals>
+    <string name="insights_and_list">%1$s and %2$s</string>
+
+    <!-- Insights and export, continued -->
+    <string name="insights_export_bills">Export these bills</string>
+    <string name="insights_empty">Bills you finish are added up here: by month, category, person and group.</string>
+    <string name="insights_none_in_period">No finished bill is dated in this period.</string>
+    <string name="insights_by_month">By month</string>
+    <string name="insights_by_category">By category</string>
+    <string name="insights_by_person">By person</string>
+    <string name="insights_by_person_hint">What each person\'s part of the bills came to</string>
+    <string name="insights_by_group">By group</string>
+    <string name="insights_no_group">No group</string>
+    <string name="insights_spent_on">Spent on %1$s · Your share %2$s</string>
+    <string name="insights_share_and_count">Your share %1$s · %2$s</string>
+    <plurals name="insights_bill_count">
+        <item quantity="one">%d bill</item>
+        <item quantity="other">%d bills</item>
+    </plurals>
+
+    <!-- Insights and export, continued -->
+    <string name="insights_export">Export</string>
+    <plurals name="insights_export_hint">
+        <item quantity="one">The %1$d finished bill of %2$s, as files to keep or send.</item>
+        <item quantity="other">The %1$d finished bills of %2$s, as files to keep or send.</item>
+    </plurals>
+    <string name="insights_save_to_files">Save to files</string>
+    <string name="insights_share">Share</string>
+    <string name="insights_csv_files">CSV files</string>
+    <string name="insights_pdf_summary">PDF summary</string>
+    <string name="insights_csv_hint">%1$s, %2$s and %3$s, for a spreadsheet app. Numbers are written the way this phone\'s language writes them, so a spreadsheet app on it reads them right.</string>
+    <string name="insights_pdf_hint">A summary to read or print: the totals by month, category, person and group, and every bill.</string>
 </resources>

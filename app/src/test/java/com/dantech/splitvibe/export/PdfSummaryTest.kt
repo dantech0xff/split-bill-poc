@@ -6,10 +6,12 @@ import android.graphics.Color
 import android.graphics.Paint
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.SpendingFixtures
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ExchangeRate
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.ui.insights.InsightsPeriod
 import com.dantech.splitvibe.ui.insights.contentOf
 import com.dantech.splitvibe.ui.insights.insightsOf
@@ -40,7 +42,9 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34])
 class PdfSummaryTest {
 
-    private val content = contentOf(insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock))
+    private val content = contentOf(
+        insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords()),
+    ) { it.english() }
     private val summary = PdfSummary(content, Locale.US)
 
     @Test
@@ -106,7 +110,8 @@ class PdfSummaryTest {
 
     /** What each page of the summary of [bills] draws as a line of text, as a PDF page gets it. */
     private fun drawn(bills: List<SavedBill>): List<Drawn> {
-        val summary = PdfSummary(contentOf(insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock)), Locale.US)
+        val insights = insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords())
+        val summary = PdfSummary(contentOf(insights) { it.english() }, Locale.US)
         return summary.pages.indices.flatMap { index ->
             val page = Bitmap.createBitmap(PdfSummary.PAGE_WIDTH, PdfSummary.PAGE_HEIGHT, Bitmap.Config.ARGB_8888)
             val canvas = TextCanvas(index, page)
