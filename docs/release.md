@@ -351,6 +351,14 @@ The token deploys only. The Worker's secrets stay as the owner set them with `wr
 ([above](#the-workers-settings)). The first deploy of the Worker is made by hand, as the token
 cannot create one.
 
+### The dependency graph
+
+`dependency-graph.yml` can send the app's libraries to GitHub only while the repository's dependency
+graph is on. Turn it on in the repository's *Settings*, under *Security and quality > Advanced
+Security*, with *Enable* next to *Dependency graph*, and check that Dependabot alerts are on, since
+they are what reports a vulnerable library. Until the graph is on, every push to `main` fails that
+workflow at "Send them to GitHub", and no alert covers the Android libraries.
+
 ## Rehearsing on a test tag
 
 The two approvals make a rehearsal that changes nothing outside GitHub:
