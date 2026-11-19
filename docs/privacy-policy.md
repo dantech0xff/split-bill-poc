@@ -42,7 +42,7 @@ The insights you export as CSV files or a PDF go only where you choose to save o
 
 The app turns Android's backup to Google Drive off, so this data is not copied to your Google account. On some phones, a direct transfer from an old phone to a new one can still copy it. Clearing the app's data or uninstalling the app deletes it from the phone, but not the copies you shared, which are described below.
 
-The app asks Android for three permissions: the internet; notifications, which only show notices; and the microphone, which it asks for only when you tap the microphone to say a change. It does not ask for the camera, your files or your contacts. Photos come from Google's document scanner, the camera app or the photo picker, and a person from the system's contact picker, which hands the app only the contact you pick.
+Besides the internet and the technical permissions Android grants apps when they are installed, the app asks you for two permissions: notifications, which only show notices, and the microphone, which it asks for only when you tap the microphone to say a change. It does not ask for the camera, your files or your contacts. Photos come from Google's document scanner, the camera app or the photo picker, and a person from the system's contact picker, which hands the app only the contact you pick.
 
 ## What leaves your phone, and why
 
