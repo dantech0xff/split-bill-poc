@@ -19,13 +19,15 @@ screen they reach, on Android 14 and later.
 Each journey starts the app as the launcher does and goes through it the way a person would,
 finding every element by the English text on it, or by what it is, such as a text field or a list.
 No part of the app is replaced but its address of the proxy, so the screens, view models,
-repositories, the database and the proxy client are the ones that ship.
+repositories, the database and the proxy client are the app's own. They are those of the debug
+build, though, like every test in `app/src/androidTest`: see [In CI](#in-ci) for what that leaves
+out.
 
 | Test | Journey | What it checks |
 |---|---|---|
 | `SampleBillJourneyTest` | Split a bill, use the sample bill, type "Split with Minh and Lan. Minh had the beers.", read and split it | The real recognizer reads the photo on the phone, and one bill read goes to the proxy with that text and the instruction and nothing else, as the install, signed out. The split shows the restaurant and what each person pays: you ₫250,993, Minh ₫400,680, Lan ₫250,991. |
 | `ManualEntryJourneyTest` | Split a bill, type it in by hand (one item of 90), add Minh and Lan | Each of the three pays 30 in the currency the app works in, the user is offered to ask the other two for 60, and the proxy hears of no bill read and no change of a split. |
-| `PaymentRequestJourneyTest` | Signed in: type a bill in by hand (90 at Pho 24), add Minh, request his 45, send it, open Requests | The request goes to the proxy with the session, Minh's share, the user's name and the way to get paid; the share sheet is asked for; Requests lists it under "You asked for" as not opened in the app yet. |
+| `PaymentRequestJourneyTest` | Signed in: type a bill in by hand (90 at Pho 24), add Minh, request his 45, send it; Minh takes it on in his app; open Requests | The request goes to the proxy with the session, Minh's share, the user's name and the way to get paid; the share sheet is asked for. Requests then shows what only the proxy's list can say: the request under "You asked for" as not paid yet, since Minh took it on, where the answer that made it said "Not opened in the app yet". No error message shows. |
 
 The amounts of the manual journeys are typed as whole numbers, so they read the same in any
 currency, and the expected text is formatted the way the app formats it, for the phone's language.
@@ -46,7 +48,7 @@ does, with the shapes and error codes of [proxy.md](proxy.md):
 | `POST /v1/session` | For any `idToken`, the fake's session for 30 days, with its `usage` and `purchaser`. No journey calls it, since Google's sign-in cannot run in a test. |
 | `GET /v1/fx-rates` | `{base: "EUR", source: "Frankfurter", fetchedAt, rates}` for EUR, USD, GBP, JPY, INR, THB and VND. |
 | `POST /v1/requests` | With the fake's session: 201 `{request, url}`, the request as its creditor sees it and a link `https://<host>/r/#<token>`. The same request again answers the same way. A request in a group is 404, as the fake keeps no groups. |
-| `GET /v1/requests` | With the fake's session: `{"requests": […]}`, those made through it, newest first. |
+| `GET /v1/requests` | With the fake's session: `{"requests": […]}`, those made through it, newest first. One that a test had its payer take on (`FakeProxy.payerTakesOn`, as accepting its link in the payer's app does) shows as bound to its debtor, `debtorBound: true`. |
 
 A session other than the fake's is 401 `session`, a call to the model without a session or an
 install id is 401 `install`, a body the proxy would not take is 400 `input`, and any other path
@@ -96,14 +98,29 @@ Use an emulator, or a phone whose debug app holds nothing you need.
 ## In CI
 
 [`device-tests.yml`](../.github/workflows/device-tests.yml) runs every night, on request, and on
-every push that changes the device tests, the data they share with the local tests
-(`app/src/sharedTest`), the profile module, the dependencies or the workflow.
+every push that changes the app's code (`app/src/main`) or its build file, the core modules, the
+device tests, the data they share with the local tests (`app/src/sharedTest`), the profile module,
+the dependencies or the workflow.
 
 - **Tests on an Android 14 emulator** runs every test in `app/src/androidTest`, the journeys among
   them, on the emulator Gradle manages (`pixel6Api34`, an Android 14 test image). A failure fails
-  the run. The journeys passing here is one of the quality gates of a release.
-- **Record the baseline profile** records the startup profile and keeps it as an artifact.
+  the run. This job is a gate of every release: [`release.yml`](../.github/workflows/release.yml)
+  runs it on the tagged commit and signs nothing until it passes ([release.md](release.md)). That
+  run has this job only, in a concurrency group of its own, so no push cancels it.
+- **Record the baseline profile** records the startup profile and keeps it as an artifact. A
+  release does not run it, as it ships the profile committed in `app/src/prodRelease`.
 - On a failure, the test reports are kept as an artifact for 7 days.
+
+**The journeys run the debug build.** `:app:pixel6Api34ProdDebugAndroidTest` tests `prodDebug`:
+R8 neither shrinks nor renames its code, its resources are not shrunk, the pseudolocales are in,
+and its network config lets it reach the fake over plain HTTP on the loopback address. So the
+journeys do not catch a fault that only R8 or resource shrinking brings, such as the removal of a
+class that Koin or a serializer needs. No job runs the minified release on a device. The one release-like build
+that runs on one is in **Record the baseline profile**: it installs `prodNonMinifiedRelease`, which
+the Baseline Profile plugin makes from the release build type with R8 and resource shrinking off,
+starts it and begins a split. The minified release itself is only checked as a package: by the
+release checks of [release.md](release.md#what-the-release-checks-look-at), in `ci.yml` and
+`release.yml`.
 
 ### The Android versions matrix
 
