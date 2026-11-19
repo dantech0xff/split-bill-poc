@@ -1,15 +1,23 @@
 name: Device tests
 
 # The work that needs a real Android runtime. Gradle starts its own emulator for it.
-# It runs every night, on request, and whenever the device tests, the profile module, the
-# dependencies or this workflow change.
+# It runs every night, on request, and whenever the device tests, the data they share with the
+# local tests, the profile module, the dependencies or this workflow change.
+# Started by hand with api-levels ticked, it runs only the end-to-end tests, on Android 8.0, 11 and
+# 16, to measure them; nothing waits for that run (docs/testing.md).
 on:
   schedule:
     - cron: "23 18 * * *"
   workflow_dispatch:
+    inputs:
+      api-levels:
+        description: Only measure the end-to-end tests on API 26, 30 and 36
+        type: boolean
+        default: false
   push:
     paths:
       - app/src/androidTest/**
+      - app/src/sharedTest/**
       - baseline-profile/**
       - gradle/libs.versions.toml
       - gradle/verification-metadata.xml
@@ -19,19 +27,22 @@ permissions:
   contents: read
 
 concurrency:
-  group: device-tests-${{ github.ref }}
+  # A measuring run has a group of its own, so that a push neither cancels it nor is cancelled by it.
+  group: device-tests-${{ github.ref }}${{ inputs.api-levels && '-api-levels' || '' }}
   cancel-in-progress: true
 
 jobs:
   emulator:
     name: ${{ matrix.name }}
+    if: ${{ !inputs.api-levels }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Starting the app, the keystore, ML Kit text recognition and the HTTP client.
+          # Starting the app, the keystore, ML Kit text recognition and the HTTP client, and the
+          # end-to-end journeys against a fake proxy. A release waits for these to pass.
           - name: Tests on an Android 14 emulator
             task: :app:pixel6Api34ProdDebugAndroidTest
           # Records which code runs at startup, so a release can ship it precompiled.
@@ -83,3 +94,69 @@ jobs:
             **/reports/androidTests/
             **/outputs/androidTest-results/
           retention-days: 7
+
+  # The same end-to-end tests on the oldest Android the app runs on, an older one and the newest.
+  # The managed emulator is defined for Android 14 only, so here the emulator runner starts one.
+  api-levels:
+    name: End-to-end tests on API ${{ matrix.api-level }}
+    if: ${{ inputs.api-levels }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # Measured, not required: a failure shows on its own job and the run still succeeds.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # No test image exists for Android 8.0, so it runs the plain system image.
+          - api-level: 26
+            target: default
+          - api-level: 30
+            target: aosp_atd
+          - api-level: 36
+            target: aosp_atd
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          validate-wrappers: true
+
+      # Without this the emulator cannot use the runner's hardware virtualisation and is far too slow.
+      - name: Let the emulator use hardware virtualisation
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Built before the emulator starts, so that it only runs the tests.
+      - name: Build the app and its device tests
+        run: ./gradlew :app:assembleProdDebug :app:assembleProdDebugAndroidTest
+
+      - name: End-to-end tests on API ${{ matrix.api-level }}
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: pixel_6
+          script: ./gradlew :app:connectedProdDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.dantech.splitvibe.e2e
+
+      # Kept whatever the outcome: the results are the measurement.
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-api-${{ matrix.api-level }}
+          path: |
+            **/reports/androidTests/
+            **/outputs/androidTest-results/
+          if-no-files-found: ignore
+          retention-days: 14
