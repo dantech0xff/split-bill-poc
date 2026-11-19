@@ -7,6 +7,10 @@ plugins {
     // so it is applied here without a version.
     id("org.jetbrains.kotlin.jvm")
     alias(libs.plugins.kotlin.serialization)
+    // Lint's checks of plain Kotlin code, which the app's lint runs with its own (checkDependencies).
+    // Its check of API levels (NewApi) is not among them: lint runs it on Android modules only. The
+    // plugin comes with the Android Gradle Plugin on the build classpath.
+    id("com.android.lint")
 }
 
 java {

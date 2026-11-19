@@ -201,6 +201,14 @@ android {
         getByName("androidTest").resources.directories.add("src/sharedTest/resources")
     }
 
+    lint {
+        // The app's lint also checks the modules it depends on, in its own report: :core:designsystem,
+        // and :core:domain through the lint plugin that module applies. Lint runs its check of API
+        // levels (NewApi) only on Android modules, so it does not reach :core:domain, a plain Kotlin
+        // library: lint's ApiDetector skips a module of type JAVA_LIBRARY.
+        checkDependencies = true
+    }
+
     packaging {
         resources {
             // License and metadata files that several JVM libraries ship under the same names.
