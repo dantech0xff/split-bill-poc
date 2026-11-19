@@ -1,6 +1,5 @@
-# Privacy policy
-
 <!-- A comment for the people who edit this file, which the page leaves out. -->
+# Privacy policy
 
 Last updated: 19 November 2026. These words are a fixture of the tests, not the policy.
 

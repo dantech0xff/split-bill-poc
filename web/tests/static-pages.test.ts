@@ -57,12 +57,41 @@ describe("the legal pages", () => {
     expect(renderLegalMarkdown(termsFixture, "terms.md")).toContain('<a href="/privacy#what-we-keep">privacy policy</a>');
   });
 
-  it("leave comments out and show any other HTML in the Markdown as text", () => {
+  it("leave out the note a source begins with, and show any other HTML in the Markdown as text", () => {
     const html = renderLegalMarkdown(privacyFixture, "privacy-policy.md");
 
     expect(html).not.toContain("A comment for the people");
+    expect(html).not.toContain("&lt;!--");
+    expect(html).toContain('<h1 id="privacy-policy">Privacy policy</h1>');
     expect(html).toContain("Some &lt;b&gt;raw&lt;/b&gt; HTML shows as text.");
     expect(renderLegalMarkdown('<script>alert(1)</script>\n\n<p style="color:red" onclick="x()">Hi</p>\n', "terms.md")).not.toMatch(/<script|<p style|onclick="/);
+    // A note over several lines, after a blank line or two, with the text right after it.
+    expect(renderLegalMarkdown("\n\n<!-- Draft.\nFor legal review. -->\nThe terms.\n", "terms.md")).toBe("<p>The terms.</p>\n");
+  });
+
+  it("stop the build at any other HTML comment, saying on which line, rather than show a note or drop text with one", () => {
+    for (const [markdown, line] of [
+      // Text after the comment on its line: the note would be published, or the text lost with it.
+      ["<!-- Draft for legal review --> Published text.\n", 1],
+      ["# Terms\n\n<!-- Draft for legal review --> Published text.\n", 3],
+      // HTML between two comments: kept or dropped with them by mistake.
+      ["<!-- a --><b>x</b><!-- b -->\n", 1],
+      ["# Terms\n\nText <!-- a --><b>x</b><!-- b --> more.\n", 3],
+      // A comment past the start, in a paragraph, one never closed, and two notes.
+      ["# Terms\n\n<!-- Note -->\n\nText.\n", 3],
+      ["Text <!-- note --> more.\n", 1],
+      ["# Terms\n\nText <!-- never closed\n", 3],
+      ["<!-- first -->\n<!-- second -->\n", 2],
+      // Comments that a browser ends elsewhere than at the first -->.
+      ["<!-->\nText.\n<!-- -->\n", 1],
+      ["<!-- a --!> visible -->\n", 1],
+      // Even in code: a source holds no comment but its note.
+      ["Write `<!-- -->` to hide text.\n", 1],
+    ] as const) {
+      expect(() => renderLegalMarkdown(markdown, "terms.md"), markdown).toThrow(
+        new StaticPageError(`docs/terms.md has an HTML comment on line ${line}: a source holds one only as the note it begins with, which the page leaves out.`),
+      );
+    }
   });
 
   it("stop the build at an image, or a link to a file no page serves, saying where", () => {

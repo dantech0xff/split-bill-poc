@@ -11,7 +11,8 @@
 //   referrer.
 //
 // A source that is missing stops the build, and so `npm run bundle`, saying which; so does
-// Markdown the pages cannot show: an image, or a link to a file no page serves.
+// Markdown the pages cannot show: an image, a link to a file no page serves, or an HTML comment
+// other than the note a source may begin with.
 
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -79,14 +80,29 @@ function slugOf(html, seen) {
 }
 
 /**
+ * The note a source may begin with for whoever edits it: one HTML comment, alone on its lines,
+ * which the page leaves out whole. A comment that a browser could end elsewhere than at its first
+ * `-->`, at once as `<!-->` or `<!--->`, or at `--!>`, is not taken for one.
+ */
+const LEADING_NOTE = /^\s*<!--(?!-?>)(?:(?!--!?>)[\s\S])*-->[ \t]*(?:\r?\n|$)/;
+
+/**
  * [markdown], the content of docs/[source], as HTML: GitHub's Markdown, headings with ids, and
- * links as [hrefOf] makes them. HTML comments are left out; any other HTML in the Markdown is
- * shown as text, so that nothing in it can run, style the page or load anything. An image, or a
- * link to a file no page serves, stops the build, saying where.
+ * links as [hrefOf] makes them. The note the source may begin with, [LEADING_NOTE], is left out;
+ * any other HTML comment stops the build, saying on which line, so that the page never shows a
+ * note, nor drops text with one, by mistake. Any other HTML in the Markdown is shown as text, so
+ * that nothing in it can run, style the page or load anything. An image, or a link to a file no
+ * page serves, stops the build too, saying where.
  */
 export function renderLegalMarkdown(markdown, source) {
   const seen = new Map();
   const problems = [];
+  const body = markdown.replace(LEADING_NOTE, "");
+  const comment = body.indexOf("<!--");
+  if (comment >= 0) {
+    const line = markdown.slice(0, markdown.length - body.length + comment).split("\n").length;
+    problems.push(`has an HTML comment on line ${line}: a source holds one only as the note it begins with, which the page leaves out`);
+  }
   const marked = new Marked({ gfm: true, async: false });
   marked.use({
     renderer: {
@@ -109,11 +125,11 @@ export function renderLegalMarkdown(markdown, source) {
         return "";
       },
       html({ text }) {
-        return /^\s*<!--[\s\S]*-->\s*$/.test(text) ? "" : escapeHtml(text);
+        return escapeHtml(text);
       },
     },
   });
-  const html = marked.parse(markdown);
+  const html = marked.parse(body);
   if (problems.length > 0) throw new StaticPageError(`docs/${source} ${problems.join("; it ")}.`);
   return html;
 }
