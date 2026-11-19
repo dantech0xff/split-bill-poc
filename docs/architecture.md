@@ -630,12 +630,21 @@ The AI proxy's packages need no such list: `proxy/package-lock.json` records the
 every package, `npm ci` refuses a package that does not match it, and `package.json` pins each one to
 an exact version. Dependabot opens the npm updates for `/proxy`, and the "AI proxy" job checks them.
 
-Three things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
+Four things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
 top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the
 Linux, macOS and Windows variants of the resource packaging tool for the current Android Gradle
-Plugin; after a plugin upgrade each system's variant has to be recorded again on that system. And
-the Android images that Robolectric downloads for the local UI tests are fetched by Robolectric
-itself, outside Gradle's verification.
+Plugin; after a plugin upgrade each system's variant has to be recorded again on that system. The
+Android images that Robolectric downloads for the local UI tests are fetched by Robolectric itself,
+outside Gradle's verification. And the marker POMs of the Kotlin compose and serialization plugins
+have two trusted checksums each (`also-trust`): Maven Central's, and that of the Gradle Plugin
+Portal, which publishes its own marker for these two plugins. When Maven Central answers 429 Too
+Many Requests, Gradle turns to the portal for the rest of the build, and the plugins' jars and
+modules are the same files there. After a Kotlin upgrade, check that the portal's new marker names
+the same plugin artifact, then add its checksum again:
+
+```bash
+curl -sL https://plugins.gradle.org/m2/org/jetbrains/kotlin/plugin/serialization/org.jetbrains.kotlin.plugin.serialization.gradle.plugin/<version>/org.jetbrains.kotlin.plugin.serialization.gradle.plugin-<version>.pom | sha256sum
+```
 
 ### Performance
 
