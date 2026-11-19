@@ -96,6 +96,10 @@ abstract class BillDao {
 
     @Query("DELETE FROM bills WHERE id = :id")
     abstract suspend fun delete(id: String)
+
+    /** Deletes every bill, the drafts too. */
+    @Query("DELETE FROM bills")
+    abstract suspend fun deleteAll()
 }
 
 @Dao
@@ -111,6 +115,9 @@ interface PersonDao {
 
     @Query("DELETE FROM people WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM people")
+    suspend fun deleteAll()
 }
 
 /**
@@ -159,6 +166,9 @@ abstract class PaymentMethodDao {
         deleteRow(id)
         first()?.let { setMain(it) }
     }
+
+    @Query("DELETE FROM payment_methods")
+    abstract suspend fun deleteAll()
 }
 
 /**

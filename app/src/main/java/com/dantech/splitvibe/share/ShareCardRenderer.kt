@@ -42,7 +42,8 @@ fun Modifier.shareCard(state: ShareCardState): Modifier = drawWithContent {
  */
 object ShareCardRenderer {
 
-    private const val FOLDER = "shared"
+    /** The folder in the cache that shared cards are written to. */
+    internal const val FOLDER = "shared"
 
     /** Saves [bitmap] as a PNG to share, in place of an earlier one called [name]. */
     fun save(context: Context, bitmap: Bitmap, name: String): Uri {

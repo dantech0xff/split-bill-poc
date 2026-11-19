@@ -1,15 +1,28 @@
 package com.dantech.splitvibe.data.account
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
+import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
+import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.data.recurring.RecurringBillRepository
+import com.dantech.splitvibe.data.settings.SettingsStore
+import com.dantech.splitvibe.domain.BillCategory
+import com.dantech.splitvibe.domain.Frequency
+import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.domain.payments.PaymentMethod
+import java.io.File
 import java.math.BigDecimal
+import java.time.LocalDate
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -18,6 +31,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -33,6 +47,9 @@ class AccountRepositoryTest {
     private val google = FakeGoogleAccounts()
     private val storage = TestStorage(context)
     private val cache = ProxyCache(storage.database.proxyCache())
+    private val settings = SettingsStore(context)
+    private val recurring = RecurringBillRepository(storage.database, SpendingFixtures.clock)
+    private val methods = PaymentMethodRepository(storage.database)
     private lateinit var proxy: TestProxy
     private lateinit var repository: AccountRepository
 
@@ -40,7 +57,7 @@ class AccountRepositoryTest {
     fun setUp() {
         server.start()
         proxy = TestProxy(server, context)
-        repository = proxy.accountRepository(google, cache)
+        repository = proxy.accountRepository(google, cache, storage.phoneData(context, settings))
     }
 
     @After
@@ -74,7 +91,7 @@ class AccountRepositoryTest {
         assertNull(proxy.account.account.value.purchaser)
 
         repository.signIn(context)
-        repository.deleteAccount(context)
+        repository.deleteAccount(context, withPhoneData = false)
         assertNull(proxy.account.account.value.purchaser)
     }
 
@@ -114,7 +131,7 @@ class AccountRepositoryTest {
         server.enqueue(json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400"))
 
         try {
-            repository.deleteAccount(context)
+            repository.deleteAccount(context, withPhoneData = false)
             fail("A limited deletion deletes nothing")
         } catch (e: ProxyException) {
             assertEquals("rate_limited", e.code)
@@ -174,7 +191,7 @@ class AccountRepositoryTest {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         server.enqueue(MockResponse().setResponseCode(204))
 
-        repository.deleteAccount(context)
+        repository.deleteAccount(context, withPhoneData = false)
 
         val request = server.takeRequest()
         assertEquals("DELETE", request.method)
@@ -189,11 +206,11 @@ class AccountRepositoryTest {
         server.enqueue(json(500, """{"error":"internal"}"""))
         server.enqueue(json(401, """{"error":"session"}"""))
 
-        runCatching { repository.deleteAccount(context) }
+        runCatching { repository.deleteAccount(context, withPhoneData = false) }
         assertEquals("signed-session", proxy.account.account.value.session?.token)
         assertFalse(google.forgotten)
 
-        runCatching { repository.deleteAccount(context) }
+        runCatching { repository.deleteAccount(context, withPhoneData = false) }
         assertNull(proxy.account.account.value.session)
         assertTrue("signing in again can delete it", proxy.account.account.value.signInExpired)
         assertEquals("minh.tran@example.com", proxy.account.account.value.signedInAs)
@@ -246,8 +263,9 @@ class AccountRepositoryTest {
 
     @Test
     fun `cannot sign in without the proxy's address or Google's client ID`() {
-        val withoutProxy = proxy.accountRepository(google, cache, proxy = ProxyApi("", proxy.account, appVersion = 1))
-        val withoutClientId = proxy.accountRepository(google = null, cache = cache)
+        val phone = storage.phoneData(context, settings)
+        val withoutProxy = proxy.accountRepository(google, cache, phone, proxy = ProxyApi("", proxy.account, appVersion = 1))
+        val withoutClientId = proxy.accountRepository(google = null, cache = cache, phone = phone)
 
         assertTrue(repository.canSignIn)
         assertFalse(withoutProxy.canSignIn)
@@ -272,8 +290,109 @@ class AccountRepositoryTest {
         repository.signIn(context)
         keepSomething()
         server.enqueue(MockResponse().setResponseCode(204))
-        repository.deleteAccount(context)
+        repository.deleteAccount(context, withPhoneData = false)
         assertNull("deleting the account", kept())
+    }
+
+    @Test
+    fun `deleting the account with the phone's data deletes what only the phone keeps, after the proxy deleted it`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        val page = keepOnThePhone()
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        repository.deleteAccount(context, withPhoneData = true)
+
+        assertEquals("DELETE", server.takeRequest().method)
+        val nothing = OnThePhone(bills = 0, recurring = 0, people = 0, methods = 0, groups = false, sharedFiles = 0, name = "")
+        assertEquals(nothing, onThePhone())
+        assertNull("the photo of its page", storage.pages.load(page))
+        assertEquals("the currency stays", "EUR", settings.settings.value.localCurrency)
+        assertTrue("the consent to the speech service stays", settings.settings.value.speechServiceAllowed)
+        assertNull(proxy.account.account.value.session)
+    }
+
+    @Test
+    fun `deleting the account without the phone's data keeps it, but not the groups and requests of the account`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        val page = keepOnThePhone()
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        repository.deleteAccount(context, withPhoneData = false)
+
+        val kept = OnThePhone(bills = 2, recurring = 1, people = 1, methods = 1, groups = false, sharedFiles = 3, name = "Minh")
+        assertEquals(kept, onThePhone())
+        assertNotNull(storage.pages.load(page))
+        assertNull(proxy.account.account.value.session)
+    }
+
+    @Test
+    fun `an account the proxy did not delete deletes nothing on the phone, also when the person asked to`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        val page = keepOnThePhone()
+        val refusals = mapOf(
+            "internal" to json(500, """{"error":"internal"}"""),
+            "rate_limited" to json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400"),
+            "subscription_unavailable" to json(502, """{"error":"subscription_unavailable"}"""),
+        )
+
+        for ((code, refusal) in refusals) {
+            server.enqueue(refusal)
+            try {
+                repository.deleteAccount(context, withPhoneData = true)
+                fail("A refused deletion deletes nothing")
+            } catch (e: ProxyException) {
+                assertEquals(code, e.code)
+            }
+
+            val kept = OnThePhone(bills = 2, recurring = 1, people = 1, methods = 1, groups = true, sharedFiles = 3, name = "Minh")
+            assertEquals(code, kept, onThePhone())
+            assertNotNull(storage.pages.load(page))
+            assertEquals("signed-session", proxy.account.account.value.session?.token)
+        }
+    }
+
+    /** How much of what [keepOnThePhone] keeps is still there. */
+    private data class OnThePhone(
+        val bills: Int,
+        val recurring: Int,
+        val people: Int,
+        val methods: Int,
+        val groups: Boolean,
+        val sharedFiles: Int,
+        val name: String,
+    )
+
+    private fun onThePhone() = runBlocking {
+        OnThePhone(
+            bills = storage.bills.listings().first().size,
+            recurring = recurring.all.first().size,
+            people = storage.people.people.first().size,
+            methods = methods.all.first().size,
+            groups = cache.get("groups", ListSerializer(String.serializer())) != null,
+            sharedFiles = SHARED_FILES.count { File(context.cacheDir, it).exists() },
+            name = settings.settings.value.myName,
+        )
+    }
+
+    /**
+     * Keeps what a person who used the app has on the phone: a finished bill with the photo of its
+     * page and the person split with, a draft, a recurring bill, a way to get paid, the account's
+     * groups, copies shared to other apps, their name, the currency and the consent to the speech
+     * service. Returns the name of the page's photo.
+     */
+    private fun keepOnThePhone(): String = runBlocking {
+        val page = storage.pages.save(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888))
+        val lunch = SpendingFixtures.finished("lunch", "2026-11-14", "Pho 24", BillCategory.FOOD_AND_DRINK, 120_000, listOf("Lan"))
+        storage.bills.save(lunch.copy(pages = listOf(page)))
+        storage.bills.save(lunch.copy(id = "draft", status = BillStatus.DRAFT))
+        recurring.create(lunch, "Lunch", RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2026, 11, 14)), LocalDate.of(2026, 12, 14))
+        methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"))
+        cache.put("groups", ListSerializer(String.serializer()), listOf("kept"), cache.generation)
+        SHARED_FILES.forEach { path -> File(context.cacheDir, path).apply { parentFile?.mkdirs() }.writeText("shared") }
+        settings.saveName("Minh")
+        settings.save("EUR")
+        settings.allowSpeechService(true)
+        page
     }
 
     @Test
@@ -293,5 +412,8 @@ class AccountRepositoryTest {
         const val FAR_FUTURE = 4_102_444_800_000L
         const val MONTH = """{"limit":10,"used":0,"remaining":10,"period":"2026-11","resetsAt":1796083200000}"""
         val PURCHASER = "9".repeat(64)
+
+        /** A photo from the camera, a shared card and an export, in the cache. */
+        val SHARED_FILES = listOf("bill_photos/photo.jpg", "shared/card.png", "exports/1/spending-2026-11.pdf")
     }
 }

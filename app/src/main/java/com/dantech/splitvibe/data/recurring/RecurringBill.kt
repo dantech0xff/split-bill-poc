@@ -104,4 +104,7 @@ interface RecurringBillDao {
 
     @Query("DELETE FROM recurring_bills WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM recurring_bills")
+    suspend fun deleteAll()
 }

@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -46,6 +47,7 @@ class SettingsScreenTest {
     private var account by mutableStateOf(Account(installId = "settings", session = null, callsLeft = null, ai = AiStatus.AVAILABLE))
     private val answers = mutableListOf<Boolean>()
     private var proOpened = 0
+    private val deletions = mutableListOf<Boolean>()
 
     @Test
     fun `the speech service is not offered before the user let it hear them`() {
@@ -107,6 +109,39 @@ class SettingsScreenTest {
         compose.onNodeWithText("cancel it in Google Play first", substring = true).assertExists()
     }
 
+    @Test
+    fun `the phone's data is deleted with the account only when the person ticks the box, which starts off each time`() {
+        show(callsLeft = MONTH, signedIn = true)
+        val deleteAccount = hasText("Delete account") and hasClickAction()
+        val withPhoneData = compose.onNode(hasText(WITH_PHONE_DATA) and isToggleable())
+
+        compose.onNode(deleteAccount).performScrollTo().performClick()
+        withPhoneData.assertIsOff()
+        compose.onNode(hasText("Delete") and hasClickAction()).performClick()
+
+        compose.onNode(deleteAccount).performScrollTo().performClick()
+        withPhoneData.assertIsOff().performClick()
+        withPhoneData.assertIsOn()
+        compose.onNode(hasText("Delete") and hasClickAction()).performClick()
+
+        compose.onNode(deleteAccount).performScrollTo().performClick()
+        withPhoneData.assertIsOff()
+        compose.onNodeWithText("Cancel").performClick()
+
+        assertEquals(listOf(false, true), deletions)
+    }
+
+    @Test
+    fun `the name field follows the stored name when deleting the phone's data forgets it`() {
+        settings = settings.copy(myName = "Minh")
+        show(signedIn = true)
+        compose.onNode(hasText("Minh") and hasSetTextAction()).assertExists()
+
+        settings = settings.copy(myName = "")
+
+        compose.onNode(hasText("Minh") and hasSetTextAction()).assertDoesNotExist()
+    }
+
     private fun show(callsLeft: CallsLeft? = null, signedIn: Boolean = false) {
         account = Account(
             installId = "settings-install",
@@ -125,7 +160,7 @@ class SettingsScreenTest {
                 account = account,
                 accountUi = AccountUiState(),
                 canSignIn = true,
-                actions = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {}, onOpenPro = { proOpened++ }),
+                actions = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = { deletions += it }, onOpenPro = { proOpened++ }),
                 onSave = { _, _ -> },
                 onOpenPaymentMethods = {},
                 onBack = {},
@@ -142,6 +177,7 @@ class SettingsScreenTest {
             node.config.getOrNull(SemanticsProperties.Text)?.any { it.text.isEmpty() } == true
         }
         const val SWITCH = "Use the phone's online speech service"
+        const val WITH_PHONE_DATA = "Also delete the bills, people and payment methods on this phone"
         val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)
     }
 }

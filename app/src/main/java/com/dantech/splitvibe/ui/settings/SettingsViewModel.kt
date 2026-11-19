@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.GoogleSignInException
+import com.dantech.splitvibe.data.account.PhoneDataException
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.llm.waitHint
@@ -53,7 +54,10 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 
     fun signOut(context: Context) = act { repository.signOut(context) }
 
-    fun deleteAccount(context: Context) = act(done = text(R.string.settings_account_deleted)) { repository.deleteAccount(context) }
+    /** Deletes the account, and [withPhoneData] also what only this phone keeps, once the proxy has deleted the account. */
+    fun deleteAccount(context: Context, withPhoneData: Boolean) = act(
+        done = text(if (withPhoneData) R.string.settings_account_and_phone_data_deleted else R.string.settings_account_deleted),
+    ) { repository.deleteAccount(context, withPhoneData) }
 
     /** Runs one account action at a time. [done] is said once it has worked. */
     private fun act(done: UiText? = null, block: suspend () -> Unit) {
@@ -96,6 +100,8 @@ internal fun messageOf(error: Exception): UiText? = when (error) {
     }
 
     is IOException -> text(R.string.server_unreachable)
+
+    is PhoneDataException -> text(R.string.settings_phone_data_not_deleted)
 
     else -> text(R.string.common_something_went_wrong)
 }

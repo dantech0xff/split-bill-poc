@@ -99,7 +99,7 @@
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_delete_account">Delete account</string>
     <string name="settings_delete_title">Delete your account?</string>
-    <string name="settings_delete_text">Split Vibe\'s server deletes what it keeps about your Google account: the count of your calls and your plan. Bills on this phone stay as they are. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</string>
+    <string name="settings_delete_text">Split Vibe\'s server deletes what it keeps about your Google account: the count of your calls and your plan. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</string>
     <string name="settings_pro_plan">Pro plan</string>
     <string name="settings_free_plan">Free plan</string>
     <string name="settings_manage_pro">Manage Pro</string>
@@ -256,4 +256,9 @@
     <string name="split_no_text_found">No text was found in this photo. Make sure the bill is flat, in focus and well lit.</string>
     <string name="split_image_not_opened">That image could not be opened. Try another photo.</string>
     <string name="split_something_went_wrong">Something went wrong: %1$s</string>
+
+    <!-- Deleting the account, and the phone's data with it -->
+    <string name="settings_delete_with_phone_data">Also delete the bills, people and payment methods on this phone</string>
+    <string name="settings_account_and_phone_data_deleted">Your account was deleted, and so were the bills, people and payment methods on this phone.</string>
+    <string name="settings_phone_data_not_deleted">Your account was deleted, but the bills, people and payment methods on this phone could not all be deleted. Clearing Split Vibe\'s storage in the phone\'s settings deletes them.</string>
 </resources>

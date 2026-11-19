@@ -8,6 +8,7 @@ import com.dantech.splitvibe.billing.RevenueCatBilling
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CredentialManagerGoogleAccounts
+import com.dantech.splitvibe.data.account.PhoneData
 import com.dantech.splitvibe.data.bills.BillPages
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SplitVibeDatabase
@@ -90,6 +91,7 @@ val appModule = module {
             google = BuildConfig.GOOGLE_WEB_CLIENT_ID.takeIf { it.isNotBlank() }?.let(::CredentialManagerGoogleAccounts),
             cache = get(),
             devices = get(),
+            phone = get(),
         )
     }
     single { DeviceRegistrar(api = get(), account = get()) }
@@ -109,6 +111,7 @@ val appModule = module {
     // their last answers kept here to read without a connection.
     single { PaymentMethodRepository(database = get()) }
     single { ProxyCache(get<SplitVibeDatabase>().proxyCache()) }
+    single { PhoneData(database = get(), pages = get(), settings = get(), cacheDir = androidContext().cacheDir) }
     single { GroupRepository(api = get(), cache = get(), account = get()) }
     single { RequestRepository(api = get(), cache = get(), account = get()) }
     single { ShareRepository(api = get()) }

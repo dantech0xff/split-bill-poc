@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -67,7 +68,13 @@ import com.dantech.splitvibe.text.resolve
 import org.koin.compose.koinInject
 
 /** What the account part of Settings can do. */
-class AccountActions(val onSignIn: () -> Unit, val onSignOut: () -> Unit, val onDeleteAccount: () -> Unit, val onOpenPro: () -> Unit)
+class AccountActions(
+    val onSignIn: () -> Unit,
+    val onSignOut: () -> Unit,
+    /** Deletes the account, and with `withPhoneData` also what only this phone keeps. */
+    val onDeleteAccount: (withPhoneData: Boolean) -> Unit,
+    val onOpenPro: () -> Unit,
+)
 
 /**
  * The app's own settings: the AI calls left with the plan they are counted against and the Google
@@ -89,7 +96,8 @@ fun SettingsScreen(
     onAllowSpeechService: (Boolean) -> Unit = speechServiceConsent(),
 ) {
     var localCurrency by rememberSaveable { mutableStateOf(settings.localCurrency) }
-    var myName by rememberSaveable { mutableStateOf(settings.myName) }
+    // Starts again from the stored name when that changes, as deleting the phone's data with the account does.
+    var myName by rememberSaveable(settings.myName) { mutableStateOf(settings.myName) }
     val currencyIsValid = BillCurrency.isKnownCode(localCurrency)
     // Offered once the user let the speech service hear them, and for the rest of this visit, so that
     // a switch turned off can be turned on again. Without the consent, the mic asks before it listens.
@@ -249,24 +257,53 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
     }
 
     if (confirmingDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmingDelete = false },
-            title = { Text(stringResource(R.string.settings_delete_title)) },
-            text = { Text(stringResource(R.string.settings_delete_text)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmingDelete = false
-                        actions.onDeleteAccount()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text(stringResource(R.string.common_delete))
-                }
+        DeleteAccountDialog(
+            onDelete = { withPhoneData ->
+                confirmingDelete = false
+                actions.onDeleteAccount(withPhoneData)
             },
-            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.common_cancel)) } },
+            onDismiss = { confirmingDelete = false },
         )
     }
+}
+
+/**
+ * What deleting the account does and does not do, and whether to delete the bills, people and payment
+ * methods on this phone with it, which is off each time the dialog opens.
+ */
+@Composable
+private fun DeleteAccountDialog(onDelete: (withPhoneData: Boolean) -> Unit, onDismiss: () -> Unit) {
+    var withPhoneData by rememberSaveable { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_delete_title)) },
+        text = {
+            // Scrolls when large text makes it taller than the dialog.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+                Text(stringResource(R.string.settings_delete_text))
+                // The whole row is one checkbox for a screen reader.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(value = withPhoneData, role = Role.Checkbox, onValueChange = { withPhoneData = it }),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                ) {
+                    Checkbox(checked = withPhoneData, onCheckedChange = null)
+                    Text(stringResource(R.string.settings_delete_with_phone_data), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onDelete(withPhoneData) },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(stringResource(R.string.common_delete))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /**

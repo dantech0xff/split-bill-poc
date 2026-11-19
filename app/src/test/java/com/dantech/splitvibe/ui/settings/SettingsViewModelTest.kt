@@ -4,14 +4,19 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
+import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.settings.SettingsStore
+import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.inEnglish
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -32,6 +37,7 @@ class SettingsViewModelTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val storage = TestStorage(context)
+    private val settings = SettingsStore(context)
     private lateinit var proxy: TestProxy
 
     /** What the proxy answers on each path; the count it gives is the install's trial. */
@@ -81,7 +87,7 @@ class SettingsViewModelTest {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context)
+        viewModel.deleteAccount(context, withPhoneData = false)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertEquals("Your account was deleted.", viewModel.ui.value.message.inEnglish())
@@ -90,12 +96,47 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `deleting the account with the phone's data says that it went too`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        settings.saveName("Minh")
+        val viewModel = viewModel()
+
+        viewModel.deleteAccount(context, withPhoneData = true)
+        awaitOnMain { !viewModel.ui.value.working }
+
+        val said = "Your account was deleted, and so were the bills, people and payment methods on this phone."
+        assertEquals(said, viewModel.ui.value.message.inEnglish())
+        assertFalse(viewModel.ui.value.isError)
+        assertEquals("", settings.settings.value.myName)
+    }
+
+    @Test
+    fun `an account deleted while the phone's data could not all be deleted says so, as an error`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        // A database that fails part of the way through, as a broken one on a phone would.
+        val broken = TestStorage(context)
+        broken.database.openHelper.writableDatabase.execSQL("DROP TABLE recurring_bills")
+        val lunch = SpendingFixtures.finished("lunch", "2026-11-14", "Pho 24", BillCategory.FOOD_AND_DRINK, 120_000, listOf("Lan"))
+        runBlocking { broken.bills.save(lunch) }
+        val viewModel = viewModel(phone = broken)
+
+        viewModel.deleteAccount(context, withPhoneData = true)
+        awaitOnMain { !viewModel.ui.value.working }
+
+        assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().startsWith("Your account was deleted, but the bills"))
+        assertTrue(viewModel.ui.value.isError)
+        assertNull("the account is gone all the same", proxy.account.account.value.session)
+        assertEquals("no table is half deleted", 1, runBlocking { broken.bills.listings().first() }.size)
+        broken.close()
+    }
+
+    @Test
     fun `an action that did not work says why, as an error`() {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE))
         answers["/v1/account"] = { json(500, """{"error":"internal"}""") }
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context)
+        viewModel.deleteAccount(context, withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().contains("server had a problem"))
@@ -109,7 +150,7 @@ class SettingsViewModelTest {
         answers["/v1/account"] = { json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400") }
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context)
+        viewModel.deleteAccount(context, withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         val said = "That was tried too many times just now, so nothing was changed. Try again in about 40 minutes."
@@ -130,7 +171,9 @@ class SettingsViewModelTest {
         assertFalse(viewModel.ui.value.working)
     }
 
-    private fun viewModel() = SettingsViewModel(proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache())))
+    private fun viewModel(phone: TestStorage = storage) = SettingsViewModel(
+        proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), phone.phoneData(context, settings)),
+    )
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)

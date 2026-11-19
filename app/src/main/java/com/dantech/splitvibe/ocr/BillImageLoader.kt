@@ -86,7 +86,9 @@ class BillImageLoader(private val context: Context) {
 
     companion object {
         internal const val MAX_SIDE = 2400
-        private const val CAMERA_DIRECTORY = "bill_photos"
+
+        /** The folder in the cache that the camera writes photos of bills to. */
+        internal const val CAMERA_DIRECTORY = "bill_photos"
 
         /** Smallest power-of-two downscale that brings [longSide] to [MAX_SIDE] or below. */
         internal fun sampleSize(longSide: Int): Int {

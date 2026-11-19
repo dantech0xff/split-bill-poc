@@ -35,6 +35,11 @@ class BillPages(context: Context) {
         names.forEach { name -> fileOf(name)?.delete() }
     }
 
+    /** Deletes every stored page, also those of a bill that was never saved. */
+    suspend fun deleteAll() = withContext(Dispatchers.IO) {
+        directory.listFiles()?.forEach { it.delete() }
+    }
+
     /** Only plain names inside the pages folder, so a stored name can never point anywhere else. */
     private fun fileOf(name: String): File? = name.takeIf { NAME.matches(it) }?.let { File(directory, it) }
 

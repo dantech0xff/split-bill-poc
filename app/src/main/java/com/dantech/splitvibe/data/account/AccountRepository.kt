@@ -6,6 +6,8 @@ import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.notifications.DeviceRegistrar
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -21,6 +23,8 @@ class AccountRepository(
     private val cache: ProxyCache,
     /** Where the account's push notices go; this install stops getting them on signing out. */
     private val devices: DeviceRegistrar,
+    /** What only this phone keeps, which the person may delete with the account. */
+    private val phone: PhoneData,
 ) {
 
     /** False in a build that has no address for the proxy or no web client ID for Google. */
@@ -46,8 +50,14 @@ class AccountRepository(
         forgetGoogle(context)
     }
 
-    /** Deletes what the proxy keeps about the account first; the phone forgets the session only once that worked. */
-    suspend fun deleteAccount(context: Context) {
+    /**
+     * Deletes what the proxy keeps about the account first; the phone forgets the session only once
+     * that worked, and then, [withPhoneData], also deletes what only the phone keeps ([PhoneData]).
+     * When the proxy did not delete the account, nothing on the phone is deleted.
+     *
+     * @throws PhoneDataException when the account was deleted but the phone's data could not all be.
+     */
+    suspend fun deleteAccount(context: Context, withPhoneData: Boolean) {
         try {
             api.deleteAccount()
         } catch (e: ProxyException) {
@@ -56,8 +66,20 @@ class AccountRepository(
             throw e
         }
         store.clearSession()
-        cache.clear()
+        // The account is gone now, so what the person asked to delete with it is deleted even when
+        // they leave the screen meanwhile.
+        val notDeleted = withContext(NonCancellable) {
+            cache.clear()
+            if (!withPhoneData) return@withContext null
+            try {
+                phone.delete()
+                null
+            } catch (e: Exception) {
+                e
+            }
+        }
         forgetGoogle(context)
+        notDeleted?.let { throw PhoneDataException(it) }
     }
 
     /**

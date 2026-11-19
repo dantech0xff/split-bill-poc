@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AccountStore
+import com.dantech.splitvibe.data.account.PhoneData
 import com.dantech.splitvibe.data.bills.BillPages
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.bills.SplitVibeDatabase
@@ -13,6 +14,7 @@ import com.dantech.splitvibe.data.people.ContactNames
 import com.dantech.splitvibe.data.people.PeopleRepository
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.data.share.ShareRepository
 import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.llm.BillAnalyzer
@@ -43,6 +45,10 @@ class TestStorage(context: Context) : AutoCloseable {
         api = ProxyApi("", AccountStore(context, proxySetUp = false, cipher = PlainCipher), appVersion = TestProxy.APP_VERSION),
         file = File(context.cacheDir, "fx-rates.json"),
     )
+
+    /** What only the phone keeps, as account deletion deletes it, with [settings] for the user's name. */
+    fun phoneData(context: Context, settings: SettingsStore = SettingsStore(context)) =
+        PhoneData(database, pages, settings, context.cacheDir)
 
     /** Remembers [TestPeople] as people the user split with before. */
     fun rememberTestPeople() = runBlocking {

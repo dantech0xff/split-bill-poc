@@ -127,7 +127,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         const val PDF_TYPE = "application/pdf"
 
         /** Where shared files are kept in the cache; see `res/xml/file_paths.xml`. */
-        private const val FOLDER = "exports"
+        internal const val FOLDER = "exports"
 
         /** The name of the PDF summary of the period [periodKey] names, such as "spending-2026-11.pdf". */
         fun pdfName(periodKey: String): String = "spending-$periodKey.pdf"

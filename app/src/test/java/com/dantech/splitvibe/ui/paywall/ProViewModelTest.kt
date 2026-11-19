@@ -422,7 +422,7 @@ class ProViewModelTest {
     private fun viewModel(repository: BillingRepository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true)) =
         ProViewModel(
             billing = repository,
-            accounts = proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache())),
+            accounts = proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), storage.phoneData(context)),
             account = proxy.account.account,
         )
 
