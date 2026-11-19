@@ -4,7 +4,15 @@ import type { Env } from "./index";
 const TOKEN = /^[A-Za-z0-9_-]{22}$/;
 /** A fingerprint as Digital Asset Links writes it: 32 bytes in upper-case hex, separated by colons. */
 const FINGERPRINT = /^[0-9A-F]{2}(?::[0-9A-F]{2}){31}$/;
-const PACKAGES = ["com.dantech.splitvibe", "com.dantech.splitvibe.dev"];
+/**
+ * The app's packages, each with the variable that lists the fingerprints of the keys that sign it
+ * and of no other: the release build, signed by the upload key and Play's app signing key, and the
+ * debug build, signed by the debug key. A key is so never trusted for a package it does not sign.
+ */
+const PACKAGES = [
+  { packageName: "com.dantech.splitvibe", setting: "ANDROID_CERT_SHA256" },
+  { packageName: "com.dantech.splitvibe.dev", setting: "ANDROID_DEV_CERT_SHA256" },
+] as const;
 
 /**
  * A random token of 128 bits: an invite's, or the key of a claim on a bill link. Only its hash is
@@ -81,27 +89,36 @@ function base64url(bytes: Uint8Array): string {
 
 /**
  * `GET /.well-known/assetlinks.json`: lets Android open the proxy's `/g/` and `/r/` links in the
- * app. Both packages, the release and the debug build, are listed with every fingerprint in
- * `ANDROID_CERT_SHA256`; one that is not a SHA-256 fingerprint is left out and logged. Without
- * any, the file is an empty list, which links nothing.
+ * app. Each package is listed with the fingerprints of its own variable alone: the release build
+ * with `ANDROID_CERT_SHA256`, the debug build with `ANDROID_DEV_CERT_SHA256`; a package whose
+ * variable lists none is left out. A value that is not a SHA-256 fingerprint is left out and
+ * logged with its variable's name. Without any, the file is an empty list, which links nothing.
  */
 export async function assetLinksRoute(_request: Request, env: Env): Promise<Response> {
-  const listed = (env.ANDROID_CERT_SHA256 ?? "")
+  const statements = PACKAGES.flatMap(({ packageName, setting }) => {
+    const fingerprints = fingerprintsOf(env, setting);
+    if (fingerprints.length === 0) return [];
+    return [
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: { namespace: "android_app", package_name: packageName, sha256_cert_fingerprints: fingerprints },
+      },
+    ];
+  });
+  return new Response(JSON.stringify(statements), {
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
+}
+
+/** The SHA-256 fingerprints [setting] lists, comma-separated, in upper case; one that is not a fingerprint is logged and left out. */
+function fingerprintsOf(env: Env, setting: (typeof PACKAGES)[number]["setting"]): string[] {
+  const listed = (env[setting] ?? "")
     .split(",")
     .map((fingerprint) => fingerprint.trim().toUpperCase())
     .filter((fingerprint) => fingerprint !== "");
   const fingerprints = listed.filter((fingerprint) => FINGERPRINT.test(fingerprint));
   if (fingerprints.length < listed.length) {
-    console.error(JSON.stringify({ event: "bad_cert_fingerprint", count: listed.length - fingerprints.length }));
+    console.error(JSON.stringify({ event: "bad_cert_fingerprint", name: setting, count: listed.length - fingerprints.length }));
   }
-  const statements =
-    fingerprints.length === 0
-      ? []
-      : PACKAGES.map((packageName) => ({
-          relation: ["delegate_permission/common.handle_all_urls"],
-          target: { namespace: "android_app", package_name: packageName, sha256_cert_fingerprints: fingerprints },
-        }));
-  return new Response(JSON.stringify(statements), {
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
-  });
+  return fingerprints;
 }

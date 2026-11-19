@@ -89,8 +89,17 @@ export interface Env {
   AI_ENABLED: string;
   /** The oldest version code of the app that may still read bills and edit splits with AI. */
   MIN_APP_VERSION: string;
-  /** The SHA-256 fingerprints of the keys that sign the app, comma-separated, for App Links. Public; may be empty. */
+  /**
+   * The SHA-256 fingerprints of the keys that sign the release build, `com.dantech.splitvibe`:
+   * the upload key and Play's app signing key, comma-separated, for App Links. Public; may be empty.
+   */
   ANDROID_CERT_SHA256: string;
+  /**
+   * The SHA-256 fingerprints of the keys that sign the debug build, `com.dantech.splitvibe.dev`:
+   * the debug key, for App Links on a Worker that debug builds use. Public; leave it out or empty
+   * on production, so that no build signed with a debug key opens its links.
+   */
+  ANDROID_DEV_CERT_SHA256?: string;
   /** Groups, their bills and settlements, payment requests, devices and bill links; the schema is in `migrations/`. */
   DB: D1Database;
   QUOTA_BOOK: DurableObjectNamespace<QuotaBook>;
