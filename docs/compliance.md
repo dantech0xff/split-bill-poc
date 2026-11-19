@@ -18,7 +18,7 @@ has reviewed them and every placeholder is filled in, and remove the comment the
 ### Placeholders
 
 Placeholders are written in square brackets, such as `[owner name]`, rather than angle brackets: in
-a Markdown paragraph `<owner name>` is an HTML tag, which the page renderer, or GitHub, would drop.
+a Markdown paragraph `<owner name>` reads as an HTML tag, which GitHub hides when it shows the file.
 
 | Placeholder | In | Fill with |
 |---|---|---|
