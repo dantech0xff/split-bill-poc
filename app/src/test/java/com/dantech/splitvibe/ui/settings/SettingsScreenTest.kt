@@ -54,6 +54,28 @@ class SettingsScreenTest {
     private var proOpened = 0
     private var legalLinks: LegalLinks? = null
     private val deletions = mutableListOf<Boolean>()
+    private var withdrawals = 0
+
+    @Test
+    fun `the consent to the AI is not offered before the user agreed to it`() {
+        show()
+
+        compose.onNodeWithText(AI_CONSENT).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the user can take the consent to the AI back, after which Settings says it is asked again`() {
+        settings = settings.copy(aiAllowed = true)
+        show()
+        compose.onNodeWithText(AI_CONSENT).performScrollTo().assertExists()
+
+        compose.onNodeWithText("Take back").performScrollTo().performClick()
+
+        assertEquals(1, withdrawals)
+        compose.onNodeWithText("Taken back. Split Vibe asks you again before it next uses the AI.").assertExists()
+        // Agreeing again is only for the consent screen, at the next use of the AI.
+        compose.onNodeWithText("Take back").assertDoesNotExist()
+    }
 
     @Test
     fun `the speech service is not offered before the user let it hear them`() {
@@ -197,6 +219,10 @@ class SettingsScreenTest {
                     answers += allowed
                     settings = settings.copy(speechServiceAllowed = allowed)
                 },
+                onWithdrawAiConsent = {
+                    withdrawals++
+                    settings = settings.copy(aiAllowed = false)
+                },
             )
         }
     }
@@ -206,6 +232,7 @@ class SettingsScreenTest {
             node.config.getOrNull(SemanticsProperties.Text)?.any { it.text.isEmpty() } == true
         }
         const val SWITCH = "Use the phone's online speech service"
+        const val AI_CONSENT = "Reading bills and changing splits with AI"
         const val PROXY = "https://split-vibe-proxy.example.workers.dev"
         const val WITH_PHONE_DATA = "Also delete the bills, people and payment methods on this phone"
         val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)

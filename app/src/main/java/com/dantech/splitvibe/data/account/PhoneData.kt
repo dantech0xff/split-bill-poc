@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
  * with, their ways to get paid, the groups and requests kept from the proxy, and the name they go by.
  * The app's whole cache goes too, which holds the photos from the camera and the document scanner and
  * the copies shared to another app, and so do the app's notices, which can name a bill. Settings that
- * are not about them, such as the currency and the consent to the speech service, stay.
+ * are not about them, such as the currency and the consents to the speech service and to the AI, stay.
  */
 class PhoneData(
     private val database: SplitVibeDatabase,

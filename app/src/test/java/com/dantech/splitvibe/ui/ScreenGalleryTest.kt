@@ -371,7 +371,9 @@ class ScreenGalleryTest {
             host = viewModel,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, SettingsStore(context)),
-            settings = MutableStateFlow(settings),
+            // The person agreed to the AI before; the consent screen has its own gallery.
+            settings = MutableStateFlow(settings.copy(aiAllowed = true)),
+            allowAi = {},
             account = proxy.account.account,
         )
         compose.setContent {

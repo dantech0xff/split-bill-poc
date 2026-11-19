@@ -39,17 +39,24 @@ data class LegalLinks(val privacyPolicy: String, val terms: String) {
 
 /** Links to the privacy policy and the terms of use, which open in the browser, or a word when no app on the phone opens them. */
 @Composable
-fun LegalLinksRow(links: LegalLinks, modifier: Modifier = Modifier) {
+fun LegalLinksRow(links: LegalLinks, modifier: Modifier = Modifier) =
+    PageLinks(listOf(R.string.legal_privacy_policy to links.privacyPolicy, R.string.legal_terms_of_use to links.terms), modifier)
+
+/** The link to the privacy policy alone, as where the person decides what the app may send. */
+@Composable
+fun PrivacyPolicyLink(links: LegalLinks, modifier: Modifier = Modifier) =
+    PageLinks(listOf(R.string.legal_privacy_policy to links.privacyPolicy), modifier)
+
+/** A link for each page, each a label and its address, or a word when no app on the phone opens them. */
+@Composable
+private fun PageLinks(pages: List<Pair<Int, String>>, modifier: Modifier) {
     val context = LocalContext.current
     var cannotOpen by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier) {
         // A flow row: with large text the second link moves to its own line instead of wrapping its label.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            TextButton(onClick = { cannotOpen = !openLink(context, links.privacyPolicy) }) {
-                Text(stringResource(R.string.legal_privacy_policy))
-            }
-            TextButton(onClick = { cannotOpen = !openLink(context, links.terms) }) {
-                Text(stringResource(R.string.legal_terms_of_use))
+            pages.forEach { (label, url) ->
+                TextButton(onClick = { cannotOpen = !openLink(context, url) }) { Text(stringResource(label)) }
             }
         }
         if (cannotOpen) {

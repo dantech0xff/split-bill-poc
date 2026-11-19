@@ -106,6 +106,19 @@
     <string name="settings_speech_service">Use the phone\'s online speech service</string>
     <string name="settings_speech_service_hint">For saying a change when the phone cannot turn speech into text by itself. It may send what you say over the internet.</string>
     <string name="settings_account_deleted">Your account was deleted.</string>
+    <string name="settings_ai_consent">Reading bills and changing splits with AI</string>
+    <string name="settings_ai_consent_given">You agreed that Split Vibe sends the text of your bills, and the changes you ask for, to Anthropic in the United States.</string>
+    <string name="settings_ai_consent_withdraw">Take back</string>
+    <string name="settings_ai_consent_withdrawn">Taken back. Split Vibe asks you again before it next uses the AI.</string>
+
+    <!-- The consent asked before the first call to the AI -->
+    <string name="ai_consent_title">Use the AI for your bills?</string>
+    <string name="ai_consent_where">Split Vibe\'s AI is Claude, made by Anthropic. To use it, Split Vibe sends text through its own server to Anthropic in the United States, which works on it and sends back the answer.</string>
+    <string name="ai_consent_bill_read">Reading a bill sends the text this phone read from its photo, the instruction on how to split it, and the currency you count in. The photo stays on this phone.</string>
+    <string name="ai_consent_split_edit">Changing a split by a sentence sends what you typed or said, with the bill: the shop, its items, charges and amounts, the names of the people on it, yours too, how it is split and who paid.</string>
+    <string name="ai_consent_choice">You can take this back in Settings at any time. Without it, you type bills in by hand, and everything else in Split Vibe works the same.</string>
+    <string name="ai_consent_agree">Agree</string>
+    <string name="ai_consent_keep_split">Keep the split as it is</string>
     <plurals name="calls_left_trial">
         <item quantity="one">%1$s of %2$s free call left on this phone.</item>
         <item quantity="other">%1$s of %2$s free calls left on this phone.</item>

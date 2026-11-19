@@ -21,6 +21,7 @@ import com.dantech.splitvibe.designsystem.motion.SvSteps
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.SPLIT_SURFACE
+import com.dantech.splitvibe.ui.common.LegalLinks
 import com.dantech.splitvibe.ui.editor.BillEditorContent
 import kotlinx.coroutines.Dispatchers
 import org.koin.androidx.compose.koinViewModel
@@ -48,6 +49,8 @@ fun SplitScreen(
     onOpenPaymentMethods: () -> Unit = {},
     /** Opens the link of the bill on screen, where everyone at the table picks what they had. */
     onPickTogether: () -> Unit = {},
+    /** The privacy policy, which the consent to the AI links; none in a build without the proxy's address. */
+    legalLinks: LegalLinks? = null,
     /** Changes the split on screen by a sentence the user types or says; it lives as long as the screen. */
     assistant: SplitAssistantViewModel = koinViewModel { parametersOf(viewModel) },
 ) {
@@ -174,6 +177,27 @@ fun SplitScreen(
                 )
             }
         }
+    }
+
+    // Before the first call to the AI: a bill read can be typed in by hand instead, and a change of the
+    // split be left out.
+    if (state.askingAiConsent) {
+        AiConsentDialog(
+            declineLabel = stringResource(R.string.split_type_by_hand),
+            legalLinks = legalLinks,
+            onAgree = viewModel::agreeToAi,
+            onDecline = viewModel::typeInsteadOfAi,
+            onDismiss = viewModel::closeAiConsent,
+        )
+    }
+    if (assistantState.askingAiConsent) {
+        AiConsentDialog(
+            declineLabel = stringResource(R.string.ai_consent_keep_split),
+            legalLinks = legalLinks,
+            onAgree = assistant::agreeToAi,
+            onDecline = assistant::declineAi,
+            onDismiss = assistant::declineAi,
+        )
     }
 
     state.notice?.let { notice ->

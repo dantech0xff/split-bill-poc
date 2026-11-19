@@ -20,6 +20,12 @@ data class AppSettings(
      * take it back, and the question is then asked again.
      */
     val speechServiceAllowed: Boolean = false,
+    /**
+     * The user agreed, on the consent screen, that Split Vibe sends the text of their bills and the
+     * changes they ask for to Anthropic's AI. It is asked before the first call to the AI, and again
+     * after Settings took it back. It is kept on this phone only.
+     */
+    val aiAllowed: Boolean = false,
 )
 
 /** Where the app's own settings are kept on the device. */
@@ -70,10 +76,20 @@ class SettingsStore(context: Context) {
         state.value = read()
     }
 
+    /**
+     * Keeps whether the user agreed to the AI ([AppSettings.aiAllowed]). It is on disk when this
+     * returns, so a consent taken back stays taken back however soon the app ends.
+     */
+    fun allowAi(allowed: Boolean) {
+        preferences.edit(commit = true) { putBoolean(KEY_AI_ALLOWED, allowed) }
+        state.value = read()
+    }
+
     private fun read(): AppSettings = AppSettings(
         localCurrency = preferences.getString(KEY_LOCAL_CURRENCY, null) ?: deviceCurrency(),
         myName = preferences.getString(KEY_MY_NAME, null).orEmpty(),
         speechServiceAllowed = preferences.getBoolean(KEY_SPEECH_SERVICE_ALLOWED, false),
+        aiAllowed = preferences.getBoolean(KEY_AI_ALLOWED, false),
     )
 
     /** The currency of the phone's region, as a sensible default for the app's own currency. */
@@ -87,6 +103,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LOCAL_CURRENCY = "local_currency"
         private const val KEY_MY_NAME = "my_name"
         private const val KEY_SPEECH_SERVICE_ALLOWED = "speech_service_allowed"
+        private const val KEY_AI_ALLOWED = "ai_allowed"
         private const val OLD_KEY_API_KEY = "anthropic_api_key_encrypted"
         private const val OLD_KEY_MODEL = "model"
         private const val FALLBACK_CURRENCY = "USD"

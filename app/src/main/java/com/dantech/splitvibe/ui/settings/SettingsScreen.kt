@@ -81,7 +81,8 @@ class AccountActions(
 /**
  * The app's own settings: the AI calls left with the plan they are counted against and the Google
  * account behind them, the currency the app works in, and, once the user let it hear them, the
- * phone's online speech service. The privacy policy and the terms of use are linked at the end.
+ * phone's online speech service. Once the user agreed to the AI, the consent can be taken back here.
+ * The privacy policy and the terms of use are linked at the end.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +99,8 @@ fun SettingsScreen(
     legalLinks: LegalLinks? = null,
     /** Takes back, or gives again, the user's consent to the phone's online speech service; it takes effect at once. */
     onAllowSpeechService: (Boolean) -> Unit = speechServiceConsent(),
+    /** Takes back the user's consent to the AI; the consent screen asks again before the next call to the AI. */
+    onWithdrawAiConsent: () -> Unit = aiConsentWithdrawal(),
 ) {
     var localCurrency by rememberSaveable { mutableStateOf(settings.localCurrency) }
     // Starts again from the stored name when that changes, as deleting the phone's data with the account does.
@@ -106,6 +109,8 @@ fun SettingsScreen(
     // Offered once the user let the speech service hear them, and for the rest of this visit, so that
     // a switch turned off can be turned on again. Without the consent, the mic asks before it listens.
     val speechServiceShown = rememberSaveable { settings.speechServiceAllowed }
+    // Offered once the user agreed to the AI, and for the rest of this visit, which then says it was taken back.
+    val aiConsentShown = rememberSaveable { settings.aiAllowed }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -155,6 +160,8 @@ fun SettingsScreen(
             )
 
             if (speechServiceShown) SpeechServiceSwitch(allowed = settings.speechServiceAllowed, onChange = onAllowSpeechService)
+
+            if (aiConsentShown) AiConsent(allowed = settings.aiAllowed, onWithdraw = onWithdrawAiConsent)
 
             SvListRow(
                 position = SvRowPosition.Single,
@@ -358,6 +365,31 @@ private fun SpeechServiceSwitch(allowed: Boolean, onChange: (Boolean) -> Unit) {
         }
         Switch(checked = allowed, onCheckedChange = null)
     }
+}
+
+/**
+ * The user's consent to the AI, and the way to take it back. Taking it back only takes effect here:
+ * agreeing again is done on the consent screen, which shows before the next call to the AI.
+ */
+@Composable
+private fun AiConsent(allowed: Boolean, onWithdraw: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
+        Text(stringResource(R.string.settings_ai_consent), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            stringResource(if (allowed) R.string.settings_ai_consent_given else R.string.settings_ai_consent_withdrawn),
+            modifier = announced,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (allowed) OutlinedButton(onClick = onWithdraw) { Text(stringResource(R.string.settings_ai_consent_withdraw)) }
+    }
+}
+
+/** Takes the consent to the AI back in the app's settings, which both AI actions read before they call it. */
+@Composable
+private fun aiConsentWithdrawal(): () -> Unit {
+    val store = koinInject<SettingsStore>()
+    return remember(store) { { store.allowAi(false) } }
 }
 
 /** Keeps the answer about the speech service in the app's settings, where the assistant reads it before it listens. */

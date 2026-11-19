@@ -149,6 +149,8 @@ data class AssistantUiState(
     val notice: UiText? = null,
     val canSend: Boolean = false,
     val voice: VoiceUi = VoiceUi(),
+    /** The person asked for a change before agreeing that the AI may have their bills, which the consent screen asks. */
+    val askingAiConsent: Boolean = false,
 )
 
 /**
@@ -166,6 +168,8 @@ class SplitAssistantViewModel(
     private val assistant: SplitAssistant,
     private val voice: VoiceInput,
     private val settings: StateFlow<AppSettings>,
+    /** Keeps the person's answer on the consent screen ([AppSettings.aiAllowed]). */
+    private val allowAi: (Boolean) -> Unit,
     private val account: StateFlow<Account>,
 ) : ViewModel() {
 
@@ -205,6 +209,8 @@ class SplitAssistantViewModel(
         // What goes is one line, which the field may not be.
         val typed = SplitRevisionRequest.instructionOf(current.text)
         if (current.working || typed.isEmpty() || account.value.ai == AiStatus.NOT_SET_UP) return
+        // Nothing goes to the AI before the person agreed that it may, on the consent screen.
+        if (!settings.value.aiAllowed) return draft.update { it.copy(askingAiConsent = true) }
         val instruction = current.question?.let { followUp(it, typed) } ?: typed
         voice.cancel()
         draft.update {
@@ -231,6 +237,17 @@ class SplitAssistantViewModel(
             if (asking === job) draft.update { it.copy(working = false) }
         }
     }
+
+    /** The person agreed on the consent screen that the AI may have their bills, so the change they asked for goes. */
+    fun agreeToAi() {
+        if (!draft.value.askingAiConsent) return
+        draft.update { it.copy(askingAiConsent = false) }
+        allowAi(true)
+        send()
+    }
+
+    /** The person turned the AI down on the consent screen, or closed it: the split stays as it is. */
+    fun declineAi() = draft.update { it.copy(askingAiConsent = false) }
 
     /** Stops asking. The same request, sent again, is not charged again. */
     fun cancel() {
@@ -398,6 +415,7 @@ class SplitAssistantViewModel(
                 askingPermission = draft.askingPermission,
                 note = draft.voiceNote,
             ),
+            askingAiConsent = draft.askingAiConsent,
         )
     }
 
@@ -497,6 +515,7 @@ class SplitAssistantViewModel(
         val askingNetwork: Boolean = false,
         val askingPermission: Boolean = false,
         val voiceNote: UiText? = null,
+        val askingAiConsent: Boolean = false,
     )
 
     /** What the AI asked back about [instruction]. */

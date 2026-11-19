@@ -181,12 +181,14 @@ val appModule = module {
             assistant = get(),
             voice = get(),
             settings = get<SettingsStore>().settings,
+            allowAi = get<SettingsStore>()::allowAi,
             account = get<AccountStore>().account,
         )
     }
     viewModel {
         SplitBillViewModel(
             settings = get<SettingsStore>().settings,
+            allowAi = get<SettingsStore>()::allowAi,
             account = get<AccountStore>().account,
             canSignIn = get<AccountRepository>().canSignIn,
             sellsPro = get<BillingRepository>().sellsPro,

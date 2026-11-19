@@ -27,6 +27,7 @@ import java.io.File
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -90,11 +91,13 @@ fun testSplitViewModel(
     sellsPro: Boolean = false,
     fx: FxRepository = storage.noRates,
     savedState: SavedStateHandle = SavedStateHandle(),
-    settings: MutableStateFlow<AppSettings> = MutableStateFlow(AppSettings(localCurrency = localCurrency)),
+    // The person agreed to the AI, as nearly every test of the flow reads a bill; the consent's own tests say otherwise.
+    settings: MutableStateFlow<AppSettings> = MutableStateFlow(AppSettings(localCurrency = localCurrency, aiAllowed = true)),
     saveDelayMs: Long = 0,
     shares: ShareRepository? = null,
 ): SplitBillViewModel = SplitBillViewModel(
     settings = settings,
+    allowAi = { allowed -> settings.update { it.copy(aiAllowed = allowed) } },
     account = account,
     canSignIn = canSignIn,
     sellsPro = sellsPro,

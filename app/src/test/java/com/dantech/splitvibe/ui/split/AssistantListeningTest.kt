@@ -78,7 +78,8 @@ class AssistantListeningTest {
             host = split,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, SettingsStore(context)),
-            settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+            settings = MutableStateFlow(AppSettings(localCurrency = "VND", aiAllowed = true)),
+            allowAi = {},
             account = proxy.account.account,
         )
         val screen = Screen()

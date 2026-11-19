@@ -315,6 +315,7 @@ class AccountRepositoryTest {
         assertNull("the photo of its page", storage.pages.load(page))
         assertEquals("the currency stays", "EUR", settings.settings.value.localCurrency)
         assertTrue("the consent to the speech service stays", settings.settings.value.speechServiceAllowed)
+        assertTrue("so does the consent to the AI", settings.settings.value.aiAllowed)
         assertNull(proxy.account.account.value.session)
         assertEquals(Deletion.Ended(DeletionOutcome.DELETED_WITH_PHONE_DATA), repository.deletion.value)
     }
@@ -381,8 +382,8 @@ class AccountRepositoryTest {
     /**
      * Keeps what a person who used the app has on the phone: a finished bill with the photo of its
      * page and the person split with, a draft, a recurring bill, a way to get paid, the account's
-     * groups, copies shared to other apps, their name, the currency and the consent to the speech
-     * service. Returns the name of the page's photo.
+     * groups, copies shared to other apps, their name, the currency and the consents to the speech
+     * service and to the AI. Returns the name of the page's photo.
      */
     private fun keepOnThePhone(): String = runBlocking {
         val page = storage.pages.save(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888))
@@ -396,6 +397,7 @@ class AccountRepositoryTest {
         settings.saveName("Minh")
         settings.save("EUR")
         settings.allowSpeechService(true)
+        settings.allowAi(true)
         page
     }
 

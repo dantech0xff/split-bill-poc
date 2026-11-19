@@ -148,6 +148,8 @@ data class SplitUiState(
     val notice: UiText? = null,
     /** The bill was opened from the list of bills, so leaving it goes back there rather than to its photos. */
     val openedFromHistory: Boolean = false,
+    /** The person asked for a bill read before agreeing that the AI may read their bills, which the consent screen asks. */
+    val askingAiConsent: Boolean = false,
 ) {
     val photo: Bitmap? get() = pages.firstOrNull()
     val isBusy: Boolean get() = progress != Progress.IDLE
@@ -164,6 +166,8 @@ data class SplitUiState(
 @OptIn(FlowPreview::class)
 class SplitBillViewModel(
     private val settings: StateFlow<AppSettings>,
+    /** Keeps the person's answer on the consent screen ([AppSettings.aiAllowed]). */
+    private val allowAi: (Boolean) -> Unit,
     private val account: StateFlow<Account>,
     /** Whether this build can sign in with Google, which is what some errors ask for. */
     private val canSignIn: Boolean,
@@ -229,6 +233,9 @@ class SplitBillViewModel(
     /** Saving failed, which the person has been told; they are told again only after a save works. */
     @Volatile
     private var saveFailing = false
+
+    /** The default instruction of the read waiting for the person's answer on the consent screen. */
+    private var awaitingConsent: String? = null
 
     init {
         viewModelScope.launch {
@@ -347,6 +354,12 @@ class SplitBillViewModel(
             mutableState.update { it.copy(error = AiStatus.NOT_SET_UP.notice) }
             return
         }
+        // Nothing goes to the AI before the person agreed that it may, on the consent screen.
+        if (!appSettings.aiAllowed) {
+            awaitingConsent = defaultInstruction
+            mutableState.update { it.copy(askingAiConsent = true) }
+            return
+        }
         // Reading the photos of a bill again replaces its earlier reading. Other photos are another
         // bill, and so is a bill typed in by hand, which a reading never replaces.
         val rereadId = billId?.takeIf { billWasRead && pageNames.isNotEmpty() && pageNames == billPageNames }
@@ -383,6 +396,26 @@ class SplitBillViewModel(
                 }
             }
         }
+    }
+
+    /** The person agreed on the consent screen that the AI may read their bills, so the read they asked for goes ahead. */
+    fun agreeToAi() {
+        val defaultInstruction = awaitingConsent ?: return
+        closeAiConsent()
+        allowAi(true)
+        analyze(defaultInstruction)
+    }
+
+    /** The person chose on the consent screen to type the bill in by hand, with its photos, rather than have the AI read it. */
+    fun typeInsteadOfAi() {
+        closeAiConsent()
+        startManualEntry()
+    }
+
+    /** The consent screen closed without an answer; the photos and the instruction stay as they were. */
+    fun closeAiConsent() {
+        awaitingConsent = null
+        mutableState.update { it.copy(askingAiConsent = false) }
     }
 
     /**

@@ -47,7 +47,9 @@ These are choices the drafts make. Each needs the owner's or the adviser's decis
 - **Legal bases.** The policy names contract (the features asked for), legitimate interests (limits,
   spend caps, Turnstile, logs, traces, aggregate counts) and permission (notifications, the phone's
   speech service). Vietnam's law asks for consent before collection unless an exception applies (see
-  [below](#vietnam-cross-border-transfer-and-impact-assessments)); the app has no consent screen.
+  [below](#vietnam-cross-border-transfer-and-impact-assessments)). The app asks for consent before
+  its first call to the AI, on a consent screen whose wording the adviser is to review, and keeps
+  the answer on the phone only ([architecture.md](architecture.md#the-consent-to-the-ai)).
 - **Retention without an end.** Two kinds of server data are kept for as long as the service runs,
   and the policy says so: the trial count of each install, under its random ID, and payment requests
   confirmed as paid, which stay as the other person's record also after an account deletion, with
@@ -193,8 +195,9 @@ What the adviser must settle:
       closed test, not the production release.
 - [ ] Whether any exemption applies: the owner's legal form (individual, household business or
       enterprise), the size exemptions, and the decree's contract case.
-- [ ] Whether accepting the terms is enough (Article 19(1)(d)), or the app needs an explicit,
-      recorded consent for users in Vietnam. A consent screen is a change to the app.
+- [ ] Whether accepting the terms is enough (Article 19(1)(d)) for what the app sends besides the AI
+      calls, and whether the consent screen before the first AI call is enough as it is: it keeps
+      the answer on the phone only, so the owner holds no record of it.
 - [ ] Whether the payment methods on requests are sensitive personal data under the decree's list.
 
 **Unverified:** the decree's official text, its forms and procedure (including whether A05 must

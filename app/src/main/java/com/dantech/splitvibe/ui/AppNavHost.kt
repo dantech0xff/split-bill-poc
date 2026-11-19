@@ -233,6 +233,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpenPro = { backStack.open(ProKey) },
                             onOpenPaymentMethods = { backStack.open(PaymentMethodsKey) },
                             onPickTogether = { backStack.open(ClaimKey) },
+                            legalLinks = legalLinks,
                         )
                     }
                 }

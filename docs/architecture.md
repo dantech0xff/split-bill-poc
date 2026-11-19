@@ -124,8 +124,8 @@ each time it opens, to delete what only this phone keeps with it.
    wait), the app's notices, and the user's name. The rows go in one transaction, so a failure there
    leaves every table as it was. A file that is still there after it was deleted counts as a failure
    too. The screen then says that not all of it could be deleted, and that clearing Split Vibe's
-   storage in the phone's settings deletes the rest. The currency and the consent to the speech
-   service stay. Without the box ticked, all of it stays as before.
+   storage in the phone's settings deletes the rest. The currency and the consents to the speech
+   service and to the AI stay. Without the box ticked, all of it stays as before.
 
 The deletion runs in `AccountRepository`'s own scope rather than the screen's, so leaving Settings
 stops neither the request nor what follows it. Settings opened meanwhile shows it working, and the
@@ -214,6 +214,25 @@ calls used up, sign-in run out, AI switched off, app too old, busy, refused, too
 lead to the Pro screen in a build that sells Pro, except for a Pro member, and otherwise to Settings
 for the install's trial.
 The [README](../README.md) describes each step in detail.
+
+### The consent to the AI
+
+Before the first call to the AI, whether a bill read (`SplitBillViewModel.analyze`) or a change of
+a split by a sentence (`SplitAssistantViewModel.send`), the split screen shows a consent screen
+(`AiConsentDialog`). It says that the call sends text through the proxy to Anthropic in the United
+States: for a bill read, the text read from the photo, the instruction and the currency counted in;
+for a change, what was typed or said, with the bill's shop, items, charges and amounts, the names
+on it, how it is split and who paid. It links the privacy policy (`LegalLinks`).
+
+- Agreeing lets the call the person asked for go ahead. A bill read can be typed in by hand instead,
+  which keeps its photos as the bill's; a change can be turned down, which keeps the split as it is.
+  Back closes the screen without an answer. Nothing else in the app waits for the consent.
+- The answer is kept in the app's settings on the phone (`AppSettings.aiAllowed`, on disk at once)
+  and never leaves it; Android's backup is off. Deleting the phone's data with the account keeps it.
+- Settings shows the consent once it is given, and takes it back there. From then on no call goes to
+  the AI until the person agrees again, on the consent screen, which shows at the next AI action.
+- `AiConsentFlowTest` checks that no call reaches the proxy before the person agrees, and none after
+  the consent is taken back.
 
 ### Groups, requests and push
 

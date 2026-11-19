@@ -55,7 +55,8 @@ class BackNavigationTest {
             module {
                 viewModel {
                     SplitBillViewModel(
-                        settings = MutableStateFlow(AppSettings(localCurrency = "VND")),
+                        settings = MutableStateFlow(AppSettings(localCurrency = "VND", aiAllowed = true)),
+                        allowAi = {},
                         account = get<AccountStore>().account,
                         canSignIn = true,
                         sellsPro = false,

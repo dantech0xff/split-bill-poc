@@ -377,7 +377,8 @@ class SplitAssistantFlowTest {
             host = split,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = true),
             voice = VoiceInput(context, settingsStore),
-            settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
+            settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana", aiAllowed = true)),
+            allowAi = {},
             account = proxy.account.account,
         )
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""))
@@ -412,6 +413,7 @@ class SplitAssistantFlowTest {
             SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             VoiceInput(context, settingsStore),
             MutableStateFlow(AppSettings("VND")),
+            {},
             MutableStateFlow(proxy.account.account.value.copy(ai = AiStatus.NOT_SET_UP)),
         )
         withoutAi.onTextChanged("Lan didn't have beer")
@@ -509,7 +511,8 @@ class SplitAssistantFlowTest {
             host = split,
             assistant = SplitAssistant(proxy.api, proxy.account, canSignIn = true, sellsPro = false),
             voice = VoiceInput(context, settingsStore),
-            settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
+            settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana", aiAllowed = true)),
+            allowAi = {},
             account = proxy.account.account,
         )
         awaitOnMain { split.billOnScreen.value?.plan?.participants?.size == 3 }
