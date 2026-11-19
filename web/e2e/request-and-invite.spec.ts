@@ -57,6 +57,7 @@ test("a payment request shows who asks whom for what, how to pay, and opens in t
   await lan.deleteRequest(asked.id);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link no longer works");
+  await expect(page.getByText("If you kept it in your requests in Split Vibe, it is still there.")).toBeVisible();
   expect(violations).toEqual([]);
 });
 

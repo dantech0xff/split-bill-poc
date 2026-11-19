@@ -3,7 +3,8 @@ import type { PageProblem } from "../page-problem";
 
 const GONE: Record<PageKind, string> = {
   share: "The person who shared the bill turned the link off, or its 30 days are over.",
-  request: "This payment request was withdrawn.",
+  // A request's link works on the web for 90 days; the request stays in the app of whoever kept it.
+  request: "The person who asked withdrew this request, or the link's 90 days are over. If you kept it in your requests in Split Vibe, it is still there.",
   invite: "The invite was turned off or has run out. Ask the group for a new one.",
 };
 

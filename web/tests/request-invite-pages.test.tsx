@@ -102,12 +102,14 @@ describe("the payment request's page", () => {
     expect(textOf(page.querySelector(".details-card__text"))).toContain("UPI: lan@okbank");
   });
 
-  it("says a missing link does not exist, a withdrawn one no longer works, and waits while loading", () => {
+  it("says a missing link does not exist, a withdrawn or expired one no longer works, and waits while loading", () => {
     const missing = mount(<RequestPageView loaded={{ state: "done", result: { ok: false, error: { kind: "not_found" } } }} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
     expect(textOf(missing.querySelector("h1"))).toBe("This link does not exist");
     const gone = mount(<RequestPageView loaded={{ state: "done", result: { ok: false, error: { kind: "gone" } } }} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
     expect(textOf(gone.querySelector("h1"))).toBe("This link no longer works");
-    expect(textOf(gone)).toContain("This payment request was withdrawn.");
+    expect(textOf(gone)).toContain("The person who asked withdrew this request, or the link's 90 days are over.");
+    expect(textOf(gone)).toContain("If you kept it in your requests in Split Vibe, it is still there.");
+    expect(gone.querySelector("button")).toBeNull();
     const loading = mount(<RequestPageView loaded={{ state: "loading" }} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
     expect(textOf(loading.querySelector("h1"))).toBe("Opening the payment request…");
   });
