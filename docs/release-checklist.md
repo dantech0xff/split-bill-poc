@@ -155,11 +155,9 @@ Check these on the signed app bundle that will be uploaded to production.
 
    **Play's staged rollouts work only for updates.** Play's help says that staged rollouts "can only
    be used for app updates, not when publishing an app for the first time", and does not say whether
-   a first production release after closed and open testing counts as an update. If Play Console
-   offers no rollout percentage for 1.0, the first production release goes to everyone in the
-   countries chosen. The owner then chooses between starting with fewer countries and adding the rest
-   once the conditions above hold, or releasing 1.0 everywhere and using the 5, 20, 50 and 100 steps
-   from the first update on.
+   a first production release after closed and open testing counts as an update. The owner has
+   decided: 1.0 is released in every country at once, and the 5, 20, 50 and 100 steps start with the
+   first update. If Play Console does offer a rollout percentage for 1.0, the steps can start there.
 9. **Watch the release for 7 days at 100%:** a crash-free rate of at least 99.5% and an ANR rate under
    Play's threshold all week, and an average AI cost per active user in the first week within the
    budget. The runbook's daily checks ([runbook.md](runbook.md#reading-the-counters)) cover this.

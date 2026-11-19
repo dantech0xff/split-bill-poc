@@ -18,6 +18,13 @@ dependencies: [2, 3, 4, 5, 6, 7, 8]
 > - Việc đo sử dụng dùng số đếm tổng hợp trên server (Workers Analytics Engine của Cloudflare), không kèm mã người dùng. App không có SDK analytics nào, nên không cần chế độ đồng ý.
 >
 > Quyết định kỹ thuật của người làm: trang web xóa tài khoản dùng nút "Sign in with Google" rồi xóa thẳng. Server không lưu email nào, nên một yêu cầu qua email không chỉ ra được tài khoản nào, mà Play lại đòi xóa được không cần cài lại app.
+>
+> <!-- Updated: 19/11/2026 - chủ sản phẩm chốt thêm bốn điểm sau các bản review -->
+> **Chốt thêm ngày 19/11/2026:**
+> - Thời hạn lưu 12 tháng. Số lượt thử của một cài đặt không gọi AI trong 12 tháng thì bị xóa. Bản chụp cách nhận tiền của một yêu cầu đã xác nhận quá 12 tháng cũng bị xóa; số tiền và việc đã trả thì giữ cho sổ nợ của nhóm.
+> - Link yêu cầu trả tiền trên web hết hạn sau 90 ngày. Yêu cầu vẫn nằm trong app của hai người.
+> - Có màn xin đồng ý đơn giản trước lần đầu app gọi AI: văn bản đọc được từ hóa đơn sẽ được gửi tới Anthropic ở Mỹ để xử lý, kèm link tới chính sách quyền riêng tư, với hai lựa chọn là đồng ý hoặc tự nhập tay. Màn này không chặn tính năng nào khác, và người dùng rút lại được trong Settings. Người tư vấn pháp lý sẽ sửa câu chữ sau.
+> - Bản 1.0 phát hành toàn cầu ngay, vì Play không cho chia nấc ở lần đầu đăng app. Việc chia nấc 5%, 20%, 50%, 100% bắt đầu từ bản cập nhật đầu tiên.
 
 Split Vibe 1.0 lên Google Play cho toàn cầu: qua đủ cổng chất lượng, có hồ sơ quyền riêng tư và pháp lý, qua vòng thử kín bắt buộc, phát hành theo từng nấc có theo dõi, và có quy trình vận hành sau ra mắt.
 
