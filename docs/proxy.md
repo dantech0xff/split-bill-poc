@@ -1615,13 +1615,13 @@ npm run eval:read -- claude-haiku-5-5
 
 - It starts, guards and stops `wrangler dev` on `127.0.0.1:8788` as the evaluation of edits does,
   with the same code, in [`proxy/eval/shared/`](../proxy/eval/shared): fresh state for each run of
-  each model, and port 8788 must be free. Wrangler serves
-  [`proxy/eval/read/worker.ts`](../proxy/eval/read/worker.ts) in place of `src/index.ts`: the same
-  Worker, but for a bill read that names its model in `X-SplitVibe-Eval-Model` at `localhost`,
-  `127.0.0.1` or `[::1]`, which goes through the route's own call to the model, with that model,
-  and whose last line also carries `eval` with the model, its tokens and its cost. The app's route
-  always asks its own model. The tests check that a named read asks its model exactly what the route
-  asks, but for the model's name, and ends with the route's own lines. Nothing deploys that file.
+  each model, and port 8788 must be free. Wrangler serves the proxy's own Worker. Each read names
+  its model in `X-SplitVibe-Eval-Model`, which `POST /v1/bill-analysis` reads as the edit route
+  does: only when the proxy is asked at `localhost`, `127.0.0.1` or `[::1]`, and only for a model
+  with a price in `spend.ts`, another being refused as 400 `input`. The read then asks that model
+  with the route's own prompt, schema and settings, the fallback after a refusal among them, and
+  its last line also carries `"eval": {"model", "inputTokens", "outputTokens", "costMicro"}`. The
+  deployed proxy ignores the header and always asks its own model.
 - The candidates are `claude-haiku-5-5`, `claude-sonnet-5-5` and `claude-opus-5-5`, each asked
   with the bill read's settings of `policy.ts` and the fallback after a refusal that the route asks
   for.
@@ -1638,6 +1638,7 @@ npm run eval:read -- claude-haiku-5-5
   choose; then every run of a bill that failed, with why and what the app got, the categories read
   wrong, and the answers that did not add up.
 
-`npm test` checks the bills, the copy of the encoder, the named read against the route, the scoring
-of each kind of case, the report's numbers and the bar, with the fake model, and has Node check that
-both runners say there is no key and run nothing when there is none.
+`npm test` checks the bills, the copy of the encoder, every bill read through the route on a
+computer under the model it names, the route's reading of that header and the deployed proxy's
+ignoring it, the scoring of each kind of case, the report's numbers and the bar, with the fake
+model, and has Node check that both runners say there is no key and run nothing when there is none.

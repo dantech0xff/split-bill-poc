@@ -20,15 +20,10 @@ import {
   spacedTextOf,
   type TextReader,
 } from "./input";
-import { callModel, type ModelTask, TIMING, type Timing } from "./model-call";
+import { callModel, type ModelChoice, type ModelTask, modelOf, TIMING, type Timing } from "./model-call";
 import { POLICY } from "./policy";
 import { REVISE_SYSTEM_PROMPT, revisionMessage } from "./revise-prompt";
 import { CHARGE_KINDS, PERSON_REFS, REVISION_SCHEMA, SPLIT_MODES } from "./schema";
-import { isPriced } from "./spend";
-import { servedLocally } from "./switches";
-
-/** The header with which the evaluation on a computer names the model of one call; see [modelOf]. */
-export const EVAL_MODEL_HEADER = "X-SplitVibe-Eval-Model";
 
 /** The longest instruction, in code points, as the contract says. */
 const MAX_INSTRUCTION_CHARS = 500;
@@ -111,7 +106,7 @@ export type Edit =
 export type Revision = { edits: Edit[]; explanation: string; question: string | null };
 
 /** A request and how its model is asked: the policy's model, or the one the evaluation names. */
-type RevisionCall = RevisionRequest & { model: string; report: boolean };
+type RevisionCall = RevisionRequest & ModelChoice;
 
 /**
  * An edit of a split by a sentence. The model turns the instruction into edits of the split, as
@@ -125,7 +120,7 @@ const REVISION: ModelTask<RevisionCall> = {
   maxBodyBytes: POLICY.maxRevisionBodyBytes,
   inputOf(body, request) {
     const revision = revisionRequestOf(body);
-    const model = modelOf(request);
+    const model = modelOf(request, POLICY.revisionModel);
     return revision === null || model === null ? null : { ...revision, ...model };
   },
   system: REVISE_SYSTEM_PROMPT,
@@ -147,19 +142,6 @@ const REVISION: ModelTask<RevisionCall> = {
 /** `POST /v1/split-revision`: edits a split by a sentence with the model, as [callModel] does every call. */
 export function splitRevision(request: Request, env: Env, ctx: ExecutionContext, timing: Timing = TIMING): Promise<Response> {
   return callModel(request, env, ctx, REVISION, timing);
-}
-
-/**
- * The model of a call: [POLICY.revisionModel], unless the proxy runs on a computer and the request
- * names in [EVAL_MODEL_HEADER] another model the proxy has a price for, as the evaluation does;
- * the line that ends its answer then reports the model, its tokens and the cost. The deployed
- * proxy is never asked at a computer's hostname, so there the header changes nothing. Null for a
- * model without a price, which a computer refuses as input.
- */
-function modelOf(request: Request): { model: string; report: boolean } | null {
-  const named = request.headers.get(EVAL_MODEL_HEADER)?.trim() ?? "";
-  if (named === "" || !servedLocally(new URL(request.url).hostname)) return { model: POLICY.revisionModel, report: false };
-  return isPriced(named) ? { model: named, report: true } : null;
 }
 
 /**

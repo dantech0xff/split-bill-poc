@@ -2,6 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { env } from "cloudflare:workers";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
+import { EVAL_MODEL_HEADER } from "../src/model-call";
 import { POLICY } from "../src/policy";
 import { SYSTEM_PROMPT, userMessage } from "../src/prompt";
 import { BILL_CATEGORIES, BILL_SCHEMA } from "../src/schema";
@@ -57,6 +58,62 @@ describe("a bill read", () => {
     });
     expect(seen[0].headers["anthropic-beta"]).toContain("server-side-fallback-2026-07-01");
     expect(seen[0].headers["x-api-key"] ?? seen[0].headers.authorization).toMatch(/^(Bearer )?test-anthropic-key$/);
+  });
+});
+
+describe("the model the evaluation names", () => {
+  const LOCAL = "http://127.0.0.1:8788";
+  const SONNET = "claude-sonnet-5-5";
+  const TRIAL_AFTER_ONE = { limit: 3, used: 1, remaining: 2, period: "trial", resetsAt: null, plan: "trial" };
+  /** 5,000 tokens in at $2 and 2,000 out at $10 per million tokens. */
+  const REPORT = { model: SONNET, inputTokens: 5_000, outputTokens: 2_000, costMicro: 30_000 };
+  const naming = (name: string) => ({ origin: LOCAL, headers: { [EVAL_MODEL_HEADER]: name } });
+
+  it("is asked, with the route's own prompt and settings, when the proxy runs on a computer, and the answer reports its tokens and cost", async () => {
+    const seen = model({ ...ANSWER, model: SONNET });
+
+    const sent = await send(billRequest(naming(SONNET)));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].body).toMatchObject({
+      model: SONNET,
+      max_tokens: POLICY.maxTokens,
+      system: SYSTEM_PROMPT,
+      output_config: { effort: POLICY.effort, format: { type: "json_schema", schema: BILL_SCHEMA } },
+      fallbacks: "default",
+    });
+    expect(seen[0].headers["anthropic-beta"]).toContain("server-side-fallback-2026-07-01");
+    expect(last(sent)).toEqual({ type: "result", answer: billAnswer, usage: TRIAL_AFTER_ONE, eval: REPORT });
+  });
+
+  it("reports the cost of an answer the app cannot use too, which is charged as any bill read's is", async () => {
+    model({ text: "not JSON", model: SONNET });
+
+    const sent = await send(billRequest(naming(SONNET)));
+
+    expect(last(sent)).toEqual({ type: "error", code: "bad_response", usage: TRIAL_AFTER_ONE, eval: REPORT });
+  });
+
+  it("is ignored by the deployed proxy, which always asks its own model and reports nothing, whatever the header names", async () => {
+    const seen = model(ANSWER);
+
+    for (const name of ["claude-haiku-5-5", "a-model-without-a-price"]) {
+      const sent = await send(billRequest({ headers: { [EVAL_MODEL_HEADER]: name } }));
+      expect(sent.status, name).toBe(200);
+      expect(last(sent), name).toEqual({ type: "result", answer: billAnswer, usage: expect.objectContaining({ used: 1 }) });
+    }
+
+    expect(seen.map((asked) => asked.body.model)).toEqual([POLICY.model, POLICY.model]);
+  });
+
+  it("must be one the proxy has a price for", async () => {
+    const seen = model(ANSWER);
+
+    const sent = await send(billRequest(naming("a-model-without-a-price")));
+
+    expect(sent.status).toBe(400);
+    expect(JSON.parse(sent.body)).toEqual({ error: "input" });
+    expect(seen).toHaveLength(0);
   });
 });
 

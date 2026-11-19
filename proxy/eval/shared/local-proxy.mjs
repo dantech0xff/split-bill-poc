@@ -112,15 +112,14 @@ export function embedWeb() {
 }
 
 /**
- * Starts `wrangler dev` on [ORIGIN] with fresh state, and waits until it answers. It serves the
- * Worker of `wrangler.jsonc`, or [entry] in its place, a path from `proxy/`, with the same
- * bindings and settings.
+ * Starts `wrangler dev` on [ORIGIN] with fresh state, serving the Worker of `wrangler.jsonc`, and
+ * waits until it answers.
  */
-export async function startLocalProxy(entry) {
+export async function startLocalProxy() {
   try {
     await startGuarded({
       command: "npx",
-      args: (state) => ["wrangler", "dev", ...(entry === undefined ? [] : [entry]), "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", state],
+      args: (state) => ["wrangler", "dev", "--ip", "127.0.0.1", "--port", String(PORT), "--persist-to", state],
       cwd: PROXY,
       env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
       ready: answers,

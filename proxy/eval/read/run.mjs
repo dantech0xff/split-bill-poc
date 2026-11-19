@@ -8,9 +8,9 @@
 // Every call goes to the real model and is paid for, with the Anthropic key in `proxy/.dev.vars`,
 // as `npm run dev` reads it; without one it says so and runs nothing. For each run of each model
 // it starts `wrangler dev` on 127.0.0.1:8788 with its own state in a temporary directory, serving
-// `worker.ts`, which asks each bill read of the model it names and reports its tokens and cost,
-// and stops it, with everything it started, once that run is done, and however the evaluation
-// ends, as `../shared/local-proxy.mjs` says. It runs on Linux and macOS, not on Windows. Calls go
+// the proxy's own Worker, whose bill route asks each read of the model it names on a computer and
+// reports its tokens and cost, and stops it, with everything it started, once that run is done,
+// and however the evaluation ends, as `../shared/local-proxy.mjs` says. It runs on Linux and macOS, not on Windows. Calls go
 // one after another, each from a new install; one the proxy turns down for the per-minute limit
 // of its address is sent again once its Retry-After has passed.
 //
@@ -28,8 +28,6 @@ import { CANDIDATES, errorScore, reportOf, requestOf, scoreAnswer } from "./scor
  * 100 calls a day, would stop a second run.
  */
 const RUNS = 3;
-/** The Worker the runs serve, from `proxy/`. */
-const ENTRY = "eval/read/worker.ts";
 
 /** One bill sent to [model] in [run], as an outcome for the report. */
 async function readBill(bill, model, run) {
@@ -46,7 +44,7 @@ embedWeb();
 const outcomes = [];
 for (const model of models) {
   for (let run = 1; run <= RUNS; run++) {
-    await startLocalProxy(ENTRY);
+    await startLocalProxy();
     try {
       for (const bill of BILLS) {
         const outcome = await readBill(bill, model, run);

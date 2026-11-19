@@ -7,8 +7,8 @@ import { count, type MetricEvent, type MetricNumbers } from "./metrics";
 import { POLICY } from "./policy";
 import type { Usage } from "./quota-book";
 import { errorResponse, lineStream } from "./respond";
-import { costMicro, errorName, holdAll, holdMicro, settleAll, type SpendCap } from "./spend";
-import { aiEnabled, appVersionOk } from "./switches";
+import { costMicro, errorName, holdAll, holdMicro, isPriced, settleAll, type SpendCap } from "./spend";
+import { aiEnabled, appVersionOk, servedLocally } from "./switches";
 
 type Message = Anthropic.Beta.BetaMessage;
 
@@ -66,6 +66,25 @@ export type ModelTask<Input extends { requestId: string }> = {
   answerOf(value: Record<string, unknown>): Record<string, unknown> | null;
   chargeBadAnswer: boolean;
 };
+
+/** The header with which an evaluation on a computer names the model of one call; see [modelOf]. */
+export const EVAL_MODEL_HEADER = "X-SplitVibe-Eval-Model";
+
+/** The model a call asks, and whether the line that ends its answer reports the model, its tokens and the cost. */
+export type ModelChoice = { model: string; report: boolean };
+
+/**
+ * The model of a call: [own], the route's model in `POLICY`, unless the proxy runs on a computer
+ * and the request names in [EVAL_MODEL_HEADER] another model the proxy has a price for, as the
+ * evaluations of bill reads and of edits do; the line that ends its answer then reports the model,
+ * its tokens and the cost. The deployed proxy is never asked at a computer's hostname, so there the
+ * header changes nothing. Null for a model without a price, which a computer refuses as input.
+ */
+export function modelOf(request: Request, own: string): ModelChoice | null {
+  const named = request.headers.get(EVAL_MODEL_HEADER)?.trim() ?? "";
+  if (named === "" || !servedLocally(new URL(request.url).hostname)) return { model: own, report: false };
+  return isPriced(named) ? { model: named, report: true } : null;
+}
 
 /**
  * One call to the model, from a route of the app.

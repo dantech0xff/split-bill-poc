@@ -1,5 +1,3 @@
-import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import sampleOcr from "../../app/src/sharedTest/resources/fixtures/sample_bill_ocr.json";
 import { BILLS } from "../eval/read/bills";
@@ -26,15 +24,14 @@ import {
   shortOfBar,
   summaryOf,
 } from "../eval/read/score";
-import evalWorker from "../eval/read/worker";
 import { billRequestOf, isRecord } from "../src/input";
+import { EVAL_MODEL_HEADER } from "../src/model-call";
 import { POLICY } from "../src/policy";
 import { BILL_CATEGORIES, CHARGE_KINDS } from "../src/schema";
 import { isPriced } from "../src/spend";
-import { EVAL_MODEL_HEADER } from "../src/split-revision";
 import { type Reply, streamed } from "./fake-model";
 import { network } from "./network";
-import { ANSWER, billRequest, last, model, type Sent, sampleRequest, send } from "./requests";
+import { billRequest, last, model, sampleRequest, send } from "./requests";
 
 const LOCAL = "http://127.0.0.1:8788";
 const HAIKU = "claude-haiku-5-5";
@@ -61,19 +58,6 @@ async function askedModel(request: Request): Promise<string> {
 /** The model answers every request with [reply], under the model the request asked for. */
 function namedModel(reply: Reply) {
   return model(async (request) => streamed({ ...reply, model: await askedModel(request) }));
-}
-
-/** Sends [request] to the Worker the evaluation runs on a computer, and reads the whole reply. */
-async function sendNamed(request: Request): Promise<Sent> {
-  const ctx = createExecutionContext();
-  // A test request has no edge properties, which the handler does not need.
-  const response = await evalWorker.fetch(request as Parameters<typeof evalWorker.fetch>[0], env, ctx);
-  const body = new TextDecoder().decode(await response.arrayBuffer());
-  await waitOnExecutionContext(ctx);
-  const lines = response.headers.get("content-type")?.startsWith("application/x-ndjson")
-    ? body.trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
-    : [];
-  return { status: response.status, headers: response.headers, body, lines };
 }
 
 /** A bill read of [body] that names [named] to the proxy on a computer. */
@@ -197,7 +181,7 @@ describe("the bills", () => {
     for (const [index, bill] of BILLS.entries()) {
       const seen = namedModel({ text: JSON.stringify(bill.expected), usage: { input_tokens: 6_000, output_tokens: 1_500 } });
 
-      const sent = await sendNamed(namedRead(requestOf(bill, crypto.randomUUID()), HAIKU, `198.51.100.${index + 1}`));
+      const sent = await send(namedRead(requestOf(bill, crypto.randomUUID()), HAIKU, `198.51.100.${index + 1}`));
 
       const line = last(sent);
       expect(seen[0].body.model, bill.id).toBe(HAIKU);
@@ -206,60 +190,6 @@ describe("the bills", () => {
       expect(scoreAnswer(bill, line.answer), bill.id).toEqual(expect.objectContaining({ pass: true, reason: null }));
       network.resetHandlers();
     }
-  });
-});
-
-describe("a bill read that names its model on a computer", () => {
-  it("asks that model exactly what the app's route asks its own, and ends with the route's line and the call's tokens and cost", async () => {
-    const seen = namedModel(ANSWER);
-    const body = { ...sampleRequest, requestId: crypto.randomUUID() };
-
-    const app = await send(billRequest({ body }));
-    const named = await sendNamed(namedRead({ ...body, requestId: crypto.randomUUID() }, "claude-sonnet-5-5"));
-
-    expect(seen).toHaveLength(2);
-    expect(seen[0].body.model).toBe(POLICY.model);
-    expect(seen[1].body).toEqual({ ...seen[0].body, model: "claude-sonnet-5-5" });
-    expect(seen[1].headers["anthropic-beta"]).toBe(seen[0].headers["anthropic-beta"]);
-    // 5,000 tokens in at $2 and 2,000 out at $10 per million tokens.
-    expect(last(named)).toEqual({ ...last(app), eval: { model: "claude-sonnet-5-5", inputTokens: 5_000, outputTokens: 2_000, costMicro: 30_000 } });
-  });
-
-  it("ends an answer the app cannot use as the route ends it, charged", async () => {
-    namedModel({ text: "not JSON" });
-    const body = { ...sampleRequest, requestId: crypto.randomUUID() };
-
-    const app = await send(billRequest({ body }));
-    const named = await sendNamed(namedRead({ ...body, requestId: crypto.randomUUID() }));
-
-    expect(last(app)).toMatchObject({ type: "error", code: "bad_response", usage: { used: 1 } });
-    expect(last(named)).toEqual({ ...last(app), eval: expect.objectContaining({ model: HAIKU }) });
-  });
-
-  it("is the app's read away from a computer, which asks the proxy's own model and reports nothing", async () => {
-    const seen = model(ANSWER);
-
-    const sent = await sendNamed(billRequest({ headers: { [EVAL_MODEL_HEADER]: HAIKU } }));
-
-    expect(seen[0].body.model).toBe(POLICY.model);
-    expect(last(sent)).not.toHaveProperty("eval");
-  });
-
-  it("must name a model the proxy has a price for", async () => {
-    const seen = model(ANSWER);
-
-    const sent = await sendNamed(namedRead({ ...sampleRequest, requestId: crypto.randomUUID() }, "a-model-without-a-price"));
-
-    expect(sent.status).toBe(400);
-    expect(JSON.parse(sent.body)).toEqual({ error: "input" });
-    expect(seen).toHaveLength(0);
-  });
-
-  it("leaves every other request to the proxy as it is", async () => {
-    const sent = await sendNamed(new Request(`${LOCAL}/v1/usage`, { headers: { "X-SplitVibe-Install": crypto.randomUUID() } }));
-
-    expect(sent.status).toBe(200);
-    expect(JSON.parse(sent.body)).toMatchObject({ usage: { limit: 3, used: 0 }, aiEnabled: true });
   });
 });
 

@@ -1,12 +1,12 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { TIMING, type Timing } from "../src/model-call";
+import { EVAL_MODEL_HEADER, TIMING, type Timing } from "../src/model-call";
 import { POLICY } from "../src/policy";
 import { REVISE_SYSTEM_PROMPT, revisionMessage } from "../src/revise-prompt";
 import { REVISION_SCHEMA } from "../src/schema";
 import { holdMicro } from "../src/spend";
-import { type Edit, EVAL_MODEL_HEADER, type Revision, revisionRequestOf, splitRevision } from "../src/split-revision";
+import { type Edit, type Revision, revisionRequestOf, splitRevision } from "../src/split-revision";
 import { apiError, type Reply, serverSentEvents, stalled } from "./fake-model";
 import { network } from "./network";
 import { billRequest, type Caller, IP, ipName, last, model, quotaOf, sampleRequest, send, type Sent, spendOf } from "./requests";
