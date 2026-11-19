@@ -6,10 +6,11 @@
   "scripts": {
     "build:web": "npm --prefix ../web run build && node scripts/embed-web.mjs",
     "bundle": "node scripts/bundle.mjs",
-    "test": "node scripts/embed-web.mjs && vitest run && node --test eval/shared/test/proxy-process.test.mjs scripts/test/metrics.test.mjs",
+    "test": "node scripts/embed-web.mjs && vitest run && node --test eval/shared/test/proxy-process.test.mjs eval/shared/test/no-key.test.mjs scripts/test/metrics.test.mjs",
     "typecheck": "node scripts/embed-web.mjs && wrangler types && tsc",
     "dev": "node scripts/embed-web.mjs && wrangler dev",
     "eval:revise": "node eval/revise/run.mjs",
+    "eval:read": "node eval/read/run.mjs",
     "metrics": "node scripts/metrics.mjs"
   },
   "devDependencies": {
