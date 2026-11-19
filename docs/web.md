@@ -15,6 +15,11 @@ picks the page from the path:
 - `/g/#<token>`: a group invite, with how to get the app to join.
 - `/delete-account`: deleting an account by signing in with Google, [below](#deleting-an-account-on-the-web).
 
+How to pay, on a payment request and on each amount of a settled bill link, is what the person who
+sent the link wrote: a link, a code to scan and details. So above it the page says "The person who
+sent this link wrote these payment details. Split Vibe does not check them.", followed by the
+"Report abuse" link while the Worker has an `ABUSE_EMAIL`.
+
 The same Worker serves two static pages beside them, `/privacy` and `/terms`,
 [below](#the-privacy-policy-and-the-terms). The app's Settings and its Pro screen link to both.
 
@@ -36,17 +41,21 @@ proxy keeps no email address that a request by email could name an account by. S
 
 1. It says what deleting the account deletes and what stays: bills, people and payment methods
    on the phone stay on the phone, a Pro subscription goes on until it is cancelled in Google
-   Play, and the calls of the month and the hourly counters stay for as long as
-   [proxy.md](proxy.md#deleting-an-account) says. It also says how to delete in the app: Settings,
-   then Delete account.
+   Play, and the calls of the month, the time of the deletion and the hourly counters stay for as
+   long as [proxy.md](proxy.md#deleting-an-account) says. It says too that a phone still signed in
+   to the account is signed out, since the proxy refuses every session issued before the
+   deletion. It also says how to delete in the app: Settings, then Delete account.
 2. It loads Google Identity Services, `https://accounts.google.com/gsi/client`, and shows its
    "Sign in with Google" button, for the client ID the Worker puts in
    `<meta name="sv-google-client-id">`, as a popup and never signing in by itself.
 3. Once Google gives the page an ID token, it names the account ("You signed in as …", read from
-   the token, which only the proxy checks) and asks once more: "Delete my account" or "Cancel".
+   the token, which only the proxy checks), says once more that deleting it signs out every
+   phone still signed in to it and does not cancel Pro, and asks: "Delete my account" or
+   "Cancel".
 4. It sends `{"idToken": …}` to `POST /v1/account/delete-with-google` and says what came of it:
-   the account is deleted, with a link to cancel Pro on Google Play; or it was not, and why, with
-   "Try again". When the sign-in ran out first (401 `id_token`), it asks to sign in again.
+   the account is deleted, apart from what stays, and phones that were still signed in are now
+   signed out, with a link to cancel Pro on Google Play; or it was not, and why, with "Try
+   again". When the sign-in ran out first (401 `id_token`), it asks to sign in again.
 
 Each step takes the focus as it is shown, so that a screen reader says where the deletion stands.
 While the Worker has no `GOOGLE_CLIENT_ID`, or sign-in is off, the tag is empty: the page then says
@@ -69,9 +78,15 @@ It is the one page that may load Google Identity Services, and its headers say s
 without a path, to the *Authorized JavaScript origins* of the OAuth client of type *Web
 application* whose client ID is `GOOGLE_CLIENT_ID` (Google Cloud, Google Auth Platform, Clients).
 Until then Google refuses the button, and the browser's console says that the origin is not
-allowed for the client ID. To try the page on a computer, add `http://localhost` and
-`http://localhost:8787` too, and open `http://localhost:8787/delete-account` from `npm run dev` in
-`proxy/`.
+allowed for the client ID. Keep that one origin on the production client.
+
+**Trying the page on a computer.** Use a separate OAuth client of type *Web application*, best in
+a Google Cloud project kept for testing, with `http://localhost` and `http://localhost:8787` as
+its Authorized JavaScript origins. Put its client ID into `GOOGLE_CLIENT_ID` in
+`proxy/.dev.vars`, which `npm run dev` in `proxy/` reads over `wrangler.jsonc`, and open
+`http://localhost:8787/delete-account`. Do not add `localhost` origins to the production client:
+any page served on a person's own computer could then get ID tokens for it after one click in
+Google's popup, and such a token signs in to that person's account or deletes it.
 
 ## The privacy policy and the terms
 
@@ -86,7 +101,11 @@ load nothing but the stylesheet; the Worker serves them with a policy that allow
 - A link may go to a web page, to a `mailto:` address, to a `#section`, to a path of the Worker
   such as `/delete-account`, or to the other page's Markdown: `terms.md` and `privacy-policy.md`
   become `/terms` and `/privacy`.
-- HTML comments are left out. Any other HTML in the Markdown is shown as text.
+- A source may begin with one HTML comment, a note for whoever edits it, alone on its lines; the
+  page leaves it out whole. Any other HTML comment stops the build, saying on which line: one
+  later in the file, one with text after its `-->`, one in code, or one a browser would end
+  elsewhere than at its first `-->` (`<!-->`, `--!>`). So a page never shows a note, nor drops
+  text with one, by mistake. Any other HTML in the Markdown is shown as text.
 - The build stops, saying where, at an image or at a link to a file no page serves; and when either
   Markdown file is missing, saying which, so that `npm run bundle` in `proxy/` never bundles a
   deploy without them.

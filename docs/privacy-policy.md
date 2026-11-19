@@ -165,6 +165,7 @@ On our server:
 - Counters per install, per account and per network address for the limits and the daily spending caps delete themselves once their periods end, at most a day after they began.
 - Hourly counters of what an account creates, and of what the web pages ask for per network address, are deleted by our daily clean-up once their hour is over.
 - A session is not stored on our server. It lasts 30 days on your phone.
+- When an account is deleted, the time of the deletion is kept under the account's code for 30 days, the longest a session lasts, so that our server refuses every session issued before it.
 - Groups, with their members, bills, payments back and log, are kept until the group is deleted, which happens when its last member with an account leaves it or deletes their account. A bill deleted from a group is emptied at once.
 - A payment request stays until the person who asked deletes it or confirms it was paid. One deleted before it is confirmed is emptied at once and removed 30 days later. One confirmed as paid is kept as a record for both people for as long as Split Vibe runs, also after either of them deletes their account, without that account on it.
 - An invite is removed 30 days after it expires; invites work for 14 days.
@@ -178,7 +179,7 @@ Anthropic, RevenueCat and Google keep what they receive as their own policies sa
 
 ## Counting how Split Vibe is used
 
-To know whether Split Vibe works and what it costs, our server counts events as totals: bills read and splits changed by a sentence, with their outcome and cost; the first AI call of an install; sign-ins; bill links made and items picked; payment requests made, reported paid and confirmed; checks of Pro and RevenueCat's notices; and the daily runs. Each count holds only the kind of event, its outcome and a number such as a cost. None holds an account, an install's ID or a network address. Cloudflare keeps these counts for 3 months.
+To know whether Split Vibe works and what it costs, our server counts events as totals: bills read and splits changed by a sentence, with their outcome and cost; the first AI call of an install; sign-ins; bill links made and items picked; payment requests made, reported paid and confirmed; checks of Pro and RevenueCat's notices; the spending caps that come near their limit; and the daily runs. Each count holds only the kind of event, its outcome and a number such as a cost. None holds an account, an install's ID or a network address. Cloudflare keeps these counts for 3 months.
 
 The app itself sends no usage statistics and contains no analytics or advertising tool. It does not read your phone's advertising ID.
 
@@ -191,13 +192,14 @@ When you delete your account, our server:
 - first has RevenueCat delete your account's customer record and purchase history. Google Play keeps its own record of your purchases;
 - deletes your push tokens, your bill links with the picks made on them, your requests to join groups, and the rest of your account's counters and Pro status;
 - keeps the count of calls you used this calendar month, under your account's code, until the month ends, so that deleting an account and signing in again does not give new calls. It also keeps the hourly counters, which hold nothing but your account's code, until the daily clean-up after their hour;
+- keeps the time of the deletion, under your account's code, for 30 days, the longest a session lasts, so that every phone still signed in to the account is signed out;
 - in groups, turns you into a member called "Former member", keeping the amounts you paid and owe so that the other members' balances do not change. The bills you added stay in the group and pass to its owner. A group in which nobody else has an account is deleted;
 - on the payment requests you made, deletes the way to get paid of each request not yet confirmed and the payment details of every request's web page, and shows your name as "Former member". The other person keeps the request, and on a request already confirmed as paid they keep the way to get paid it carried, as their record;
 - takes your account off every request, so that nobody can act as you on it.
 
-Your bills, people and ways to get paid are on your phone, not on our server. When you delete your account in the app, you can tick "Also delete the bills, people and payment methods on this phone" to delete your bills, drafts, recurring bills, page photos, people, ways to get paid, the copy of your groups and requests, and your name from the phone. If you leave it unticked, they stay. The app deletes them only after our server has deleted your account, so that a failure loses nothing. Your other settings, such as your currency, stay. Deleting your account on the website does not touch your phone.
+Your bills, people and ways to get paid are on your phone, not on our server. When you delete your account in the app, you can tick "Also delete the bills, people and payment methods on this phone" to delete your bills, drafts, recurring bills, page photos, people, ways to get paid, the copy of your groups and requests, and your name from the phone. If you leave it unticked, they stay. The app deletes them only after our server has deleted your account, so that a failure loses nothing. Your other settings, such as your currency, stay. Deleting your account on the website deletes nothing on your phone.
 
-Deleting your account signs you out on the phone you delete it from. If you are signed in to the same account on another phone, sign out there too: a phone that is still signed in can keep using the account for up to 30 days after it signed in, and what it does is kept again under the same account.
+Deleting your account, in the app or on the website, signs you out on every phone: from then on our server refuses every session issued before the deletion, so a phone that is still signed in to the account can no longer use it. Signing in again after the deletion starts the account afresh, but for the calls already used that month.
 
 What is deleted stays in our database's history for up to 30 days, as described above.
 
