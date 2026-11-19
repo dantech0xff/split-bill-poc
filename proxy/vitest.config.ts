@@ -26,7 +26,7 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
-      // The Worker's tests; eval/revise/test/ holds those of the evaluation's runner, which Node runs.
+      // The Worker's tests; eval/shared/test/ holds those of the evaluations' runners, which Node runs.
       include: ["test/**/*.test.ts"],
       setupFiles: ["./test/setup.ts"],
     },

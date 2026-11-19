@@ -6,8 +6,8 @@
 // run cannot do even that, killed with SIGKILL for instance, its end of the guard's input closes,
 // and the guard kills the group itself. POSIX only: Windows has no process groups to signal.
 //
-// `run.mjs` starts Wrangler through here, and `test/proxy-process.test.mjs` checks every one of
-// those ends with a stand-in for it.
+// `local-proxy.mjs` starts Wrangler through here for the runner of each evaluation, and
+// `test/proxy-process.test.mjs` checks every one of those ends with a stand-in for it.
 
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";

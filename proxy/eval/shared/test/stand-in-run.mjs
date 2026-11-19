@@ -1,9 +1,9 @@
-// A stand-in for `run.mjs` in the tests of `proxy-process.mjs`: it starts `stand-in-proxy.mjs`
-// through `startProxy`, as `run.mjs` starts Wrangler, and prints "ready" once it is up. Then `wait`
-// waits for a signal; the others wait for a line on their input and end as their name says: `stop`
-// stops the proxy and returns, `exit` calls `process.exit()`, `throw` throws where nothing catches
-// it, and `reject` fails at the top of the module. When the start fails, it prints why and exits
-// with 1.
+// A stand-in for an evaluation's runner in the tests of `proxy-process.mjs`: it starts
+// `stand-in-proxy.mjs` through `startProxy`, as a runner starts Wrangler, and prints "ready" once
+// it is up. Then `wait` waits for a signal; the others wait for a line on their input and end as
+// their name says: `stop` stops the proxy and returns, `exit` calls `process.exit()`, `throw`
+// throws where nothing catches it, and `reject` fails at the top of the module. When the start
+// fails, it prints why and exits with 1.
 //
 //   node stand-in-run.mjs <stop | exit | throw | reject | wait> <file> [stubborn | broken]
 

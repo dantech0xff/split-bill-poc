@@ -1,8 +1,8 @@
-// Checks, with stand-ins for `run.mjs` and for Wrangler, that the proxy a run of the evaluation
-// starts never outlives the run, however the run ends. It needs no key and calls no model. Node's
+// Checks, with stand-ins for an evaluation's runner and for Wrangler, that the proxy a run starts
+// never outlives the run, however the run ends. It needs no key and calls no model. Node's
 // own runner runs it, as `npm test` does after the Worker's tests; POSIX only, as the runner is.
 //
-//   node --test eval/revise/test/proxy-process.test.mjs
+//   node --test eval/shared/test/proxy-process.test.mjs
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
