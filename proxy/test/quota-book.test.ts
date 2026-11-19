@@ -648,3 +648,35 @@ it("deletes everything it holds for a deleted account", async () => {
   const left = await runInDurableObject(stub, async (_, state) => (await state.storage.list()).size);
   expect(left).toBe(0);
 });
+
+describe("the first call of an install", () => {
+  it("is told apart once, when it is held, whatever comes of it", async () => {
+    const now = Date.now();
+    const stub = book();
+    const first = crypto.randomUUID();
+
+    const held = await stub.hold(now, first, TRIAL, BILL, READ);
+    const again = await stub.hold(now, first, TRIAL, BILL, READ);
+    await stub.release(now, first);
+    await stub.release(now, first);
+    const next = await stub.hold(now, crypto.randomUUID(), TRIAL, BILL, READ);
+
+    expect(held).toMatchObject({ ok: true, first: true });
+    expect(again).not.toHaveProperty("first");
+    expect(next).toMatchObject({ ok: true });
+    expect(next).not.toHaveProperty("first");
+    expect((await storageOf(stub)).firstCall).toBe(now);
+  });
+
+  it("is never an account's call, nor one of an install that had calls charged before the mark existed", async () => {
+    const now = Date.now();
+    const account = await accountBook();
+    const older = await bookWith({ book: { period: "trial", hundredths: 100, used: 1 } });
+
+    for (const stub of [account, older]) {
+      const held = await stub.hold(now, crypto.randomUUID(), stub === account ? MONTHLY : TRIAL, BILL, READ);
+      expect(held).toMatchObject({ ok: true });
+      expect(held).not.toHaveProperty("first");
+    }
+  });
+});

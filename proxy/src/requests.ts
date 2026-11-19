@@ -17,6 +17,7 @@ import {
   uuidOf,
 } from "./input";
 import { bodyTokenOf, linkUrl, requestToken, tokenHash } from "./links";
+import { count } from "./metrics";
 import { POLICY } from "./policy";
 import { notify } from "./push";
 import { addressOf, admitHourly, hourlyRefusal } from "./rate-limit";
@@ -181,7 +182,7 @@ async function created(call: Call, row: RequestRow): Promise<Response> {
  * group, the payer is a member other than the caller, the currency is the group's,
  * and a payer with an account becomes the debtor at once and is notified; anyone else becomes
  * the debtor by accepting the link. The same request sent again answers as the first time did. A
- * creditor may make 30 requests an hour.
+ * creditor may make 30 requests an hour. A request made is counted as `request_created`.
  */
 export const createRequestRoute = signedIn(async (call) => {
   const { request, env, ctx, account } = call;
@@ -245,6 +246,7 @@ export const createRequestRoute = signedIn(async (call) => {
   }
   if (row === null) throw new Error("The request was not stored");
   ctx.waitUntil(notify(env, row.debtor, { type: "request", requestId: row.id }));
+  count(env, "request_created", "ok");
   return created(call, row);
 });
 
@@ -347,7 +349,8 @@ export const acceptRequestLinkRoute = signedIn(async ({ request, env, account })
 
 /**
  * `POST /v1/requests/{id}/reported-paid`: the debtor says they paid. It is set once, and the
- * creditor is notified; after that, or once the creditor confirmed, it changes nothing.
+ * creditor is notified; after that, or once the creditor confirmed, it changes nothing. The time it
+ * is set is counted as `request_reported_paid`.
  */
 export const reportPaidRoute = signedIn(async ({ env, ctx, params, account }) => {
   const own = await ownRequest(env.DB, params[0], account);
@@ -368,6 +371,7 @@ export const reportPaidRoute = signedIn(async ({ env, ctx, params, account }) =>
     return again.ok ? viewResponse(again.row, "debtor") : again.response;
   }
   ctx.waitUntil(notify(env, reported.creditor, { type: "reported", requestId: reported.id }));
+  count(env, "request_reported_paid", "ok");
   return viewResponse(reported, "debtor");
 });
 
@@ -375,7 +379,8 @@ export const reportPaidRoute = signedIn(async ({ env, ctx, params, account }) =>
  * `POST /v1/requests/{id}/confirmed-paid`: the creditor confirms they were paid. It is set once,
  * and the debtor is notified. For a request in a group, the same batch records the settlement
  * from the payer's member to the creditor's, so the group's balances change exactly once; in a
- * group that holds [POLICY.maxSettlements] already, it is 413.
+ * group that holds [POLICY.maxSettlements] already, it is 413. The time it is set is counted as
+ * `request_confirmed_paid`.
  */
 export const confirmPaidRoute = signedIn(async ({ env, ctx, params, account }) => {
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -384,7 +389,11 @@ export const confirmPaidRoute = signedIn(async ({ env, ctx, params, account }) =
     const row = own.row;
     if (row.creditor !== account) return errorResponse(403, "forbidden");
     if (row.confirmed_paid_at !== null) return viewResponse(row, "creditor");
-    const tell = (confirmed: RequestRow) => ctx.waitUntil(notify(env, confirmed.debtor, { type: "confirmed", requestId: confirmed.id }));
+    // Called exactly when a confirmation landed.
+    const tell = (confirmed: RequestRow) => {
+      ctx.waitUntil(notify(env, confirmed.debtor, { type: "confirmed", requestId: confirmed.id }));
+      count(env, "request_confirmed_paid", "ok");
+    };
     if (row.group_id === null) {
       const confirmed = await env.DB.prepare(
         `UPDATE requests SET confirmed_paid_at = ?3

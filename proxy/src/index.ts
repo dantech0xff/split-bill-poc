@@ -17,6 +17,7 @@ import {
 import { approveClaimRoute, createInviteRoute, joinGroupRoute, openInviteRoute, previewInviteRoute, rejectClaimRoute, revokeInvitesRoute } from "./invites";
 import { AbuseLedger } from "./ledger";
 import { assetLinksRoute } from "./links";
+import { count } from "./metrics";
 import { QuotaBook } from "./quota-book";
 import { forgetExpired, sendReminders } from "./reminders";
 import {
@@ -97,6 +98,12 @@ export interface Env {
   FX_BOOK: DurableObjectNamespace<FxBook>;
   /** The live connections of each bill link's page, one object per link. */
   SHARE_ROOM: DurableObjectNamespace<ShareRoom>;
+  /**
+   * The Workers Analytics Engine dataset `split_vibe_events`, where the proxy counts what happens:
+   * events, their outcomes and numbers, never who; see `metrics.ts`. Without it nothing is
+   * counted, and everything else works the same.
+   */
+  METRICS?: AnalyticsEngineDataset;
 }
 
 /**
@@ -195,12 +202,14 @@ export default {
   /**
    * The daily cron of `wrangler.jsonc`: fetches the exchange rates, sends the reminders that are
    * due, and forgets expired invites and bill links. Each runs whatever the others do; the run
-   * fails when one did, so that it shows as failed among the Worker's cron events.
+   * fails when one did, so that it shows as failed among the Worker's cron events. It is counted
+   * as `daily_run`, `ok` or `failed`, with how long it took.
    */
   async scheduled(_controller, env): Promise<void> {
     const now = Date.now();
     const runs = await Promise.allSettled([refreshFxRates(env), sendReminders(env, now), forgetExpired(env, now)]);
     const failed = runs.find((run): run is PromiseRejectedResult => run.status === "rejected");
+    count(env, "daily_run", failed === undefined ? "ok" : "failed", { ms: Date.now() - now });
     if (failed !== undefined) throw failed.reason;
   },
 } satisfies ExportedHandler<Env>;

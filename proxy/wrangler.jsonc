@@ -49,6 +49,10 @@
       "migrations_dir": "migrations"
     }
   ],
+  // What the proxy counts: each data point an event, its outcome and numbers, never an account,
+  // an install id, an IP or any id. The dataset is made at the first write; without the binding
+  // nothing is counted. `npm run metrics` reads the counts back.
+  "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "split_vibe_events" }],
   "durable_objects": {
     "bindings": [
       { "name": "QUOTA_BOOK", "class_name": "QuotaBook" },

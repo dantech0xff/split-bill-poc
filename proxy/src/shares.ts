@@ -1,6 +1,7 @@
 import { type Call, signedIn } from "./identity";
 import { countOf, idOf, inputOf, TOO_LARGE, uuidOf } from "./input";
 import { linkUrl, shareToken, tokenHash } from "./links";
+import { count } from "./metrics";
 import { POLICY } from "./policy";
 import { admitHourly } from "./rate-limit";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
@@ -133,7 +134,7 @@ async function makeShare({ env, account }: Call, shareId: string, wanted: ShareI
  * and the link loses its amounts, who paid and the matches, a `locked` link going back to
  * `locking`. Another account's id is 409; a revoked or expired link is 410. An account makes
  * [POLICY.sharesPerHour] links an hour, and every other call counts against
- * [POLICY.shareWritesPerHour].
+ * [POLICY.shareWritesPerHour]. A link made is counted as `share_created`.
  */
 export const putShareRoute = signedIn(async (call) => {
   const { request, env, params, account } = call;
@@ -148,7 +149,10 @@ export const putShareRoute = signedIn(async (call) => {
     const gate = await admitHourly(db, account, "share", POLICY.sharesPerHour, Date.now());
     if (!gate.ok) return errorResponse(429, "rate_limited", { retryAfter: gate.retryAfter });
     const made = await makeShare(call, shareId, wanted);
-    if (made !== null) return ownerAnswer(call, made, 201, true);
+    if (made !== null) {
+      count(env, "share_created", "ok");
+      return ownerAnswer(call, made, 201, true);
+    }
     // A request that came together with this one made the link first: this one changes it.
   } else if (existing.row.owner !== account) {
     return errorResponse(409, "conflict");

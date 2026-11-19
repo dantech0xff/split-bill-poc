@@ -25,8 +25,12 @@ export type Usage = { limit: number; used: number; remaining: number; period: st
  */
 export type PlanState = { proUntil: number | null; checkedAt: number };
 
+/**
+ * What a hold comes to. [first] is set on the first call ever held for an install that is not
+ * signed in, once per install, so that the proxy can count new installs.
+ */
 export type HoldResult =
-  | { ok: true; usage: Usage }
+  | { ok: true; usage: Usage; first?: true }
   | { ok: false; code: "quota_exhausted" | "retry_limit" | "request_mismatch"; usage: Usage; retryAfter: number | null };
 
 /** Allowances are counted in hundredths of a call, so that a call of any weight is a whole number. */
@@ -72,6 +76,8 @@ const REQUEST = "request:";
 const PLAN = "plan";
 /** When the proxy first handed a Google account's id to the app as its purchaser. */
 const ISSUED = "issued";
+/** When an install first had a call held, so that its first call is told apart once. */
+const FIRST_CALL = "firstCall";
 /** The most keys one write of storage takes. */
 const MAX_PUT_KEYS = 128;
 
@@ -130,11 +136,16 @@ export class QuotaBook extends DurableObject {
       const retryAfter = usage.resetsAt === null ? null : secondsUntil(now, usage.resetsAt);
       return { ok: false, code: "quota_exhausted", usage, retryAfter };
     }
+    // An install's first call: nothing charged, nothing held, and no first call marked. An install
+    // that had calls charged before the mark existed has a count, so it is never taken for new.
+    const first =
+      allowance.kind === "trial" && book.hundredths === 0 && requests.size === 0 && (await this.ctx.storage.get(FIRST_CALL)) === undefined;
     const entry: RequestEntry = { heldAt: now, runs: 1, active: 1, committedAt: null, digest, weight: cost };
     requests.set(requestId, entry);
-    await this.ctx.storage.put(REQUEST + requestId, entry);
+    await this.ctx.storage.put(first ? { [REQUEST + requestId]: entry, [FIRST_CALL]: now } : { [REQUEST + requestId]: entry });
     await this.arm(now);
-    return { ok: true, usage: usageOf(book, requests, terms, now) };
+    const usage = usageOf(book, requests, terms, now);
+    return first ? { ok: true, usage, first } : { ok: true, usage };
   }
 
   /**

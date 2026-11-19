@@ -1,6 +1,7 @@
 import type { Env } from "./index";
 import { idOf, inputOf, MAX_BILL_ITEMS, textOf } from "./input";
 import { bodyTokenOf, randomToken, tokenHash, tokenOf } from "./links";
+import { count } from "./metrics";
 import { POLICY } from "./policy";
 import { addressOf, hourlyRefusal } from "./rate-limit";
 import { errorResponse, jsonResponse } from "./respond";
@@ -105,6 +106,7 @@ async function newClaimRefusal(request: Request, env: Env, address: string, turn
  * them only while open (409 `locked`). A claim lands only while all of that still holds, in the
  * same statement, so one written before a lock is in the lock's answer and one after it is
  * refused. Every claim on a link that works counts against the IP's [POLICY.claimWritesPerHour].
+ * A claim that lands is counted as `share_claim`: `new`, or `changed` for one the link had.
  */
 export async function claimRoute(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const input = await inputOf(request, POLICY.maxClaimBodyBytes, claimingOf);
@@ -145,6 +147,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
       ]);
       if (written === null) continue;
       tell(env, ctx, written.row, { type: "share", share: publicView(written) });
+      count(env, "share_claim", "changed");
       return claimed(written, mine.id);
     }
     const retried = attemptHash === null ? undefined : share.claims.find((claim) => claim.attempt_hash === attemptHash);
@@ -161,6 +164,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
       ]);
       if (written === null) continue;
       tell(env, ctx, written.row, { type: "share", share: publicView(written) });
+      count(env, "share_claim", "changed");
       return claimed(written, retried.id, key);
     }
     if (share.claims.length >= POLICY.maxClaims) return errorResponse(409, "full");
@@ -186,6 +190,7 @@ export async function claimRoute(request: Request, env: Env, ctx: ExecutionConte
     // Refused, or the same attempt landed just now from another request: the next read says which.
     if (written === null) continue;
     tell(env, ctx, written.row, { type: "share", share: publicView(written) });
+    count(env, "share_claim", "new");
     return claimed(written, claimId, key);
   }
   console.error(JSON.stringify({ event: "share_claim_contended" }));

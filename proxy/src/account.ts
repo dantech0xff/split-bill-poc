@@ -2,6 +2,7 @@ import { forgetSharedData } from "./account-data";
 import { ALLOWANCES, accountName, callerOf, ledger, quotaBook, sessionAccountOf } from "./identity";
 import type { Env } from "./index";
 import { readJson } from "./input";
+import { count } from "./metrics";
 import { POLICY } from "./policy";
 import type { Usage } from "./quota-book";
 import { hourlyRefusal } from "./rate-limit";
@@ -12,23 +13,43 @@ import { aiEnabled } from "./switches";
 
 const MAX_ID_TOKEN_CHARS = 8 * 1024;
 
+/** Why a Google ID token was not taken: the status and the error code to answer with. */
+type IdTokenRefusal = { status: 400 | 401 | 503; code: "input" | "id_token" | "sign_in_off" };
+
+/**
+ * The account of the Google ID token in the body `{"idToken": …}` of [request], checked as signing
+ * in checks it: 503 `sign_in_off` until the owner set the app's client ID and the signing key; 400
+ * `input` for a body without a token; 401 `id_token` for a token Google did not sign for this
+ * app's client ID, or that has run out; 503 `sign_in_off` again when Google's keys cannot be had.
+ */
+async function googleAccountIn(request: Request, env: Env): Promise<{ ok: true; account: string } | ({ ok: false } & IdTokenRefusal)> {
+  if (!signInReady(env)) return { ok: false, status: 503, code: "sign_in_off" };
+  const body = await readJson(request, 2 * MAX_ID_TOKEN_CHARS);
+  const idToken = typeof body === "object" && body !== null ? (body as Record<string, unknown>).idToken : undefined;
+  if (typeof idToken !== "string" || idToken === "" || idToken.length > MAX_ID_TOKEN_CHARS) return { ok: false, status: 400, code: "input" };
+  const checked = await googleAccountOf(idToken, env);
+  if (!checked.ok) return checked.reason === "invalid" ? { ok: false, status: 401, code: "id_token" } : { ok: false, status: 503, code: "sign_in_off" };
+  return { ok: true, account: checked.account };
+}
+
 /**
  * `POST /v1/session` with `{"idToken": …}`: trades the ID token Google gave the app at sign-in for
  * a session the proxy signs, and says how many calls the account has left this month, with the
  * account's purchaser: the id the app gives RevenueCat for the account's purchases, left out while
- * it cannot be recorded, as [callsAndPurchaser] says.
+ * it cannot be recorded, as [callsAndPurchaser] says. Each sign-in is counted as `sign_in`, with
+ * `ok` or the error code.
  */
 export async function sessionRoute(request: Request, env: Env): Promise<Response> {
-  if (!signInReady(env)) return errorResponse(503, "sign_in_off");
-  const body = await readJson(request, 2 * MAX_ID_TOKEN_CHARS);
-  const idToken = typeof body === "object" && body !== null ? (body as Record<string, unknown>).idToken : undefined;
-  if (typeof idToken !== "string" || idToken === "" || idToken.length > MAX_ID_TOKEN_CHARS) return errorResponse(400, "input");
-
-  const checked = await googleAccountOf(idToken, env);
-  if (!checked.ok) return checked.reason === "invalid" ? errorResponse(401, "id_token") : errorResponse(503, "sign_in_off");
+  const checked = await googleAccountIn(request, env);
+  if (!checked.ok) {
+    count(env, "sign_in", checked.code);
+    return errorResponse(checked.status, checked.code);
+  }
   const now = Date.now();
   const { session, expiresAt } = await issueSession(checked.account, env, now);
-  return jsonResponse(200, { session, expiresAt, ...(await callsAndPurchaser(env, checked.account, now)) });
+  const answer = jsonResponse(200, { session, expiresAt, ...(await callsAndPurchaser(env, checked.account, now)) });
+  count(env, "sign_in", "ok");
+  return answer;
 }
 
 /**
@@ -71,23 +92,29 @@ async function callsAndPurchaser(env: Env, account: string, now: number): Promis
  *
  * It answers 503 `not_configured` without RevenueCat's key, 429 `rate_limited` past
  * [POLICY.planRefreshesPerHour] for the account, and 502 `subscription_unavailable` when RevenueCat
- * gives no plan that can be read, which leaves the plan kept as it was.
+ * gives no plan that can be read, which leaves the plan kept as it was. Each refresh of a signed-in
+ * account is counted as `plan_refresh`, with `ok` or the error code.
  */
 export async function planRoute(request: Request, env: Env): Promise<Response> {
   const account = await sessionAccountOf(request, env);
   if (account === null) return errorResponse(401, "session");
+  const refused = (status: number, code: string, response: Response = errorResponse(status, code)): Response => {
+    count(env, "plan_refresh", code);
+    return response;
+  };
   const key = revenueCatKey(env);
-  if (key === null) return errorResponse(503, "not_configured");
-  const refused = await hourlyRefusal(env.DB, account, "plan_refresh", POLICY.planRefreshesPerHour);
-  if (refused !== null) return refused;
+  if (key === null) return refused(503, "not_configured");
+  const limited = await hourlyRefusal(env.DB, account, "plan_refresh", POLICY.planRefreshesPerHour);
+  if (limited !== null) return refused(429, "rate_limited", limited);
   const book = quotaBook(env, accountName(account));
   // The answer hands the id out, so it is recorded as handed out before RevenueCat is asked: the
   // read may create the customer, whose events the webhook then follows. A QuotaBook that cannot
   // record it fails the request, answered 500, so RevenueCat is never asked about an id without
   // its record.
   await book.issuePurchaser(Date.now(), ALLOWANCES.monthly);
-  if (!(await refreshPlan(env, key, account))) return errorResponse(502, "subscription_unavailable");
+  if (!(await refreshPlan(env, key, account))) return refused(502, "subscription_unavailable");
   const usage = await book.usage(Date.now(), ALLOWANCES.monthly);
+  count(env, "plan_refresh", "ok");
   return jsonResponse(200, { purchaser: account, usage, aiEnabled: aiEnabled(env) });
 }
 

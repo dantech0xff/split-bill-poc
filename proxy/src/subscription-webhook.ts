@@ -1,6 +1,7 @@
 import { accountName, quotaBook } from "./identity";
 import type { Env } from "./index";
 import { isRecord, jsonBody } from "./input";
+import { count } from "./metrics";
 import { bodyRefusal, errorResponse, jsonResponse } from "./respond";
 import { refreshPlan, revenueCatKey } from "./revenuecat";
 
@@ -36,12 +37,15 @@ const EVENT_TYPE = /^[A-Z_]{1,64}$/;
  * again too.
  *
  * One log line per event says its type and what came of it, never an id, a body or a secret; an
- * event that fails as above is logged as any failed request is instead.
+ * event that fails as above is logged as any failed request is instead. Each answered event is
+ * counted as `subscription_event`, with what came of it but not its type.
  */
 export async function subscriptionEventsRoute(request: Request, env: Env): Promise<Response> {
   const started = Date.now();
   const answered = (outcome: string, response: Response, fields: Record<string, unknown> = {}): Response => {
-    console.log(JSON.stringify({ event: "subscription_event", ...fields, outcome, ms: Date.now() - started }));
+    const ms = Date.now() - started;
+    console.log(JSON.stringify({ event: "subscription_event", ...fields, outcome, ms }));
+    count(env, "subscription_event", outcome, { ms });
     return response;
   };
   const secret = env.REVENUECAT_WEBHOOK_AUTH?.trim() ?? "";

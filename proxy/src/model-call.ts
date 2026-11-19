@@ -3,6 +3,7 @@ import { callerOf, ledger, quotaBook } from "./identity";
 import type { Env } from "./index";
 import { byteLength, readJson } from "./input";
 import { clientIp, hashed, ipKey } from "./ledger";
+import { count, type MetricEvent, type MetricNumbers } from "./metrics";
 import { POLICY } from "./policy";
 import type { Usage } from "./quota-book";
 import { errorResponse, lineStream } from "./respond";
@@ -43,8 +44,8 @@ export type ModelSettings = {
 
 /** One kind of call to the model: what a bill read and an edit of a split do differently. */
 export type ModelTask<Input extends { requestId: string }> = {
-  /** The event of its log lines. */
-  event: string;
+  /** The event of its log lines and its data points. */
+  event: Extract<MetricEvent, "bill_analysis" | "split_revision">;
   /** What one call takes of the caller's allowance, in hundredths of a call. */
   weight: number;
   /** The largest body read, in bytes; a longer one is refused as input. */
@@ -80,6 +81,10 @@ export type ModelTask<Input extends { requestId: string }> = {
  * [Timing.afterHangUpMs] of the hang-up; otherwise the model is stopped. A call that got no
  * answer, or an answer [ModelTask.answerOf] refuses where the task does not charge for it, is
  * given back. Spend is settled at what the call cost, exactly once.
+ *
+ * Every call ends in one log line and one data point of [ModelTask.event], with its outcome, its
+ * time and, once the model answered, its tokens and cost. The first call an install holds is also
+ * counted as `install_first_call`, with the same outcome.
  */
 export async function callModel<Input extends { requestId: string }>(
   request: Request,
@@ -89,8 +94,15 @@ export async function callModel<Input extends { requestId: string }>(
   timing: Timing,
 ): Promise<Response> {
   const started = Date.now();
+  let first = false;
+  const ended = (outcome: string, fields: Record<string, unknown>, numbers: MetricNumbers = {}) => {
+    const ms = Date.now() - started;
+    log(task.event, { outcome, ...fields, ms });
+    count(env, task.event, outcome, { ...numbers, ms });
+    if (first) count(env, "install_first_call", outcome);
+  };
   const refused = (outcome: string, response: Response): Response => {
-    log(task.event, { outcome, ms: Date.now() - started });
+    ended(outcome, {});
     return response;
   };
   if (!aiEnabled(env)) return refused("ai_off", errorResponse(503, "ai_off"));
@@ -119,6 +131,7 @@ export async function callModel<Input extends { requestId: string }>(
     if (hold.code === "request_mismatch") return refused(hold.code, errorResponse(400, "input"));
     return refused(hold.code, errorResponse(429, hold.code, { retryAfter: hold.retryAfter, extra: { usage: hold.usage } }));
   }
+  first = hold.first === true;
 
   // A call without a fallback is answered by its own model only, and held at that model's price.
   const held = holdMicro(
@@ -154,7 +167,7 @@ export async function callModel<Input extends { requestId: string }>(
       if (!reply.ok) {
         const code = hungUp.aborted ? "client_gone" : failureCode(reply.error);
         send({ type: "error", code });
-        log(task.event, { outcome: code, caller: caller.kind, model: settings.model, ms: Date.now() - started });
+        ended(code, { caller: caller.kind, model: settings.model });
         return;
       }
       const message = reply.message;
@@ -173,17 +186,19 @@ export async function callModel<Input extends { requestId: string }>(
         ? { eval: { model: message.model, inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens, costMicro: cost } }
         : {};
       send(answer.ok ? { type: "result", answer: answer.value, usage, ...report } : { type: "error", code: answer.code, usage, ...report });
-      log(task.event, {
-        outcome: answer.ok ? "ok" : answer.code,
-        caller: caller.kind,
-        model: message.model,
-        inputTokens: message.usage.input_tokens,
-        outputTokens: message.usage.output_tokens,
-        costMicro: cost,
-        refusal: message.stop_reason === "refusal" ? (message.stop_details?.category ?? null) : undefined,
-        clientGone: hungUp.aborted || undefined,
-        ms: Date.now() - started,
-      });
+      const tokens = { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens };
+      ended(
+        answer.ok ? "ok" : answer.code,
+        {
+          caller: caller.kind,
+          model: message.model,
+          ...tokens,
+          costMicro: cost,
+          refusal: message.stop_reason === "refusal" ? (message.stop_details?.category ?? null) : undefined,
+          clientGone: hungUp.aborted || undefined,
+        },
+        { ...tokens, costMicro: cost },
+      );
     } finally {
       // When the model was reached but did not answer, what it was billed for cannot be known, so
       // the whole hold counts as spent.
