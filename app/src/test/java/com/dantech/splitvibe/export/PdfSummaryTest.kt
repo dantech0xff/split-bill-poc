@@ -9,7 +9,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
-import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
@@ -46,7 +45,7 @@ import org.robolectric.annotation.GraphicsMode
 class PdfSummaryTest {
 
     private val content = contentOf(
-        insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords()),
+        insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock),
     ) { it.english() }
     private val resources = ApplicationProvider.getApplicationContext<Context>().resources
     private val summary = PdfSummary(content, resources)
@@ -126,7 +125,7 @@ class PdfSummaryTest {
 
     /** What each page of the summary of [bills] draws as a line of text, as a PDF page gets it. */
     private fun drawn(bills: List<SavedBill>): List<Drawn> {
-        val insights = insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock, contentWords())
+        val insights = insightsOf(bills, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock)
         val summary = PdfSummary(contentOf(insights) { it.english() }, resources)
         return summary.pages.indices.flatMap { index ->
             val page = Bitmap.createBitmap(PdfSummary.PAGE_WIDTH, PdfSummary.PAGE_HEIGHT, Bitmap.Config.ARGB_8888)

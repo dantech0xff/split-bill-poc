@@ -39,7 +39,6 @@ val spendingModule = module {
             exporter = get(),
             clock = PhoneClock,
             savedState = get(),
-            words = get(),
         )
     }
     viewModel {

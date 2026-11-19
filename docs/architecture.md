@@ -87,9 +87,10 @@ which sets English for numbers.
   spreadsheet app that opens them.
 - What the app writes into what it keeps or sends, rather than shows, comes from `ContentWords`,
   read from the resources once when the app starts: the user as "You" in the stored list of a
-  bill's people and in the totals by person, the name of a recurring bill without one, the lines
-  and people without a name on a bill's page, and whom a group request greets or comes from. What
-  was kept or sent stays in the language it was written in.
+  bill's people, the name of a recurring bill without one, the lines and people without a name on a
+  bill's page, and whom a group request greets or comes from. What was kept or sent stays in the
+  language it was written in. A screen names the user and someone without a name itself, as the
+  totals by person do (`personName`), so it follows the phone's language.
 - Some text stays in code, each for a reason: the sentences `:core:domain` writes (a reason a split
   does not add up, a proposed edit, a payment method's problem or name, a bill's warnings), which
   the screens show as they come; and the CSV files' headings and words, a format for spreadsheet

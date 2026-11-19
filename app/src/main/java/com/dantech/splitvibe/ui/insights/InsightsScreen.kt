@@ -223,7 +223,7 @@ private fun LazyListScope.insights(state: InsightsState) {
         title = R.string.insights_by_person,
         hint = R.string.insights_by_person_hint,
         lines = insights.byPerson.map { person ->
-            SpendingLine(person.personKey, UiText.Raw(person.name), person.shareMinor, billCount(person.bills))
+            SpendingLine(person.personKey, personName(person), person.shareMinor, billCount(person.bills))
         },
         format = currency::format,
     )

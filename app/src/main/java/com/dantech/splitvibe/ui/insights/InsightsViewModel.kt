@@ -18,11 +18,11 @@ import com.dantech.splitvibe.domain.InsightShare
 import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.NameMatcher
+import com.dantech.splitvibe.domain.PersonSpending
 import com.dantech.splitvibe.export.ExportContent
 import com.dantech.splitvibe.export.ExportFile
 import com.dantech.splitvibe.export.ExportFormat
 import com.dantech.splitvibe.export.Exporter
-import com.dantech.splitvibe.text.ContentWords
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.text
@@ -103,8 +103,6 @@ class InsightsViewModel(
     private val exporter: Exporter,
     private val clock: Clock,
     private val savedState: SavedStateHandle,
-    /** What the user and someone without a name are called in the totals by person. */
-    private val words: ContentWords,
 ) : ViewModel() {
 
     /** Null until the bills have been read. */
@@ -114,7 +112,7 @@ class InsightsViewModel(
         savedState.getStateFlow(KEY_PERIOD, InsightsPeriod.THIS_MONTH.name),
     ) { finished, localCurrency, period ->
         val chosen = InsightsPeriod.entries.firstOrNull { it.name == period } ?: InsightsPeriod.THIS_MONTH
-        insightsOf(finished, localCurrency, chosen, clock, words)
+        insightsOf(finished, localCurrency, chosen, clock)
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_AFTER_MS), null)
@@ -205,18 +203,12 @@ internal fun contentOf(state: InsightsState, read: (UiText) -> String) = ExportC
  * [clock] tells, in the currency [localCurrency] names. A bill counts on its own date, or on the day
  * it was saved when it has none that can be read, in the zone [clock] is in.
  */
-internal fun insightsOf(
-    finished: List<SavedBill>,
-    localCurrency: String,
-    period: InsightsPeriod,
-    clock: Clock,
-    words: ContentWords,
-): InsightsState {
+internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period: InsightsPeriod, clock: Clock): InsightsState {
     val local = BillCurrency.resolve(localCurrency, null, emptyList())
     val today = LocalDate.now(clock)
     val days = period.days(today)
     // The sort keeps the latest saved first among bills of the same day.
-    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone, words) }
+    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone) }
         .filter { (_, counted) -> days == null || counted.day?.let { it in days } == true }
         .sortedByDescending { (_, counted) -> counted.day }
     val insights = Insights.of(inPeriod.map { (_, counted) -> counted }, local)
@@ -252,9 +244,10 @@ internal fun insightsOf(
  *
  * Everyone but the user is told apart by name, without case, accents or punctuation, as the phone
  * tells the people it remembers apart. So is someone forgotten and added again, who is remembered
- * under a new id, and someone of the same name who joined a bill from its link.
+ * under a new id, and someone of the same name who joined a bill from its link. The user, and
+ * someone without a name, have none here: the screen names them in its language ([personName]).
  */
-internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId, words: ContentWords): InsightBill {
+internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId): InsightBill {
     val bill = saved.bill
     return InsightBill(
         day = dayOf(bill.date) ?: Instant.ofEpochMilli(saved.createdAt).atZone(zone).toLocalDate(),
@@ -266,15 +259,22 @@ internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId
             val name = saved.plan.participant(share.personId)?.name?.trim().orEmpty()
             val key = NameMatcher.normalize(name).takeIf { it.isNotEmpty() }?.let { "name:$it" }
             if (share.personId == ME_ID) {
-                InsightShare(ME_ID, words.you, share.totalMinor)
+                InsightShare(ME_ID, "", share.totalMinor)
             } else {
                 // Someone without a name is someone of this bill alone.
-                InsightShare(key ?: "${saved.id}/${share.personId}", name.ifEmpty { words.someone }, share.totalMinor)
+                InsightShare(key ?: "${saved.id}/${share.personId}", name, share.totalMinor)
             }
         },
         myShareMinor = saved.myShareMinor,
         rate = saved.exchangeRate?.takeIf { it.converts(bill, localCurrency) },
     )
+}
+
+/** What the totals by person call [person]: "You" for the user, "Someone" for someone without a name, or their name. */
+internal fun personName(person: PersonSpending): UiText = when {
+    person.personKey == ME_ID -> text(R.string.common_you)
+    person.name.isBlank() -> text(R.string.common_someone)
+    else -> UiText.Raw(person.name)
 }
 
 /**

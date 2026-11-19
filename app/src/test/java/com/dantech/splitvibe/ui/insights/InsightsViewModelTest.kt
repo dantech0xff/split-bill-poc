@@ -4,6 +4,7 @@ import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
@@ -12,6 +13,7 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.SpendingFixtures.FLAT
 import com.dantech.splitvibe.SpendingFixtures.TRIP
@@ -47,6 +49,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
+import java.util.Locale
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +58,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -97,7 +101,7 @@ class InsightsViewModelTest {
             SpendingFixtures.finished("d1", "2026-11-14", "Draft", FOOD_AND_DRINK, 999_000, listOf("Minh")).copy(status = BillStatus.DRAFT),
         )
         val settings = MutableStateFlow(AppSettings(localCurrency = "VND"))
-        viewModel = InsightsViewModel(bills, settings, Exporter(context), clock, SavedStateHandle(), contentWords())
+        viewModel = InsightsViewModel(bills, settings, Exporter(context), clock, SavedStateHandle())
         // The screen watches the state while it shows.
         watching.launch { viewModel.state.collect {} }
         Unit
@@ -116,7 +120,6 @@ class InsightsViewModelTest {
         Exporter(context),
         clock,
         SavedStateHandle(),
-        contentWords(),
     )
 
     private fun shown(period: InsightsPeriod): InsightsState {
@@ -127,7 +130,7 @@ class InsightsViewModelTest {
 
     /** Each person as the statistics name them, with their bills, the totals of those, the user's part and their own. */
     private fun people(state: InsightsState) =
-        state.insights.byPerson.map { listOf(it.name, it.bills, it.totalMinor, it.myShareMinor, it.shareMinor) }
+        state.insights.byPerson.map { listOf(personName(it).english(), it.bills, it.totalMinor, it.myShareMinor, it.shareMinor) }
 
     @Test
     fun `this month takes the bills of November, the undated ones by the day they were saved, and adds them up by hand`() {
@@ -281,7 +284,7 @@ class InsightsViewModelTest {
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
 
-        val counted = insightBillOf(saved, "VND", clock.zone, contentWords())
+        val counted = insightBillOf(saved, "VND", clock.zone)
 
         assertEquals(LocalDate.of(2025, 12, 5), counted.day)
         assertEquals(TRANSPORT, counted.category)
@@ -292,7 +295,7 @@ class InsightsViewModelTest {
         // people the phone remembers as well as someone who joined from a link.
         assertEquals(
             listOf(
-                InsightShare(ME_ID, "You", 200_000),
+                InsightShare(ME_ID, "", 200_000),
                 InsightShare("name:minh", "Minh", 200_000),
                 InsightShare("name:lan", "Lan", 200_000),
                 InsightShare("name:an", "An", 200_000),
@@ -300,7 +303,7 @@ class InsightsViewModelTest {
             counted.shares,
         )
         assertNull(counted.rate)
-        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone, contentWords()).rate
+        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone).rate
         // The day's rate saved as the bill was finished, and a rate the user typed.
         assertEquals(SpendingFixtures.usdDayRate, rateOf("b4"))
         assertEquals(ExchangeRate("THB", "VND", BigDecimal("745.5")), rateOf("b12"))
@@ -309,13 +312,12 @@ class InsightsViewModelTest {
         assertNull(rateOf("b5"))
         // Without a date that can be read, the day it was saved in Ho Chi Minh City, not in UTC.
         val b8 = runBlocking { checkNotNull(bills.get("b8")) }
-        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(b8, "VND", clock.zone, contentWords()).day)
+        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(b8, "VND", clock.zone).day)
     }
 
     @Test
     fun `a period's notes say how many bills each note is about, and how to count one without a rate`() {
-        fun notes(vararg bills: SavedBill) =
-            insightsOf(bills.toList(), "VND", InsightsPeriod.ALL_TIME, clock, contentWords()).notes.map { it.english() }
+        fun notes(vararg bills: SavedBill) = insightsOf(bills.toList(), "VND", InsightsPeriod.ALL_TIME, clock).notes.map { it.english() }
         val yen = SpendingFixtures.finished("y1", "2026-11-02", "Ichiran", FOOD_AND_DRINK, 1_980, emptyList(), BillCurrency("JPY", 0))
         val undated = SpendingFixtures.finished("u1", null, "Chợ", OTHER, 50_000, emptyList())
 
@@ -336,6 +338,22 @@ class InsightsViewModelTest {
     }
 
     @Test
+    fun `the user and someone without a name are named by the screen, in the language it shows`() {
+        val unnamed = SpendingFixtures.finished("u1", "2026-11-03", "Cafe", FOOD_AND_DRINK, 100_000, listOf(""))
+        val people = Insights.of(listOf(insightBillOf(unnamed, "VND", clock.zone)), SpendingFixtures.vnd).byPerson
+        assertEquals("nothing the insights keep is in a language", listOf("", ""), people.map { it.name })
+
+        val inPseudolocale = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag("en-XA")) }
+        val pseudo = context.createConfigurationContext(inPseudolocale)
+        assertEquals(listOf("You", "Someone"), people.map { personName(it).english() })
+        assertEquals(
+            listOf(pseudo.getString(R.string.common_you), pseudo.getString(R.string.common_someone)),
+            people.map { personName(it).resolve(pseudo.resources) },
+        )
+        assertNotEquals("You", pseudo.getString(R.string.common_you))
+    }
+
+    @Test
     fun `someone forgotten and added again, or of the same name from a link, is one person in the insights`() {
         // Lan was forgotten, so the phone remembers her under a new id since, and "minh" joined the
         // newer bill from its link; the older one is with the Minh the phone remembers.
@@ -346,11 +364,12 @@ class InsightsViewModelTest {
             .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))
             .withPersonIds("Lan" to "lan-again")
 
-        val counted = listOf(newer, older).map { insightBillOf(it, "VND", clock.zone, contentWords()) }
+        val counted = listOf(newer, older).map { insightBillOf(it, "VND", clock.zone) }
         val people = Insights.of(counted, SpendingFixtures.vnd).byPerson
 
-        // 100,000 + 70,000 each, and Minh named as the newer bill names him.
-        assertEquals(listOf("Lan", "You", "minh"), people.map { it.name })
+        // 100,000 + 70,000 each, and Minh named as the newer bill names him. Among equal shares the
+        // user comes first, whatever the screen's language calls them.
+        assertEquals(listOf("You", "Lan", "minh"), people.map { personName(it).english() })
         assertEquals(listOf(2, 2, 2), people.map { it.bills })
         assertEquals(listOf(170_000L, 170_000L, 170_000L), people.map { it.shareMinor })
     }

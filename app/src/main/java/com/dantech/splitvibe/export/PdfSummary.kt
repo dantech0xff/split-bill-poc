@@ -17,6 +17,7 @@ import com.dantech.splitvibe.text.dateText
 import com.dantech.splitvibe.text.labelRes
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.text
+import com.dantech.splitvibe.ui.insights.personName
 import java.io.ByteArrayOutputStream
 
 /**
@@ -115,7 +116,7 @@ internal class PdfSummary(private val content: ExportContent, private val resour
                 listOf(words(text(R.string.pdf_person)), bills, total, words(text(R.string.pdf_their_share))),
                 SUMMARY_COLUMNS,
                 insights.byPerson.map { person ->
-                    listOf(person.name, "${person.bills}", money(person.totalMinor), money(person.shareMinor))
+                    listOf(words(personName(person)), "${person.bills}", money(person.totalMinor), money(person.shareMinor))
                 },
             )
         }

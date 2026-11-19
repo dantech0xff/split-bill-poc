@@ -21,7 +21,10 @@ data class InsightBill(
     val rate: ExchangeRate?,
 )
 
-/** One participant's part of a bill. [personKey] is the same for the same person on every bill; [name] is what to call them. */
+/**
+ * One participant's part of a bill. [personKey] is the same for the same person on every bill;
+ * [name] is what to call them, or empty for whom the app names itself, such as the user.
+ */
 data class InsightShare(val personKey: String, val name: String, val amountMinor: Long)
 
 /** A group a bill is in: [id] tells it apart from every other group, also one of the same name, and [name] is what to call it. */
