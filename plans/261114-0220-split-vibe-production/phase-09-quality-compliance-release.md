@@ -1,6 +1,6 @@
 ---
 title: "Phase 9: Chất lượng, tuân thủ và phát hành"
-status: todo
+status: in-progress
 phase: 9
 priority: P1
 effort: "9d"
@@ -10,6 +10,14 @@ dependencies: [2, 3, 4, 5, 6, 7, 8]
 # Phase 9: Chất lượng, tuân thủ và phát hành
 
 ## Overview
+
+<!-- Updated: 19/11/2026 - chủ sản phẩm chốt ba điểm khi bắt đầu phase -->
+> **Đã chốt ngày 19/11/2026:**
+> - Hộp xác nhận xóa tài khoản có thêm ô "Also delete the bills, people and payment methods on this phone", mặc định không chọn. Có chọn thì app xóa mọi dữ liệu cá nhân chỉ nằm trên máy; không chọn thì những dữ liệu đó ở lại.
+> - Xóa tài khoản không hủy thuê bao Pro. App chỉ cảnh báo trước, như đã làm ở Phase 8.
+> - Việc đo sử dụng dùng số đếm tổng hợp trên server (Workers Analytics Engine của Cloudflare), không kèm mã người dùng. App không có SDK analytics nào, nên không cần chế độ đồng ý.
+>
+> Quyết định kỹ thuật của người làm: trang web xóa tài khoản dùng nút "Sign in with Google" rồi xóa thẳng. Server không lưu email nào, nên một yêu cầu qua email không chỉ ra được tài khoản nào, mà Play lại đòi xóa được không cần cài lại app.
 
 Split Vibe 1.0 lên Google Play cho toàn cầu: qua đủ cổng chất lượng, có hồ sơ quyền riêng tư và pháp lý, qua vòng thử kín bắt buộc, phát hành theo từng nấc có theo dõi, và có quy trình vận hành sau ra mắt.
 
@@ -33,8 +41,8 @@ Split Vibe 1.0 lên Google Play cho toàn cầu: qua đủ cổng chất lượn
 
 <!-- Red Team: cổng phát hành vượt yêu cầu — 2026-11-14 -->
 Cổng chất lượng trên bản release (chặn phát hành):
-- Unit test, test rules, test hàm trên server, so ảnh chụp: tất cả xanh trong CI.
-- Test đầu-cuối trên một thiết bị do Gradle quản lý (API 34): luồng chia hóa đơn mẫu qua cổng AI của project dev, nhập tay, tạo yêu cầu.
+- Unit test, test của proxy và trang web, so ảnh chụp: tất cả xanh trong CI. <!-- Updated: 19/11/2026 - không còn Firestore rules hay Cloud Functions -->
+- Test đầu-cuối trên một thiết bị API 34: luồng chia hóa đơn mẫu qua một proxy giả chạy trong test, nhập tay, tạo yêu cầu. <!-- Updated: 19/11/2026 - chưa có proxy dev có key Anthropic; đường AI thật do bộ đánh giá kiểm -->
 - Ngân sách hiệu năng của Phase 2 đạt trên máy tham chiếu với bản release có baseline profile.
 - Bộ đánh giá AI đạt ngưỡng đã định ở Phase 3 và Phase 7 trên model đang dùng ở prod.
 - Kiểm tra tiếp cận: TalkBack đi hết luồng chính, cỡ chữ 200%, độ tương phản.
@@ -52,22 +60,27 @@ Rà soát bảo mật:
 <!-- Red Team: xóa tài khoản không mở rộng theo dữ liệu mới — 2026-11-14 -->
 Ma trận xóa tài khoản, kiểm bằng test trên emulator rồi một lần trên prod với tài khoản thử:
 
-| Dữ liệu | Thêm ở | Sau khi xóa tài khoản |
+<!-- Updated: 19/11/2026 - theo nơi dữ liệu thật sự nằm sau Validation Session 5, và quyết định của chủ sản phẩm ngày 19/11 -->
+| Dữ liệu | Nằm ở | Sau khi xóa tài khoản |
 |---|---|---|
-| `users/{uid}` và mọi collection con (`people`, `paymentMethods`, `devices`) | Phase 3, 4, 5 | Xóa hết |
-| `usage/{uid}` | Phase 3 | Xóa; giữ một mã băm của tài khoản Google cùng số lượt tới hết kỳ để chống lách hạn mức, và nêu rõ trong chính sách quyền riêng tư |
-| Gói hiệu lực và hồ sơ người mua | Phase 8 | Xóa trên proxy và ở dịch vụ thuê bao |
-| Hóa đơn riêng, bản nháp, mẫu định kỳ | Phase 4, 7 | Xóa hết |
-| Tư cách thành viên nhóm và hóa đơn nhóm | Phase 5 | Thành "Thành viên đã rời", giữ số tiền, chuyển quyền sở hữu hóa đơn |
-| Yêu cầu trả tiền chưa xác nhận | Phase 5 | Xóa bản chụp cách nhận tiền |
-| Link chia sẻ và lượt nhận món | Phase 6 | Thu hồi link, xóa lượt nhận |
+| Thiết bị nhận thông báo | D1 (`devices`) | Xóa hết |
+| Số lượt AI | `QuotaBook` của tài khoản | Giữ số đã dùng của tháng hiện tại, gắn với mã băm của tài khoản, tới hết tháng để chống lách hạn mức bằng cách xóa rồi đăng nhập lại; xóa mọi thứ khác. Chính sách quyền riêng tư nêu rõ |
+| Gói hiệu lực và dấu đã cấp mã người mua | `QuotaBook` | Xóa |
+| Hồ sơ người mua | RevenueCat | Xóa trước mọi thứ khác; thuê bao trên Play không bị hủy, app cảnh báo trước |
+| Bộ đếm chi tiêu | `AbuseLedger` | Xóa |
+| Bộ đếm theo giờ | D1 (`rate_windows`) | Giữ tới lần dọn hằng ngày, chỉ mang mã băm |
+| Tư cách thành viên nhóm và hóa đơn nhóm | D1 | Thành "Thành viên đã rời", giữ số tiền, chuyển quyền sở hữu hóa đơn |
+| Yêu cầu trả tiền chưa xác nhận | D1 | Xóa bản chụp cách nhận tiền |
+| Link chia sẻ và lượt nhận món | D1 | Thu hồi link, xóa lượt nhận |
+| Hóa đơn, bản nháp, hóa đơn định kỳ, ảnh trang, danh sách người, cách nhận tiền, tên của người dùng | Chỉ trên máy | Xóa khi người dùng chọn ô trong hộp xác nhận; không chọn thì ở lại |
+| Session và mã người mua đã lưu | Chỉ trên máy | Xóa |
 
 Hồ sơ quyền riêng tư và pháp lý (chủ sản phẩm chịu trách nhiệm, người làm chuẩn bị bản nháp):
-- Chính sách quyền riêng tư và điều khoản sử dụng trên web, nêu rõ văn bản hóa đơn được gửi tới API của Anthropic để xử lý, ảnh không rời máy, dữ liệu lưu ở Mỹ (`nam5`), thời hạn lưu.
+- Chính sách quyền riêng tư và điều khoản sử dụng trên web. Chính sách nêu rõ: văn bản hóa đơn được gửi tới API của Anthropic để xử lý; ảnh không rời máy; cơ sở dữ liệu D1 nằm ở phía đông Bắc Mỹ (vùng ENAM của Cloudflare), còn bộ đếm theo tài khoản nằm ở trung tâm dữ liệu Cloudflare gần nơi chúng được dùng lần đầu; thời hạn lưu. <!-- Updated: 19/11/2026 - dữ liệu ở Cloudflare, không còn Firestore `nam5` -->
 - Biểu mẫu An toàn dữ liệu, phân loại nội dung, khai báo thuê bao.
 - Xóa tài khoản trong app và trang web yêu cầu xóa.
-- Chế độ đồng ý cho Analytics: mặc định từ chối ở EEA, Anh, Thụy Sĩ cho tới khi người dùng đồng ý.
-- Thỏa thuận xử lý dữ liệu với Google và Anthropic.
+- App không có SDK analytics, nên không cần chế độ đồng ý. Số đếm trên server không mang mã người dùng hay IP. <!-- Updated: 19/11/2026 - quyết định của chủ sản phẩm -->
+- Thỏa thuận xử lý dữ liệu với Google, Anthropic, Cloudflare và RevenueCat.
 - Đánh giá việc cần đại diện tại EU và hồ sơ chuyển dữ liệu xuyên biên giới của Việt Nam.
 
 Phát hành:
@@ -76,12 +89,12 @@ Phát hành:
 - Hồ sơ cửa hàng: ảnh chụp sinh từ đường dựng ảnh của dự án, mô tả tiếng Anh.
 
 Vận hành:
-- Bảng theo dõi: sự cố, phễu sử dụng (quét, phân tích, chia sẻ, đánh dấu đã trả), chi phí AI theo ngày và theo người dùng, số tài khoản ẩn danh mới mỗi ngày.
+- Bảng theo dõi: sự cố, phễu sử dụng (quét, phân tích, chia sẻ, đánh dấu đã trả), chi phí AI theo ngày và theo người dùng, số tài khoản ẩn danh mới mỗi ngày. Số đếm do proxy ghi vào Workers Analytics Engine; sự cố lấy từ Android vitals. Bước quét chỉ diễn ra trên máy, nên không đếm được. <!-- Updated: 19/11/2026 - quyết định của chủ sản phẩm -->
 - Cảnh báo: tỷ lệ lỗi cổng AI, cầu dao chi tiêu chạm 80%, hàm theo lịch thất bại.
 <!-- Updated: Validation Session 5 - Firebase bỏ khỏi Phase 3; AI qua proxy trên Cloudflare -->
 - Công tắc trên proxy (có từ Phase 3): tắt AI (app vẫn nhập tay được), phiên bản tối thiểu được hỗ trợ.
 - Chọn cách báo lỗi crash. Mặc định là Android vitals của Play Console; thêm một dịch vụ báo lỗi chỉ khi vitals không đủ.
-- Nếu Phase 5 hoặc 6 đưa dữ liệu người dùng lên server: sao lưu theo lịch và một lần diễn tập khôi phục.
+- Dữ liệu dùng chung nằm trong D1, nên cần sao lưu và một lần diễn tập khôi phục: Time Travel của D1 là bản sao lưu liên tục; diễn tập bằng cách xuất D1 ra SQL rồi nạp vào một database tạm. <!-- Updated: 19/11/2026 - Phase 5 và 6 đã đưa dữ liệu dùng chung lên D1 -->
 - Sổ tay sự cố và kênh hỗ trợ người dùng.
 
 ## Architecture
@@ -90,13 +103,77 @@ Không có kiến trúc mới. Giai đoạn này thêm luồng CI phát hành:
 
 <!-- Red Team: CI trên repo công khai để secret trong tầm với của PR — 2026-11-14 -->
 ```
+<!-- Updated: 19/11/2026 - Worker trên Cloudflare thay cho Firebase -->
 tag phiên bản ─▶ release.yml trong môi trường GitHub được bảo vệ (chủ sản phẩm duyệt tay)
-                 ├─ build AAB prod, ký bằng khóa upload
+                 ├─ build AAB prod, ký bằng khóa upload, kiểm căn 16 KB và các kiểm tra của bản release
                  ├─ tải lên kênh nội bộ của Play
-                 └─ triển khai functions, rules, hosting lên project prod
+                 └─ ghi bookmark Time Travel của D1, chạy migration, triển khai Worker
 ```
-- Đăng nhập Google Cloud bằng liên kết danh tính OIDC thay cho tệp khóa tài khoản dịch vụ tồn tại lâu dài.
+- Tải lên Play bằng Workload Identity Federation (OIDC) thay cho tệp khóa service account tồn tại lâu dài. Cloudflare dùng một API token hẹp quyền, nằm trong secret của môi trường được bảo vệ.
 - Luồng này chỉ chạy từ tag trên `main`; pull request không bao giờ kích hoạt nó.
+
+## Hợp đồng chung
+
+<!-- Updated: 19/11/2026 - chốt trước khi chia việc -->
+Các phần làm song song dùng chung đúng những điểm dưới đây.
+
+### Trang pháp lý và trang xóa tài khoản
+
+- Worker phục vụ ba trang: `/privacy` và `/terms`, dựng lúc build từ `docs/privacy-policy.md` và `docs/terms.md`; và `/delete-account`.
+- `/delete-account`:
+  - nói rõ những gì bị xóa và những gì ở lại: hóa đơn nằm trên điện thoại, và thuê bao Pro phải hủy trên Google Play;
+  - có nút "Sign in with Google" của Google Identity Services, chỉ nạp trên trang này, rồi một bước xác nhận cuối, rồi kết quả;
+  - khi Worker chưa có `GOOGLE_CLIENT_ID`, trang nói việc xóa trên web chưa sẵn sàng và chỉ cách xóa trong app.
+- `POST /v1/account/delete-with-google` nhận `{"idToken": …}`, kiểm ID token như `/v1/session`, rồi xóa đúng như `DELETE /v1/account`: tối đa 5 lần mỗi giờ, RevenueCat trước. Đường này không phát session.
+  - Trả 204 khi xóa xong.
+  - Trả lỗi: 400 `input`, 401 `id_token`, 429 `rate_limited`, 502 `subscription_unavailable`, 503 `sign_in_off`.
+- Chủ sản phẩm thêm địa chỉ của trang vào Authorized JavaScript origins của OAuth client.
+
+### Xóa tài khoản trên proxy
+
+- Theo ma trận ở trên. Thay đổi so với hiện tại: `QuotaBook` giữ số đã dùng của tháng hiện tại tới hết tháng, và xóa mọi thứ khác (gói, dấu đã cấp mã người mua, những request id đang nhớ).
+- Test ma trận nằm trong `proxy/test/account.test.ts`, gồm cả việc số dư của các thành viên còn lại không đổi.
+
+### Số đếm trên server
+
+- Binding Workers Analytics Engine `METRICS`, dataset `split_vibe_events`. Mỗi điểm dữ liệu chỉ mang tên sự kiện, kết quả và con số (chẳng hạn chi phí tính bằng micro USD). Không có mã tài khoản, mã cài đặt hay IP.
+- Các sự kiện được đếm:
+  - đọc hóa đơn và chỉnh bằng lời, kèm kết quả và chi phí;
+  - lần đầu một cài đặt gọi AI;
+  - đăng nhập;
+  - tạo link chia sẻ và lượt nhận món;
+  - tạo yêu cầu trả tiền, báo đã trả và xác nhận đã trả;
+  - làm mới gói và sự kiện webhook;
+  - lượt chạy hằng ngày.
+- Không có binding thì proxy chạy như cũ. Lệnh `npm run metrics` trong `proxy/` đọc số đếm qua SQL API, bằng API token của chủ sản phẩm.
+
+### App
+
+- Settings có link "Privacy policy" và "Terms of use" tới `/privacy` và `/terms` trên địa chỉ proxy của bản build. Màn Pro có hai link đó cạnh điều khoản gia hạn. Bản build không có địa chỉ proxy thì ẩn các link này.
+- Hộp xác nhận xóa tài khoản có ô "Also delete the bills, people and payment methods on this phone", mặc định không chọn.
+  - App chỉ xóa dữ liệu trên máy khi server đã xóa xong. Server xóa thất bại thì trên máy không mất gì.
+  - Dữ liệu bị xóa: hóa đơn, bản nháp, hóa đơn định kỳ, ảnh trang, danh sách người, cách nhận tiền, bộ nhớ đệm của nhóm và yêu cầu, và tên của người dùng.
+  - Các cài đặt khác ở lại, như tiền tệ và việc đã đồng ý cho dịch vụ giọng nói.
+- Mọi chuỗi người dùng thấy nằm trong tài nguyên: `strings.xml`, và plurals khi có số đếm. Chữ tiếng Anh giữ nguyên từng chữ, nên mọi ảnh chuẩn hiện có phải khớp như cũ. Bản debug bật ngôn ngữ giả `en-XA` và `ar-XB`, và vài màn chính có ảnh chuẩn ở `en-XA` để bắt chữ bị cắt.
+
+### Test đầu-cuối
+
+- `app/src/androidTest/…/e2e/` chạy với một proxy giả (MockWebServer) trả lời như proxy thật, cho ba luồng: chia hóa đơn mẫu qua AI, nhập tay, và tạo yêu cầu trả tiền.
+- Ở API 34, các test này chặn phát hành và chạy trong `device-tests.yml`. Có thêm một lượt chạy tay trên API 26, 30 và 36 để đo, không chặn.
+- Test tìm phần tử bằng chữ tiếng Anh hiện trên màn hình, nên không phụ thuộc việc gom chuỗi.
+
+### Phát hành và CI
+
+- `release.yml`:
+  - chạy khi đẩy một tag `v*` trỏ vào commit trên `main`, trong môi trường `production` có người duyệt;
+  - chạy lại các kiểm tra; dựng AAB prod ký bằng khóa upload, giải mã từ secret của môi trường vào một tệp tạm; `versionCode` lấy từ tag;
+  - kiểm căn 16 KB trên các APK tách từ AAB, và chạy các kiểm tra của bản release;
+  - tải lên kênh nội bộ của Play bằng Workload Identity Federation;
+  - ghi bookmark Time Travel của D1, chạy migration, rồi triển khai Worker bằng API token của Cloudflare.
+- Các kiểm tra của bản release, chạy trong CI và trong `release.yml`: không debuggable, không cho HTTP thường, địa chỉ proxy là `https`, không chứa chuỗi giống khóa bí mật.
+- Quét secret bằng gitleaks ở mọi push và pull request; dependency review ở pull request; `npm audit` mức high cho `proxy/` và `web/`; Dependabot cho Gradle bên cạnh npm.
+- Mọi action bên thứ ba ghim theo SHA của commit. Pull request không bao giờ chạm tới secret.
+- Chủ sản phẩm thiết lập: môi trường `production` và người duyệt, secret của khóa upload, Workload Identity Federation cho Play, và token của Cloudflare.
 
 ## Files
 
@@ -105,7 +182,7 @@ Tạo mới:
 - `app/src/androidTest/java/com/dantech/splitvibe/e2e/` (test đầu-cuối trên thiết bị)
 - `proxy/test/account.test.ts` (ma trận xóa tài khoản)
 - `docs/privacy-policy.md`, `docs/terms.md` (nguồn của trang web pháp lý), `docs/security-threat-model.md`, `docs/runbook.md`, `docs/release-checklist.md`
-- `web/account-deletion.html`
+- các trang `/privacy`, `/terms` và `/delete-account` trong `web/` <!-- Updated: 19/11/2026 - trang do Worker phục vụ -->
 
 Sửa:
 - `app/src/main/res/values/strings.xml` (gom mọi chuỗi đang viết thẳng trong mã Compose; hiện tệp chỉ có 1 chuỗi)
@@ -119,7 +196,7 @@ Sửa:
 3. Gom chuỗi vào tài nguyên, chạy ngôn ngữ giả.
 4. Viết test đầu-cuối trên thiết bị (chặn ở API 34; đo thêm ở API 26, 30, 36).
 5. Rà soát bảo mật theo mô hình mối đe dọa; sửa mọi phát hiện mức cao trước khi đi tiếp.
-6. Viết test ma trận xóa tài khoản; sửa `delete-account.ts` cho tới khi qua.
+6. Viết test ma trận xóa tài khoản; sửa `account.ts` và `account-data.ts` cho tới khi qua.
 7. Soạn chính sách quyền riêng tư, điều khoản, trang xóa tài khoản; điền An toàn dữ liệu và phân loại nội dung.
 8. Viết luồng CI phát hành với môi trường được bảo vệ và OIDC; diễn tập một lần trên project dev.
 9. Dựng bảng theo dõi, cảnh báo, sao lưu; diễn tập khôi phục và diễn tập tắt AI.
