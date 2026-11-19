@@ -37,8 +37,9 @@
   },
   // The exchange rates are fetched every day at 16:30 UTC, once the European Central Bank has
   // published its rates of the day, and also by the first request that finds them a day old. The
-  // same run sends the payment reminders that are due, forgets expired invites, and deletes bill
-  // links that expired or were revoked.
+  // same run sends the payment reminders that are due, forgets expired invites, deletes bill links
+  // that expired or were revoked, and empties the payment method of each payment request confirmed
+  // as paid more than 12 months ago.
   "triggers": {
     "crons": ["30 16 * * *"]
   },

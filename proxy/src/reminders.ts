@@ -90,7 +90,10 @@ export async function sendReminders(env: Env, now: number): Promise<void> {
  * Forgets what no longer works and no longer needs to answer: invites and deleted requests
  * [POLICY.forgetAfterMs] after they stopped working (their links then answer 404 rather than
  * 410), bill links once they expired or were revoked, with their claims (their links then answer
- * 404 too), and the hourly windows that have ended. One batch, and no Durable Object: the pages
+ * 404 too), and the hourly windows that have ended. It also empties the payment method, and how to
+ * pay for the web page, of each request confirmed as paid more than [POLICY.paidMethodRetentionMs]
+ * ago; its amount, its names, its two people and its paid state stay, as does the settlement a
+ * group's request recorded, so no balance changes. One batch, and no Durable Object: the pages
  * that still have a deleted link open hear nothing more, and learn it at their next request.
  */
 export async function forgetExpired(env: Env, now: number): Promise<void> {
@@ -99,6 +102,10 @@ export async function forgetExpired(env: Env, now: number): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM invites WHERE expires_at < ?1").bind(before),
     db.prepare("DELETE FROM requests WHERE deleted_at IS NOT NULL AND deleted_at < ?1").bind(before),
+    // Each such request is written once: a request already emptied is left as it is.
+    db
+      .prepare("UPDATE requests SET method = '{}', payment = NULL WHERE confirmed_paid_at < ?1 AND (method <> '{}' OR payment IS NOT NULL)")
+      .bind(now - POLICY.paidMethodRetentionMs),
     // Their claims go with them, through the schema's cascade.
     db.prepare("DELETE FROM shares WHERE expires_at <= ?1").bind(now),
     db.prepare("DELETE FROM shares WHERE revoked_at IS NOT NULL"),

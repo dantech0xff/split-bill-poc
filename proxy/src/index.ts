@@ -230,7 +230,8 @@ export default {
 
   /**
    * The daily cron of `wrangler.jsonc`: fetches the exchange rates, sends the reminders that are
-   * due, and forgets expired invites and bill links. Each runs whatever the others do; the run
+   * due, forgets expired invites and bill links, and empties the payment method of each request
+   * confirmed as paid more than 12 months ago. Each runs whatever the others do; the run
    * fails when one did, so that it shows as failed among the Worker's cron events. It is counted
    * as `daily_run`, `ok` or `failed`, with how long it took.
    */

@@ -737,7 +737,7 @@ describe("a deleted account", () => {
     expect(await alarmOf(stub)).toBe(firstWake(now));
   });
 
-  it("leaves the trial of an install alone, whenever it wakes", async () => {
+  it("leaves the trial of an install alone when it wakes within 12 months of the install's last call", async () => {
     const now = Date.now();
     const stub = book();
     await call(stub, now, TRIAL);
@@ -771,11 +771,13 @@ describe("a deleted account", () => {
     expect(await storageOf(unarmed)).toEqual({ book: thisMonth, deletedAt });
     expect(await alarmOf(unarmed)).toBe(Math.min(nextMonthStart(now), deletedAt + POLICY.sessionMs));
 
-    // The count of an install's trial is never over.
+    // The count of an install's trial is not over within 12 months of its last call, and no alarm set: it is set again.
     const trial = { period: "trial", hundredths: 300, used: 3 };
-    const install = await bookWith({ book: trial });
+    const lastHeldAt = now - POLICY.dayMs;
+    const install = await bookWith({ book: trial, lastHeldAt });
     await install.usage(now, TRIAL);
-    expect(await storageOf(install)).toEqual({ book: trial });
+    expect(await storageOf(install)).toEqual({ book: trial, lastHeldAt });
+    expect(await alarmOf(install)).toBe(lastHeldAt + POLICY.installRetentionMs);
   });
 
   it("ends every session issued before the deletion and no other, and records nothing for a session it ends", async () => {
@@ -851,5 +853,93 @@ describe("the first call of an install", () => {
       expect(held).toMatchObject({ ok: true });
       expect(held).not.toHaveProperty("first");
     }
+  });
+});
+
+/** The count of an install's trial once [calls] bill reads were charged. */
+function trialOf(calls: number) {
+  return { period: "trial", hundredths: calls * 100, used: calls };
+}
+
+describe("an install that is not signed in", () => {
+  it("keeps the time of the last call it held, which every call held moves on and nothing else does, and an account keeps none", async () => {
+    const now = Date.now();
+    const stub = book();
+    const read = crypto.randomUUID();
+    const lastHeld = async () => (await storageOf(stub)).lastHeldAt;
+
+    await stub.hold(now, read, TRIAL, BILL, READ);
+    expect(await lastHeld()).toBe(now);
+    // The same request run again moves it on, as a new call does.
+    await stub.hold(now + 1_000, read, TRIAL, BILL, READ);
+    expect(await lastHeld()).toBe(now + 1_000);
+    await call(stub, now + 2_000, TRIAL);
+    await call(stub, now + 3_000, TRIAL);
+    expect(await lastHeld()).toBe(now + 3_000);
+    // Charging, the calls left and a call refused once the trial is used up move nothing.
+    await stub.commit(now + 4_000, read, TRIAL, BILL, READ);
+    expect(await stub.usage(now + 5_000, TRIAL)).toMatchObject({ used: 3, remaining: 0 });
+    expect(await stub.hold(now + 6_000, crypto.randomUUID(), TRIAL, BILL, READ)).toMatchObject({ ok: false, code: "quota_exhausted" });
+    expect(await lastHeld()).toBe(now + 3_000);
+
+    const account = book();
+    await call(account, now, MONTHLY);
+    expect(await storageOf(account)).not.toHaveProperty("lastHeldAt");
+  });
+
+  it("keeps its count for 12 months after its last call, a call before then moving the time on, and is then gone, the install starting afresh", async () => {
+    const now = Date.now();
+    // The last call was held a day short of 12 months ago.
+    const lastHeldAt = now - POLICY.installRetentionMs + POLICY.dayMs;
+    const stub = await bookWith({ book: trialOf(2), firstCall: true, lastHeldAt });
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    // Woken before its time, it keeps everything, and sleeps until 12 months after that call.
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await storageOf(stub)).toEqual({ book: trialOf(2), firstCall: true, lastHeldAt });
+    expect(await alarmOf(stub)).toBe(lastHeldAt + POLICY.installRetentionMs);
+
+    // A call within the 12 months keeps the count and moves the time on, so the earlier end no longer counts.
+    expect(await call(stub, now, TRIAL)).toMatchObject({ ok: true, usage: { used: 2, remaining: 0 } });
+    expect(await storageOf(stub)).toMatchObject({ book: trialOf(3), firstCall: true, lastHeldAt: now });
+    expect(await stub.usage(lastHeldAt + POLICY.installRetentionMs + POLICY.dayMs, TRIAL)).toMatchObject({ used: 3, remaining: 0 });
+
+    // 12 months after the last call it held, nothing is left, and the install is a new one.
+    expect(await stub.usage(now + POLICY.installRetentionMs, TRIAL)).toEqual({ limit: 3, used: 0, remaining: 3, period: "trial", resetsAt: null, plan: "trial" });
+    expect(await storageOf(stub)).toEqual({});
+    expect(await alarmOf(stub)).toBeNull();
+    expect(await stub.hold(now + POLICY.installRetentionMs, crypto.randomUUID(), TRIAL, BILL, READ)).toMatchObject({ ok: true, first: true });
+  });
+
+  it("deletes itself by its own alarm 12 months after the last call it held", async () => {
+    const now = Date.now();
+    const stub = await bookWith({ book: trialOf(3), firstCall: true, lastHeldAt: now - POLICY.installRetentionMs });
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await storageOf(stub)).toEqual({});
+    expect(await alarmOf(stub)).toBeNull();
+  });
+
+  it("written before the time of its last call was kept, starts its 12 months when it is first called or woken", async () => {
+    const now = Date.now();
+    const counted = await bookWith({ book: trialOf(3) });
+    const marked = await bookWith({ firstCall: true });
+    const woken = await bookWith({ book: trialOf(1) });
+    await runInDurableObject(woken, (_, state) => state.storage.setAlarm(now));
+
+    expect(await counted.usage(now, TRIAL)).toMatchObject({ used: 3, remaining: 0 });
+    await marked.release(now, crypto.randomUUID());
+    await runDurableObjectAlarm(woken);
+
+    for (const stub of [counted, marked]) {
+      expect((await storageOf(stub)).lastHeldAt).toBe(now);
+      expect(await alarmOf(stub)).toBe(now + POLICY.installRetentionMs);
+    }
+    const wokenAt = (await storageOf(woken)).lastHeldAt;
+    expect(wokenAt).toBeGreaterThanOrEqual(now);
+    expect(await alarmOf(woken)).toBe(Number(wokenAt) + POLICY.installRetentionMs);
+    expect((await storageOf(woken)).book).toEqual(trialOf(1));
   });
 });

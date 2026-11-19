@@ -9,6 +9,13 @@
 export const POLICY = {
   /** Calls a phone that is not signed in may make, once for each install of the app. */
   trialCalls: 3,
+  /**
+   * How long an install that is not signed in is remembered after the last call it held: 12
+   * months, counted as 365 days. Its QuotaBook, the count of its trial calls with it, then deletes
+   * itself by its own alarm, so no object is ever listed; each call held before then moves the
+   * time on. An install that calls again after that starts the trial afresh, as a new one does.
+   */
+  installRetentionMs: 365 * 24 * 60 * 60 * 1000,
   /** Calls a Google account may make in each calendar month, counted in UTC. */
   monthlyCalls: 10,
   /**
@@ -171,6 +178,13 @@ export const POLICY = {
   remindersPerRun: 40,
   /** Invites and deleted requests are forgotten this long after they stopped working; their links then answer 404. */
   forgetAfterMs: 30 * 24 * 60 * 60 * 1000,
+  /**
+   * How long a payment request confirmed as paid keeps, after it was confirmed, the payment method
+   * it was sent with and how to pay it for its web page: 12 months, counted as 365 days. The daily
+   * run then empties both. Its amount, its names, its two people and when it was reported and
+   * confirmed paid stay, for both people's apps and for the settlement a group's request recorded.
+   */
+  paidMethodRetentionMs: 365 * 24 * 60 * 60 * 1000,
 
   // Bill links and the web pages.
   /** How long a bill link works after it was made; nothing extends it. */

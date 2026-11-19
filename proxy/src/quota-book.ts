@@ -81,6 +81,11 @@ const ISSUED = "issued";
 /** That an install has had a call held, so that its first call is told apart once; never when. */
 const FIRST_CALL = "firstCall";
 /**
+ * When an install that is not signed in last had a call held, in ms since the epoch. Its object
+ * deletes itself, its count with it, [POLICY.installRetentionMs] after that time.
+ */
+const LAST_HELD = "lastHeldAt";
+/**
  * When a Google account was last deleted, in ms since the epoch. Every session issued before it is
  * refused, so it is kept for as long as such a session could last, [POLICY.sessionMs].
  */
@@ -91,8 +96,8 @@ const MAX_PUT_KEYS = 128;
 /**
  * The calls of one caller: an install that is not signed in, or a Google account. Every request of
  * a caller runs on this one object, one after another, so two requests can never both take the
- * last call. Storage holds counts and request ids, and for a Google account its plan and when its
- * id was first handed out as a purchaser.
+ * last call. Storage holds counts and request ids; for a Google account its plan and when its id
+ * was first handed out as a purchaser; and for an install when it last had a call held.
  *
  * A Google account's monthly allowance is Pro's, [POLICY.proCalls], at every time its plan says it
  * is Pro, and the free one otherwise. The object decides that each time it holds, charges or reports
@@ -112,6 +117,10 @@ const MAX_PUT_KEYS = 128;
  * before the deletion is refused; an object left with nothing else then deletes itself. See
  * [forget].
  *
+ * An install's object keeps the time of the last call it held, and deletes itself with its count
+ * [POLICY.installRetentionMs] after it, by its own alarm; every call held before then moves the
+ * time on. An install that calls again later starts the trial afresh, as a new one does.
+ *
  * Every method first forgets what has outlived its time, as the alarm would have; see [begin].
  */
 export class QuotaBook extends DurableObject {
@@ -130,6 +139,8 @@ export class QuotaBook extends DurableObject {
     const terms = await this.termsAt(now, allowance);
     const book = await this.currentBook(now, terms.allowance);
     const requests = await this.liveRequests(now);
+    // A call held for an install moves on the time its object is kept until.
+    const held = allowance.kind === "trial" ? { [LAST_HELD]: now } : {};
     const known = requests.get(requestId);
     if (known) {
       if (known.digest !== digest) {
@@ -143,7 +154,7 @@ export class QuotaBook extends DurableObject {
       known.runs += 1;
       known.active += 1;
       known.heldAt = now;
-      await this.ctx.storage.put(REQUEST + requestId, known);
+      await this.ctx.storage.put({ [REQUEST + requestId]: known, ...held });
       await this.arm(now);
       return { ok: true, usage: usageOf(book, requests, terms, now) };
     }
@@ -159,7 +170,7 @@ export class QuotaBook extends DurableObject {
       allowance.kind === "trial" && book.hundredths === 0 && requests.size === 0 && (await this.ctx.storage.get(FIRST_CALL)) === undefined;
     const entry: RequestEntry = { heldAt: now, runs: 1, active: 1, committedAt: null, digest, weight: cost };
     requests.set(requestId, entry);
-    await this.ctx.storage.put(first ? { [REQUEST + requestId]: entry, [FIRST_CALL]: true } : { [REQUEST + requestId]: entry });
+    await this.ctx.storage.put({ [REQUEST + requestId]: entry, ...held, ...(first ? { [FIRST_CALL]: true } : {}) });
     await this.arm(now);
     const usage = usageOf(book, requests, terms, now);
     return first ? { ok: true, usage, first } : { ok: true, usage };
@@ -288,8 +299,9 @@ export class QuotaBook extends DurableObject {
   }
 
   /**
-   * Forgets the request ids whose time is up, and what a deleted account kept once its time is up,
-   * then sleeps until the next of them is due. An object left with nothing deletes itself.
+   * Forgets the request ids whose time is up, what a deleted account kept once its time is up, and
+   * an install that held no call for [POLICY.installRetentionMs], then sleeps until the next of
+   * them is due. An object left with nothing deletes itself.
    */
   async alarm(): Promise<void> {
     await this.upgrade();
@@ -305,24 +317,34 @@ export class QuotaBook extends DurableObject {
 
   /**
    * What every method does first, but [forget] and [alarm]: [upgrade], then [forgetEnded], as at a
-   * call after the alarm was missed. When that forgot something, or the account's deletion time is
+   * call after the alarm was missed. When that changed something, or a time the alarm wakes for is
    * kept but no alarm is set, as when older code ran the alarm after a rollback, the alarm is set
    * again for what is left. Answers the account's deletion time while it is kept, or null.
    */
   private async begin(now: number): Promise<number | null> {
     await this.upgrade();
-    const { deletedAt, forgot } = await this.forgetEnded(now);
-    if (forgot || (deletedAt !== null && (await this.ctx.storage.getAlarm()) === null)) await this.arm(now);
+    const { deletedAt, timed, changed } = await this.forgetEnded(now);
+    if (changed || (timed && (await this.ctx.storage.getAlarm()) === null)) await this.arm(now);
     return deletedAt;
   }
 
   /**
-   * Forgets a monthly count once its month has ended, as it counts for nothing then, and the
-   * account's deletion time once every session issued before it has run out. Answers that time
-   * while it is kept, or null, and whether anything was forgotten.
+   * Forgets what has outlived its time: a monthly count once its month has ended, as it counts for
+   * nothing then; the account's deletion time once every session issued before it has run out; and
+   * everything an install's object holds once [POLICY.installRetentionMs] have passed since the
+   * last call it held. An install's object written before that time was kept, which holds a trial
+   * count or the first-call mark and no time, takes [now] as its time, so that its months start
+   * when this code first sees it. Answers the deletion time while it is kept, or null; whether a
+   * time the alarm wakes for is kept; and whether anything changed.
    */
-  private async forgetEnded(now: number): Promise<{ deletedAt: number | null; forgot: boolean }> {
-    const kept = await this.ctx.storage.get([BOOK, DELETED]);
+  private async forgetEnded(now: number): Promise<{ deletedAt: number | null; timed: boolean; changed: boolean }> {
+    const kept = await this.ctx.storage.get([BOOK, DELETED, FIRST_CALL, LAST_HELD]);
+    const lastHeld = kept.get(LAST_HELD);
+    if (typeof lastHeld === "number" && now >= lastHeld + POLICY.installRetentionMs) {
+      // The alarm goes with the rest.
+      await this.ctx.storage.deleteAll();
+      return { deletedAt: null, timed: false, changed: true };
+    }
     const ended: string[] = [];
     const book = kept.get(BOOK);
     if (isMonthlyBook(book) && book.period < monthOf(now)) ended.push(BOOK);
@@ -330,7 +352,9 @@ export class QuotaBook extends DurableObject {
     const deletedAt = typeof stored === "number" && now < stored + POLICY.sessionMs ? stored : null;
     if (stored !== undefined && deletedAt === null) ended.push(DELETED);
     if (ended.length > 0) await this.ctx.storage.delete(ended);
-    return { deletedAt, forgot: ended.length > 0 };
+    const untimed = typeof lastHeld !== "number" && (kept.has(FIRST_CALL) || isTrialBook(book));
+    if (untimed) await this.ctx.storage.put(LAST_HELD, now);
+    return { deletedAt, timed: deletedAt !== null || typeof lastHeld === "number" || untimed, changed: ended.length > 0 || untimed };
   }
 
   /** The usage at [now], once [begin] has run. */
@@ -408,15 +432,18 @@ export class QuotaBook extends DurableObject {
   /**
    * Wakes the object when the next thing it keeps is due to be forgotten, so that storage does not
    * grow: a request id; a deleted account's deletion time, once sessions issued before it have run
-   * out; and a deleted account's count, when its month ends. That count is the one kept beside the
-   * deletion time, or one kept alone, as the version before deletion times kept it.
+   * out; a deleted account's count, when its month ends; and an install's object, once it has held
+   * no call for [POLICY.installRetentionMs]. That count is the one kept beside the deletion time, or
+   * one kept alone, as the version before deletion times kept it.
    */
   private async arm(now: number) {
     const requests = await this.ctx.storage.list<RequestEntry>({ prefix: REQUEST });
-    const kept = await this.ctx.storage.get([BOOK, DELETED, ISSUED, PLAN]);
+    const kept = await this.ctx.storage.get([BOOK, DELETED, ISSUED, PLAN, LAST_HELD]);
     const times = [...requests.values()].map(forgetAt);
     const deletedAt = kept.get(DELETED);
     if (typeof deletedAt === "number") times.push(deletedAt + POLICY.sessionMs);
+    const lastHeld = kept.get(LAST_HELD);
+    if (typeof lastHeld === "number") times.push(lastHeld + POLICY.installRetentionMs);
     const alone = requests.size === 0 && !kept.has(ISSUED) && !kept.has(PLAN);
     if (isMonthlyBook(kept.get(BOOK)) && (typeof deletedAt === "number" || alone)) times.push(nextMonthStart(now));
     const due = times.filter((time) => time > now);
@@ -438,6 +465,11 @@ function endsSession(deletedAt: number | null, issuedAt: unknown): boolean {
 /** Whether [value] is the book of a monthly allowance, which counts for nothing once its month has ended. */
 function isMonthlyBook(value: unknown): value is StoredBook {
   return isRecord(value) && typeof value.period === "string" && value.period !== "trial";
+}
+
+/** Whether [value] is the book of an install's trial, which only an install's object holds. */
+function isTrialBook(value: unknown): boolean {
+  return isRecord(value) && value.period === "trial";
 }
 
 /**

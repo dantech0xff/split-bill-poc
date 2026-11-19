@@ -13,6 +13,13 @@ type Created = { request: RequestView; url: string };
 const DAY = 24 * 60 * 60 * 1000;
 
 const METHOD = { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789", accountName: "NGUYEN LAN" };
+/** How to pay, as the creditor's app builds it for the request's web page. */
+const PAYMENT = {
+  link: null,
+  qrPayload: "00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA53037045406150000",
+  details: "Bank: Vietcombank (970436)\nAccount: 0123456789\nName: NGUYEN LAN\nAmount: ₫150,000",
+  amountFilledIn: true,
+};
 
 function requestBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -285,12 +292,6 @@ describe("a request link", () => {
 
 describe("a request link's web page", () => {
   type WebView = { request: Record<string, unknown> };
-  const PAYMENT = {
-    link: null,
-    qrPayload: "00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA53037045406150000",
-    details: "Bank: Vietcombank (970436)\nAccount: 0123456789\nName: NGUYEN LAN\nAmount: ₫150,000",
-    amountFilledIn: true,
-  };
 
   function view(token: string) {
     return api<WebView>(null, "POST", "/v1/request-links/view", { token });
@@ -583,5 +584,60 @@ describe("a group that goes", () => {
     expect(await rows("SELECT * FROM settlements")).toEqual([]);
     expect(await rows("SELECT * FROM groups")).toEqual([]);
     expect(await env.DB.prepare("SELECT count(*) AS n FROM requests").first("n")).toBe(1);
+  });
+});
+
+describe("a request confirmed as paid", () => {
+  /** Sets when [id] was confirmed paid to [at], as if it had been confirmed then. */
+  function confirmedAt(id: string, at: number) {
+    return env.DB.prepare("UPDATE requests SET confirmed_paid_at = ?2 WHERE id = ?1").bind(id, at).run();
+  }
+
+  it("loses its payment method at the daily run once it was confirmed more than 12 months ago, and keeps its amount, its people and its paid state, so no balance moves", async () => {
+    const { owner, group, minh, minhId } = await vndGroup();
+    const inGroup = (await ask(owner, { groupId: group.id, toMemberId: minhId, amountMinor: 250_000, payment: PAYMENT })).body.request.id;
+    const lan = await person();
+    const alone = await ask(lan, { payment: PAYMENT });
+    const lately = await ask(lan, { payment: PAYMENT });
+    const unpaid = await ask(lan, { payment: PAYMENT });
+    for (const made of [alone, lately, unpaid]) await api(minh, "POST", "/v1/request-links/accept", { token: tokenOf(made.body.url) });
+    await api(minh, "POST", `/v1/requests/${inGroup}/reported-paid`);
+    for (const [creditor, id] of [
+      [owner, inGroup],
+      [lan, alone.body.request.id],
+      [lan, lately.body.request.id],
+    ] as const) {
+      expect((await api(creditor, "POST", `/v1/requests/${id}/confirmed-paid`)).status).toBe(200);
+    }
+    const now = Date.now();
+    // Two were confirmed 12 months and a day ago, one a day short of 12 months ago; one is still open, made long before.
+    await confirmedAt(inGroup, now - POLICY.paidMethodRetentionMs - DAY);
+    await confirmedAt(alone.body.request.id, now - POLICY.paidMethodRetentionMs - DAY);
+    await confirmedAt(lately.body.request.id, now - POLICY.paidMethodRetentionMs + DAY);
+    await env.DB.prepare("UPDATE requests SET created_at = ?2 WHERE id = ?1").bind(unpaid.body.request.id, now - 2 * POLICY.paidMethodRetentionMs).run();
+    const listed = async (who: Person) => (await api<{ requests: RequestView[] }>(who, "GET", "/v1/requests")).body.requests;
+    const before = { group: await stateOf(group), owners: await listed(owner), lans: await listed(lan), minhs: await listed(minh) };
+
+    await forgetExpired(env, now);
+
+    // Both people keep every request: those paid long ago without the method they carried, and nothing else changed.
+    const forgotten = new Set([inGroup, alone.body.request.id]);
+    const emptied = (requests: RequestView[]) => requests.map((request) => (forgotten.has(request.id) ? { ...request, method: {} } : request));
+    expect(await listed(owner)).toEqual(emptied(before.owners));
+    expect(await listed(lan)).toEqual(emptied(before.lans));
+    expect(await listed(minh)).toEqual(emptied(before.minhs));
+    expect((await listed(minh)).filter((request) => request.confirmedPaidAt !== null)).toHaveLength(3);
+    // The group's settlement, and so every balance, stays as it was.
+    const after = await stateOf(group);
+    expect(after).toEqual(before.group);
+    expect(after.settlements).toEqual([expect.objectContaining({ fromMemberId: minhId, toMemberId: group.ownerMemberId, amountMinor: 250_000, requestId: inGroup })]);
+    expect(await rows("SELECT id, method, payment FROM requests ORDER BY created_at, id")).toEqual(
+      expect.arrayContaining([
+        { id: inGroup, method: "{}", payment: null },
+        { id: alone.body.request.id, method: "{}", payment: null },
+        { id: lately.body.request.id, method: JSON.stringify(METHOD), payment: JSON.stringify(PAYMENT) },
+        { id: unpaid.body.request.id, method: JSON.stringify(METHOD), payment: JSON.stringify(PAYMENT) },
+      ]),
+    );
   });
 });
