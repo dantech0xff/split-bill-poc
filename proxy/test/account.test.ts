@@ -732,6 +732,34 @@ describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
     expect((await api(again, "GET", `/v1/groups/${flat.id}`)).status).toBe(403);
   });
 
+  it("invites of the groups it was in: are revoked in the same batch, so that none made before brings it back once it signs in again, and a new one works", async () => {
+    const lan = await googlePerson();
+    const owner = await person();
+    const flat = await newGroup(owner, "Flat 4B", VND);
+    await join(flat, lan, "Lan");
+    const hers = await invite(flat, lan);
+    const owners = await invite(flat);
+    // A group Lan owns, which passes to Minh, and a group Lan is not in.
+    const trip = await newGroup(lan, "Chiang Mai trip", THB);
+    const minh = await person();
+    await join(trip, minh, "Minh");
+    const minhs = await invite(trip, minh);
+    const elsewhere = await invite(await newGroup(await person(), "Office lunch", VND));
+
+    expect((await remove(lan)).status).toBe(204);
+
+    const again = await signedInAgain(lan);
+    const joinWith = (token: string) => api(again, "POST", "/v1/invites/join", { token, memberId: crypto.randomUUID(), name: "Lan" });
+    for (const token of [hers, owners, minhs]) {
+      expect((await joinWith(token)).body).toEqual({ error: "gone" });
+      expect((await api(again, "POST", "/v1/invites/open", { token })).status).toBe(410);
+    }
+    expect((await joinWith(elsewhere)).status).toBe(200);
+    // The members who stay make a new invite, which works.
+    expect((await joinWith(await invite(flat))).status).toBe(200);
+    expect((await joinWith(await invite(trip, minh))).status).toBe(200);
+  });
+
   it("payment requests not confirmed: lose how the account is paid, and the other side keeps every request", async () => {
     const lan = await googlePerson();
     const owner = await person();

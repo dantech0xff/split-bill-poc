@@ -10,6 +10,9 @@ export const FORMER_MEMBER = "Former member";
  * - a group where nobody else has an account is deleted, as when its last account leaves;
  * - a group it owns passes to the member with an account who joined first, and its bills pass to
  *   the group's owner;
+ * - every invite that still works of each group it was in is revoked, as when a member leaves, so
+ *   that no invite made before, one it kept among them, brings the account back once it signs in
+ *   again; the members who stay make a new one;
  * - its claims and devices are deleted. Its hourly windows stay, holding nothing of the account but
  *   its salted hash, until the daily run forgets them once their hour is over, as it forgets every
  *   window, so that neither deleting the account again and again nor a session that outlives the
@@ -39,6 +42,9 @@ export async function forgetSharedData(db: D1Database, account: string, now: num
       .bind(account),
     db
       .prepare("INSERT INTO group_log (group_id, at, kind, member_id, subject_id) SELECT group_id, ?2, 'member_left', id, id FROM members WHERE account = ?1")
+      .bind(account, now),
+    db
+      .prepare("UPDATE invites SET revoked_at = ?2 WHERE revoked_at IS NULL AND group_id IN (SELECT group_id FROM members WHERE account = ?1)")
       .bind(account, now),
     db
       .prepare(`UPDATE requests SET group_id = NULL, to_member_id = NULL, creditor_member_id = NULL, bill_id = NULL WHERE group_id IN (${orphaned})`)

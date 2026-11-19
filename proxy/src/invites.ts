@@ -48,7 +48,8 @@ export const revokeInvitesRoute = signedIn(async ({ env, params, account }) => {
 /**
  * Revokes every invite of [groupId] that still works, as of [now]: as the owner asks, and whenever
  * a member is taken out or leaves, so that no invite made before can bring them back. The members
- * who stay make a new one.
+ * who stay make a new one. Deleting an account does the same for every group it was in, in the
+ * batch of `forgetSharedData`.
  */
 export function revokeInvitesStatement(db: D1Database, groupId: string, now: number): D1PreparedStatement {
   return db.prepare("UPDATE invites SET revoked_at = ?2 WHERE group_id = ?1 AND revoked_at IS NULL").bind(groupId, now);
