@@ -1,10 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
-import type { PageKind } from "./links";
+import { type PageKind, abuseMailto } from "./links";
 import { InvitePage } from "./pages/invite-page";
 import { RequestPage } from "./pages/request-page";
 import { SharePage } from "./pages/share-page";
 import { routeOf } from "./route";
 import { Footer } from "./ui/footer";
+import { ReportAbuse } from "./ui/payment-block";
 import { ProblemView } from "./ui/problem-view";
 
 const TITLES: Record<PageKind, string> = {
@@ -63,7 +64,9 @@ export function App({ pathname, host, hash: initialHash, siteKey, abuseEmail, us
       <header class="app-bar">
         <p class="app-bar__brand type-title-medium">Split Vibe</p>
       </header>
-      <main class="page">{page}</main>
+      <main class="page">
+        <ReportAbuse.Provider value={abuseMailto(abuseEmail, kind)}>{page}</ReportAbuse.Provider>
+      </main>
       <Footer kind={kind} abuseEmail={abuseEmail} />
     </>
   );

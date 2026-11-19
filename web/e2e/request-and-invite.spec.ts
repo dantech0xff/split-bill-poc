@@ -39,7 +39,12 @@ test("a payment request shows who asks whom for what, how to pay, and opens in t
     "href",
     `intent://${HOST}/r/#${asked.token}#Intent;scheme=https;package=com.dantech.splitvibe;${FALLBACK}`,
   );
-  await expect(page.getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", /subject=Report%20abuse%3A%20Split%20Vibe%20payment%20request%20link$/);
+  const report = /^mailto:abuse@example\.com\?subject=Report%20abuse%3A%20Split%20Vibe%20payment%20request%20link$/;
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", report);
+  // How to pay says first who wrote it, that Split Vibe does not check it, and where to report abuse.
+  const notice = page.locator(".payment > p:first-child");
+  await expect(notice).toHaveText("The person who sent this link wrote these payment details. Split Vibe does not check them. Report abuse");
+  await expect(notice.getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", report);
 
   // Away from Android, the button goes to Google Play, without the token.
   const iphone = await browser.newContext({ ...devices["iPhone 15"], baseURL: ORIGIN });

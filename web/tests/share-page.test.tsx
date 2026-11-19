@@ -3,6 +3,7 @@ import { parseOpenAnswer } from "../src/contract";
 import { ShareView } from "../src/pages/share-page";
 import type { ShareActions } from "../src/pages/share-sections";
 import type { ShareState } from "../src/share-controller";
+import { ReportAbuse } from "../src/ui/payment-block";
 import shareLocked from "./fixtures/share-locked.json";
 import shareLocking from "./fixtures/share-locking.json";
 import shareOpen from "./fixtures/share-open.json";
@@ -134,6 +135,25 @@ describe("the bill link's page", () => {
     expect(textOf(people[2] ?? null)).toContain("Account: 257678859");
     expect(textOf(people[2] ?? null)).toContain("Type in the amount yourself: ₫67,500.");
     expect(all(page, "details").map((details) => (details as HTMLDetailsElement).open)).toEqual([false, false]);
+  });
+
+  it("says beside each way to pay that the person who sent the link wrote it and Split Vibe does not check it, with Report abuse when the page has an address", () => {
+    const notice = "The person who sent this link wrote these payment details. Split Vibe does not check them.";
+    const without = mount(<ShareView state={stateOf(shareLocked)} actions={actions()} />);
+    expect(all(without, ".payment").map((block) => textOf(block.firstElementChild))).toEqual([notice, notice]);
+
+    const report = "mailto:abuse@example.com?subject=Report%20abuse%3A%20Split%20Vibe%20bill%20link";
+    const page = mount(
+      <ReportAbuse.Provider value={report}>
+        <ShareView state={stateOf(shareLocked)} actions={actions()} />
+      </ReportAbuse.Provider>,
+    );
+    const blocks = all(page, ".payment");
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) {
+      expect(textOf(block.firstElementChild)).toBe(`${notice} Report abuse`);
+      expect(block.firstElementChild?.querySelector("a")?.getAttribute("href")).toBe(report);
+    }
   });
 
   it("opens the only way to pay at once, and says to settle up with whoever paid when nobody was named", () => {

@@ -5,6 +5,10 @@ import { Account, expectPageHeaders, watchForCspViolations } from "./local-proxy
 const ORIGIN = "http://127.0.0.1:8797";
 const HOST = "127.0.0.1:8797";
 const LIVE_BUDGET_MS = 2_000;
+/** The page's "Report abuse" link, with the address the local Worker is given. */
+const REPORT_BILL_LINK = "mailto:abuse@example.com?subject=Report%20abuse%3A%20Split%20Vibe%20bill%20link";
+/** What the page says beside every way to pay: the person who sent the link wrote it. */
+const USER_WRITTEN = "The person who sent this link wrote these payment details. Split Vibe does not check them. Report abuse";
 /** The random id the page sends with every try of its first claim. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -104,7 +108,7 @@ test("everyone at the table picks live, then sees what to pay and how, until the
   for (const { page } of [minh, an]) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Pho 24");
     await expect(page.locator(".hero__amount")).toHaveText("₫231,000");
-    await expect(page.getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", "mailto:abuse@example.com?subject=Report%20abuse%3A%20Split%20Vibe%20bill%20link");
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", REPORT_BILL_LINK);
   }
   for (const { sockets } of [minh, an]) {
     expect(sockets).toHaveLength(1);
@@ -198,6 +202,10 @@ test("everyone at the table picks live, then sees what to pay and how, until the
     }
     await expect(page.getByText("Account: 257678859")).toBeVisible();
     await expect(page.getByText("Type in the amount yourself: ₫67,500.")).toBeVisible();
+    // Each way to pay says who wrote it, that Split Vibe does not check it, and where to report abuse.
+    const notices = page.locator(".payment > p:first-child");
+    await expect(notices).toHaveText([USER_WRITTEN, USER_WRITTEN]);
+    for (const notice of await notices.all()) await expect(notice.getByRole("link", { name: "Report abuse" })).toHaveAttribute("href", REPORT_BILL_LINK);
   }
 
   // The owner revokes the link: both pages say it no longer works.

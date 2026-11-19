@@ -1,4 +1,5 @@
-import { useRef, useState } from "preact/hooks";
+import { createContext } from "preact";
+import { useContext, useRef, useState } from "preact/hooks";
 import type { Currency, PaymentPayload } from "../contract";
 import { safePaymentLink } from "../links";
 import { formatMoney } from "../money";
@@ -33,13 +34,18 @@ interface PaymentBlockProps {
   currency: Currency;
 }
 
+/** The page's "Report abuse" link, as `abuseMailto` makes it, or null while the Worker has no address for it. */
+export const ReportAbuse = createContext<string | null>(null);
+
 /**
  * How to pay one amount: a button for the payment link when it is one the page may open, the QR
- * code, and the details to copy. Everything is text the creditor's app wrote, shown as text.
+ * code, and the details to copy. Everything is text the creditor's app wrote, shown as text, so
+ * the block first says so, that Split Vibe does not check it, and where to report abuse.
  */
 export function PaymentBlock({ payment, amountMinor, currency }: PaymentBlockProps) {
   const details = useRef<HTMLParagraphElement>(null);
   const [copy, setCopy] = useState<CopyOutcome>(null);
+  const report = useContext(ReportAbuse);
   const link = safePaymentLink(payment.link);
   const amount = formatMoney(amountMinor, currency);
 
@@ -47,6 +53,15 @@ export function PaymentBlock({ payment, amountMinor, currency }: PaymentBlockPro
 
   return (
     <div class="payment">
+      <p class="type-body-medium supporting">
+        The person who sent this link wrote these payment details. Split Vibe does not check them.
+        {report !== null && (
+          <>
+            {" "}
+            <a href={report}>Report abuse</a>
+          </>
+        )}
+      </p>
       {link !== null && (
         <a class="button button--filled" href={link.href} target="_blank" rel="noopener noreferrer">
           <OpenInNewIcon />

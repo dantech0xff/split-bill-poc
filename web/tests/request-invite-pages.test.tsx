@@ -3,6 +3,7 @@ import type { ApiResult } from "../src/api";
 import { type InvitePreview, type RequestView, parseInviteAnswer, parseRequestAnswer } from "../src/contract";
 import { InvitePageView } from "../src/pages/invite-page";
 import { RequestPageView } from "../src/pages/request-page";
+import { ReportAbuse } from "../src/ui/payment-block";
 import invite from "./fixtures/invite.json";
 import requestConfirmed from "./fixtures/request-confirmed.json";
 import requestOpen from "./fixtures/request-open.json";
@@ -44,6 +45,26 @@ describe("the payment request's page", () => {
     expect(page.querySelector('canvas[role="img"]')?.getAttribute("aria-label")).toBe("QR code to pay ₫150,000");
     expect(textOf(page.querySelector(".details-card__text"))).toBe("UPI: lan@okbank Amount: ₹1,500.00");
     expect(textOf(page)).toContain("The amount, ₫150,000, is filled in for you.");
+  });
+
+  it("says above how to pay that the person who sent the link wrote it and Split Vibe does not check it, with Report abuse when the page has an address", () => {
+    const loaded = { state: "done", result: request(requestOpen) } as const;
+    const without = mount(<RequestPageView loaded={loaded} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
+    const notice = without.querySelector(".payment > p");
+    expect(textOf(notice)).toBe("The person who sent this link wrote these payment details. Split Vibe does not check them.");
+    expect(notice?.querySelector("a")).toBeNull();
+
+    const report = "mailto:abuse@example.com?subject=Report%20abuse%3A%20Split%20Vibe%20payment%20request%20link";
+    const withAddress = mount(
+      <ReportAbuse.Provider value={report}>
+        <RequestPageView loaded={loaded} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />
+      </ReportAbuse.Provider>,
+    );
+    const link = withAddress.querySelector<HTMLAnchorElement>(".payment > p a");
+    expect(textOf(link)).toBe("Report abuse");
+    expect(link?.getAttribute("href")).toBe(report);
+    // It comes before the button, the code and the details, which it is about.
+    expect(withAddress.querySelector(".payment")?.firstElementChild).toBe(link?.parentElement);
   });
 
   it("sends people without Android to Google Play, and opens the app on Android", () => {

@@ -3,8 +3,9 @@ import { act } from "preact/test-utils";
 import { App, type AppProps } from "../src/app";
 import { FakeFetch, FakeLiveEnvironment } from "./fakes";
 import invite from "./fixtures/invite.json";
+import requestOpen from "./fixtures/request-open.json";
 import shareOpen from "./fixtures/share-open.json";
-import { mount, textOf } from "./render";
+import { mount, stubCanvas, textOf } from "./render";
 
 const TOKEN = "AbCdEfGhIjKlMnOpQrStUv";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
@@ -48,6 +49,18 @@ describe("App", () => {
     expect(fetch.calls).toEqual([{ path: "/v1/invites/preview", body: { token: TOKEN } }]);
     expect(document.title).toBe("Group invite · Split Vibe");
     expect(document.title).not.toContain(TOKEN);
+  });
+
+  it("offers the page's Report abuse link beside payment details, which the person who sent the link wrote", async () => {
+    stubCanvas();
+    const fetch = new FakeFetch().answer("/v1/request-links/view", { status: 200, body: requestOpen });
+    vi.stubGlobal("fetch", fetch.fetch);
+    const page = mount(<App {...props({ pathname: "/r/", abuseEmail: "abuse@example.com" })} />);
+    await vi.waitFor(() => expect(page.querySelector(".payment")).not.toBeNull());
+
+    const notice = page.querySelector(".payment > p");
+    expect(textOf(notice)).toBe("The person who sent this link wrote these payment details. Split Vibe does not check them. Report abuse");
+    expect(notice?.querySelector("a")?.getAttribute("href")).toBe("mailto:abuse@example.com?subject=Report%20abuse%3A%20Split%20Vibe%20payment%20request%20link");
   });
 
   it("opens a bill link live: connects, then reads it", async () => {
