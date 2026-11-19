@@ -255,9 +255,9 @@ a file in the repository, a workflow or a log.
 | `REVENUECAT_SECRET_KEY` | Make a new secret key in RevenueCat's project settings, set it, then revoke the old one | None; with a wrong key, plan checks fail with 502 and the logs show `"status":401` |
 | `REVENUECAT_WEBHOOK_AUTH` | Make a new value (`openssl rand -hex 32`), set it on the Worker and in RevenueCat's webhook settings straight after | Events in between get 401 and are sent again for about 80 minutes; send any left over again from RevenueCat's dashboard |
 
-The upload key, the Play publishing access and the Cloudflare API token of the release workflow
-live in its protected environment; how to replace them is in [release.md](release.md). If the
-upload key leaks, ask for an upload key reset in Play Console. The owner's own Cloudflare API token
+The release workflow's own credentials (the upload key, its access to Play through Workload Identity
+Federation, and the Cloudflare API token) live in its protected `production` environment
+([release.md](release.md)). If the upload key leaks, ask for an upload key reset in Play Console. The owner's own Cloudflare API token
 for the counters is rolled in the Cloudflare dashboard under API Tokens.
 
 `GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256`, `TURNSTILE_SITE_KEY` and `ABUSE_EMAIL` are public

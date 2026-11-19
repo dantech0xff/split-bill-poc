@@ -1,10 +1,10 @@
-# Split Vibe POC
+# Split Vibe
 
-A proof-of-concept Android app (Kotlin, Jetpack Compose) for an AI "split bill" feature inside a
-payment app.
+Split Vibe is an Android app (Kotlin, Jetpack Compose) that splits a bill with AI and asks everyone
+for their share. It is a standalone app: it never holds or moves money.
 
-You scan or photograph a bill, in several pages if it is long, and type how it should be split.
-The phone reads the text of the bill with on-device OCR and sends that text and its position on the
+You scan or photograph a bill, in several pages if it is long, and type how it should be split. The
+phone reads the text of the bill with on-device OCR and sends that text and its position on the
 page to the app's AI proxy, a Cloudflare Worker that asks Claude and sends the bill back as
 structured data. The app then does the arithmetic itself: you correct anything that was misread,
 choose who is on the bill, how it is split and who paid, and every bill is kept on the phone. The
@@ -12,8 +12,8 @@ app holds no API key.
 
 Then it asks each person for their share with a message of their own, carrying a payment link or QR
 code for the way you get paid (VietQR, PromptPay, UPI, SEPA, PayPal.Me or a link you paste), and
-tracks who has paid. Groups keep balances across many bills and currencies and suggest the fewest
-payments that settle them. The app never holds or moves money.
+tracks who has paid. Groups keep balances across many bills and currencies and suggest the payments
+that settle them. The interface is in English, and bills are read in Latin script.
 
 ```mermaid
 flowchart LR
@@ -78,6 +78,8 @@ flowchart LR
 12. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
     bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
     (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
+    It links to the privacy policy and the terms of use, which the proxy serves, and deletes the
+    account, with the option to also delete the bills, people and payment methods on the phone.
 13. **Pro** (from Settings, or from the notice when the AI calls run out) is a Google Play
     subscription, monthly or yearly, that gives 300 AI calls a month instead of 10. Everything else
     stays free. The screen shows Google Play's prices and any offer, how the plan renews and where to
@@ -101,7 +103,7 @@ newer.
 ```
 
 The `dev` flavor installs as `com.dantech.splitvibe.dev`, next to the real app and with its own data.
-The `prod` flavor is the app that will be published.
+The `prod` flavor is the app for Google Play.
 
 Reading a bill needs the AI proxy. A debug build looks for it at `http://127.0.0.1:8787`: run it
 on your computer as [docs/proxy.md](docs/proxy.md) describes (`npm ci`, a `.dev.vars` file with the
@@ -149,16 +151,17 @@ test the whole subscription cycle, is in [docs/pro-subscription.md](docs/pro-sub
 
 Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own address and open in the app
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
-app is signed with (see [docs/proxy.md](docs/proxy.md)).
+app is signed with (see [docs/proxy.md](docs/proxy.md)). The proxy also serves the privacy policy
+(`/privacy`), the terms of use (`/terms`) and the page that deletes an account with Sign in with
+Google (`/delete-account`). Settings and the Pro screen link the first two, and a build without the
+proxy's address hides those links.
 
 Without signing in, each install gets 3 free calls to Claude: reading a bill takes a whole call, and
 changing a split by a sentence takes 0.2. **Settings** (gear icon) shows the calls left with the plan
 they count against, and offers "Sign in with Google" for 10 calls a month, **Pro** for 300 a month,
-signing out and deleting the account. When a sign-in
-runs out, the app asks to sign in again and never falls back to the phone's free calls on its own;
-signing out does that. It
-also holds the app's **local currency** (the currency the payment app works in), which defaults to
-the currency of the phone's region.
+signing out and deleting the account. When a sign-in runs out, the app asks to sign in again and
+never falls back to the phone's free calls on its own; signing out does that. It also holds the
+app's **local currency**, which defaults to the currency of the phone's region.
 
 Without a real bill at hand, tap **Use the sample bill** on the new-split screen.
 
@@ -210,7 +213,9 @@ Split with Minh and Lan. Minh had the beers.
 The proxy counts the calls (3 free per install, 10 a month per Google account, 300 a month with
 Pro), limits each network address, caps the day's spend, and charges a call only once the model has
 answered. When a read is cancelled, fails, or brings an answer the app cannot use, reading the same
-bill again keeps its request id, so the proxy does not charge twice.
+bill again keeps its request id, so the proxy does not charge twice. Edits of a split by a sentence
+go to `POST /v1/split-revision`, which Claude Haiku answers with edits from a fixed set that the
+app's `:core:domain` checks and applies.
 
 The model returns items, charges, the total, the currency, the number of decimals the prices are
 printed with, and what the instruction said about people:
@@ -272,19 +277,30 @@ app builds the link, the QR code and the details from that copy (`PaymentRequest
 character for character with their CRC, and the SEPA code follows the European Payments Council's
 guidelines.
 
-### Privacy
+## Privacy in short
 
-Only the OCR text and the typed instruction leave the phone to be read. The photos are never
-uploaded, and the app holds no permission to read contacts: the system's contact picker hands it the
-one name picked. Bills, people, photos and payment methods stay on the phone. A bill added to a group
-carries what was bought and how it was split, but no photo, read text or instruction. The request
-for exchange rates says nothing about who asks. The proxy keeps no email, Google name or photo: the
-names in groups and on requests are the ones people type, and push notices carry fixed words of the
-app's own, never a name, an amount or a link. Only while someone is signed in does the app talk to
-RevenueCat, and then as the account's purchaser, an id the proxy makes that names no one; Google
-Play handles the payment, and the app keeps no payment details.
+The full text is [docs/privacy-policy.md](docs/privacy-policy.md), which the proxy serves at
+`/privacy`.
 
-## Project layout
+- The photos are never uploaded. To read a bill, only the text the phone read and the typed
+  instruction leave the phone; to change a split by a sentence, the bill's lines, the names on the
+  split and the sentence. The proxy passes them to Anthropic and keeps none of them.
+- The app holds no permission to read contacts: the system's contact picker hands it the one name
+  picked. Bills, people, photos and payment methods stay on the phone. A bill added to a group
+  carries what was bought and how it was split, but no photo, read text or instruction.
+- The proxy keeps no email, Google name or photo: an account is a salted hash of its Google ID, and
+  the names in groups and on requests are the ones people type. Push notices carry fixed words of
+  the app's own, never a name, an amount or a link. The request for exchange rates says nothing
+  about who asks.
+- Only while someone is signed in does the app talk to RevenueCat, and then as the account's
+  purchaser, an id the proxy makes that names no one; Google Play handles the payment, and the app
+  keeps no payment details.
+- There are no ads and no analytics SDK. The proxy counts events only as totals, with no account,
+  install id or IP.
+- An account is deleted in Settings or on the web at `/delete-account`; what that deletes and what
+  it keeps is in the privacy policy.
+
+## Architecture and docs
 
 ```text
 core/designsystem/            the look of the app: theme, tokens, components, motion
@@ -296,7 +312,7 @@ core/domain/                  plain Kotlin, no Android: the money logic and the 
   ocr/        OcrResult, OcrLayoutEncoder (one page or several)
   llm/        BillAnalyzer, BillAnalysisParser
 app/src/main/java/com/dantech/splitvibe/
-  di/         the Koin module that wires the app together
+  di/         the Koin modules that wire the app together
   ocr/        BillTextRecognizer (ML Kit), BillImageLoader
   scan/       DocumentScanner (Google's document scanner)
   llm/        GatewayBillAnalyzer, which reads a bill through the AI proxy
@@ -304,25 +320,44 @@ app/src/main/java/com/dantech/splitvibe/
               names from the contact picker), fx (exchange rates kept for offline use), account
               (install id, encrypted session, Google sign-in), proxy (the proxy's routes over
               OkHttp, the copy of its answers), groups, requests, payments (ways to get paid),
-              settings (local currency, your name)
+              settings (local currency, your name), share (bill links), recurring (recurring bills)
+  assistant/  changing a split by a sentence, and voice input
   share/      QR codes (ZXing) and the split card shared as a picture
   notifications/ push notices through Firebase, and the device the proxy sends them to
   billing/    Pro through RevenueCat and Google Play, and the proxy's check of the plan
+  export/     the CSV files and the PDF summary of the insights
+  recurring/  the daily work that makes the drafts of recurring bills
   ui/         navigation and app links, home, history, split (new split, result, sheets, the request
-              step), editor, groups, requests, payments, settings, paywall (Pro)
+              step), editor, groups, requests, payments, claim (bill links), insights, recurring,
+              settings, paywall (Pro)
 app/schemas/                  the Room database schema, one file per version
 app/src/test/                 unit tests, UI tests on the JVM and the reference screenshots
-app/src/androidTest/          on-device tests
+app/src/androidTest/          on-device tests, among them the end-to-end journeys
 app/src/sharedTest/resources/ recorded ML Kit output, a recorded Claude answer, and the request
                               the app sends for them, which the proxy's tests send too
 baseline-profile/             records the startup profile and holds the benchmarks
 proxy/                        the AI proxy: a Cloudflare Worker in TypeScript, with its tests
+web/                          the pages a link opens: Vite, Preact and TypeScript, built into the Worker
+docs/                         the documents below
 ```
 
-[docs/architecture.md](docs/architecture.md) explains the modules, the navigation, the build
-variants and every check in more detail. [docs/design-system.md](docs/design-system.md) describes
-the look: the palette, the components and the rules for using them. [docs/proxy.md](docs/proxy.md)
-describes the AI proxy: its routes, its limits, what it keeps, and how to run and deploy it.
+| Document | What it covers |
+|---|---|
+| [architecture.md](docs/architecture.md) | The modules, the navigation, the build variants and every check |
+| [design-system.md](docs/design-system.md) | The look: the palette, the components and the rules for using them |
+| [proxy.md](docs/proxy.md) | The AI proxy: its routes, its limits, what it keeps, and how to run and deploy it |
+| [web.md](docs/web.md) | The web pages that links open |
+| [pro-subscription.md](docs/pro-subscription.md) | Setting up Pro in Play Console, RevenueCat and the Worker |
+| [testing.md](docs/testing.md) | The tests on a device, the end-to-end journeys and their fake proxy |
+| [release.md](docs/release.md) | How a release is built, signed, uploaded and deployed |
+| [release-checklist.md](docs/release-checklist.md) | The gates and the owner's steps up to 100% on Google Play |
+| [runbook.md](docs/runbook.md) | Running the service: switches, limits, outages, backups, secrets, support |
+| [play-console.md](docs/play-console.md) | Draft answers for Play Console's declarations |
+| [store-listing.md](docs/store-listing.md) | The store listing's texts, screenshots and category |
+| [compliance.md](docs/compliance.md) | What the owner and a legal adviser still have to settle |
+| [privacy-policy.md](docs/privacy-policy.md), [terms.md](docs/terms.md) | The privacy policy and the terms of use, drafts for legal review |
+
+The product roadmap is in [the production plan](plans/261114-0220-split-vibe-production/plan.md).
 
 ## Tests
 
@@ -330,16 +365,16 @@ describes the AI proxy: its routes, its limits, what it keeps, and how to run an
 ./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest
 ```
 
-290 tests cover the split rules (for each of the five ways to split, 2,000 random bills whose shares
-must add up to the total, and payments that must too), group balances (2,000 random groups in up to
-six currencies, whose balances must add up to zero and settle in fewer payments than members, and a
-trip worked out by hand), the payment codes (PromptPay, VietQR and SEPA against published examples,
-character for character), the payment methods and the links they accept, editing a bill, currency
-handling and exchange rates, name matching, split planning, row layout of one page or several,
-answer parsing, the bills kept on the phone and their revisions, the proxy client, groups, requests
-and their copy kept on the phone, the request step, invite and request links, push registration,
-the account and sign-in, the UI flow, app startup, navigation, the dependency wiring, the text
-contrast of the colour palette, the motion, and the design system components.
+The unit tests cover the split rules (for each of the five ways to split, 2,000 random bills whose
+shares must add up to the total, and payments that must too), group balances (2,000 random groups in
+up to six currencies, whose balances must add up to zero and settle in fewer payments than members,
+and a trip worked out by hand), the payment codes (PromptPay, VietQR and SEPA against published
+examples, character for character), the payment methods and the links they accept, editing a bill,
+currency handling and exchange rates, name matching, split planning, row layout of one page or
+several, answer parsing, the bills kept on the phone and their revisions, the proxy client, groups,
+requests and their copy kept on the phone, the request step, invite and request links, push
+registration, the account and sign-in, Pro, the UI flow, app startup, navigation, the dependency
+wiring, the text contrast of the colour palette, the motion, and the design system components.
 
 - The proxy client tests run the real client against a local server that answers as the proxy does.
   They pin down the request, which must match the shared fixture the proxy's tests send, and every
@@ -371,10 +406,12 @@ contrast of the colour palette, the motion, and the design system components.
 
 The on-device tests cover what only a device can show: starting the app, the real ML Kit recognizer
 on the sample bill, the proxy client reading a streamed answer on the Android runtime, the Keystore
-encryption of the session, and splitting the sample bill from the photo to the sent requests. Every
-tap in them also runs Android's accessibility checks on the screen it lands on. They need no
-network. The command above lets Gradle download, start and stop its own Android 14 emulator;
-`./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
+encryption of the session, and splitting the sample bill from the photo to the sent requests. The
+end-to-end journeys run the real app against a fake proxy: the sample bill split through the AI, a
+bill typed in by hand, and a payment request. Every tap in them also runs Android's accessibility
+checks on the screen it lands on. They need no network. The command above lets Gradle download,
+start and stop its own Android 14 emulator; `./gradlew :app:connectedProdDebugAndroidTest` uses a
+device that is already connected. [docs/testing.md](docs/testing.md) has the details.
 
 The other checks, all of which also run in GitHub Actions for every pull request and every push to `main`:
 
@@ -386,43 +423,31 @@ The other checks, all of which also run in GitHub Actions for every pull request
 ./gradlew :app:lintProdDebug :core:designsystem:lintDebug
 ```
 
-The AI proxy has its own 96 tests, which run in the workers runtime against a fake model and a fake
+The AI proxy has its own tests, which run in the workers runtime against a fake model and a fake
 source of exchange rates. From `proxy/`:
 
 ```bash
 npm test
 ```
 
-## How it was verified
+The web pages have unit tests (`npm test` in `web/`) and end-to-end tests in a browser against the
+Worker on the computer (`npm run e2e`), as [docs/web.md](docs/web.md) describes.
 
-| What | How | Result |
-|---|---|---|
-| Build | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` (R8) | all three build; the release is unsigned unless the signing variables are set |
-| Unit tests | `./gradlew :core:domain:test :core:designsystem:testDebugUnitTest :app:testProdDebugUnitTest` | 222 pass |
-| UI flow | `SplitFlowTest` on the JVM, with the real screens, view model and proxy client | passes |
-| AI proxy | `npm run typecheck` and `npm test` in `proxy/` | 96 pass; each rule about calls, holds and spend was also broken on purpose to see its test fail |
-| Exchange rates, live | `GET /v1/fx-rates` on the deployed proxy | 161 currencies with their day, VND, USD, EUR, INR and THB among them |
-| On-device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` in GitHub Actions, on an Android 14 emulator that Gradle manages | 8 pass, the sample bill split from the photo to the sent requests among them |
-| OCR | Real ML Kit on two rendered receipts (Vietnamese, tilted 2 degrees; US, tilted 3 degrees) | every item row came back with its prices on the same row |
-| Prompt and schema | The exact system prompt and schema, with the real ML Kit output, sent to Claude Opus 5.5 | items, charges and totals correct for English, Vietnamese and German instructions; tips, "X had", "X didn't have" and "I didn't have" understood; a noisy bill with misread digits and an injected instruction still reconciled; a parking sign was rejected as not a bill; a rupiah bill came back with zero decimals and a bill without a currency symbol in the app's local currency |
+## Status
 
-What has not been verified:
+Split Vibe 1.0 is being prepared for Google Play. What has to pass and happen before it reaches
+everyone is in [docs/release-checklist.md](docs/release-checklist.md), and the legal work in
+[docs/compliance.md](docs/compliance.md). Not yet verified:
 
-- **A live bill read through the proxy.** The proxy is deployed and hands out exchange rates, but
-  its Anthropic key is not set yet, so no bill has gone from the app through the proxy to the live
-  API. The proxy is tested against a fake model and the app against a stand-in for the proxy; the
-  request is the same in both ([docs/proxy.md](docs/proxy.md)).
-- **Scanning, sharing and picking contacts on a phone.** The document scanner needs Google Play
-  services, and a bill of two pages, a photo shared from the gallery and the system contact picker
-  have not been tried on a device yet.
-- **Google sign-in on a phone.** Credential Manager needs the OAuth clients, so sign-in has only been
-  tested with a stand-in for Google's account picker.
-- **Buying Pro.** The subscription, its products in Play Console and RevenueCat's project are not set
-  up yet, so buying, switching and restoring have only been tested with a stand-in for RevenueCat.
-- **A physical phone.** Everything on-device ran on an emulator.
-- **The release build at runtime.** It builds with R8, but only debug builds were run.
-- **Performance numbers.** The benchmarks in `baseline-profile` exist but have not been run on a
-  real phone yet, so there is no measured cold start or frame time.
+- **A live bill read through a deployed proxy.** No proxy with an Anthropic key is set up yet, so
+  the proxy is tested against a fake model and the app against a stand-in for the proxy; the request
+  is the same in both ([docs/proxy.md](docs/proxy.md)).
+- **Buying Pro for real.** The subscription's products in Play Console and RevenueCat's project are
+  set up by the owner once the app exists on Play ([docs/pro-subscription.md](docs/pro-subscription.md)).
+- **Performance numbers.** The benchmarks in `baseline-profile` exist but have not been run on the
+  reference phone yet, so there is no measured cold start or frame time.
+- **material3 stable.** The app pins material3 to `1.5.0-rc01`, and production waits for the stable
+  release.
 
 ## Known limits
 
@@ -435,8 +460,13 @@ What has not been verified:
   to be scanned or opened with real banking apps before release.
 - **Venmo, Cash App, Revolut, Wise and Zelle cannot be filled in.** A link made in those apps is
   pasted as it is, or the details are given, and the payer types the amount.
-- **Groups and tracked requests need a Google sign-in.** Without one, a request is a message only.
+- **Groups, tracked requests and bill links need a Google sign-in.** Without one, a request is a
+  message only.
+- **Deleting the account does not cancel Pro.** The app warns first; the subscription is cancelled
+  in Google Play.
 - **Latin script only.** Chinese, Japanese, Korean and Devanagari need the matching ML Kit artifacts.
+- **English only.** The interface is in English; its words are kept in string resources, so other
+  languages can be added later.
 - **Converted amounts are only shown.** A bill in another currency is split and kept in its own
   currency; the day's rate comes from Frankfurter through the proxy and may be a day or two old.
 - **Bills stay on one phone.** There is no sync between devices yet, and clearing the app's data
@@ -445,7 +475,6 @@ What has not been verified:
   that shows no cents.
 - **App size.** ML Kit ships native code for four CPU types, so the release APK is large; an app
   bundle splits it per device.
-- **English UI strings** are written inline rather than in string resources.
 - **Very long bills** could exceed the answer token limit; the app then asks to photograph only the
   lines that matter, or to type the bill in by hand.
 
@@ -453,10 +482,12 @@ What has not been verified:
 
 Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
 (Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
-Koin 4.2.2, Navigation 3 1.2.1, Room 2.8.5 with KSP 2.3.12, ML Kit text-recognition 16.0.1 and
-document scanner 16.0.0, OkHttp 4.12.0, Credential Manager 1.6.0 with Google ID 1.2.1, RevenueCat
-11.3.0 with Google Play Billing Library 9.1.0. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects,
-wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0.
+Koin 4.2.2, Navigation 3 1.2.1, Room 2.8.5 with KSP 2.3.12, WorkManager 2.12.0, ML Kit
+text-recognition 16.0.1 and document scanner 16.0.0, OkHttp 4.12.0, ZXing 3.5.4, Firebase Messaging
+26.0.1, Credential Manager 1.6.0 with Google ID 1.2.1, RevenueCat 11.3.0 with Google Play Billing
+Library 9.1.0. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects and D1,
+wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0. The web pages: Preact 11.2,
+Vite 8.3, Playwright for their end-to-end tests.
 
 ## License
 
