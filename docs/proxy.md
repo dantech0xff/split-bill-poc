@@ -643,8 +643,8 @@ The change is then read and decided again, up to 10 times, and only then answers
 |---|---|---|
 | `POST /v1/requests` | anyone, as the creditor | 201 `{"request": RequestView, "url"}`, with `url` `https://<the proxy's host>/r/#<token>` |
 | `GET /v1/requests` | anyone | `{"requests":[RequestView]}`: those the caller made or is the debtor of, newest first, at most 200 |
-| `POST /v1/request-links/open` `{"token"}` | anyone | the request as the caller will see it once they accept: `role` `"debtor"`, `debtorBound` true; for its creditor, as theirs |
-| `POST /v1/request-links/accept` `{"token"}` | anyone but the creditor | the request, with the caller as its debtor |
+| `POST /v1/request-links/open` `{"token"}` | anyone; once the link has run out, its creditor and its bound debtor only | the request as the caller will see it once they accept: `role` `"debtor"`, `debtorBound` true; for its creditor, as theirs |
+| `POST /v1/request-links/accept` `{"token"}` | anyone but the creditor; once the link has run out, its bound debtor only | the request, with the caller as its debtor |
 | `POST /v1/requests/{id}/reported-paid` | the debtor | the request; the creditor is notified |
 | `POST /v1/requests/{id}/confirmed-paid` | the creditor | the request; the debtor is notified |
 | `PATCH /v1/requests/{id}` `{"remindEveryDays"}` | the creditor | the request |
@@ -679,6 +679,12 @@ RequestView:
   other side of one gets 403: a creditor cannot report it paid, a debtor cannot confirm it.
 - A link is 404 when it was never made and 410 `gone` once its request was deleted. The first
   account to accept it is the debtor; to anyone else, reading or accepting it is then 409.
+- A link runs out 90 days after its request was made (`requestLinkMs`): from then on it works
+  only for the request's creditor and for the debtor who already took it on. For any other
+  account, opening or accepting it is 410 `gone`, whether or not someone took it on, and binds
+  nobody; its web page shows it to nobody, [below](#payment-requests-and-invites-on-the-web). The
+  creditor and the bound debtor get what they got before, and the request stays in their apps with
+  every route of `/v1/requests`.
 - Reported paid and confirmed paid are each set once; after a confirmation, reporting changes
   nothing. Confirming a request in a group records, in the same batch, one settlement from
   `toMemberId` to the creditor's member, recorded by the creditor's member, with `requestId` set.
@@ -1085,10 +1091,12 @@ The live connection:
 - Neither needs a session. Each counts as a read of the IP, once its token led to a request or an
   invite that works. A body without a `token` text is 400, an unknown token 404; a deleted request,
   or an expired or revoked invite, is 410.
-- A request's web page works for 90 days after the request was made (`requestLinkMs`). After that,
-  `POST /v1/request-links/view` answers 410 `gone` as for an expired invite, and counts no read.
-  The request stays in both people's apps, and the app's routes of it are unchanged: the routes of
-  `/v1/requests`, and `/v1/request-links/open` and `/accept`, which take a session.
+- A request's web page works for 90 days after the request was made (`requestLinkMs`). After
+  that, `POST /v1/request-links/view` answers 410 `gone` as for an expired invite, and counts no
+  read: the page has no session, so it cannot tell the request's two people from anyone else. In
+  the app, the link then works only for the creditor and for the debtor who already took the
+  request on, as [Payment requests](#payment-requests) says, and the request stays in those two
+  people's apps.
 - `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
   app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
   null; it is null as well once the request is confirmed, when nothing is left to pay. RequestView
@@ -1269,12 +1277,13 @@ not move; the invites of those groups, revoked, so that none made before brings 
 payment requests not confirmed; and bill links with their claims. Periods are tested by setting
 the times that rows and objects hold, rather than by waiting: an install's trial count, kept while
 it calls within 12 months and gone after them; a paid request's method, kept for 12 months after
-its confirmation, and emptied after them without any balance moving; and a request's web page,
-at 89 and at 91 days. The counters go to a
-dataset the tests keep, which checks each event, its outcome and its numbers, that no point holds
-an id, and that a missing or failing binding changes no answer. `npm test` then has Node check,
-with stand-ins for the evaluation's runner and for Wrangler, that the runner leaves nothing running
-however it ends, and, with a stand-in for the SQL API, what `npm run metrics` asks and prints.
+its confirmation, and emptied after them without any balance moving; and a request's link, on its
+web page and in the app, for a stranger, its creditor and its bound debtor, at 89 and at 91 days.
+The counters go to a dataset the tests keep, which checks each event, its outcome and its numbers,
+that no point holds an id, and that a missing or failing binding changes no answer. `npm test` then
+has Node check, with stand-ins for the evaluation's runner and for Wrangler, that the runner
+leaves nothing running however it ends, and, with a stand-in for the SQL API, what
+`npm run metrics` asks and prints.
 Both commands first write the module of the web app, from `web/dist` as it is. GitHub Actions runs
 both for every pull request, after building `web/` once it has a lock file.
 

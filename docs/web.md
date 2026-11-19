@@ -15,7 +15,8 @@ picks the page from the path:
   after the request was made (`requestLinkMs` in the proxy's
   [`policy.ts`](../proxy/src/policy.ts)). After that, as once the request is withdrawn, the page
   says that the link no longer works, and that a request kept in Split Vibe is still there: the
-  request stays in both people's apps.
+  link then works only in the app, for the person who asked and for the payer who already took the
+  request on, and the request stays in those two people's apps.
 - `/g/#<token>`: a group invite, with how to get the app to join.
 - `/delete-account`: deleting an account by signing in with Google, [below](#deleting-an-account-on-the-web).
 
