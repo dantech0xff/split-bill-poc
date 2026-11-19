@@ -1,0 +1,4 @@
+# Findings that the secret scan in security.yml ignores, one fingerprint a line as gitleaks prints
+# it (commit:file:rule-id:line). The scan reads this file from main, or for a pull request from the
+# branch it merges into, never from the commits it scans. List a finding here only once the secret
+# it found has been revoked.

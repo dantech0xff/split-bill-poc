@@ -1,0 +1,16 @@
+# The rules of the secret scan in security.yml. The scan reads this file and gitleaksignore beside it
+# from main, or for a pull request from the branch it merges into, never from the commits it scans:
+# a change here applies to the scans after it is merged.
+title = "Split Vibe secret scan"
+
+[extend]
+useDefault = true
+
+# The tests of the release checks build packages that hold fake keys on purpose. Each fake key is
+# made of FAKE_BODY, so a finding in that file is ignored only on a line that uses it.
+[[allowlists]]
+description = "The fake keys in the tests of the release checks"
+condition = "AND"
+paths = ['''^scripts/release-checks\.test\.py$''']
+regexTarget = "line"
+regexes = ['''FAKE_BODY|Fa1keKeyBody''']
