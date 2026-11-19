@@ -74,13 +74,16 @@ are now, the `purchaser` that [Pro subscriptions](#pro-subscriptions) adds, and 
 
 The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change with a deploy.
 
-- An install that has not signed in gets 3 calls, once. A Google account gets 10 calls each calendar
-  month, counted in UTC, and 300 (`proCalls`) while it is on [Pro](#pro-subscriptions), on the same
-  count: a plan that changes during a month keeps what the month used, so an account that used 12
-  calls on Pro and goes back to the free plan has none left until the month ends. Every `usage`
-  says which allowance holds in `plan`: `"trial"` for an install, `"free"` or `"pro"` for an
-  account. An app that meets a proxy without `plan` reads `"trial"` from `period: "trial"`, and
-  `"free"` otherwise.
+- An install that has not signed in gets 3 calls, once: its `QuotaBook` keeps the count until 12
+  months, counted as 365 days (`installRetentionMs`), after the last call it held, and then
+  deletes itself by its own alarm, so an install that calls again after that starts afresh, as a
+  new one does. Each call held before then moves the time on. A Google account gets 10 calls each
+  calendar month, counted in UTC, and 300 (`proCalls`) while it is on [Pro](#pro-subscriptions),
+  on the same count: a plan that changes during a month keeps what the month used, so an account
+  that used 12 calls on Pro and goes back to the free plan has none left until the month ends.
+  Every `usage` says which allowance holds in `plan`: `"trial"` for an install, `"free"` or
+  `"pro"` for an account. An app that meets a proxy without `plan` reads `"trial"` from
+  `period: "trial"`, and `"free"` otherwise.
 - A bill read takes one call, and an edit of a split by a sentence a fifth of one
   (`revisionWeight`, 0.2), from the same calls. The proxy counts in hundredths of a call, so
   `limit`, `used` and `remaining`, in `/v1/usage`, in the answer of `/v1/session`, and in every line
@@ -344,12 +347,15 @@ keeps its plan as RevenueCat last gave it, `proUntil` and `checkedAt`, and when 
 out as a purchaser; both go when the account is deleted, with everything else it holds but the
 calls of the current month, which stay until the month ends, and the time of the deletion, which
 stays for 30 days, as [Deleting an account](#deleting-an-account) says. An install's `QuotaBook`
-also keeps that it had a call held, never when, so that the first call of an install is
-[counted](#counters) once. One more
-holds the latest exchange rates, which are public. Objects are named by salted hashes, never by an
-IP address or a Google id. A request id is kept with a salted hash of what it asked, so that it
-cannot be reused for another bill or another edit. Nothing of a bill read or of an edit, an
-instruction or a name is stored.
+also keeps that it had a call held, but not when its first call was, so that the first call of an
+install is [counted](#counters) once. It keeps the time of the last call it held: 12 months, as
+365 days (`installRetentionMs`), after that time, the object wakes and deletes everything it
+holds, the count of its calls with it. No object is ever listed for that: each one's own alarm
+does it, and every call to the object first deletes it when that time has passed, so nothing
+stays when the alarm was missed. One more holds the latest exchange rates, which are public.
+Objects are named by salted hashes, never by an IP address or a Google id. A request id is kept
+with a salted hash of what it asked, so that it cannot be reused for another bill or another edit.
+Nothing of a bill read or of an edit, an instruction or a name is stored.
 
 The `QuotaBook` objects written before calls had weights counted whole calls. Each turns its count
 and its request ids into hundredths the first time it is asked after the deploy, record by record;
@@ -364,7 +370,10 @@ Deploy it says how the first deploy avoids that.
 The shared data in D1 is what people chose to share, and no more: groups with the names members
 typed for themselves and for placeholders, the bills put into a group, settlements, the group's
 log, invites, payment requests with the one payment method each carries, the FCM token of each
-signed-in install, and hourly counters. An account appears only as the salted hash a session
+signed-in install, and hourly counters. A request confirmed as paid keeps its payment method for
+12 months, as 365 days (`paidMethodRetentionMs`), after it was confirmed; the daily run then
+empties it, and the request's `payment` for its web page, and keeps the rest, as
+[the daily run](#the-daily-run) says. An account appears only as the salted hash a session
 carries. No email, Google name or photo is stored, nor a person's list of payment methods, which
 stays on the phone. Invite and request links are kept as SHA-256 hashes of their tokens. How
 deleting an account changes the shared data is described [below](#deleting-an-account).
@@ -420,7 +429,7 @@ and the Worker logs `metric_not_written` with the error's name.
 | Event | Counted when | Outcome | Numbers |
 |---|---|---|---|
 | `bill_analysis`, `split_revision` | a bill read or an edit of a split ends, however it ends | `ok`, or the code of the error line or refusal that ended it, such as `quota_exhausted`, `ai_off` or `upstream`; `session` for a session issued before its account was deleted; `internal` for a call an error cut short, which the Worker answered 500 or ended with the error line `internal` | cost, tokens and time; cost and tokens only once the model answered |
-| `install_first_call` | the call that an install not signed in had held first, once per install | the outcome of that call | none |
+| `install_first_call` | the call that an install not signed in had held first, once per install; an install whose `QuotaBook` deleted itself, 12 months after its last call, counts as new when it calls again | the outcome of that call | none |
 | `sign_in` | `POST /v1/session` answers | `ok`, `input`, `id_token` or `sign_in_off` | none |
 | `share_created` | a bill link is made | `ok` | none |
 | `share_claim` | a claim lands on a bill link | `new`, or `changed` for a claim the link had | none |
@@ -553,7 +562,8 @@ and any claim of theirs in the group, goes. Payment requests already made stay a
 Removing the owner's own member, or a placeholder, is 409. Removing a member, and leaving, revoke
 every invite of the group that still works, in the same batch, so that no invite made before, one
 the member kept among them, brings anyone back: the members who stay make a new one, and a removed
-account can join again only through such a new invite, which the owner can revoke too.
+account can join again only through such a new invite, which the owner can revoke too. Deleting an
+account does the same for every group it was in, [below](#deleting-an-account).
 
 A group holds at most 100 members, placeholders included, 500 bills that are not deleted, 1 MB of
 those bills' documents together (as serialized; a changed bill counts as it would be), and 2,000
@@ -672,6 +682,10 @@ RequestView:
   link stays dead.
 - A deleted request is emptied at once (method, payment, names, title, debtor and group) and
   forgotten 30 days later, after which its link is 404.
+- A request confirmed as paid more than 12 months ago, as 365 days (`paidMethodRetentionMs`), has
+  its `method` set to `{}` and its `payment` emptied by [the daily run](#the-daily-run). Its
+  amount, its names, its two people and when it was reported and confirmed paid stay, for both
+  people's apps, and so does the settlement it recorded in its group, so no balance moves.
 - A request may also carry `"payment"`: how to pay it, as the creditor's app built it for the
   request's [web page](#payment-requests-and-invites-on-the-web).
 
@@ -727,6 +741,10 @@ The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongsi
 - Invites and deleted requests are forgotten 30 days after they stopped working, and the hourly
   counters, those of the web pages' addresses and those a deleted account left among them, once
   their hour is over.
+- A request confirmed as paid more than 12 months ago (`paidMethodRetentionMs`) loses its payment
+  method, which becomes `{}`, and its `payment` for the web page, once: a request already emptied
+  is not written again. Its amount, names, people and paid state stay, and no group's settlement or
+  balance changes.
 - Bill links that expired or were revoked are deleted, with their claims. This calls no Durable
   Object, so it takes none of the run's subrequests.
 
@@ -787,6 +805,9 @@ forgets the account's `QuotaBook` and deletes its spend counter.
   leaves.
 - A group it owns passes to the member with an account who joined first, and its bills pass to
   the group's owner.
+- Every invite that still works of each group it was in is revoked, in the same batch, as when a
+  member leaves, so that no invite made before, one the account kept among them, brings it back
+  once it signs in again. The members who stay make a new one.
 - Its claims and devices are deleted. Its hourly counters stay, holding nothing of the account but
   its salted hash, until the daily run forgets them once their hour is over, as it forgets every
   one. So deleting the account again and again, signing in again each time, starts no limit over,
@@ -795,7 +816,9 @@ forgets the account's `QuotaBook` and deletes its spend counter.
   have one open hear nothing more, and learn it at their next request.
 - On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and on
   all of them, confirmed ones included, `payment` for the web page is emptied and `creditorName`
-  becomes "Former member". The account is then taken off every
+  becomes "Former member". A confirmed one keeps its method for the other side, until the daily
+  run empties it 12 months after the confirmation, as for any request. The account is then taken
+  off every
   request, as creditor and as debtor: the other side keeps the request, nobody can act as the
   deleted account on it, and no notice goes to it or for it. A creditor whose debtor was deleted
   gets `unpaid` notices instead of the debtor's reminders. Signing in again with the same Google
@@ -1052,6 +1075,10 @@ The live connection:
 - Neither needs a session. Each counts as a read of the IP, once its token led to a request or an
   invite that works. A body without a `token` text is 400, an unknown token 404; a deleted request,
   or an expired or revoked invite, is 410.
+- A request's web page works for 90 days after the request was made (`requestLinkMs`). After that,
+  `POST /v1/request-links/view` answers 410 `gone` as for an expired invite, and counts no read.
+  The request stays in both people's apps, and the app's routes of it are unchanged: the routes of
+  `/v1/requests`, and `/v1/request-links/open` and `/accept`, which take a session.
 - `status` is `open`, `reported` or `confirmed`. `payment` is the PaymentPayload the creditor's
   app sent with `POST /v1/requests`, where `"payment"` is an optional field checked as above, or
   null; it is null as well once the request is confirmed, when nothing is left to pay. RequestView
@@ -1228,7 +1255,12 @@ for 30 days; the sessions issued before it, refused on every kind of route witho
 anything back, and a sign-in after it, which works; the plan and the record of the
 purchaser; the customer at RevenueCat, deleted first; the spend counter; the hourly counters,
 until the daily cleanup; groups and their bills, where the balances of the members who stay must
-not move; payment requests not confirmed; and bill links with their claims. The counters go to a
+not move; the invites of those groups, revoked, so that none made before brings the account back;
+payment requests not confirmed; and bill links with their claims. Periods are tested by setting
+the times that rows and objects hold, rather than by waiting: an install's trial count, kept while
+it calls within 12 months and gone after them; a paid request's method, kept for 12 months after
+its confirmation, and emptied after them without any balance moving; and a request's web page,
+at 89 and at 91 days. The counters go to a
 dataset the tests keep, which checks each event, its outcome and its numbers, that no point holds
 an id, and that a missing or failing binding changes no answer. `npm test` then has Node check,
 with stand-ins for the evaluation's runner and for Wrangler, that the runner leaves nothing running
@@ -1428,6 +1460,14 @@ These steps need the owner's accounts.
    `QuotaBook` forgets what has outlived its time at its first call and sets its alarm again; one
    that nothing calls keeps its count and its deletion time, which hold nothing but the account's
    salted hash, until something does.
+
+   **The first deploy that forgets installs after 12 months**: an install's `QuotaBook` written by
+   older code keeps no time of its last call. It takes the time this version first calls or wakes
+   it as that time, so its 12 months start then; one that nothing calls or wakes keeps its count
+   and its first-call mark until something does. **Rolling back** past it leaves each time in
+   place, but the older code neither moves it on nor wakes for it, so once this version runs again
+   an install that held calls in between counts from the time kept and is forgotten that much
+   sooner.
 
 8. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at

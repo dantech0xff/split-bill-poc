@@ -62,7 +62,7 @@ To let you say a change, the app uses your phone's speech recognizer. On Android
 
 ### Your free calls and the app's version
 
-The app makes a random ID for itself. The ID is not tied to your phone's hardware or to you. The app sends it, with the app's version number, with most requests to our server. Our server uses the ID to count the 3 free AI calls of an install that is not signed in, and uses the version to refuse AI requests from an app too old to work with it.
+The app makes a random ID for itself. The ID is not tied to your phone's hardware or to you. The app sends it, with the app's version number, with most requests to our server. Our server uses the ID to count the 3 free AI calls of an install that is not signed in, and uses the version to refuse AI requests from an app too old to work with it. With that count, our server keeps the time of the install's last AI call, so that it can delete both 12 months later.
 
 Our server also limits how much each network address can ask of the AI, and caps what it spends in a day, so that nobody can run up its costs. For that, it counts requests and spending under a salted hash of your network address (an IPv6 address by its first half), never the address itself.
 
@@ -87,7 +87,7 @@ Every member of a group sees all of this, except the requests to join, which onl
 
 ### Payment requests
 
-When you ask someone for money while signed in, our server keeps the request so that the payer can say they paid and you can confirm it: the amount and currency, the payer's name as you typed it, your name as you want the payer to see it, what it is for, and the one way to get paid you chose for it, such as a bank account number and the name on it, a PromptPay ID, a UPI ID or a PayPal.Me name. It can also keep how to pay as your app built it for the request's web page: a link, a code to scan and the details. The person you ask sees this in the app, and anyone with the request's link can see it on its web page. The other ways to get paid on your phone stay there.
+When you ask someone for money while signed in, our server keeps the request so that the payer can say they paid and you can confirm it: the amount and currency, the payer's name as you typed it, your name as you want the payer to see it, what it is for, and the one way to get paid you chose for it, such as a bank account number and the name on it, a PromptPay ID, a UPI ID or a PayPal.Me name. It can also keep how to pay as your app built it for the request's web page: a link, a code to scan and the details. The person you ask sees this in the app, and anyone with the request's link can see it on its web page for 90 days after you made the request. After that, the link no longer works on the web, and the request stays in the app for both of you. The other ways to get paid on your phone stay there.
 
 Without signing in, a request is only a message that you send from your phone through the chat app you choose. It does not go to our server.
 
@@ -122,7 +122,7 @@ Split Vibe's links open web pages served by our server, which work without the a
 - The part of a link after the "#" is its key. Your browser does not send that part to our server: the page reads it and sends it in the body of its requests, so it does not appear in any log.
 - On a bill link, you can type a name and pick the items you had. Our server keeps them with the link, and everyone with the link sees them. Your browser keeps your pick's secret key, its ID and the name you typed in its local storage, so that you can change your picks later; clearing the site's data in your browser removes them.
 - Before your first pick on a bill, Cloudflare Turnstile checks that you are a person and not a program. It receives your network address, details of your browser and its connection, and the site's address.
-- A payment request page shows the request to anyone with its link. An invite page shows the group's name and currency.
+- A payment request page shows the request to anyone with its link, for 90 days after the request was made; after that, the link no longer works on the web. An invite page shows the group's name and currency.
 - Our server counts the requests each page makes in an hour under a salted hash of your network address, to stop abuse.
 - The account deletion page loads Google's sign-in from Google, so Google learns of your visit to that page.
 - Split Vibe's pages set no cookies of their own.
@@ -159,7 +159,7 @@ On your phone, everything stays until you delete it, clear the app's data, unins
 
 On our server:
 
-- The count of free calls of an install that is not signed in is kept, under the install's random ID, for as long as Split Vibe runs, since an install gets its 3 free calls only once.
+- The count of free calls of an install that is not signed in is kept, under the install's random ID, with the time of the install's last AI call, until 12 months after that call. Each AI call moves that time on. Then both are deleted, and an install that uses the AI again after that gets 3 free calls again, as a new install does.
 - For a signed-in account, only the count of calls of the latest calendar month, counted in UTC, in which it used the AI is kept. Its Pro status, as RevenueCat last reported it, and the time our server first gave out the account's purchaser ID, are kept until you delete the account.
 - The ID of each AI request, with a salted hash of what it asked, is kept for one day, so that a retry is not charged twice.
 - Counters per install, per account and per network address for the limits and the daily spending caps delete themselves once their periods end, at most a day after they began.
@@ -167,7 +167,8 @@ On our server:
 - A session is not stored on our server. It lasts 30 days on your phone.
 - When an account is deleted, the time of the deletion is kept under the account's code for 30 days, the longest a session lasts, so that our server refuses every session issued before it.
 - Groups, with their members, bills, payments back and log, are kept until the group is deleted, which happens when its last member with an account leaves it or deletes their account. A bill deleted from a group is emptied at once.
-- A payment request stays until the person who asked deletes it or confirms it was paid. One deleted before it is confirmed is emptied at once and removed 30 days later. One confirmed as paid is kept as a record for both people for as long as Split Vibe runs, also after either of them deletes their account, without that account on it.
+- A payment request stays until the person who asked deletes it or confirms it was paid. One deleted before it is confirmed is emptied at once and removed 30 days later. One confirmed as paid is kept as a record for both people for as long as Split Vibe runs, also after either of them deletes their account, without that account on it. 12 months after it was confirmed, the way to get paid it carried and the payment details of its web page are deleted; its amount, the names on it and that it was paid stay, so that the balances of its group do not change.
+- A payment request's web page shows it to anyone with its link for 90 days after the request was made. After that, the link no longer works on the web; the request stays in the app for both people.
 - An invite is removed 30 days after it expires; invites work for 14 days.
 - A bill link, with the picks made on it, is deleted by our daily clean-up once it has expired, 30 days after it was made, or once its owner took it back.
 - A push token is deleted when the app signs out on that phone and tells our server, when you delete your account, when it is passed to another account, when Firebase says it no longer works, or when the account signs in on an eleventh phone, which replaces the one used longest ago.
@@ -194,7 +195,7 @@ When you delete your account, our server:
 - keeps the count of calls you used this calendar month, under your account's code, until the month ends, so that deleting an account and signing in again does not give new calls. It also keeps the hourly counters, which hold nothing but your account's code, until the daily clean-up after their hour;
 - keeps the time of the deletion, under your account's code, for 30 days, the longest a session lasts, so that every phone still signed in to the account is signed out;
 - in groups, turns you into a member called "Former member", keeping the amounts you paid and owe so that the other members' balances do not change. The bills you added stay in the group and pass to its owner. A group in which nobody else has an account is deleted;
-- on the payment requests you made, deletes the way to get paid of each request not yet confirmed and the payment details of every request's web page, and shows your name as "Former member". The other person keeps the request, and on a request already confirmed as paid they keep the way to get paid it carried, as their record;
+- on the payment requests you made, deletes the way to get paid of each request not yet confirmed and the payment details of every request's web page, and shows your name as "Former member". The other person keeps the request, and on a request already confirmed as paid they keep the way to get paid it carried, as their record, until 12 months after it was confirmed;
 - takes your account off every request, so that nobody can act as you on it.
 
 Your bills, people and ways to get paid are on your phone, not on our server. When you delete your account in the app, you can tick "Also delete the bills, people and payment methods on this phone" to delete your bills, drafts, recurring bills, page photos, people, ways to get paid, the copy of your groups and requests, and your name from the phone. If you leave it unticked, they stay. The app deletes them only after our server has deleted your account, so that a failure loses nothing. Your other settings, such as your currency, stay. Deleting your account on the website deletes nothing on your phone.

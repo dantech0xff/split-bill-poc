@@ -11,7 +11,11 @@ picks the page from the path:
   marks "You" on the browser's own claim and on the
   amount of the participant that claim was matched to, so the person finds what they owe at a
   glance.
-- `/r/#<token>`: a payment request, with how to pay and "Open in Split Vibe".
+- `/r/#<token>`: a payment request, with how to pay and "Open in Split Vibe". It works for 90 days
+  after the request was made (`requestLinkMs` in the proxy's
+  [`policy.ts`](../proxy/src/policy.ts)). After that, as once the request is withdrawn, the page
+  says that the link no longer works, and that a request kept in Split Vibe is still there: the
+  request stays in both people's apps.
 - `/g/#<token>`: a group invite, with how to get the app to join.
 - `/delete-account`: deleting an account by signing in with Google, [below](#deleting-an-account-on-the-web).
 
