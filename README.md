@@ -36,7 +36,10 @@ flowchart LR
 2. **New split** takes the bill and an instruction such as `Split with Minh and Lan. Minh had the
    beers.` or `We are 3, I didn't drink.` The bill comes from Google's document scanner, which finds
    its edges, straightens it and takes up to five pages; from the camera or the photo picker; from a
-   photo shared by another app; from the bundled sample bill; or it is typed in by hand.
+   photo shared by another app; from the bundled sample bill; or it is typed in by hand. Before the
+   app first sends anything to the AI, it asks for consent on a screen of its own, which says what
+   goes to Anthropic in the United States and links the privacy policy. Turning it down leaves typing
+   the bill in by hand, or keeping a split as it is, and Settings takes the consent back.
 3. **Result** shows the items, the taxes and fees, and the total, and, for a bill in another
    currency, what it comes to in your own at the day's rate or a rate you type in.
    - **Who is on the bill:** everyone named in the instruction, anyone you add by name or from the
