@@ -177,7 +177,9 @@ describe("the bills", () => {
     expect(CANDIDATES.every(isPriced)).toBe(true);
   });
 
-  it("each pass through the proxy on a computer when the model answers what they expect", async () => {
+  // Every bill of the set goes through the proxy in turn, each read with its own Durable Objects, so
+  // a slow runner takes several seconds: the test has more than the default 5 to do it in.
+  it("each pass through the proxy on a computer when the model answers what they expect", { timeout: 30_000 }, async () => {
     for (const [index, bill] of BILLS.entries()) {
       const seen = namedModel({ text: JSON.stringify(bill.expected), usage: { input_tokens: 6_000, output_tokens: 1_500 } });
 
