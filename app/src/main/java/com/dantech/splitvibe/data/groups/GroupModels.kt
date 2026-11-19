@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.data.groups
 
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.domain.Balances
@@ -7,6 +8,8 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.DebtSimplifier
 import com.dantech.splitvibe.domain.GroupAmounts
 import com.dantech.splitvibe.domain.Transfer
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -114,10 +117,11 @@ data class GroupState(
 
     fun member(id: String?): MemberDto? = members.firstOrNull { it.id == id }
 
-    fun nameOf(memberId: String?): String = when (memberId) {
-        null -> "Someone"
-        myMemberId -> "You"
-        else -> member(memberId)?.name ?: "A former member"
+    /** What the screen calls [memberId]: the user is "You", and someone no longer in the group "A former member". */
+    fun nameOf(memberId: String?): UiText = when (memberId) {
+        null -> text(R.string.common_someone)
+        myMemberId -> text(R.string.common_you)
+        else -> member(memberId)?.name?.let(UiText::Raw) ?: text(R.string.groups_former_member)
     }
 
     /**

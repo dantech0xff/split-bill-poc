@@ -12,6 +12,7 @@ import com.dantech.splitvibe.GroupFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.GroupLink
@@ -128,7 +129,7 @@ class ClaimViewModelTest {
             initializer {
                 ClaimViewModel(
                     host = host,
-                    shares = ShareRepository(proxy.api, retryDelayMs = { 60_000 }),
+                    shares = ShareRepository(proxy.api, contentWords(), retryDelayMs = { 60_000 }),
                     paymentMethods = methods,
                     settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana")),
                     account = proxy.account.account,
@@ -156,7 +157,7 @@ class ClaimViewModelTest {
         val link = checkNotNull(host.bill.value?.share)
         assertEquals(ShareFixtures.URL, link.url)
         assertEquals(EXPIRES_AT, link.expiresAt)
-        assertEquals(ShareRepository.fingerprint(ShareFixtures.saved, "Dana"), link.shown)
+        assertEquals(ShareRepository.fingerprint(ShareFixtures.saved, "Dana", contentWords()), link.shown)
     }
 
     @Test

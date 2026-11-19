@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.ui.payments
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,9 +20,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
@@ -32,14 +35,14 @@ import com.dantech.splitvibe.domain.payments.VietQrBanks
 import java.util.Locale
 
 /** The kinds of payment method, in the order the sheet offers them. */
-internal enum class MethodKind(val label: String) {
-    VIETQR("VietQR"),
-    PROMPTPAY("PromptPay"),
-    UPI("UPI"),
-    PAYPAL("PayPal.Me"),
-    SEPA("SEPA"),
-    LINK("Payment link"),
-    DETAILS("Other"),
+internal enum class MethodKind(@param:StringRes val label: Int) {
+    VIETQR(R.string.payments_kind_vietqr),
+    PROMPTPAY(R.string.payments_kind_promptpay),
+    UPI(R.string.payments_kind_upi),
+    PAYPAL(R.string.payments_kind_paypal),
+    SEPA(R.string.payments_kind_sepa),
+    LINK(R.string.payments_kind_link),
+    DETAILS(R.string.payments_kind_other),
     ;
 
     companion object {
@@ -75,12 +78,16 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
     val typed = listOf(first, second, third).any { it.isNotBlank() }
 
     SvBottomSheet(
-        title = if (editing == null) "Add a way to get paid" else "Change ${initial?.title}",
-        supportingText = "Kept on this phone. A request carries only the one you send it with.",
+        title = if (editing == null) {
+            stringResource(R.string.requests_add_method)
+        } else {
+            stringResource(R.string.payments_change, initial?.title.orEmpty())
+        },
+        supportingText = stringResource(R.string.payments_sheet_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            Button(onClick = { onSave(method) }, enabled = problem == null) { Text("Save") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            Button(onClick = { onSave(method) }, enabled = problem == null) { Text(stringResource(R.string.common_save)) }
         },
     ) {
         Column(
@@ -91,56 +98,88 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             // A method keeps its kind once saved; another kind is another method.
-            if (editing == null) SvChoiceChips(MethodKind.entries.map { it.label }, selected = kind, onSelect = { kind = it })
+            if (editing == null) {
+                SvChoiceChips(MethodKind.entries.map { stringResource(it.label) }, selected = kind, onSelect = { kind = it })
+            }
 
             when (chosen) {
                 MethodKind.VIETQR -> {
                     BankPicker(bankBin = bankBin, onPick = { bankBin = it })
-                    Field("Account number", first, { first = it }, keyboard = KeyboardType.Number)
-                    Field("Name on the account", second, { second = it }, capitalization = KeyboardCapitalization.Characters)
+                    Field(stringResource(R.string.payments_account_number), first, { first = it }, keyboard = KeyboardType.Number)
+                    Field(
+                        stringResource(R.string.payments_account_name),
+                        second,
+                        { second = it },
+                        capitalization = KeyboardCapitalization.Characters,
+                    )
                 }
 
                 MethodKind.PROMPTPAY -> Field(
-                    "Mobile number or ID",
+                    stringResource(R.string.payments_promptpay_id),
                     first,
                     { first = it },
                     keyboard = KeyboardType.Phone,
-                    hint = "A Thai mobile number, or the 13-digit ID PromptPay is linked to.",
+                    hint = stringResource(R.string.payments_promptpay_hint),
                 )
 
                 MethodKind.UPI -> {
-                    Field("UPI ID", first, { first = it }, keyboard = KeyboardType.Email, hint = "Such as name@okaxis.")
-                    Field("Name on the account", second, { second = it }, capitalization = KeyboardCapitalization.Words)
+                    Field(
+                        stringResource(R.string.payments_upi_id),
+                        first,
+                        { first = it },
+                        keyboard = KeyboardType.Email,
+                        hint = stringResource(R.string.payments_upi_hint),
+                    )
+                    Field(
+                        stringResource(R.string.payments_account_name),
+                        second,
+                        { second = it },
+                        capitalization = KeyboardCapitalization.Words,
+                    )
                 }
 
-                MethodKind.PAYPAL -> Field("PayPal.Me name", first, { first = it }, prefix = "paypal.me/")
+                MethodKind.PAYPAL -> Field(stringResource(R.string.payments_paypal_name), first, { first = it }, prefix = "paypal.me/")
 
                 MethodKind.SEPA -> {
-                    Field("Name on the account", first, { first = it }, capitalization = KeyboardCapitalization.Words)
-                    Field("IBAN", second, { second = it }, capitalization = KeyboardCapitalization.Characters)
-                    Field("BIC (if your bank asks for it)", third, { third = it }, capitalization = KeyboardCapitalization.Characters)
+                    Field(
+                        stringResource(R.string.payments_account_name),
+                        first,
+                        { first = it },
+                        capitalization = KeyboardCapitalization.Words,
+                    )
+                    Field(
+                        stringResource(R.string.payments_iban),
+                        second,
+                        { second = it },
+                        capitalization = KeyboardCapitalization.Characters,
+                    )
+                    Field(stringResource(R.string.payments_bic), third, { third = it }, capitalization = KeyboardCapitalization.Characters)
                 }
 
                 MethodKind.LINK -> {
                     Field(
-                        "Link",
+                        stringResource(R.string.payments_link),
                         first,
                         { first = it },
                         keyboard = KeyboardType.Uri,
-                        hint = "A link you made in Revolut, Wise, Venmo, Cash App or another payment app.",
+                        hint = stringResource(R.string.payments_link_hint),
                     )
                     (method as? PaymentMethod.PastedLink)?.host?.let { host ->
-                        Text("Opens $host", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            stringResource(R.string.payments_opens, host),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
 
                 MethodKind.DETAILS -> {
-                    Field("What it is", first, {
+                    Field(stringResource(R.string.payments_what_it_is), first, {
                         first = it
-                    }, capitalization = KeyboardCapitalization.Words, hint = "Such as Zelle or Bank transfer.")
-                    Field("Details", second, {
+                    }, capitalization = KeyboardCapitalization.Words, hint = stringResource(R.string.payments_what_it_is_hint))
+                    Field(stringResource(R.string.payments_details), second, {
                         second = it
-                    }, singleLine = false, hint = "What the payer types in, such as an email or an account.")
+                    }, singleLine = false, hint = stringResource(R.string.payments_details_hint))
                 }
             }
 
@@ -156,13 +195,18 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
 private fun BankPicker(bankBin: String, onPick: (String) -> Unit) {
     val picked = VietQrBanks.byBin(bankBin)
     var query by rememberSaveable { mutableStateOf("") }
-    Field("Bank", query.ifEmpty { picked?.shortName.orEmpty() }, { query = it }, hint = picked?.let { "Code ${it.bin}" })
+    Field(
+        stringResource(R.string.payments_bank),
+        query.ifEmpty { picked?.shortName.orEmpty() },
+        { query = it },
+        hint = picked?.let { stringResource(R.string.payments_bank_code, it.bin) },
+    )
     val search = query.trim().lowercase(Locale.ROOT)
     if (search.isNotEmpty()) {
         val matches = VietQrBanks.ALL.filter {
             it.shortName.lowercase(Locale.ROOT).contains(search) || it.bin.startsWith(search)
         }.take(MATCHES)
-        if (matches.isEmpty()) Text("No bank goes by that name.", style = MaterialTheme.typography.bodyMedium)
+        if (matches.isEmpty()) Text(stringResource(R.string.payments_no_bank), style = MaterialTheme.typography.bodyMedium)
         Column {
             matches.forEach { bank ->
                 SvPersonChoiceRow(

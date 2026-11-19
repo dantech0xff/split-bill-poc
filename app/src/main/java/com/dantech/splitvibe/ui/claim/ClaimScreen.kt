@@ -35,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.ShareLink.Companion.NEW_PERSON
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
@@ -54,6 +56,10 @@ import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.share.ShareCardRenderer
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.text.text
+import com.dantech.splitvibe.ui.split.nameOf
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -102,16 +108,18 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Everyone picks their items") },
+                title = { Text(stringResource(R.string.claim_title)) },
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
                 actions = {
                     if (share != null) {
                         SvOverflowMenu(
-                            label = "More for the link",
+                            label = stringResource(R.string.claim_more),
                             options = listOf(
-                                SvMenuOption("Stop sharing the link") { confirming = Confirm.Revoke },
+                                SvMenuOption(stringResource(R.string.claim_stop_sharing)) { confirming = Confirm.Revoke },
                             ),
                         )
                     }
@@ -134,26 +142,25 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
             when {
                 state.needsSignIn -> item {
                     SvMessageCard(
-                        text = "Sign in with Google to make a link. Only you can then close it or take people off it.",
+                        text = stringResource(R.string.claim_sign_in),
                         isError = false,
-                        action = "Sign in in Settings",
+                        action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = actions.onOpenSettings,
                     )
                 }
 
                 state.cannotShare -> item {
                     SvMessageCard(
-                        text = "This bill cannot go on a link. A link shows from 1 to 200 lines and up to 30 people.",
+                        text = stringResource(R.string.claim_cannot_share),
                         isError = false,
                     )
                 }
 
                 state.otherAccount -> item {
                     SvMessageCard(
-                        text = "This bill's link was made while another account was signed in, or no longer exists, so this account " +
-                            "cannot change it. A new link replaces it here; the old one works until it ends.",
+                        text = stringResource(R.string.claim_other_account),
                         isError = false,
-                        action = "Make a new link",
+                        action = stringResource(R.string.claim_make_new_link),
                         onAction = actions.onMakeNewLink,
                     )
                 }
@@ -163,9 +170,9 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
                 val retry = share == null && !state.otherAccount
                 item {
                     SvMessageCard(
-                        text = message,
+                        text = message.resolve(),
                         isError = true,
-                        action = if (retry) "Try again" else "Dismiss",
+                        action = stringResource(if (retry) R.string.common_try_again else R.string.common_dismiss),
                         onAction = if (retry) actions.onRetry else actions.onDismissMessage,
                     )
                 }
@@ -180,15 +187,17 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
             if (claims.isEmpty()) {
                 item {
                     Text(
-                        "Nobody has picked anything yet. Picks show here as people make them.",
+                        stringResource(R.string.claim_nobody_yet),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = SvSpacing.md),
                     )
                 }
             } else {
-                val hint = "Names are what people typed." + if (share.isOpen) " Say who each one is on the bill." else ""
-                item { SvSectionHeader("Picked so far", hint = hint) }
+                item {
+                    val hint = stringResource(if (share.isOpen) R.string.claim_names_typed_say_who else R.string.claim_names_typed)
+                    SvSectionHeader(stringResource(R.string.claim_picked_so_far), hint = hint)
+                }
                 itemsIndexed(claims, key = { _, claim -> claim.id }) { index, claim ->
                     ClaimRow(
                         claim = claim,
@@ -204,7 +213,9 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
             val picked = claims.flatMap { it.itemIds }.toSet()
             val unpicked = share.bill.items.filter { it.id !in picked }
             if (unpicked.isNotEmpty() && claims.isNotEmpty()) {
-                item { SvSectionHeader("Nobody picked", hint = "Everyone shares these, unless you change it in the split.") }
+                item {
+                    SvSectionHeader(stringResource(R.string.claim_nobody_picked), hint = stringResource(R.string.claim_nobody_picked_hint))
+                }
                 itemsIndexed(unpicked, key = { _, item -> "item-${item.id}" }) { index, item ->
                     SvListRow(position = SvRowPosition.of(index, unpicked.size)) {
                         Text(item.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
@@ -238,33 +249,37 @@ private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, loca
     val url = state.url
     SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Text(statusOf(share, locale), style = MaterialTheme.typography.titleMedium)
+            Text(statusOf(share, locale).resolve(), style = MaterialTheme.typography.titleMedium)
             if (share.isOpen && !state.connected) {
                 Text(
-                    "Reconnecting… new picks show once it is back.",
+                    stringResource(R.string.claim_reconnecting),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
             Text(
-                "Send this link to everyone at the table. They open it in a browser, type their name and tap what they had, " +
-                    "without the app or an account.",
+                stringResource(R.string.claim_send_link_hint),
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (url != null) {
                 Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                     FilledTonalButton(onClick = {
-                        val title = saved.bill.merchant?.takeIf { it.isNotBlank() } ?: "the bill"
+                        val resources = context.resources
+                        val title = saved.bill.merchant?.takeIf { it.isNotBlank() }
+                            ?: resources.getString(R.string.requests_message_the_bill)
                         try {
                             context.startActivity(
-                                ShareCardRenderer.shareIntent("Pick what you had at $title: $url", title = "Share the link"),
+                                ShareCardRenderer.shareIntent(
+                                    resources.getString(R.string.claim_share_message, title, url),
+                                    title = resources.getString(R.string.claim_share_link),
+                                ),
                             )
                         } catch (e: ActivityNotFoundException) {
                             // No app on this phone takes text; the link can still be copied.
                         }
-                    }) { Text("Share the link") }
-                    OutlinedButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text("Copy") }
+                    }) { Text(stringResource(R.string.claim_share_link)) }
+                    OutlinedButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text(stringResource(R.string.claim_copy)) }
                 }
             }
         }
@@ -280,34 +295,36 @@ private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPaymen
             val payer = saved.plan.payments.singleOrNull()?.participantId?.let { id -> saved.plan.participants.firstOrNull { it.id == id } }
             when {
                 group != null -> Text(
-                    "This bill is in ${group.groupName}, where people settle up, so the page shows each person's share " +
-                        "and asks nobody to pay.",
+                    stringResource(R.string.claim_in_group, group.groupName),
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
                 !ClaimViewModel.asksForMoney(saved) -> Text(
                     if (payer != null) {
-                        "${payer.name.ifBlank { "Someone else" }} paid this bill, so the page shows each person's share and asks them " +
-                            "to settle up with ${payer.name.ifBlank { "whoever paid" }}."
+                        stringResource(
+                            R.string.claim_other_payer,
+                            payer.name.ifBlank { stringResource(R.string.claim_someone_else) },
+                            payer.name.ifBlank { stringResource(R.string.claim_whoever_paid) },
+                        )
                     } else {
-                        "More than one person paid this bill, so the page shows each person's share and asks nobody to pay you."
+                        stringResource(R.string.claim_several_payers)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
                 payment.chosen == null -> {
                     Text(
-                        "Add how you get paid, and the page shows each person how to pay you, with the amount filled in where it can be.",
+                        stringResource(R.string.claim_add_method_hint),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    FilledTonalButton(onClick = actions.onAddMethod) { Text("Add a way to get paid") }
+                    FilledTonalButton(onClick = actions.onAddMethod) { Text(stringResource(R.string.requests_add_method)) }
                 }
 
                 else -> {
                     val method = payment.chosen.method
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("The page asks people to pay you by ${method.title}", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.claim_pay_you_by, method.title), style = MaterialTheme.typography.titleSmall)
                             Text(
                                 method.summary,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -317,16 +334,18 @@ private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPaymen
                         val others = payment.methods.orEmpty().filter { it.id != payment.chosen.id }
                         if (others.isNotEmpty() && !share.isLocked) {
                             SvOverflowMenu(
-                                label = "Ask for another way to pay",
+                                label = stringResource(R.string.claim_another_way),
                                 options = others.map { other ->
-                                    SvMenuOption("${other.method.title}: ${other.method.summary}") { actions.onChooseMethod(other.id) }
+                                    SvMenuOption(stringResource(R.string.requests_summary_line, other.method.title, other.method.summary)) {
+                                        actions.onChooseMethod(other.id)
+                                    }
                                 },
                             )
                         }
                     }
                     if (payment.changed) {
                         Text(
-                            "Your payment details changed since you sent the amounts. Send them again so the page shows the new ones.",
+                            stringResource(R.string.claim_method_changed),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -348,13 +367,15 @@ private fun ClaimRow(
     onRemove: () -> Unit,
 ) {
     val names = share.bill.items.associate { it.id to it.name }
-    val items = claim.itemIds.mapNotNull { names[it] }.ifEmpty { listOf("Nothing yet") }.joinToString(", ")
+    val items = claim.itemIds.mapNotNull { names[it] }.ifEmpty { listOf(stringResource(R.string.claim_nothing_yet)) }.joinToString(", ")
     val participants = saved.plan.participants
+    val addedAsNew = stringResource(R.string.claim_added_as_new)
     val onBill = when (match) {
-        null, NEW_PERSON -> if (claim.itemIds.isEmpty()) "Picked nothing, so not added to the bill" else "Added as someone new"
+        null, NEW_PERSON -> if (claim.itemIds.isEmpty()) stringResource(R.string.claim_picked_nothing) else addedAsNew
 
-        else -> participants.firstOrNull { it.id == match }?.let { "On the bill as ${if (it.isMe) "you" else it.name}" }
-            ?: "Added as someone new"
+        else -> participants.firstOrNull { it.id == match }?.let {
+            stringResource(R.string.claim_on_bill_as, if (it.isMe) stringResource(R.string.claim_you_in_sentence) else it.name)
+        } ?: addedAsNew
     }
     SvListRow(position = position) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
@@ -366,48 +387,53 @@ private fun ClaimRow(
         if (!share.isOpen) return@SvListRow
         val options = buildList {
             participants.forEach { participant ->
-                val name = if (participant.isMe) "You" else participant.name.ifBlank { "Someone" }
-                add(SvMenuOption("This is $name") { onMatch(claim.id, participant.id) })
+                val name = nameOf(participant).resolve()
+                add(SvMenuOption(stringResource(R.string.claim_this_is, name)) { onMatch(claim.id, participant.id) })
             }
-            add(SvMenuOption("Someone new") { onMatch(claim.id, NEW_PERSON) })
-            add(SvMenuOption("Take ${claim.name} off the link", onRemove))
+            add(SvMenuOption(stringResource(R.string.claim_someone_new)) { onMatch(claim.id, NEW_PERSON) })
+            add(SvMenuOption(stringResource(R.string.claim_take_off, claim.name), onRemove))
         }
-        SvOverflowMenu(label = "Who is ${claim.name}", options = options)
+        SvOverflowMenu(label = stringResource(R.string.claim_who_is, claim.name), options = options)
     }
 }
 
 @Composable
 private fun ClaimBar(share: ShareView, working: Boolean, methodChanged: Boolean, actions: ClaimActions, onReopen: () -> Unit) {
+    val morePicks = stringResource(R.string.claim_more_picks)
+    val pickAgain = stringResource(R.string.claim_pick_again)
     SvBottomBar {
         when {
             // While a call runs, nothing else can start.
-            working -> SvPrimaryButton(text = "Working…", onClick = {}, enabled = false)
+            working -> SvPrimaryButton(text = stringResource(R.string.common_working), onClick = {}, enabled = false)
 
             share.status == ShareView.OPEN -> SvPrimaryButton(
-                text = "Stop picking and split",
+                text = stringResource(R.string.claim_stop_picking),
                 onClick = actions.onLock,
                 enabled = share.claims.isNotEmpty(),
             )
 
             share.status == ShareView.LOCKING -> SvSplitButton(
-                text = "Send what everyone owes",
+                text = stringResource(R.string.claim_send_amounts),
                 onClick = actions.onSend,
-                moreLabel = "More for the picks",
-                options = listOf(SvMenuOption("Check the split first", actions.onBack), SvMenuOption("Let people pick again", onReopen)),
+                moreLabel = morePicks,
+                options = listOf(
+                    SvMenuOption(stringResource(R.string.claim_check_first), actions.onBack),
+                    SvMenuOption(pickAgain, onReopen),
+                ),
             )
 
             methodChanged -> SvSplitButton(
-                text = "Send the new payment details",
+                text = stringResource(R.string.claim_send_new_details),
                 onClick = actions.onSend,
-                moreLabel = "More for the picks",
-                options = listOf(SvMenuOption("Done", actions.onBack), SvMenuOption("Let people pick again", onReopen)),
+                moreLabel = morePicks,
+                options = listOf(SvMenuOption(stringResource(R.string.common_done), actions.onBack), SvMenuOption(pickAgain, onReopen)),
             )
 
             else -> SvSplitButton(
-                text = "Done",
+                text = stringResource(R.string.common_done),
                 onClick = actions.onBack,
-                moreLabel = "More for the picks",
-                options = listOf(SvMenuOption("Let people pick again", onReopen)),
+                moreLabel = morePicks,
+                options = listOf(SvMenuOption(pickAgain, onReopen)),
             )
         }
     }
@@ -417,21 +443,21 @@ private fun ClaimBar(share: ShareView, working: Boolean, methodChanged: Boolean,
 private fun ConfirmDialog(asked: Confirm, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val (title, text, action) = when (asked) {
         Confirm.Revoke -> Triple(
-            "Stop sharing the link?",
-            "Its page says it no longer works, and everything people picked on it is deleted. This cannot be undone.",
-            "Stop sharing",
+            stringResource(R.string.claim_revoke_title),
+            stringResource(R.string.claim_revoke_text),
+            stringResource(R.string.claim_revoke_confirm),
         )
 
         Confirm.Reopen -> Triple(
-            "Let people pick again?",
-            "The page stops showing what everyone owes. When you stop the picking again, the split goes back to what people picked.",
-            "Let them pick",
+            stringResource(R.string.claim_reopen_title),
+            stringResource(R.string.claim_reopen_text),
+            stringResource(R.string.claim_reopen_confirm),
         )
 
         is Confirm.Remove -> Triple(
-            "Take ${asked.name} off the link?",
-            "What they picked is deleted. If they open the link again, they start over.",
-            "Take off",
+            stringResource(R.string.claim_remove_title, asked.name),
+            stringResource(R.string.claim_remove_text),
+            stringResource(R.string.claim_remove_confirm),
         )
     }
     AlertDialog(
@@ -439,7 +465,7 @@ private fun ConfirmDialog(asked: Confirm, onConfirm: () -> Unit, onDismiss: () -
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(action) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -464,18 +490,17 @@ private val ConfirmSaver = Saver<Confirm?, List<String>>(
 )
 
 /** Where the link stands, in one line: open until when, or what happens now. */
-private fun statusOf(share: ShareView, locale: Locale): String = when (share.status) {
+private fun statusOf(share: ShareView, locale: Locale): UiText = when (share.status) {
     ShareView.OPEN -> {
         val until = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
             .format(Instant.ofEpochMilli(share.expiresAt).atZone(ZoneId.systemDefault()))
-        "Open for picking until $until"
+        text(R.string.claim_open_until, until)
     }
 
-    ShareView.LOCKING -> "Picking is closed. Check the split, then send what everyone owes."
+    ShareView.LOCKING -> text(R.string.claim_closed)
 
-    else -> if (share.amounts.orEmpty().values.any { it.payment != null }) {
-        "The page shows what everyone owes, and how to pay you."
-    } else {
-        "The page shows what everyone owes."
+    else -> {
+        val asksToPay = share.amounts.orEmpty().values.any { it.payment != null }
+        text(if (asksToPay) R.string.claim_shows_how_to_pay else R.string.claim_shows_owed)
     }
 }

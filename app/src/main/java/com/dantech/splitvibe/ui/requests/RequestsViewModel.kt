@@ -2,12 +2,15 @@ package com.dantech.splitvibe.ui.requests
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.ui.groups.ShareText
@@ -112,7 +115,7 @@ data class RequestLinkState(
     val creditorName: String? = null,
     val accepted: Boolean = false,
     val working: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
 )
 
 /** Opens a request link: shows what is asked and how to pay, and takes the request on so the payer can say they paid. */
@@ -167,7 +170,7 @@ class RequestLinkViewModel(
     }
 
     private companion object {
-        const val TAKEN = "Someone else already took this request on. Ask the person who sent it for a new link."
+        val TAKEN = text(R.string.requests_taken)
     }
 }
 

@@ -13,6 +13,7 @@ import com.dantech.splitvibe.NeverAsked
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.ShareLink
@@ -102,7 +103,7 @@ class BillLinkSyncTest {
         storage.close()
     }
 
-    private val shares by lazy { ShareRepository(proxy.api) }
+    private val shares by lazy { ShareRepository(proxy.api, contentWords()) }
     private val settings = MutableStateFlow(AppSettings(localCurrency = "VND", myName = "Dana"))
 
     private fun openLinkedBill(): SplitBillViewModel {

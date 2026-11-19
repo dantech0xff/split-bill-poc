@@ -19,6 +19,7 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.PersonShare
 import com.dantech.splitvibe.domain.SplitPlan
 import com.dantech.splitvibe.domain.payments.PaymentMethod
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.ui.split.PersonRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -91,7 +92,7 @@ class RequestMoneyViewModelTest {
             Amount: ₫150,000
             Note: Pho 24
             """.trimIndent(),
-            prepared.text,
+            prepared.text.english(),
         )
         assertTrue(prepared.paying!!.qrPayload!!.contains("5406150000"))
         assertFalse(prepared.tracked)
@@ -106,10 +107,8 @@ class RequestMoneyViewModelTest {
 
         val prepared = viewModel.prepare(saved, request, name = "Dana")
 
-        assertTrue(
-            prepared.text,
-            prepared.text.endsWith("Open it in Split Vibe to say when you have paid: https://proxy.example/r/token-1"),
-        )
+        val text = prepared.text.english()
+        assertTrue(text, text.endsWith("Open it in Split Vibe to say when you have paid: https://proxy.example/r/token-1"))
         assertTrue(prepared.tracked)
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals("Dana", body["creditorName"]!!.jsonPrimitive.content)
@@ -143,10 +142,11 @@ class RequestMoneyViewModelTest {
         repeat(server.requestCount) { posts += server.takeRequest() }
         assertEquals(listOf("POST", "POST", "DELETE"), posts.map { it.method })
         assertTrue(posts[1].body.readUtf8().contains("257678860"))
-        val firstId = first.text.substringAfter("#token-")
+        val firstId = first.text.english().substringAfter("#token-")
         assertEquals("/v1/requests/$firstId", posts[2].path)
-        assertTrue(second.text, second.text.contains("Account: 257678860"))
-        assertFalse(second.text.contains(firstId))
+        val secondText = second.text.english()
+        assertTrue(secondText, secondText.contains("Account: 257678860"))
+        assertFalse(secondText.contains(firstId))
     }
 
     @Test
@@ -158,7 +158,7 @@ class RequestMoneyViewModelTest {
         val prepared = viewModel.prepare(saved, request, name = "Dana")
 
         assertFalse(prepared.tracked)
-        assertFalse(prepared.text.contains("http"))
+        assertFalse(prepared.text.english().contains("http"))
         assertTrue(viewModel.message.value != null)
     }
 
@@ -172,8 +172,9 @@ class RequestMoneyViewModelTest {
 
         assertNull(prepared.paying)
         assertEquals(
-            "Hi Minh! Your share of Pho 24, 2026-11-14 is ₫150,000.\nThat is ₫120,000 for what you had and ₫30,000 of the shared charges.",
-            prepared.text,
+            "Hi Minh! Your share of Pho 24, 2026-11-14 is ₫150,000.\n" +
+                "That is ₫120,000 for what you had and ₫30,000 of the shared charges.",
+            prepared.text.english(),
         )
     }
 

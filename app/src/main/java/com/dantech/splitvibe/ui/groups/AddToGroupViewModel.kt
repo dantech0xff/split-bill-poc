@@ -17,6 +17,7 @@ import com.dantech.splitvibe.domain.GroupAmounts
 import com.dantech.splitvibe.domain.GroupConversion
 import com.dantech.splitvibe.domain.NameMatcher
 import com.dantech.splitvibe.domain.Person
+import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import com.dantech.splitvibe.ui.split.positiveRate
 import java.util.UUID
@@ -48,7 +49,7 @@ data class AddToGroupState(
     /** The rate from the bill's currency into the group's, when they differ. */
     val rate: ExchangeRate? = null,
     val working: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     /** The group refused the bill; the sheet asks what to do. */
     val conflict: GroupConflict? = null,
     /** People were already asked for this bill one by one; paying those does not count in the group. */

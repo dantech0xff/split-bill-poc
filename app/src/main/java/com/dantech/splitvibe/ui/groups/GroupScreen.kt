@@ -37,7 +37,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.groups.GroupBillDto
 import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.groups.LogEntryDto
@@ -54,6 +57,9 @@ import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Transfer
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyWork
 import java.text.DateFormat
 import java.util.Date
@@ -94,19 +100,25 @@ fun GroupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state?.group?.name ?: "Group") },
+                title = { Text(state?.group?.name ?: stringResource(R.string.groups_group)) },
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
                 actions = {
                     if (state != null) {
                         SvOverflowMenu(
-                            label = "More for this group",
+                            label = stringResource(R.string.groups_more),
                             options = listOfNotNull(
-                                SvMenuOption("Reload") { actions.onRefresh() },
-                                SvMenuOption("Rename the group") { dialog = GroupDialog.Rename }.takeIf { state.isOwner },
-                                SvMenuOption("Stop the invite links") { actions.onRevokeInvites() }.takeIf { state.isOwner },
-                                SvMenuOption("Leave the group") { dialog = GroupDialog.Leave },
+                                SvMenuOption(stringResource(R.string.groups_reload)) { actions.onRefresh() },
+                                SvMenuOption(stringResource(R.string.groups_rename)) {
+                                    dialog = GroupDialog.Rename
+                                }.takeIf { state.isOwner },
+                                SvMenuOption(stringResource(R.string.groups_stop_invites)) {
+                                    actions.onRevokeInvites()
+                                }.takeIf { state.isOwner },
+                                SvMenuOption(stringResource(R.string.groups_leave)) { dialog = GroupDialog.Leave },
                             ),
                         )
                     }
@@ -118,9 +130,9 @@ fun GroupScreen(
             status.message?.let { message ->
                 item {
                     SvMessageCard(
-                        text = message,
+                        text = message.resolve(),
                         isError = true,
-                        action = "OK",
+                        action = stringResource(R.string.common_ok),
                         onAction = actions.onDismissMessage,
                         modifier = Modifier.padding(SvSpacing.lg),
                     )
@@ -151,9 +163,9 @@ fun GroupScreen(
 
     when (val shown = dialog) {
         GroupDialog.Rename -> NameDialog(
-            title = "Rename the group",
+            title = stringResource(R.string.groups_rename),
             initial = state?.group?.name.orEmpty(),
-            confirm = "Rename",
+            confirm = stringResource(R.string.groups_rename_confirm),
             onConfirm = {
                 dialog = null
                 actions.onRename(it)
@@ -162,10 +174,10 @@ fun GroupScreen(
         )
 
         GroupDialog.Placeholder -> NameDialog(
-            title = "Keep a place for someone",
-            supporting = "For someone without the app. When they join with an invite link, they can ask for this place, and you decide.",
+            title = stringResource(R.string.groups_keep_place),
+            supporting = stringResource(R.string.groups_keep_place_hint),
             initial = "",
-            confirm = "Add",
+            confirm = stringResource(R.string.common_add),
             onConfirm = {
                 dialog = null
                 actions.onAddPlaceholder(it)
@@ -175,13 +187,8 @@ fun GroupScreen(
 
         is GroupDialog.Remove -> AlertDialog(
             onDismissRequest = { dialog = null },
-            title = { Text("Take ${state?.nameOf(shown.memberId)} out of the group?") },
-            text = {
-                Text(
-                    "They will no longer see the group. What they paid and owe stays under their name, so nobody's " +
-                        "balance changes, and their place can be given back through an invite.",
-                )
-            },
+            title = { Text(stringResource(R.string.groups_take_out_title, state?.nameOf(shown.memberId)?.resolve().orEmpty())) },
+            text = { Text(stringResource(R.string.groups_take_out_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -189,15 +196,15 @@ fun GroupScreen(
                         actions.onRemoveMember(shown.memberId)
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Take out") }
+                ) { Text(stringResource(R.string.groups_take_out)) }
             },
-            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
 
         GroupDialog.Leave -> AlertDialog(
             onDismissRequest = { dialog = null },
-            title = { Text("Leave the group?") },
-            text = { Text("What you paid and owe stays in the group under your name, so the others' balances do not change.") },
+            title = { Text(stringResource(R.string.groups_leave_title)) },
+            text = { Text(stringResource(R.string.groups_leave_text)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -205,9 +212,9 @@ fun GroupScreen(
                         actions.onLeave()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("Leave") }
+                ) { Text(stringResource(R.string.groups_leave_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
 
         is GroupDialog.Received -> {
@@ -217,17 +224,10 @@ fun GroupScreen(
             val amount = asked?.amountMinor ?: shown.amountMinor
             AlertDialog(
                 onDismissRequest = { dialog = null },
-                title = { Text("Did you get ${state?.currency?.format(amount)}?") },
+                title = { Text(stringResource(R.string.groups_got_it_title, state?.currency?.format(amount).orEmpty())) },
                 text = {
-                    Text(
-                        if (asked != null) {
-                            "This confirms the request you sent ${state?.nameOf(
-                                shown.fromMemberId,
-                            )}, which records the payment. It cannot be undone."
-                        } else {
-                            "This records that ${state?.nameOf(shown.fromMemberId)} paid you back. It cannot be undone."
-                        },
-                    )
+                    val from = state?.nameOf(shown.fromMemberId)?.resolve().orEmpty()
+                    Text(stringResource(if (asked != null) R.string.groups_got_it_confirms else R.string.groups_got_it_records, from))
                 },
                 confirmButton = {
                     TextButton(
@@ -235,9 +235,9 @@ fun GroupScreen(
                             dialog = null
                             actions.onMarkReceived(transfer, shown.settlementId)
                         },
-                    ) { Text("I got it") }
+                    ) { Text(stringResource(R.string.groups_i_got_it)) }
                 },
-                dismissButton = { TextButton(onClick = { dialog = null }) { Text("Cancel") } },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.common_cancel)) } },
             )
         }
 
@@ -247,24 +247,24 @@ fun GroupScreen(
 
 private fun LazyListScope.balances(state: GroupState, working: Boolean, onMarkReceived: (Transfer) -> Unit, onAskFor: (Transfer) -> Unit) {
     item {
-        SvSectionHeader("Balances", hint = "In ${state.currency.code}, across every bill and payment back.")
+        SvSectionHeader(stringResource(R.string.groups_balances), hint = stringResource(R.string.groups_balances_hint, state.currency.code))
         val balances = state.balances
         SvCard(modifier = Modifier.fillMaxWidth().padding(horizontal = SvSpacing.lg)) {
             Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
                 if (balances == null) {
-                    Text("These numbers are too large to add up.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.groups_too_large), style = MaterialTheme.typography.bodyMedium)
                 }
                 state.members.forEach { member ->
                     val balance = balances?.get(member.id) ?: 0L
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvAvatar(member.name)
                         Spacer(Modifier.width(SvSpacing.md))
-                        Text(state.nameOf(member.id), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Text(state.nameOf(member.id).resolve(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                         Text(
                             when {
-                                balance > 0 -> "gets back ${state.currency.format(balance)}"
-                                balance < 0 -> "owes ${state.currency.format(-balance)}"
-                                else -> "settled up"
+                                balance > 0 -> stringResource(R.string.groups_gets_back, state.currency.format(balance))
+                                balance < 0 -> stringResource(R.string.groups_owes, state.currency.format(-balance))
+                                else -> stringResource(R.string.groups_settled_up)
                             },
                             style = MaterialTheme.typography.amountMedium,
                             color = if (balance < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
@@ -277,21 +277,25 @@ private fun LazyListScope.balances(state: GroupState, working: Boolean, onMarkRe
     val transfers = state.suggestedTransfers
     item {
         SvSectionHeader(
-            "Settle up",
-            hint = if (transfers.isEmpty()) "Everyone is square." else "The fewest payments that settle the group.",
+            stringResource(R.string.groups_settle_up),
+            hint = stringResource(if (transfers.isEmpty()) R.string.groups_square else R.string.groups_fewest_payments),
         )
     }
     itemsIndexed(transfers, key = { _, transfer -> "${transfer.fromMemberId}>${transfer.toMemberId}" }) { index, transfer ->
         SvListRow(position = SvRowPosition.of(index, transfers.size)) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${state.nameOf(transfer.fromMemberId)} pays ${state.nameOf(transfer.toMemberId)}",
+                    stringResource(
+                        R.string.groups_pays,
+                        state.nameOf(transfer.fromMemberId).resolve(),
+                        state.nameOf(transfer.toMemberId).resolve(),
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(state.currency.format(transfer.amountMinor), style = MaterialTheme.typography.amountMedium)
                 if (transfer.fromMemberId == state.myMemberId) {
                     Text(
-                        "${state.nameOf(transfer.toMemberId)} can send you a request with how to pay.",
+                        stringResource(R.string.groups_can_send_request, state.nameOf(transfer.toMemberId).resolve()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -300,8 +304,10 @@ private fun LazyListScope.balances(state: GroupState, working: Boolean, onMarkRe
             if (transfer.toMemberId == state.myMemberId) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                     // Off while a call runs, so a second tap cannot ask or record twice.
-                    OutlinedButton(onClick = { onAskFor(transfer) }, enabled = !working) { Text("Ask") }
-                    FilledTonalButton(onClick = { onMarkReceived(transfer) }, enabled = !working) { Text("Got it") }
+                    OutlinedButton(onClick = { onAskFor(transfer) }, enabled = !working) { Text(stringResource(R.string.groups_ask)) }
+                    FilledTonalButton(onClick = { onMarkReceived(transfer) }, enabled = !working) {
+                        Text(stringResource(R.string.groups_got_it))
+                    }
                 }
             }
         }
@@ -309,24 +315,29 @@ private fun LazyListScope.balances(state: GroupState, working: Boolean, onMarkRe
 }
 
 private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAddPlaceholder: () -> Unit, onRemove: (String) -> Unit) {
-    item { SvSectionHeader("People", hint = "${state.members.size} in the group") }
+    item {
+        SvSectionHeader(
+            stringResource(R.string.groups_people),
+            hint = pluralStringResource(R.plurals.groups_people_count, state.members.size, state.members.size),
+        )
+    }
     itemsIndexed(state.members, key = { _, member -> member.id }) { index, member ->
         val detail = listOfNotNull(
-            "owner".takeIf { member.isOwner },
-            "no app yet".takeIf { !member.hasAccount },
+            stringResource(R.string.groups_owner).takeIf { member.isOwner },
+            stringResource(R.string.groups_no_app_yet).takeIf { !member.hasAccount },
         ).joinToString(", ").ifEmpty { null }
         SvListRow(position = SvRowPosition.of(index, state.members.size)) {
             SvAvatar(member.name)
             Spacer(Modifier.width(SvSpacing.md))
             Column(modifier = Modifier.weight(1f)) {
-                Text(state.nameOf(member.id), style = MaterialTheme.typography.bodyLarge)
+                Text(state.nameOf(member.id).resolve(), style = MaterialTheme.typography.bodyLarge)
                 detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             // The owner can take anyone else with the app out of the group.
             if (state.isOwner && member.hasAccount && member.id != state.myMemberId) {
                 SvOverflowMenu(
-                    label = "More for ${member.name}",
-                    options = listOf(SvMenuOption("Take out of the group") { onRemove(member.id) }),
+                    label = stringResource(R.string.groups_more_for, member.name),
+                    options = listOf(SvMenuOption(stringResource(R.string.groups_take_out_of_group)) { onRemove(member.id) }),
                 )
             }
         }
@@ -336,20 +347,24 @@ private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAd
             SvCard(modifier = Modifier.fillMaxWidth().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)) {
                 Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                     Text(
-                        "${claim.claimantName} asks to be ${state.nameOf(claim.memberId)}",
+                        stringResource(R.string.groups_asks_to_be, claim.claimantName, state.nameOf(claim.memberId).resolve()),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     val balance = state.balances?.get(claim.memberId) ?: 0L
                     if (balance > 0) {
                         Text(
-                            "${state.nameOf(claim.memberId)} is owed ${state.currency.format(balance)}, which would then be theirs.",
+                            stringResource(
+                                R.string.groups_claim_owed,
+                                state.nameOf(claim.memberId).resolve(),
+                                state.currency.format(balance),
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                        Button(onClick = { actions.onApprove(claim.memberId) }) { Text("Let them in") }
-                        OutlinedButton(onClick = { actions.onReject(claim.memberId) }) { Text("Turn down") }
+                        Button(onClick = { actions.onApprove(claim.memberId) }) { Text(stringResource(R.string.groups_let_in)) }
+                        OutlinedButton(onClick = { actions.onReject(claim.memberId) }) { Text(stringResource(R.string.groups_turn_down)) }
                     }
                 }
             }
@@ -360,23 +375,32 @@ private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAd
             modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
         ) {
-            FilledTonalButton(onClick = actions.onInvite) { Text("Invite people") }
-            OutlinedButton(onClick = onAddPlaceholder) { Text("Keep a place for someone") }
+            FilledTonalButton(onClick = actions.onInvite) { Text(stringResource(R.string.groups_invite)) }
+            OutlinedButton(onClick = onAddPlaceholder) { Text(stringResource(R.string.groups_keep_place)) }
         }
     }
 }
 
 private fun LazyListScope.bills(state: GroupState, onDelete: (String) -> Unit) {
     val bills = state.bills.sortedByDescending { it.updatedAt }
-    item { SvSectionHeader("Bills", hint = if (bills.isEmpty()) "Add a bill to the group from its split." else null) }
+    item {
+        SvSectionHeader(
+            stringResource(R.string.groups_bills),
+            hint = if (bills.isEmpty()) stringResource(R.string.groups_bills_hint) else null,
+        )
+    }
     itemsIndexed(bills, key = { _, bill -> bill.id }) { index, bill ->
         val counted = bill in state.countedBills
         val mayDelete = bill.ownerMemberId == state.myMemberId || state.isOwner
         SvListRow(position = SvRowPosition.of(index, bills.size)) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(titleOf(bill), style = MaterialTheme.typography.bodyLarge)
+                Text(titleOf(bill).resolve(), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    if (counted) "Added by ${state.nameOf(bill.ownerMemberId)}" else "Left out: its amounts do not add up",
+                    if (counted) {
+                        stringResource(R.string.groups_added_by, state.nameOf(bill.ownerMemberId).resolve())
+                    } else {
+                        stringResource(R.string.groups_left_out)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (counted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                 )
@@ -384,8 +408,8 @@ private fun LazyListScope.bills(state: GroupState, onDelete: (String) -> Unit) {
             Text(state.currency.format(bill.totalMinor), style = MaterialTheme.typography.amountMedium)
             if (mayDelete) {
                 SvOverflowMenu(
-                    label = "More for ${titleOf(bill)}",
-                    options = listOf(SvMenuOption("Delete from the group") { onDelete(bill.id) }),
+                    label = stringResource(R.string.groups_more_for, titleOf(bill).resolve()),
+                    options = listOf(SvMenuOption(stringResource(R.string.groups_delete_bill)) { onDelete(bill.id) }),
                 )
             }
         }
@@ -394,12 +418,16 @@ private fun LazyListScope.bills(state: GroupState, onDelete: (String) -> Unit) {
 
 private fun LazyListScope.activity(state: GroupState) {
     if (state.log.isEmpty()) return
-    item { SvSectionHeader("Recent changes") }
+    item { SvSectionHeader(stringResource(R.string.groups_recent_changes)) }
     item {
         Column(modifier = Modifier.padding(horizontal = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             state.log.take(LOG_SHOWN).forEach { entry ->
                 Text(
-                    "${describe(entry, state)} · ${DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(entry.at))}",
+                    stringResource(
+                        R.string.groups_log_line,
+                        describe(entry, state).resolve(),
+                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(entry.at)),
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -409,30 +437,32 @@ private fun LazyListScope.activity(state: GroupState) {
 }
 
 /** What a change in the group was, in a sentence. */
-internal fun describe(entry: LogEntryDto, state: GroupState): String {
+internal fun describe(entry: LogEntryDto, state: GroupState): UiText {
     val who = state.nameOf(entry.memberId)
     val subject = state.member(entry.subjectId)?.let { state.nameOf(it.id) }
-    val bill = state.bills.firstOrNull { it.id == entry.subjectId }?.let(::titleOf) ?: "a bill"
+    val bill = state.bills.firstOrNull { it.id == entry.subjectId }?.let(::titleOf) ?: text(R.string.groups_log_a_bill)
+    val someone = subject ?: text(R.string.groups_log_someone)
+    val aMember = subject ?: text(R.string.groups_log_a_member)
     return when (entry.kind) {
-        "group_created" -> "$who made the group"
-        "member_added" -> "$who kept a place for ${subject ?: "someone"}"
-        "member_joined" -> "$who joined"
-        "member_left" -> "$who left"
-        "member_removed" -> "$who took ${subject ?: "someone"} out of the group"
-        "member_renamed" -> "$who changed a name to ${subject ?: "another one"}"
-        "claim_requested" -> "Someone asked to be ${subject ?: "a member"}"
-        "claim_approved" -> "$who let ${subject ?: "someone"} in"
-        "claim_rejected" -> "$who turned down a request to be ${subject ?: "a member"}"
-        "bill_added" -> "$who added $bill"
-        "bill_changed" -> "$who changed $bill"
-        "bill_deleted" -> "$who deleted a bill"
-        "settlement_recorded" -> "$who got paid back"
-        else -> "$who changed the group"
+        "group_created" -> text(R.string.groups_log_created, who)
+        "member_added" -> text(R.string.groups_log_member_added, who, someone)
+        "member_joined" -> text(R.string.groups_log_member_joined, who)
+        "member_left" -> text(R.string.groups_log_member_left, who)
+        "member_removed" -> text(R.string.groups_log_member_removed, who, someone)
+        "member_renamed" -> text(R.string.groups_log_member_renamed, who, subject ?: text(R.string.groups_log_another_one))
+        "claim_requested" -> text(R.string.groups_log_claim_requested, aMember)
+        "claim_approved" -> text(R.string.groups_log_claim_approved, who, someone)
+        "claim_rejected" -> text(R.string.groups_log_claim_rejected, who, aMember)
+        "bill_added" -> text(R.string.groups_log_bill_added, who, bill)
+        "bill_changed" -> text(R.string.groups_log_bill_changed, who, bill)
+        "bill_deleted" -> text(R.string.groups_log_bill_deleted, who)
+        "settlement_recorded" -> text(R.string.groups_log_paid_back, who)
+        else -> text(R.string.groups_log_changed, who)
     }
 }
 
 /** The bill's merchant as its document gives it, else a plain name. */
-internal fun titleOf(bill: GroupBillDto): String = bill.title ?: "A bill"
+internal fun titleOf(bill: GroupBillDto): UiText = bill.title?.let(UiText::Raw) ?: text(R.string.groups_a_bill)
 
 @Composable
 private fun NameDialog(
@@ -453,14 +483,14 @@ private fun NameDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(NAME_LENGTH) },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.common_name)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 )
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

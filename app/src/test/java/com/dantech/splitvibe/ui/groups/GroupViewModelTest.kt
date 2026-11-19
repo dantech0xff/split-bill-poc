@@ -10,6 +10,7 @@ import com.dantech.splitvibe.GroupFixtures.ME
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
@@ -80,6 +81,7 @@ class GroupViewModelTest {
             RequestRepository(proxy.api, cache, proxy.account),
             methods,
             MutableStateFlow(AppSettings("THB", myName = "Dana")),
+            contentWords(),
         )
         awaitOnMain { viewModel.group.value != null && !viewModel.status.value.working }
     }

@@ -4,6 +4,7 @@ import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.groups.CurrencyDto
 import com.dantech.splitvibe.data.payments.PaymentPayload
 import com.dantech.splitvibe.domain.oneLine
+import com.dantech.splitvibe.text.ContentWords
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import kotlinx.serialization.Serializable
@@ -32,12 +33,13 @@ data class BillProjection(
         const val MAX_PEOPLE = 30
 
         /**
-         * [saved] as the page shows it, with the user named [myName]. Charges past what a page shows
-         * are added up into one line, so that the lines still come to the same total.
+         * [saved] as the page shows it, with the user named [myName], and a line or a person without a
+         * name named with [words]. Charges past what a page shows are added up into one line, so that
+         * the lines still come to the same total.
          */
-        fun of(saved: SavedBill, myName: String): BillProjection {
+        fun of(saved: SavedBill, myName: String, words: ContentWords): BillProjection {
             val bill = saved.bill
-            val charges = bill.charges.map { ProjectedCharge(it.id, it.label.oneLine(MAX_TEXT).ifEmpty { "Charge" }, it.amountMinor) }
+            val charges = bill.charges.map { ProjectedCharge(it.id, it.label.oneLine(MAX_TEXT).ifEmpty { words.charge }, it.amountMinor) }
             return BillProjection(
                 merchant = bill.merchant?.oneLine(MAX_TEXT)?.takeIf { it.isNotEmpty() },
                 date = bill.date?.takeIf(::isDay),
@@ -45,7 +47,7 @@ data class BillProjection(
                 items = bill.items.map { item ->
                     ProjectedItem(
                         id = item.id,
-                        name = item.name.oneLine(MAX_TEXT).ifEmpty { "Item" },
+                        name = item.name.oneLine(MAX_TEXT).ifEmpty { words.item },
                         quantity = item.quantity.stripTrailingZeros().toPlainString(),
                         amountMinor = item.amountMinor,
                     )
@@ -54,12 +56,12 @@ data class BillProjection(
                     charges
                 } else {
                     charges.take(MAX_CHARGES - 1) +
-                        ProjectedCharge(OTHER_CHARGES, "Other charges", charges.drop(MAX_CHARGES - 1).sumOf { it.amountMinor })
+                        ProjectedCharge(OTHER_CHARGES, words.otherCharges, charges.drop(MAX_CHARGES - 1).sumOf { it.amountMinor })
                 },
                 totalMinor = bill.totalMinor,
                 participants = saved.plan.participants.map { participant ->
                     val name = if (participant.isMe) myName else participant.name
-                    ProjectedPerson(participant.id, name.oneLine(MAX_NAME).ifEmpty { if (participant.isMe) "" else "Someone" })
+                    ProjectedPerson(participant.id, name.oneLine(MAX_NAME).ifEmpty { if (participant.isMe) "" else words.someone })
                 },
             )
         }

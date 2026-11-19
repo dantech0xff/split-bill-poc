@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui.requests
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,9 +46,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.requests.RequestStatus
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -66,6 +69,10 @@ import com.dantech.splitvibe.domain.payments.PaymentMethod
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
 import com.dantech.splitvibe.share.QrCodes
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.resolve
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyWork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -98,11 +105,20 @@ fun RequestsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Requests") },
+                title = { Text(stringResource(R.string.requests_title)) },
                 navigationIcon = {
-                    IconButton(onClick = actions.onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = actions.onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
-                actions = { if (signedIn) SvOverflowMenu(label = "More", options = listOf(SvMenuOption("Reload", actions.onRefresh))) },
+                actions = {
+                    if (signedIn) {
+                        SvOverflowMenu(
+                            label = stringResource(R.string.requests_more),
+                            options = listOf(SvMenuOption(stringResource(R.string.groups_reload), actions.onRefresh)),
+                        )
+                    }
+                },
             )
         },
     ) { padding ->
@@ -110,9 +126,9 @@ fun RequestsScreen(
             if (!signedIn) {
                 item {
                     SvMessageCard(
-                        text = "Sign in with Google to see who has paid you back. Without it, requests are only messages in your chats.",
+                        text = stringResource(R.string.requests_need_sign_in),
                         isError = false,
-                        action = "Sign in in Settings",
+                        action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = actions.onOpenSettings,
                         modifier = Modifier.padding(SvSpacing.lg),
                     )
@@ -121,9 +137,9 @@ fun RequestsScreen(
             status.message?.let {
                 item {
                     SvMessageCard(
-                        text = it,
+                        text = it.resolve(),
                         isError = true,
-                        action = "OK",
+                        action = stringResource(R.string.common_ok),
                         onAction = actions.onDismissMessage,
                         modifier = Modifier.padding(SvSpacing.lg),
                     )
@@ -135,35 +151,37 @@ fun RequestsScreen(
                 item {
                     SvEmptyState(
                         icon = Icons.AutoMirrored.Filled.List,
-                        text = "Requests you send after a split, and those sent to you, show here.",
+                        text = stringResource(R.string.requests_empty),
                     )
                 }
             }
-            section("To pay", all.filter { !it.isMine }) { request, position ->
+            section(R.string.requests_to_pay, all.filter { !it.isMine }) { request, position ->
                 RequestRow(request, position, creditorNames[request.id]) {
                     if (request.status == RequestStatus.WAITING) {
-                        FilledTonalButton(onClick = { paying = request.id }) { Text("Pay") }
+                        FilledTonalButton(onClick = { paying = request.id }) { Text(stringResource(R.string.requests_pay)) }
                     }
                 }
             }
-            section("You asked for", all.filter { it.isMine }) { request, position ->
+            section(R.string.requests_you_asked_for, all.filter { it.isMine }) { request, position ->
                 RequestRow(request, position, null) {
                     if (request.status != RequestStatus.PAID) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
                             if (request.status == RequestStatus.REPORTED_PAID) {
-                                FilledTonalButton(onClick = { actions.onConfirmPaid(request.id) }) { Text("Confirm") }
+                                FilledTonalButton(onClick = { actions.onConfirmPaid(request.id) }) {
+                                    Text(stringResource(R.string.requests_confirm))
+                                }
                             }
                             SvOverflowMenu(
-                                label = "More for the request to ${request.payerName}",
+                                label = stringResource(R.string.requests_more_for, request.payerName),
                                 options = buildList {
                                     if (request.status == RequestStatus.WAITING) {
-                                        add(SvMenuOption("It arrived, confirm it") { actions.onConfirmPaid(request.id) })
+                                        add(SvMenuOption(stringResource(R.string.requests_arrived)) { actions.onConfirmPaid(request.id) })
                                     }
-                                    add(SvMenuOption("Send a reminder") { actions.onRemind(request) })
+                                    add(SvMenuOption(stringResource(R.string.requests_send_reminder)) { actions.onRemind(request) })
                                     RequestView.REMINDER_DAYS.filter { it != request.remindEveryDays }.forEach { days ->
-                                        add(SvMenuOption(reminderLabel(days)) { actions.onSetReminders(request.id, days) })
+                                        add(SvMenuOption(reminderLabel(days).resolve()) { actions.onSetReminders(request.id, days) })
                                     }
-                                    add(SvMenuOption("Delete the request") { actions.onDelete(request.id) })
+                                    add(SvMenuOption(stringResource(R.string.requests_delete)) { actions.onDelete(request.id) })
                                 },
                             )
                         }
@@ -191,21 +209,25 @@ fun RequestsScreen(
     }
 }
 
-private fun LazyListScope.section(title: String, requests: List<RequestView>, row: @Composable (RequestView, SvRowPosition) -> Unit) {
+private fun LazyListScope.section(
+    @StringRes title: Int,
+    requests: List<RequestView>,
+    row: @Composable (RequestView, SvRowPosition) -> Unit,
+) {
     if (requests.isEmpty()) return
-    item(key = "header-$title") { SvSectionHeader(title) }
+    item(key = "header-$title") { SvSectionHeader(stringResource(title)) }
     itemsIndexed(requests, key = { _, request -> request.id }) { index, request -> row(request, SvRowPosition.of(index, requests.size)) }
 }
 
 @Composable
 private fun RequestRow(request: RequestView, position: SvRowPosition, groupName: String?, trailing: @Composable () -> Unit) {
-    val who = if (request.isMine) request.payerName else groupName ?: request.creditorName ?: "Someone"
+    val who = if (request.isMine) request.payerName else groupName ?: request.creditorName ?: stringResource(R.string.common_someone)
     SvListRow(position = position) {
         Column(modifier = Modifier.weight(1f)) {
             Text(listOfNotNull(who, request.title).joinToString(" · "), style = MaterialTheme.typography.bodyLarge)
             Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
             Text(
-                statusText(request),
+                statusText(request).resolve(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -215,41 +237,48 @@ private fun RequestRow(request: RequestView, position: SvRowPosition, groupName:
 }
 
 /** How a request stands, from the side of whoever looks at it. */
-internal fun statusText(request: RequestView): String = when (request.status) {
-    RequestStatus.PAID -> "Paid and confirmed"
+internal fun statusText(request: RequestView): UiText = when (request.status) {
+    RequestStatus.PAID -> text(R.string.requests_paid)
 
     RequestStatus.REPORTED_PAID -> if (request.isMine) {
-        "${request.payerName} says it is paid. Confirm once it arrived."
+        text(R.string.requests_they_say_paid, request.payerName)
     } else {
-        "You said you paid. Waiting for them to confirm."
+        text(R.string.requests_you_said_paid)
     }
 
     RequestStatus.WAITING -> when {
-        !request.isMine -> "Not paid yet"
-        !request.debtorBound -> "Not opened in the app yet" + reminderNote(request)
-        else -> "Not paid yet" + reminderNote(request)
+        !request.isMine -> text(R.string.requests_not_paid)
+        !request.debtorBound -> withReminders(text(R.string.requests_not_opened), request)
+        else -> withReminders(text(R.string.requests_not_paid), request)
     }
 }
 
-private fun reminderNote(request: RequestView): String =
-    if (request.remindEveryDays > 0) ". ${reminderLabel(request.remindEveryDays)}" else ""
+/** [status] with how often the payer is reminded, while they are. */
+private fun withReminders(status: UiText, request: RequestView): UiText = if (request.remindEveryDays > 0) {
+    text(R.string.requests_status_and_reminders, status, reminderLabel(request.remindEveryDays))
+} else {
+    status
+}
 
-private fun reminderLabel(days: Int): String = when (days) {
-    0 -> "No reminders"
-    1 -> "Remind every day"
-    else -> "Remind every $days days"
+private fun reminderLabel(days: Int): UiText = when (days) {
+    0 -> text(R.string.requests_no_reminders)
+    else -> plural(R.plurals.requests_remind_every, days)
 }
 
 /** How to pay a request: its code to scan, its link to open and its details to type, then a way to say it is paid. */
 @Composable
 private fun PaySheet(request: RequestView, onReportPaid: () -> Unit, onDismiss: () -> Unit) {
     SvBottomSheet(
-        title = "Pay ${request.creditorName ?: "them"} ${request.bill.format(request.amountMinor)}",
-        supportingText = "Pay in your own banking or payment app, then come back to say you have paid.",
+        title = stringResource(
+            R.string.requests_pay_title,
+            request.creditorName ?: stringResource(R.string.requests_them),
+            request.bill.format(request.amountMinor),
+        ),
+        supportingText = stringResource(R.string.requests_pay_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text("Not yet") }
-            Button(onClick = onReportPaid) { Text("I have paid") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.requests_not_yet)) }
+            Button(onClick = onReportPaid) { Text(stringResource(R.string.requests_i_have_paid)) }
         },
     ) {
         Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = SvSpacing.xl)) {
@@ -267,7 +296,7 @@ fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         if (method == null || paying == null) {
             Text(
-                "This request carries no way to pay. Ask them how they would like to be paid.",
+                stringResource(R.string.requests_no_way_to_pay),
                 style = MaterialTheme.typography.bodyMedium,
             )
             return@Column
@@ -284,13 +313,13 @@ fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
                 } else {
                     Image(
                         drawn,
-                        contentDescription = "Payment code for ${method.title}",
+                        contentDescription = stringResource(R.string.requests_payment_code, method.title),
                         modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm),
                     )
                 }
             }
             Text(
-                "Scan it in your banking app.",
+                stringResource(R.string.requests_scan_it),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
@@ -315,22 +344,25 @@ private fun OpenLinkButton(link: String, method: PaymentMethod) {
     OutlinedButton(onClick = {
         if (method is PaymentMethod.PastedLink) confirming = true else open()
     }, modifier = Modifier.fillMaxWidth()) {
-        Text("Open ${method.title}")
+        Text(stringResource(R.string.requests_open_method, method.title))
     }
     if (confirming) {
         AlertDialog(
             onDismissRequest = { confirming = false },
-            title = { Text("Open ${(method as? PaymentMethod.PastedLink)?.host ?: "this link"}?") },
-            text = { Text("This link was pasted by the person who asked you to pay. Check the address before you pay there.") },
+            title = {
+                val host = (method as? PaymentMethod.PastedLink)?.host ?: stringResource(R.string.requests_this_link)
+                Text(stringResource(R.string.requests_open_link_title, host))
+            },
+            text = { Text(stringResource(R.string.requests_pasted_link_warning)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         confirming = false
                         open()
                     },
-                ) { Text("Open") }
+                ) { Text(stringResource(R.string.common_open)) }
             },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 }
@@ -341,8 +373,10 @@ private fun DetailsCard(paying: PaymentRequest) {
     SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             Text(paying.details, style = MaterialTheme.typography.bodyMedium)
-            if (!paying.amountFilledIn) Text("Type in the amount yourself.", style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { clipboard.setText(AnnotatedString(paying.details)) }) { Text("Copy the details") }
+            if (!paying.amountFilledIn) Text(stringResource(R.string.requests_type_amount), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { clipboard.setText(AnnotatedString(paying.details)) }) {
+                Text(stringResource(R.string.requests_copy_details))
+            }
         }
     }
 }

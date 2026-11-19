@@ -100,7 +100,8 @@ fun RequestMoneyContent(
                 withContext(Dispatchers.IO) { ShareCardRenderer.save(context, bitmap, "pay-${UUID.randomUUID()}") }
             }.getOrNull()
         }
-        if (context.open(ShareCardRenderer.shareIntent(prepared.text, image, title = context.getString(R.string.requests_share_title)))) {
+        val text = prepared.text.resolve(context.resources)
+        if (context.open(ShareCardRenderer.shareIntent(text, image, title = context.getString(R.string.requests_share_title)))) {
             viewModel.markShared(person.participant.id)
         }
     }
@@ -190,7 +191,7 @@ fun RequestMoneyContent(
         AlertDialog(
             onDismissRequest = viewModel::dismissMessage,
             confirmButton = { TextButton(onClick = viewModel::dismissMessage) { Text(stringResource(R.string.common_ok)) } },
-            text = { Text(it) },
+            text = { Text(it.resolve()) },
         )
     }
 }

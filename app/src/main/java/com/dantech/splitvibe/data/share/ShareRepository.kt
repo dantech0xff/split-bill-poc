@@ -7,6 +7,7 @@ import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.data.requests.sha256Of
 import com.dantech.splitvibe.domain.PersonShare
+import com.dantech.splitvibe.text.ContentWords
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -47,6 +48,8 @@ import okhttp3.WebSocketListener
  */
 class ShareRepository(
     private val api: ProxyApi,
+    /** What a line or a person without a name is called on the page. */
+    private val words: ContentWords,
     private val retryDelayMs: (attempt: Int) -> Long = ::backoff,
     private val clock: () -> Long = System::currentTimeMillis,
     private val pingMs: Long = PING_MS,
@@ -57,6 +60,9 @@ class ShareRepository(
     /** The newest revision of each link's bill sent while the app runs. */
     private val sent = mutableMapOf<String, Int>()
 
+    /** The [fingerprint] of what the page of [saved]'s link shows, with the user named [myName]. */
+    fun pageFingerprint(saved: SavedBill, myName: String): String = fingerprint(saved, myName, words)
+
     /** Makes the link [shareId] for [saved], and answers it with what the bill keeps of it. */
     suspend fun publish(shareId: String, saved: SavedBill, myName: String): Pair<OwnedShare, ShareLink> = writes.withLock {
         val owned = put(shareId, saved, myName)
@@ -65,7 +71,7 @@ class ShareRepository(
             url = owned.url,
             expiresAt = owned.share.expiresAt,
             createdAt = owned.share.createdAt ?: 0,
-            shown = fingerprint(saved, myName),
+            shown = fingerprint(saved, myName, words),
         )
     }
 
@@ -76,7 +82,7 @@ class ShareRepository(
     suspend fun project(saved: SavedBill, myName: String): Projection? = writes.withLock {
         val link = saved.share ?: return@withLock null
         if (link.expiresAt in 1..clock()) return@withLock Projection.Forget
-        val shown = fingerprint(saved, myName)
+        val shown = fingerprint(saved, myName, words)
         if (link.shown == shown || (sent[link.shareId] ?: -1) >= saved.revision) return@withLock null
         val owned = try {
             put(link.shareId, saved, myName)
@@ -117,7 +123,7 @@ class ShareRepository(
         val link = checkNotNull(saved.share) { "The bill has no link" }
         val request = buildJsonObject {
             put("billRevision", saved.revision)
-            put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName)))
+            put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName, words)))
             put("amounts", writer.encodeToJsonElement(AMOUNTS, amounts))
             put("paidBy", paidBy?.let(::JsonPrimitive) ?: JsonNull)
             put("matches", if (matches.isEmpty()) JsonNull else JsonObject(matches.mapValues { JsonPrimitive(it.value) }))
@@ -246,7 +252,7 @@ class ShareRepository(
         val request = buildJsonObject {
             put("billId", saved.id)
             put("billRevision", saved.revision)
-            put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName)))
+            put("bill", writer.encodeToJsonElement(BillProjection.serializer(), BillProjection.of(saved, myName, words)))
         }
         return owned(api.signedIn("PUT", "v1/shares/$shareId", request)).also { remember(shareId, saved.revision) }
     }
@@ -298,8 +304,8 @@ class ShareRepository(
          * A fingerprint of what the page of [saved]'s link shows, with the shares that settling it would
          * put there: a change to the bill that moves neither, such as marking it finished, sends nothing.
          */
-        fun fingerprint(saved: SavedBill, myName: String): String {
-            val page = Page(BillProjection.of(saved, myName), saved.plan.result(saved.bill).shares)
+        fun fingerprint(saved: SavedBill, myName: String, words: ContentWords): String {
+            val page = Page(BillProjection.of(saved, myName, words), saved.plan.result(saved.bill).shares)
             return sha256Of(writer.encodeToString(Page.serializer(), page))
         }
 

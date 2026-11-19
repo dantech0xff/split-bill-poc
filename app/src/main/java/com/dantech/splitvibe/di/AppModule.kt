@@ -29,6 +29,7 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.MlKitBillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.text.ContentWords
 import com.dantech.splitvibe.ui.claim.BillOnScreen
 import com.dantech.splitvibe.ui.claim.ClaimViewModel
 import com.dantech.splitvibe.ui.groups.AddToGroupViewModel
@@ -54,6 +55,8 @@ import org.koin.dsl.module
 /** The app's long-lived objects and how they depend on each other. */
 val appModule = module {
     single { SettingsStore(androidContext()) }
+    // What the app writes into the bills it keeps and what it sends, in the language it starts in.
+    single { ContentWords.of(androidContext().resources) }
     single { AccountStore(androidContext(), proxySetUp = BuildConfig.AI_PROXY_URL.toHttpUrlOrNull() != null) }
     single { ProxyApi(BuildConfig.AI_PROXY_URL, account = get(), appVersion = BuildConfig.VERSION_CODE) }
     single<BillAnalyzer> {
@@ -114,7 +117,7 @@ val appModule = module {
     single { PhoneData(database = get(), pages = get(), settings = get(), cacheDir = androidContext().cacheDir) }
     single { GroupRepository(api = get(), cache = get(), account = get()) }
     single { RequestRepository(api = get(), cache = get(), account = get()) }
-    single { ShareRepository(api = get()) }
+    single { ShareRepository(api = get(), words = get()) }
 
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { ProViewModel(billing = get(), accounts = get(), account = get<AccountStore>().account) }
@@ -129,7 +132,14 @@ val appModule = module {
         )
     }
     viewModel { (groupId: String) ->
-        GroupViewModel(groupId, repository = get(), requests = get(), paymentMethods = get(), settings = get<SettingsStore>().settings)
+        GroupViewModel(
+            groupId,
+            repository = get(),
+            requests = get(),
+            paymentMethods = get(),
+            settings = get<SettingsStore>().settings,
+            words = get(),
+        )
     }
     viewModel { (token: String) ->
         JoinGroupViewModel(

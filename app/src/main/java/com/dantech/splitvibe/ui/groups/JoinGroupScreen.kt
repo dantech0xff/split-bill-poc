@@ -24,9 +24,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.groups.Invitation
@@ -37,6 +39,8 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +59,7 @@ import kotlinx.coroutines.launch
 data class JoinState(
     val invitation: Invitation? = null,
     val working: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     /** The user asked for a kept place and waits for the owner. */
     val waiting: Boolean = false,
     /** The user is in the group, which opens next. */
@@ -141,9 +145,11 @@ fun JoinGroupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Join a group") },
+                title = { Text(stringResource(R.string.groups_join_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
@@ -158,14 +164,16 @@ fun JoinGroupScreen(
         ) {
             if (!signedIn) {
                 SvMessageCard(
-                    text = "Sign in with Google to join this group. Groups are shared through Split Vibe's server.",
+                    text = stringResource(R.string.groups_join_sign_in),
                     isError = false,
-                    action = "Sign in in Settings",
+                    action = stringResource(R.string.common_sign_in_in_settings),
                     onAction = onOpenSettings,
                 )
                 return@Column
             }
-            state.message?.let { SvMessageCard(text = it, isError = true, action = "Try again", onAction = onRetry) }
+            state.message?.let {
+                SvMessageCard(text = it.resolve(), isError = true, action = stringResource(R.string.common_try_again), onAction = onRetry)
+            }
             val invitation = state.invitation
             if (invitation == null) {
                 if (state.working) SvLoadingIndicator()
@@ -174,12 +182,15 @@ fun JoinGroupScreen(
             SvCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
                     Text(invitation.group.name, style = MaterialTheme.typography.titleLarge)
-                    Text("Balances in ${invitation.group.currency.code}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(R.string.groups_balances_in, invitation.group.currency.code),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
             if (state.waiting) {
                 SvMessageCard(
-                    text = "Asked. The group's owner decides whether you are that person; the group opens once they say yes.",
+                    text = stringResource(R.string.groups_join_asked),
                     isError = false,
                 )
                 return@Column
@@ -187,13 +198,13 @@ fun JoinGroupScreen(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(NAME_LENGTH) },
-                label = { Text("Your name in the group") },
+                label = { Text(stringResource(R.string.groups_your_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
             )
             if (invitation.placeholders.isNotEmpty()) {
-                Text("Are you one of these people? Bills already in the group may name you.", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.groups_join_placeholders), style = MaterialTheme.typography.titleSmall)
                 Column {
                     invitation.placeholders.forEach { placeholder ->
                         SvPersonChoiceRow(
@@ -207,7 +218,7 @@ fun JoinGroupScreen(
             // A place someone else took meanwhile is no longer offered once the invite loads again.
             val chosen = invitation.placeholders.firstOrNull { it.id == claiming }
             SvPrimaryButton(
-                text = if (chosen == null) "Join the group" else "Ask to be ${chosen.name}",
+                text = if (chosen == null) stringResource(R.string.groups_join) else stringResource(R.string.groups_ask_to_be, chosen.name),
                 onClick = { if (chosen == null) onJoin(name) else onClaim(chosen.id, name) },
                 enabled = name.isNotBlank() && !state.working,
             )

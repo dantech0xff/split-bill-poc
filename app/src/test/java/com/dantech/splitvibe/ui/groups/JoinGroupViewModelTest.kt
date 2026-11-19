@@ -13,6 +13,7 @@ import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.settings.AppSettings
+import com.dantech.splitvibe.inEnglish
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -112,7 +113,7 @@ class JoinGroupViewModelTest {
         val viewModel = viewModel()
         awaitOnMain { viewModel.state.value.message != null }
 
-        assertTrue(viewModel.state.value.message!!.contains("run out"))
+        assertTrue(viewModel.state.value.message.inEnglish()!!.contains("run out"))
     }
 
     private fun viewModel() = JoinGroupViewModel("token-7", groups, proxy.account.account, settings) {

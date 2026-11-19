@@ -24,11 +24,15 @@ sealed interface UiText {
     /** Text shown as it is. */
     data class Raw(val text: String) : UiText
 
+    /** [parts] one to a line, as in a message to send. */
+    data class Lines(val parts: List<UiText>) : UiText
+
     /** The text in the language of [resources]. */
     fun resolve(resources: Resources): String = when (this) {
         is Res -> if (args.isEmpty()) resources.getString(id) else resources.getString(id, *resolved(args, resources))
         is Plural -> resources.getQuantityString(id, count, *resolved(args, resources))
         is Raw -> text
+        is Lines -> parts.joinToString("\n") { it.resolve(resources) }
     }
 }
 

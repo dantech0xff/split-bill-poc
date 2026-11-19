@@ -25,9 +25,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.designsystem.components.SvAvatar
@@ -76,19 +78,22 @@ fun PaymentMethodsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ways to get paid") },
+                title = { Text(stringResource(R.string.settings_payment_methods)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
-        floatingActionButton = { SvPrimaryFab(text = "Add", icon = Icons.Default.Add, onClick = { editing = NEW }) },
+        floatingActionButton = {
+            SvPrimaryFab(text = stringResource(R.string.common_add), icon = Icons.Default.Add, onClick = { editing = NEW })
+        },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             item {
                 Text(
-                    "People you ask for money get a link, a QR code or the details of one of these, filled in with " +
-                        "the amount where the payment app allows it. They are kept on this phone only.",
+                    stringResource(R.string.payments_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
@@ -98,7 +103,7 @@ fun PaymentMethodsScreen(
                 item {
                     SvEmptyState(
                         icon = Icons.Default.Add,
-                        text = "Add your bank account, PayPal, UPI, PromptPay or a payment link to put it on your requests.",
+                        text = stringResource(R.string.payments_empty),
                     )
                 }
             }
@@ -137,8 +142,9 @@ private fun MethodRow(
     onRemove: () -> Unit,
 ) {
     val method = saved.method
-    val label = listOfNotNull(method.title, method.summary, "main".takeIf { saved.isMain }).joinToString(", ")
-    SvListRow(position = position, label = label, onClickLabel = "Change", onClick = onEdit) {
+    val main = stringResource(R.string.payments_main).takeIf { saved.isMain }
+    val label = listOfNotNull(method.title, method.summary, main).joinToString(", ")
+    SvListRow(position = position, label = label, onClickLabel = stringResource(R.string.requests_change_method), onClick = onEdit) {
         SvAvatar(method.title)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
@@ -149,10 +155,10 @@ private fun MethodRow(
             Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
         SvOverflowMenu(
-            label = "More for ${method.title}",
+            label = stringResource(R.string.groups_more_for, method.title),
             options = listOfNotNull(
-                SvMenuOption("Use for requests", onMakeMain).takeUnless { saved.isMain },
-                SvMenuOption("Remove", onRemove),
+                SvMenuOption(stringResource(R.string.payments_use_for_requests), onMakeMain).takeUnless { saved.isMain },
+                SvMenuOption(stringResource(R.string.payments_remove), onRemove),
             ),
         )
     }

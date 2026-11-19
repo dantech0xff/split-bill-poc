@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.data.share
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.domain.BillCharge
 import com.dantech.splitvibe.domain.ChargeKind
 import com.dantech.splitvibe.domain.Participant
@@ -9,19 +11,21 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 class BillProjectionTest {
 
     @Test
     fun `the page shows the bill's lines and people, with the user under their own name`() {
-        val projection = BillProjection.of(ShareFixtures.saved, myName = "Dana")
+        val projection = BillProjection.of(ShareFixtures.saved, myName = "Dana", words = contentWords())
 
         assertEquals(Json.parseToJsonElement(ShareFixtures.BILL), Json.encodeToJsonElement(BillProjection.serializer(), projection))
     }
 
     @Test
     fun `a user without a name is left for the page to call the bill's owner`() {
-        val projection = BillProjection.of(ShareFixtures.saved, myName = " ")
+        val projection = BillProjection.of(ShareFixtures.saved, myName = " ", words = contentWords())
 
         assertEquals("", projection.participants.first().name)
     }
@@ -31,7 +35,7 @@ class BillProjectionTest {
         val bill = ShareFixtures.saved.bill
         val read = bill.copy(merchant = "Pho\t24", items = bill.items.map { if (it.id == "i1") it.copy(name = "Pho\nbo\u0007") else it })
 
-        val projection = BillProjection.of(ShareFixtures.saved.copy(bill = read), myName = "Dana\r\n")
+        val projection = BillProjection.of(ShareFixtures.saved.copy(bill = read), myName = "Dana\r\n", words = contentWords())
 
         assertEquals("Pho 24", projection.merchant)
         assertEquals("Pho bo", projection.items.first().name)
@@ -62,7 +66,7 @@ class BillProjectionTest {
 
         val read = saved.copy(bill = saved.bill.copy(items = items), plan = saved.plan.copy(participants = people))
 
-        val projection = BillProjection.of(read, myName = "Dana")
+        val projection = BillProjection.of(read, myName = "Dana", words = contentWords())
 
         assertEquals(listOf("Item", "Bun cha", "Tea for $family"), projection.items.map { it.name })
         assertEquals(listOf("Dana", "Someone", smile.repeat(60)), projection.participants.map { it.name })
@@ -72,7 +76,7 @@ class BillProjectionTest {
     fun `a date that is not a day and a blank merchant are left out`() {
         val bill = ShareFixtures.saved.bill.copy(merchant = "  ", date = "14/11/2026")
 
-        val projection = BillProjection.of(ShareFixtures.saved.copy(bill = bill), myName = "Dana")
+        val projection = BillProjection.of(ShareFixtures.saved.copy(bill = bill), myName = "Dana", words = contentWords())
 
         assertNull(projection.merchant)
         assertNull(projection.date)
@@ -83,7 +87,7 @@ class BillProjectionTest {
         val charges = (1..25).map { BillCharge("c$it", "Charge $it", ChargeKind.OTHER, 100L * it) }
         val saved = ShareFixtures.saved.copy(bill = ShareFixtures.saved.bill.copy(charges = charges))
 
-        val projection = BillProjection.of(saved, myName = "Dana")
+        val projection = BillProjection.of(saved, myName = "Dana", words = contentWords())
 
         assertEquals(20, projection.charges.size)
         assertEquals("Other charges", projection.charges.last().label)

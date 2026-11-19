@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui.claim
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.ShareLink
@@ -26,6 +27,9 @@ import com.dantech.splitvibe.domain.NameMatcher
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitPlan
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.sentences
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -53,7 +57,7 @@ data class ClaimState(
     /** Who each claim is on the bill: a participant's id, or [NEW_PERSON] to add them as someone new. */
     val matches: Map<String, String> = emptyMap(),
     val working: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
     /** Links need a sign-in, so that only the person who made one can take it down. */
     val needsSignIn: Boolean = false,
     /** The bill has no lines, or more lines or people than a page shows. */
@@ -222,7 +226,7 @@ class ClaimViewModel(
         val stored = storedBill() ?: return@run
         val problems = stored.plan.problems(stored.bill)
         if (problems.isNotEmpty()) {
-            mutableState.update { it.copy(message = "Finish the split first. ${problems.first()}") }
+            mutableState.update { it.copy(message = sentences(text(R.string.claim_finish_first), UiText.Raw(problems.first()))) }
             return@run
         }
         val split = stored.plan.result(stored.bill).shares
@@ -237,7 +241,7 @@ class ClaimViewModel(
         val myName = settings.value.myName
         keep(shares.finalize(stored, myName, amounts, paidBy, matchesOf(stored)))
         host.updateLink(shareId()) {
-            it.copy(shown = ShareRepository.fingerprint(stored, myName), settled = true, method = chosen?.let(::fingerprintOf))
+            it.copy(shown = shares.pageFingerprint(stored, myName), settled = true, method = chosen?.let(::fingerprintOf))
         }
     }
 
@@ -396,8 +400,7 @@ class ClaimViewModel(
         private const val HTTP_GONE = 410
         private const val HTTP_UNAVAILABLE = 503
         private const val BILL_WAIT_MS = 10_000L
-        const val TOO_MANY_PEOPLE = "That would put more than 30 people on the bill, more than its link shows. " +
-            "Say who some of them are on the bill, or take strangers off the link."
+        val TOO_MANY_PEOPLE = text(R.string.claim_too_many_people)
 
         /** The page asks people to pay the user only when the user paid the whole bill, and it is in no group, where people settle up. */
         fun asksForMoney(saved: SavedBill): Boolean = saved.plan.payments.singleOrNull()?.participantId == ME_ID && saved.group == null
@@ -435,9 +438,9 @@ class ClaimViewModel(
         }
 
         /** What went wrong, in the words of a bill's link. */
-        private fun messageOf(error: Exception): String = when {
-            error is ProxyException && error.code == ProxyApi.SESSION_REFUSED -> "Sign in with Google in Settings to share a bill's link."
-            error is ProxyException && error.status == HTTP_UNAVAILABLE -> "Bill links are not set up on Split Vibe's server yet."
+        private fun messageOf(error: Exception): UiText = when {
+            error is ProxyException && error.code == ProxyApi.SESSION_REFUSED -> text(R.string.claim_sign_in_in_settings)
+            error is ProxyException && error.status == HTTP_UNAVAILABLE -> text(R.string.claim_not_set_up)
             else -> ProxyErrors.messageOf(error)
         }
     }

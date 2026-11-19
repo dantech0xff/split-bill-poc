@@ -80,7 +80,12 @@ fun AddToGroupSheet(
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             state.message?.let {
-                SvMessageCard(text = it, isError = true, action = stringResource(R.string.common_ok), onAction = viewModel::dismissMessage)
+                SvMessageCard(
+                    text = it.resolve(),
+                    isError = true,
+                    action = stringResource(R.string.common_ok),
+                    onAction = viewModel::dismissMessage,
+                )
             }
             when (state.conflict) {
                 GroupConflict.DELETED -> SvMessageCard(
@@ -132,7 +137,7 @@ fun AddToGroupSheet(
                     Text(nameOf(participant.id).resolve(), style = MaterialTheme.typography.bodyLarge)
                     val members = group.members
                     SvChoiceChips(
-                        options = members.map { group.nameOf(it.id) },
+                        options = members.map { group.nameOf(it.id).resolve() },
                         selected = members.indexOfFirst { it.id == state.memberOf[participant.id] },
                         onSelect = { viewModel.match(participant.id, members[it].id) },
                     )

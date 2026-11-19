@@ -545,4 +545,290 @@
     <string name="groups_no_rate">No rate for today yet. Type the one you were charged at.</string>
     <string name="groups_rate_typed">The rate you typed.</string>
     <string name="groups_rate_of_day">%1$s\'s rate for %2$s. Change it to the one you were charged at.</string>
+
+    <!-- Groups and requests on Split Vibe's server -->
+    <string name="proxy_sign_in">Sign in with Google in Settings to share groups and requests.</string>
+    <string name="proxy_pending">The group\'s owner has not let you in yet.</string>
+    <string name="proxy_forbidden">You cannot do that in this group.</string>
+    <string name="proxy_gone">That is not there any more.</string>
+    <string name="proxy_conflict">This was changed elsewhere, or is no longer open, so nothing was changed. Reload it to see it.</string>
+    <string name="proxy_link_ended">This link has run out or was taken back. Ask for a new one.</string>
+    <string name="proxy_too_large">This is too large to share.</string>
+    <string name="proxy_too_many">That was a lot at once. Please try again in a while.</string>
+    <string name="proxy_not_set_up">Groups and requests are not set up on Split Vibe\'s server yet.</string>
+    <string name="proxy_not_checked">Something in this did not check out. Please look it over.</string>
+    <string name="proxy_failed">Split Vibe\'s server could not do that just now. Please try again.</string>
+    <string name="proxy_offline">There is no connection. What you see was saved earlier.</string>
+
+    <!-- Groups -->
+    <string name="groups_former_member">A former member</string>
+
+    <!-- A group -->
+    <string name="groups_group">Group</string>
+    <string name="groups_more">More for this group</string>
+    <string name="groups_reload">Reload</string>
+    <string name="groups_rename">Rename the group</string>
+    <string name="groups_stop_invites">Stop the invite links</string>
+    <string name="groups_leave">Leave the group</string>
+    <string name="groups_rename_confirm">Rename</string>
+    <string name="groups_keep_place">Keep a place for someone</string>
+    <string name="groups_keep_place_hint">For someone without the app. When they join with an invite link, they can ask for this place, and you decide.</string>
+    <string name="groups_take_out_title">Take %1$s out of the group?</string>
+    <string name="groups_take_out_text">They will no longer see the group. What they paid and owe stays under their name, so nobody\'s balance changes, and their place can be given back through an invite.</string>
+    <string name="groups_take_out">Take out</string>
+    <string name="groups_leave_title">Leave the group?</string>
+    <string name="groups_leave_text">What you paid and owe stays in the group under your name, so the others\' balances do not change.</string>
+    <string name="groups_leave_confirm">Leave</string>
+    <string name="groups_got_it_title">Did you get %1$s?</string>
+    <string name="groups_got_it_confirms">This confirms the request you sent %1$s, which records the payment. It cannot be undone.</string>
+    <string name="groups_got_it_records">This records that %1$s paid you back. It cannot be undone.</string>
+    <string name="groups_i_got_it">I got it</string>
+    <string name="groups_balances">Balances</string>
+    <string name="groups_balances_hint">In %1$s, across every bill and payment back.</string>
+    <string name="groups_too_large">These numbers are too large to add up.</string>
+    <string name="groups_gets_back">gets back %1$s</string>
+    <string name="groups_owes">owes %1$s</string>
+    <string name="groups_settled_up">settled up</string>
+    <string name="groups_settle_up">Settle up</string>
+    <string name="groups_square">Everyone is square.</string>
+    <string name="groups_fewest_payments">The fewest payments that settle the group.</string>
+    <string name="groups_pays">%1$s pays %2$s</string>
+    <string name="groups_can_send_request">%1$s can send you a request with how to pay.</string>
+    <string name="groups_ask">Ask</string>
+    <string name="groups_got_it">Got it</string>
+    <string name="groups_people">People</string>
+    <plurals name="groups_people_count">
+        <item quantity="one">%d in the group</item>
+        <item quantity="other">%d in the group</item>
+    </plurals>
+    <string name="groups_owner">owner</string>
+    <string name="groups_no_app_yet">no app yet</string>
+    <string name="groups_more_for">More for %1$s</string>
+    <string name="groups_take_out_of_group">Take out of the group</string>
+    <string name="groups_asks_to_be">%1$s asks to be %2$s</string>
+    <string name="groups_claim_owed">%1$s is owed %2$s, which would then be theirs.</string>
+    <string name="groups_let_in">Let them in</string>
+    <string name="groups_turn_down">Turn down</string>
+    <string name="groups_invite">Invite people</string>
+    <string name="groups_bills">Bills</string>
+    <string name="groups_bills_hint">Add a bill to the group from its split.</string>
+    <string name="groups_added_by">Added by %1$s</string>
+    <string name="groups_left_out">Left out: its amounts do not add up</string>
+    <string name="groups_delete_bill">Delete from the group</string>
+    <string name="groups_recent_changes">Recent changes</string>
+    <string name="groups_log_line">%1$s · %2$s</string>
+    <string name="groups_log_a_bill">a bill</string>
+    <string name="groups_log_someone">someone</string>
+    <string name="groups_log_a_member">a member</string>
+    <string name="groups_log_created">%1$s made the group</string>
+    <string name="groups_log_member_added">%1$s kept a place for %2$s</string>
+    <string name="groups_log_member_joined">%1$s joined</string>
+    <string name="groups_log_member_left">%1$s left</string>
+    <string name="groups_log_member_removed">%1$s took %2$s out of the group</string>
+    <string name="groups_log_member_renamed">%1$s changed a name to %2$s</string>
+    <string name="groups_log_another_one">another one</string>
+    <string name="groups_log_claim_requested">Someone asked to be %1$s</string>
+    <string name="groups_log_claim_approved">%1$s let %2$s in</string>
+    <string name="groups_log_claim_rejected">%1$s turned down a request to be %2$s</string>
+    <string name="groups_log_bill_added">%1$s added %2$s</string>
+    <string name="groups_log_bill_changed">%1$s changed %2$s</string>
+    <string name="groups_log_bill_deleted">%1$s deleted a bill</string>
+    <string name="groups_log_paid_back">%1$s got paid back</string>
+    <string name="groups_log_changed">%1$s changed the group</string>
+    <string name="groups_a_bill">A bill</string>
+
+    <!-- Groups -->
+    <string name="groups_title">Groups</string>
+    <string name="groups_new">New group</string>
+    <string name="groups_need_sign_in">Groups are shared with other people through Split Vibe\'s server, so they need a Google sign-in.</string>
+    <string name="common_sign_in_in_settings">Sign in in Settings</string>
+    <string name="groups_empty">Make a group for the people you share bills with, such as a trip or a shared flat, and see who owes whom.</string>
+    <string name="groups_waiting_for_owner">Waiting for the owner to let you in</string>
+    <string name="groups_row_label">%1$s, %2$s</string>
+    <string name="groups_new_hint">Bills in other currencies are brought into the group\'s currency at the day\'s rate.</string>
+    <string name="groups_make">Make the group</string>
+    <string name="groups_name">Name of the group</string>
+    <string name="groups_currency_hint">What balances are kept in, such as THB or EUR.</string>
+    <string name="groups_your_name">Your name in the group</string>
+
+    <!-- Joining a group -->
+    <string name="groups_join_title">Join a group</string>
+    <string name="groups_join_sign_in">Sign in with Google to join this group. Groups are shared through Split Vibe\'s server.</string>
+    <string name="groups_balances_in">Balances in %1$s</string>
+    <string name="groups_join_asked">Asked. The group\'s owner decides whether you are that person; the group opens once they say yes.</string>
+    <string name="groups_join_placeholders">Are you one of these people? Bills already in the group may name you.</string>
+    <string name="groups_join">Join the group</string>
+    <string name="groups_ask_to_be">Ask to be %1$s</string>
+
+    <!-- Words written into what the app keeps or sends -->
+    <string name="content_charge">Charge</string>
+    <string name="content_other_charges">Other charges</string>
+    <string name="content_payer">there</string>
+    <string name="content_creditor">Your friend</string>
+
+    <!-- A group, continued -->
+    <string name="groups_invite_our_group">our group</string>
+    <string name="groups_invite_message">Join \"%1$s\" on Split Vibe, where we keep our shared bills: %2$s</string>
+
+    <!-- Payment requests -->
+    <string name="requests_message_the_bill">the bill</string>
+    <string name="requests_message_share">Hi %1$s! Your share of %2$s is %3$s.</string>
+    <string name="requests_message_link">Open it in Split Vibe to say when you have paid: %1$s</string>
+    <string name="requests_reminder">Hi %1$s, a reminder about the %2$s.</string>
+    <string name="requests_reminder_for">Hi %1$s, a reminder about the %2$s for %3$s.</string>
+    <string name="requests_pay_code_or_link">Pay with %1$s: scan the code or open %2$s</string>
+    <string name="requests_pay_code">Pay with %1$s: scan the code in your banking app, or use these details.</string>
+    <string name="requests_pay_link">Pay with %1$s: %2$s</string>
+    <string name="requests_pay_details">Pay with %1$s:</string>
+    <string name="requests_type_amount">Type in the amount yourself.</string>
+
+    <!-- Payment requests, continued -->
+    <string name="requests_message_breakdown">That is %1$s for what you had and %2$s of the shared charges.</string>
+    <string name="requests_untracked">This request could not be kept on Split Vibe\'s server, so it went without a link to mark it paid. You can still ask again later.</string>
+
+    <!-- Payment requests, continued -->
+    <string name="requests_taken">Someone else already took this request on. Ask the person who sent it for a new link.</string>
+
+    <!-- Payment requests, continued -->
+    <string name="requests_title">Requests</string>
+    <string name="requests_more">More</string>
+    <string name="requests_need_sign_in">Sign in with Google to see who has paid you back. Without it, requests are only messages in your chats.</string>
+    <string name="requests_empty">Requests you send after a split, and those sent to you, show here.</string>
+    <string name="requests_to_pay">To pay</string>
+    <string name="requests_pay">Pay</string>
+    <string name="requests_you_asked_for">You asked for</string>
+    <string name="requests_confirm">Confirm</string>
+    <string name="requests_more_for">More for the request to %1$s</string>
+    <string name="requests_arrived">It arrived, confirm it</string>
+    <string name="requests_send_reminder">Send a reminder</string>
+    <string name="requests_delete">Delete the request</string>
+    <string name="requests_paid">Paid and confirmed</string>
+    <string name="requests_they_say_paid">%1$s says it is paid. Confirm once it arrived.</string>
+    <string name="requests_you_said_paid">You said you paid. Waiting for them to confirm.</string>
+    <string name="requests_not_paid">Not paid yet</string>
+    <string name="requests_not_opened">Not opened in the app yet</string>
+    <string name="requests_status_and_reminders">%1$s. %2$s</string>
+    <string name="requests_no_reminders">No reminders</string>
+    <plurals name="requests_remind_every">
+        <item quantity="one">Remind every day</item>
+        <item quantity="other">Remind every %d days</item>
+    </plurals>
+    <string name="requests_pay_title">Pay %1$s %2$s</string>
+    <string name="requests_them">them</string>
+    <string name="requests_pay_hint">Pay in your own banking or payment app, then come back to say you have paid.</string>
+    <string name="requests_not_yet">Not yet</string>
+    <string name="requests_i_have_paid">I have paid</string>
+    <string name="requests_no_way_to_pay">This request carries no way to pay. Ask them how they would like to be paid.</string>
+    <string name="requests_payment_code">Payment code for %1$s</string>
+    <string name="requests_scan_it">Scan it in your banking app.</string>
+    <string name="requests_open_method">Open %1$s</string>
+    <string name="requests_open_link_title">Open %1$s?</string>
+    <string name="requests_this_link">this link</string>
+    <string name="requests_pasted_link_warning">This link was pasted by the person who asked you to pay. Check the address before you pay there.</string>
+    <string name="requests_copy_details">Copy the details</string>
+
+    <!-- Payment requests, continued -->
+    <string name="requests_link_sign_in">Sign in with Google to open this request in the app. The message it came with has the details to pay it.</string>
+    <string name="requests_keep_for_later">Keep it in my requests for later</string>
+
+    <!-- Ways to get paid -->
+    <string name="payments_intro">People you ask for money get a link, a QR code or the details of one of these, filled in with the amount where the payment app allows it. They are kept on this phone only.</string>
+    <string name="payments_empty">Add your bank account, PayPal, UPI, PromptPay or a payment link to put it on your requests.</string>
+    <string name="payments_main">main</string>
+    <string name="payments_use_for_requests">Use for requests</string>
+    <string name="payments_remove">Remove</string>
+
+    <!-- Ways to get paid, continued -->
+    <string name="payments_kind_vietqr">VietQR</string>
+    <string name="payments_kind_promptpay">PromptPay</string>
+    <string name="payments_kind_upi">UPI</string>
+    <string name="payments_kind_paypal">PayPal.Me</string>
+    <string name="payments_kind_sepa">SEPA</string>
+    <string name="payments_kind_link">Payment link</string>
+    <string name="payments_kind_other">Other</string>
+    <string name="payments_change">Change %1$s</string>
+    <string name="payments_sheet_hint">Kept on this phone. A request carries only the one you send it with.</string>
+    <string name="payments_account_number">Account number</string>
+    <string name="payments_account_name">Name on the account</string>
+    <string name="payments_promptpay_id">Mobile number or ID</string>
+    <string name="payments_promptpay_hint">A Thai mobile number, or the 13-digit ID PromptPay is linked to.</string>
+    <string name="payments_upi_id">UPI ID</string>
+    <string name="payments_upi_hint">Such as name@okaxis.</string>
+    <string name="payments_paypal_name">PayPal.Me name</string>
+    <string name="payments_iban">IBAN</string>
+    <string name="payments_bic">BIC (if your bank asks for it)</string>
+    <string name="payments_link">Link</string>
+    <string name="payments_link_hint">A link you made in Revolut, Wise, Venmo, Cash App or another payment app.</string>
+    <string name="payments_opens">Opens %1$s</string>
+    <string name="payments_what_it_is">What it is</string>
+    <string name="payments_what_it_is_hint">Such as Zelle or Bank transfer.</string>
+    <string name="payments_details">Details</string>
+    <string name="payments_details_hint">What the payer types in, such as an email or an account.</string>
+    <string name="payments_bank">Bank</string>
+    <string name="payments_bank_code">Code %1$s</string>
+    <string name="payments_no_bank">No bank goes by that name.</string>
+
+    <!-- Everyone picks their items on a bill's link -->
+    <string name="claim_title">Everyone picks their items</string>
+    <string name="claim_more">More for the link</string>
+    <string name="claim_stop_sharing">Stop sharing the link</string>
+    <string name="claim_sign_in">Sign in with Google to make a link. Only you can then close it or take people off it.</string>
+    <string name="claim_cannot_share">This bill cannot go on a link. A link shows from 1 to 200 lines and up to 30 people.</string>
+    <string name="claim_other_account">This bill\'s link was made while another account was signed in, or no longer exists, so this account cannot change it. A new link replaces it here; the old one works until it ends.</string>
+    <string name="claim_make_new_link">Make a new link</string>
+    <string name="common_dismiss">Dismiss</string>
+    <string name="claim_nobody_yet">Nobody has picked anything yet. Picks show here as people make them.</string>
+    <string name="claim_names_typed_say_who">Names are what people typed. Say who each one is on the bill.</string>
+    <string name="claim_names_typed">Names are what people typed.</string>
+    <string name="claim_picked_so_far">Picked so far</string>
+    <string name="claim_nobody_picked">Nobody picked</string>
+    <string name="claim_nobody_picked_hint">Everyone shares these, unless you change it in the split.</string>
+    <string name="claim_reconnecting">Reconnecting… new picks show once it is back.</string>
+    <string name="claim_send_link_hint">Send this link to everyone at the table. They open it in a browser, type their name and tap what they had, without the app or an account.</string>
+    <string name="claim_share_message">Pick what you had at %1$s: %2$s</string>
+    <string name="claim_share_link">Share the link</string>
+    <string name="claim_copy">Copy</string>
+    <string name="claim_in_group">This bill is in %1$s, where people settle up, so the page shows each person\'s share and asks nobody to pay.</string>
+    <string name="claim_other_payer">%1$s paid this bill, so the page shows each person\'s share and asks them to settle up with %2$s.</string>
+    <string name="claim_someone_else">Someone else</string>
+    <string name="claim_whoever_paid">whoever paid</string>
+    <string name="claim_several_payers">More than one person paid this bill, so the page shows each person\'s share and asks nobody to pay you.</string>
+    <string name="claim_add_method_hint">Add how you get paid, and the page shows each person how to pay you, with the amount filled in where it can be.</string>
+    <string name="claim_pay_you_by">The page asks people to pay you by %1$s</string>
+    <string name="claim_another_way">Ask for another way to pay</string>
+    <string name="claim_method_changed">Your payment details changed since you sent the amounts. Send them again so the page shows the new ones.</string>
+    <string name="claim_nothing_yet">Nothing yet</string>
+    <string name="claim_added_as_new">Added as someone new</string>
+    <string name="claim_picked_nothing">Picked nothing, so not added to the bill</string>
+    <string name="claim_on_bill_as">On the bill as %1$s</string>
+    <string name="claim_you_in_sentence">you</string>
+    <string name="claim_this_is">This is %1$s</string>
+    <string name="claim_someone_new">Someone new</string>
+    <string name="claim_take_off">Take %1$s off the link</string>
+    <string name="claim_who_is">Who is %1$s</string>
+    <string name="claim_stop_picking">Stop picking and split</string>
+    <string name="claim_send_amounts">Send what everyone owes</string>
+    <string name="claim_more_picks">More for the picks</string>
+    <string name="claim_check_first">Check the split first</string>
+    <string name="claim_pick_again">Let people pick again</string>
+    <string name="claim_send_new_details">Send the new payment details</string>
+    <string name="claim_revoke_title">Stop sharing the link?</string>
+    <string name="claim_revoke_text">Its page says it no longer works, and everything people picked on it is deleted. This cannot be undone.</string>
+    <string name="claim_revoke_confirm">Stop sharing</string>
+    <string name="claim_reopen_title">Let people pick again?</string>
+    <string name="claim_reopen_text">The page stops showing what everyone owes. When you stop the picking again, the split goes back to what people picked.</string>
+    <string name="claim_reopen_confirm">Let them pick</string>
+    <string name="claim_remove_title">Take %1$s off the link?</string>
+    <string name="claim_remove_text">What they picked is deleted. If they open the link again, they start over.</string>
+    <string name="claim_remove_confirm">Take off</string>
+    <string name="claim_open_until">Open for picking until %1$s</string>
+    <string name="claim_closed">Picking is closed. Check the split, then send what everyone owes.</string>
+    <string name="claim_shows_how_to_pay">The page shows what everyone owes, and how to pay you.</string>
+    <string name="claim_shows_owed">The page shows what everyone owes.</string>
+
+    <!-- Everyone picks their items on a bill's link, continued -->
+    <string name="claim_finish_first">Finish the split first.</string>
+    <string name="claim_too_many_people">That would put more than 30 people on the bill, more than its link shows. Say who some of them are on the bill, or take strangers off the link.</string>
+    <string name="claim_sign_in_in_settings">Sign in with Google in Settings to share a bill\'s link.</string>
+    <string name="claim_not_set_up">Bill links are not set up on Split Vibe\'s server yet.</string>
 </resources>

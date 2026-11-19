@@ -19,6 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.requests.RequestStatus
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -26,6 +28,7 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountLarge
+import com.dantech.splitvibe.text.resolve
 
 /** A payment request someone sent as a link: what it is for, how to pay it, and a way to say it is paid. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,9 +45,11 @@ fun RequestLinkScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Payment request") },
+                title = { Text(stringResource(R.string.requests_share_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
@@ -59,14 +64,16 @@ fun RequestLinkScreen(
         ) {
             if (!signedIn) {
                 SvMessageCard(
-                    text = "Sign in with Google to open this request in the app. The message it came with has the details to pay it.",
+                    text = stringResource(R.string.requests_link_sign_in),
                     isError = false,
-                    action = "Sign in in Settings",
+                    action = stringResource(R.string.common_sign_in_in_settings),
                     onAction = onOpenSettings,
                 )
                 return@Column
             }
-            state.message?.let { SvMessageCard(text = it, isError = true, action = "Try again", onAction = onRetry) }
+            state.message?.let {
+                SvMessageCard(text = it.resolve(), isError = true, action = stringResource(R.string.common_try_again), onAction = onRetry)
+            }
             val request = state.request
             if (request == null) {
                 if (state.working) SvLoadingIndicator()
@@ -75,19 +82,22 @@ fun RequestLinkScreen(
             SvCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
                     Text(
-                        listOfNotNull(state.creditorName ?: request.creditorName ?: "Someone", request.title).joinToString(" · "),
+                        listOfNotNull(
+                            state.creditorName ?: request.creditorName ?: stringResource(R.string.common_someone),
+                            request.title,
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountLarge)
-                    Text(statusText(request.copy(role = "debtor")), style = MaterialTheme.typography.bodyMedium)
+                    Text(statusText(request.copy(role = "debtor")).resolve(), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             if (request.status == RequestStatus.WAITING) {
                 PayPanel(request)
-                SvPrimaryButton("I have paid", onClick = onReportPaid, enabled = !state.working)
+                SvPrimaryButton(stringResource(R.string.requests_i_have_paid), onClick = onReportPaid, enabled = !state.working)
                 if (!state.accepted) {
                     OutlinedButton(onClick = onAccept, enabled = !state.working, modifier = Modifier.fillMaxWidth()) {
-                        Text("Keep it in my requests for later")
+                        Text(stringResource(R.string.requests_keep_for_later))
                     }
                 }
             }

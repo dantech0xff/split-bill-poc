@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.GroupFixtures
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.contentWords
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.ShareLink
@@ -50,7 +51,7 @@ class ShareRepositoryTest {
         server.start()
         proxy = TestProxy(server, context)
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
-        shares = ShareRepository(proxy.api, retryDelayMs = { 0 }, clock = { NOW })
+        shares = ShareRepository(proxy.api, contentWords(), retryDelayMs = { 0 }, clock = { NOW })
     }
 
     @After
@@ -76,14 +77,20 @@ class ShareRepositoryTest {
         assertEquals(ShareFixtures.URL, owned.url)
         assertEquals(ShareView.OPEN, owned.share.status)
         assertEquals(
-            ShareLink(ShareFixtures.SHARE_ID, ShareFixtures.URL, EXPIRES_AT, CREATED_AT, ShareRepository.fingerprint(saved, "Dana")),
+            ShareLink(
+                ShareFixtures.SHARE_ID,
+                ShareFixtures.URL,
+                EXPIRES_AT,
+                CREATED_AT,
+                ShareRepository.fingerprint(saved, "Dana", contentWords()),
+            ),
             kept,
         )
     }
 
     @Test
     fun `a save that changes nothing the page shows sends nothing, even as a newer revision`() = runBlocking {
-        val shown = linked.copy(share = link.copy(shown = ShareRepository.fingerprint(linked, "Dana")))
+        val shown = linked.copy(share = link.copy(shown = ShareRepository.fingerprint(linked, "Dana", contentWords())))
 
         // Marking the bill finished, for example, moves neither the bill on the page nor the shares.
         assertNull(shares.project(shown.copy(revision = 9, status = BillStatus.FINAL), "Dana"))
@@ -101,7 +108,7 @@ class ShareRepositoryTest {
         assertNull("An older copy is not sent after a newer one", shares.project(renamed.copy(revision = 2), "Dana"))
         val projected = shares.project(renamed.copy(revision = 4), "Dana") as Projection.Shown
 
-        assertEquals(ShareRepository.fingerprint(renamed, "Dana"), projected.link.shown)
+        assertEquals(ShareRepository.fingerprint(renamed, "Dana", contentWords()), projected.link.shown)
         assertEquals(false, projected.unsettled)
         assertEquals(2, server.requestCount)
     }
@@ -243,7 +250,7 @@ class ShareRepositoryTest {
     @Test
     fun `a connection that stops answering pings is dropped and opened again`() = runBlocking {
         val attempts = AtomicInteger()
-        val silent = ShareRepository(proxy.api, retryDelayMs = { 0 }, pingMs = 50)
+        val silent = ShareRepository(proxy.api, contentWords(), retryDelayMs = { 0 }, pingMs = 50)
         server.dispatcher = recording { request ->
             when (request.path) {
                 // The first connection never answers, as one that died without closing does.

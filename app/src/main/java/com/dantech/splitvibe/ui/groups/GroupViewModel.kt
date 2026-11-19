@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui.groups
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
@@ -15,6 +16,9 @@ import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.Transfer
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
+import com.dantech.splitvibe.text.ContentWords
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyErrors
 import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.ui.requests.RequestMessages
@@ -30,7 +34,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Something to hand to the share sheet: a text, and a payment code to send with it when there is one. */
-data class ShareText(val text: String, val paying: PaymentRequest? = null)
+data class ShareText(val text: UiText, val paying: PaymentRequest? = null)
 
 /**
  * One group: its balances and the transfers that settle it, its members and bills, and what the
@@ -43,6 +47,8 @@ class GroupViewModel(
     private val requests: RequestRepository,
     private val paymentMethods: PaymentMethodRepository,
     private val settings: StateFlow<AppSettings>,
+    /** Whom a request to a member is to or from when either has no name. */
+    private val words: ContentWords,
 ) : ViewModel() {
 
     val group: StateFlow<GroupState?> = repository.group(groupId).stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -67,8 +73,8 @@ class GroupViewModel(
     fun invite() = run {
         val state = group.value
         val invite = repository.invite(groupId)
-        val name = state?.group?.name ?: "our group"
-        toShare.value = ShareText("Join \"$name\" on Split Vibe, where we keep our shared bills: ${invite.url}")
+        val name = state?.group?.name?.let(UiText::Raw) ?: text(R.string.groups_invite_our_group)
+        toShare.value = ShareText(text(R.string.groups_invite_message, name, invite.url))
     }
 
     fun revokeInvites() = run { repository.revokeInvites(groupId) }
@@ -122,7 +128,7 @@ class GroupViewModel(
     fun askFor(transfer: Transfer) = run {
         val state = checkNotNull(group.value)
         val method = paymentMethods.all.first().firstOrNull()?.method
-        val payer = state.member(transfer.fromMemberId)?.name ?: "there"
+        val payer = state.member(transfer.fromMemberId)?.name ?: words.payer
         val myName = settings.value.myName.ifBlank { state.member(state.myMemberId)?.name.orEmpty() }
         val created = method?.let {
             val request = NewRequest(
@@ -137,7 +143,7 @@ class GroupViewModel(
                 amountMinor = transfer.amountMinor,
                 currency = state.currency,
                 payerName = payer,
-                creditorName = myName.ifBlank { "Your friend" },
+                creditorName = myName.ifBlank { words.creditor },
                 title = state.group.name,
                 method = it,
                 groupId = groupId,
@@ -151,7 +157,7 @@ class GroupViewModel(
         val paying = method?.let { PaymentRequestBuilder.build(it, transfer.amountMinor, state.currency, state.group.name) }
         toShare.value = ShareText(
             RequestMessages.request(
-                name = payer,
+                name = UiText.Raw(payer),
                 amountMinor = transfer.amountMinor,
                 currency = state.currency,
                 title = state.group.name,

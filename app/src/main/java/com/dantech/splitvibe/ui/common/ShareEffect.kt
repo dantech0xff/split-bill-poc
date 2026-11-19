@@ -26,7 +26,7 @@ fun ShareEffect(share: ShareText?, onShared: () -> Unit) {
             }.getOrNull()
         }
         try {
-            context.startActivity(ShareCardRenderer.shareIntent(shown.text, image))
+            context.startActivity(ShareCardRenderer.shareIntent(shown.text.resolve(context.resources), image))
         } catch (e: ActivityNotFoundException) {
             // No app takes text on this phone; there is nothing more to offer.
         }

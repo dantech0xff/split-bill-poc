@@ -12,6 +12,8 @@ import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestStatus
+import com.dantech.splitvibe.english
+import com.dantech.splitvibe.inEnglish
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -55,7 +57,7 @@ class RequestsViewModelTest {
         viewModel.remind(viewModel.requests.value!!.single())
         awaitOnMain { viewModel.share.value != null }
 
-        val text = viewModel.share.value!!.text
+        val text = viewModel.share.value!!.text.english()
         assertTrue(text, text.startsWith("Hi Minh, a reminder about the ₫150,000 for Pho 24."))
         assertTrue(text, text.contains("Account: 257678859"))
         assertTrue(viewModel.share.value!!.paying!!.qrPayload!!.startsWith("000201"))
@@ -87,7 +89,7 @@ class RequestsViewModelTest {
         val viewModel = RequestLinkViewModel("token-1234567890abcdef", repository, groups, proxy.account.account)
         awaitOnMain { viewModel.state.value.message != null }
 
-        assertTrue(viewModel.state.value.message!!.startsWith("Someone else already took this request on."))
+        assertTrue(viewModel.state.value.message.inEnglish()!!.startsWith("Someone else already took this request on."))
     }
 
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)

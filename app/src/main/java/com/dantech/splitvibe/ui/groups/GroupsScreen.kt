@@ -31,8 +31,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.groups.GroupSummary
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -44,6 +46,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.ProxyWork
 
 /** The user's groups, such as housemates or a trip, each with balances across its bills. */
@@ -65,23 +68,25 @@ fun GroupsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Groups") },
+                title = { Text(stringResource(R.string.groups_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                    }
                 },
             )
         },
         floatingActionButton = {
-            if (signedIn) SvPrimaryFab(text = "New group", icon = Icons.Default.Add, onClick = { creating = true })
+            if (signedIn) SvPrimaryFab(text = stringResource(R.string.groups_new), icon = Icons.Default.Add, onClick = { creating = true })
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
             if (!signedIn) {
                 item {
                     SvMessageCard(
-                        text = "Groups are shared with other people through Split Vibe's server, so they need a Google sign-in.",
+                        text = stringResource(R.string.groups_need_sign_in),
                         isError = false,
-                        action = "Sign in in Settings",
+                        action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = onOpenSettings,
                         modifier = Modifier.padding(SvSpacing.lg),
                     )
@@ -90,9 +95,9 @@ fun GroupsScreen(
             status.message?.let { message ->
                 item {
                     SvMessageCard(
-                        text = message,
+                        text = message.resolve(),
                         isError = true,
-                        action = "OK",
+                        action = stringResource(R.string.common_ok),
                         onAction = onDismissMessage,
                         modifier = Modifier.padding(SvSpacing.lg),
                     )
@@ -103,17 +108,17 @@ fun GroupsScreen(
                 item {
                     SvEmptyState(
                         icon = Icons.Default.Person,
-                        text = "Make a group for the people you share bills with, such as a trip or a shared flat, and see who owes whom.",
+                        text = stringResource(R.string.groups_empty),
                     )
                 }
             }
             val list = groups.orEmpty()
             itemsIndexed(list, key = { _, group -> group.id }) { index, group ->
-                val detail = if (group.isPending) "Waiting for the owner to let you in" else group.currency.code
+                val detail = if (group.isPending) stringResource(R.string.groups_waiting_for_owner) else group.currency.code
                 SvListRow(
                     position = SvRowPosition.of(index, list.size),
-                    label = "${group.name}, $detail",
-                    onClickLabel = "Open",
+                    label = stringResource(R.string.groups_row_label, group.name, detail),
+                    onClickLabel = stringResource(R.string.common_open),
                     onClick = { onOpen(group.id) },
                 ) {
                     SvAvatar(group.name)
@@ -148,19 +153,19 @@ private fun NewGroupSheet(myName: String, localCurrency: String, onCreate: (Stri
     var me by rememberSaveable { mutableStateOf(myName) }
     val valid = name.isNotBlank() && me.isNotBlank() && BillCurrency.isKnownCode(currency)
     SvBottomSheet(
-        title = "New group",
-        supportingText = "Bills in other currencies are brought into the group's currency at the day's rate.",
+        title = stringResource(R.string.groups_new),
+        supportingText = stringResource(R.string.groups_new_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            Button(onClick = { onCreate(name, currency, me) }, enabled = valid) { Text("Make the group") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            Button(onClick = { onCreate(name, currency, me) }, enabled = valid) { Text(stringResource(R.string.groups_make)) }
         },
     ) {
         Column(modifier = Modifier.padding(horizontal = SvSpacing.xl), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(NAME_LENGTH) },
-                label = { Text("Name of the group") },
+                label = { Text(stringResource(R.string.groups_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
@@ -168,17 +173,17 @@ private fun NewGroupSheet(myName: String, localCurrency: String, onCreate: (Stri
             OutlinedTextField(
                 value = currency,
                 onValueChange = { currency = it.uppercase().take(3) },
-                label = { Text("Currency") },
+                label = { Text(stringResource(R.string.editor_currency)) },
                 singleLine = true,
                 isError = !BillCurrency.isKnownCode(currency),
-                supportingText = { Text("What balances are kept in, such as THB or EUR.") },
+                supportingText = { Text(stringResource(R.string.groups_currency_hint)) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false),
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = me,
                 onValueChange = { me = it.take(NAME_LENGTH) },
-                label = { Text("Your name in the group") },
+                label = { Text(stringResource(R.string.groups_your_name)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
