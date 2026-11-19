@@ -50,7 +50,11 @@ fun LegalLinksRow(links: LegalLinks, modifier: Modifier = Modifier) {
             }
         }
         if (cannotOpen) {
-            Text(stringResource(R.string.legal_cannot_open), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(R.string.legal_cannot_open),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
