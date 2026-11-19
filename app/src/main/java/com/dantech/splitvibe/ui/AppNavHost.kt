@@ -350,7 +350,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                 AccountActions(
                                     onSignIn = { settingsViewModel.signIn(context) },
                                     onSignOut = { settingsViewModel.signOut(context) },
-                                    onDeleteAccount = { withPhoneData -> settingsViewModel.deleteAccount(context, withPhoneData) },
+                                    onDeleteAccount = settingsViewModel::deleteAccount,
                                     onOpenPro = { backStack.open(ProKey) },
                                 )
                             },

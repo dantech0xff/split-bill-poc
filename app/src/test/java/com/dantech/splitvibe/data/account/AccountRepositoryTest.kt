@@ -1,10 +1,14 @@
 package com.dantech.splitvibe.data.account
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
@@ -23,6 +27,7 @@ import com.dantech.splitvibe.domain.payments.PaymentMethod
 import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
@@ -39,6 +44,7 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(AndroidJUnit4::class)
 class AccountRepositoryTest {
@@ -92,7 +98,7 @@ class AccountRepositoryTest {
         assertNull(proxy.account.account.value.purchaser)
 
         repository.signIn(context)
-        repository.deleteAccount(context, withPhoneData = false)
+        repository.deleteAccount(withPhoneData = false).join()
         assertNull(proxy.account.account.value.purchaser)
     }
 
@@ -131,14 +137,12 @@ class AccountRepositoryTest {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
         server.enqueue(json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400"))
 
-        try {
-            repository.deleteAccount(context, withPhoneData = false)
-            fail("A limited deletion deletes nothing")
-        } catch (e: ProxyException) {
-            assertEquals("rate_limited", e.code)
-            assertEquals(2400L, e.retryAfterSeconds)
-        }
+        repository.deleteAccount(withPhoneData = false).join()
 
+        val refusal = refusal()
+        assertEquals("rate_limited", refusal.code)
+        assertEquals(2400L, refusal.retryAfterSeconds)
+        assertNull("nothing is left to finish", DeletionStore(context).pending)
         val account = proxy.account.account.value
         assertEquals("signed-session", account.session?.token)
         assertFalse(account.signInExpired)
@@ -192,13 +196,14 @@ class AccountRepositoryTest {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         server.enqueue(MockResponse().setResponseCode(204))
 
-        repository.deleteAccount(context, withPhoneData = false)
+        repository.deleteAccount(withPhoneData = false).join()
 
         val request = server.takeRequest()
         assertEquals("DELETE", request.method)
         assertEquals("Bearer signed-session", request.getHeader("Authorization"))
         assertNull(proxy.account.account.value.session)
         assertTrue(google.forgotten)
+        assertEquals(Deletion.Ended(DeletionOutcome.DELETED), repository.deletion.value)
     }
 
     @Test
@@ -207,11 +212,12 @@ class AccountRepositoryTest {
         server.enqueue(json(500, """{"error":"internal"}"""))
         server.enqueue(json(401, """{"error":"session"}"""))
 
-        runCatching { repository.deleteAccount(context, withPhoneData = false) }
+        repository.deleteAccount(withPhoneData = false).join()
         assertEquals("signed-session", proxy.account.account.value.session?.token)
         assertFalse(google.forgotten)
 
-        runCatching { repository.deleteAccount(context, withPhoneData = false) }
+        repository.deleteAccount(withPhoneData = false).join()
+        assertEquals(ProxyApi.SESSION_REFUSED, refusal().code)
         assertNull(proxy.account.account.value.session)
         assertTrue("signing in again can delete it", proxy.account.account.value.signInExpired)
         assertEquals("minh.tran@example.com", proxy.account.account.value.signedInAs)
@@ -291,7 +297,7 @@ class AccountRepositoryTest {
         repository.signIn(context)
         keepSomething()
         server.enqueue(MockResponse().setResponseCode(204))
-        repository.deleteAccount(context, withPhoneData = false)
+        repository.deleteAccount(withPhoneData = false).join()
         assertNull("deleting the account", kept())
     }
 
@@ -301,7 +307,7 @@ class AccountRepositoryTest {
         val page = keepOnThePhone()
         server.enqueue(MockResponse().setResponseCode(204))
 
-        repository.deleteAccount(context, withPhoneData = true)
+        repository.deleteAccount(withPhoneData = true).join()
 
         assertEquals("DELETE", server.takeRequest().method)
         val nothing = OnThePhone(bills = 0, recurring = 0, people = 0, methods = 0, groups = false, sharedFiles = 0, name = "")
@@ -310,6 +316,7 @@ class AccountRepositoryTest {
         assertEquals("the currency stays", "EUR", settings.settings.value.localCurrency)
         assertTrue("the consent to the speech service stays", settings.settings.value.speechServiceAllowed)
         assertNull(proxy.account.account.value.session)
+        assertEquals(Deletion.Ended(DeletionOutcome.DELETED_WITH_PHONE_DATA), repository.deletion.value)
     }
 
     @Test
@@ -318,7 +325,7 @@ class AccountRepositoryTest {
         val page = keepOnThePhone()
         server.enqueue(MockResponse().setResponseCode(204))
 
-        repository.deleteAccount(context, withPhoneData = false)
+        repository.deleteAccount(withPhoneData = false).join()
 
         val kept = OnThePhone(bills = 2, recurring = 1, people = 1, methods = 1, groups = false, sharedFiles = 3, name = "Minh")
         assertEquals(kept, onThePhone())
@@ -338,12 +345,8 @@ class AccountRepositoryTest {
 
         for ((code, refusal) in refusals) {
             server.enqueue(refusal)
-            try {
-                repository.deleteAccount(context, withPhoneData = true)
-                fail("A refused deletion deletes nothing")
-            } catch (e: ProxyException) {
-                assertEquals(code, e.code)
-            }
+            repository.deleteAccount(withPhoneData = true).join()
+            assertEquals(code, refusal().code)
 
             val kept = OnThePhone(bills = 2, recurring = 1, people = 1, methods = 1, groups = true, sharedFiles = 3, name = "Minh")
             assertEquals(code, kept, onThePhone())
@@ -405,6 +408,166 @@ class AccountRepositoryTest {
 
         assertNull(cache.get("groups", ListSerializer(String.serializer())))
     }
+
+    @Test
+    fun `the person's choice is on disk before the deletion goes out, and how it ended stays until it is said`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        keepOnThePhone()
+        server.enqueue(MockResponse().setResponseCode(204).setHeadersDelay(500, TimeUnit.MILLISECONDS))
+
+        val deletion = repository.deleteAccount(withPhoneData = true)
+
+        assertEquals(Deletion.Running, repository.deletion.value)
+        assertEquals(PendingDeletion(withPhoneData = true, proxyDeleted = false), DeletionStore(context).pending)
+        val written = File(context.dataDir, "shared_prefs/account_deletion.xml").readText()
+        assertTrue("written to the file before the answer: $written", written.contains("""name="with_phone_data" value="true""""))
+
+        deletion.join()
+        assertNull(DeletionStore(context).pending)
+        assertEquals(OnThePhone(0, 0, 0, 0, groups = false, sharedFiles = 0, name = ""), onThePhone())
+        // As the app starts again before Settings said it.
+        val later = proxy.accountRepository(google, cache, storage.phoneData(context, settings))
+        assertEquals(Deletion.Ended(DeletionOutcome.DELETED_WITH_PHONE_DATA), later.deletion.value)
+        later.deletionShown()
+        assertNull(later.deletion.value)
+        assertNull(proxy.accountRepository(google, cache, storage.phoneData(context, settings)).deletion.value)
+    }
+
+    @Test
+    fun `a deletion the app was ended in before the proxy answered is asked again at the next start, with the phone's data`() =
+        runBlocking {
+            proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+            val page = keepOnThePhone()
+            DeletionStore(context).begin(withPhoneData = true)
+            server.enqueue(MockResponse().setResponseCode(204))
+
+            checkNotNull(repository.finishInterruptedDeletion()).join()
+
+            assertEquals("DELETE", server.takeRequest().method)
+            assertEquals(OnThePhone(0, 0, 0, 0, groups = false, sharedFiles = 0, name = ""), onThePhone())
+            assertNull(storage.pages.load(page))
+            assertNull(proxy.account.account.value.session)
+            assertTrue(google.forgotten)
+            assertEquals(Deletion.Ended(DeletionOutcome.DELETED_WITH_PHONE_DATA), repository.deletion.value)
+            assertNull(DeletionStore(context).pending)
+        }
+
+    @Test
+    fun `a deletion the app was ended in after the proxy deleted the account is finished on the phone without asking again`() =
+        runBlocking {
+            proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+            keepOnThePhone()
+            DeletionStore(context).apply {
+                begin(withPhoneData = true)
+                proxyDeleted()
+            }
+
+            val finishing = checkNotNull(repository.finishInterruptedDeletion())
+            assertNull("the deleted account's session is gone at once", proxy.account.account.value.session)
+            finishing.join()
+
+            assertEquals(0, server.requestCount)
+            assertEquals(OnThePhone(0, 0, 0, 0, groups = false, sharedFiles = 0, name = ""), onThePhone())
+            assertEquals(Deletion.Ended(DeletionOutcome.DELETED_WITH_PHONE_DATA), repository.deletion.value)
+        }
+
+    @Test
+    fun `a deletion cut off whose session the proxy no longer takes deletes nothing on the phone and says so`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        keepOnThePhone()
+        DeletionStore(context).begin(withPhoneData = true)
+        server.enqueue(json(401, """{"error":"session"}"""))
+
+        checkNotNull(repository.finishInterruptedDeletion()).join()
+
+        assertEquals(Deletion.Ended(DeletionOutcome.NOT_CONFIRMED), repository.deletion.value)
+        assertEquals(OnThePhone(2, 1, 1, 1, groups = true, sharedFiles = 3, name = "Minh"), onThePhone())
+        assertTrue("signing in again can delete it", proxy.account.account.value.signInExpired)
+        assertNull(DeletionStore(context).pending)
+    }
+
+    @Test
+    fun `a deletion cut off waits for the next start while the proxy cannot be reached`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        DeletionStore(context).begin(withPhoneData = false)
+        server.shutdown()
+
+        checkNotNull(repository.finishInterruptedDeletion()).join()
+
+        assertNull("there is nothing to say yet", repository.deletion.value)
+        assertEquals(PendingDeletion(withPhoneData = false, proxyDeleted = false), DeletionStore(context).pending)
+        assertEquals("signed-session", proxy.account.account.value.session?.token)
+
+        DeletionStore(context).end(null)
+        assertNull("a phone with nothing to finish starts nothing", repository.finishInterruptedDeletion())
+    }
+
+    @Test
+    fun `a photo of a page that cannot be deleted is said, and the rest of the phone's data still goes`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        keepOnThePhone()
+        // A page the phone cannot delete, as a folder that is not empty is.
+        File(context.filesDir, "bill_pages/${"0".repeat(36)}.jpg/stuck").apply { parentFile?.mkdirs() }.writeText("stuck")
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        repository.deleteAccount(withPhoneData = true).join()
+
+        assertEquals(Deletion.Ended(DeletionOutcome.PHONE_DATA_NOT_DELETED), repository.deletion.value)
+        assertEquals(OnThePhone(0, 0, 0, 0, groups = false, sharedFiles = 0, name = ""), onThePhone())
+        assertNull(proxy.account.account.value.session)
+        assertTrue(google.forgotten)
+    }
+
+    @Test
+    fun `groups and requests that cannot be deleted after the proxy deleted the account are said, not taken as a failed deletion`() =
+        runBlocking {
+            proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+            keepOnThePhone()
+            val broken = TestStorage(context)
+            broken.database.openHelper.writableDatabase.execSQL("DROP TABLE proxy_cache")
+            val withBrokenCache = proxy.accountRepository(
+                google,
+                ProxyCache(broken.database.proxyCache()),
+                storage.phoneData(context, settings),
+            )
+            server.enqueue(MockResponse().setResponseCode(204))
+            server.enqueue(MockResponse().setResponseCode(204))
+
+            withBrokenCache.deleteAccount(withPhoneData = false).join()
+            assertEquals(Deletion.Ended(DeletionOutcome.ACCOUNT_DATA_NOT_DELETED), withBrokenCache.deletion.value)
+            assertNull(proxy.account.account.value.session)
+            assertTrue(google.forgotten)
+
+            // Asked to, the phone's data still goes.
+            proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+            withBrokenCache.deleteAccount(withPhoneData = true).join()
+            assertEquals(Deletion.Ended(DeletionOutcome.PHONE_DATA_NOT_DELETED), withBrokenCache.deletion.value)
+            assertEquals(0, onThePhone().bills)
+            broken.close()
+        }
+
+    @Test
+    fun `the document scanner's pages in the cache and the app's notices go with the phone's data`() = runBlocking {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        val scanned = File(context.cacheDir, "mlkit_docscan_ui_client/1/page_1.jpg").apply { parentFile?.mkdirs() }
+        scanned.writeText("a page of a bill")
+        val notices = context.getSystemService(NotificationManager::class.java)
+        notices.createNotificationChannel(NotificationChannel("drafts", "Drafts", NotificationManager.IMPORTANCE_DEFAULT))
+        notices.notify(
+            1,
+            NotificationCompat.Builder(context, "drafts").setSmallIcon(R.drawable.ic_notification).setContentTitle("Rent").build(),
+        )
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        repository.deleteAccount(withPhoneData = true).join()
+
+        assertFalse(scanned.exists())
+        assertEquals(emptyList<File>(), context.cacheDir.listFiles().orEmpty().toList())
+        assertEquals(0, shadowOf(notices).allNotifications.size)
+    }
+
+    /** Why the last deletion was refused. */
+    private fun refusal(): ProxyException = (repository.deletion.value as Deletion.Refused).error as ProxyException
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)

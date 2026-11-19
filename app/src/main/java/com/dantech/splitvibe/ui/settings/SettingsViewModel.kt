@@ -5,8 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountRepository
+import com.dantech.splitvibe.data.account.Deletion
+import com.dantech.splitvibe.data.account.DeletionOutcome
 import com.dantech.splitvibe.data.account.GoogleSignInException
-import com.dantech.splitvibe.data.account.PhoneDataException
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.llm.waitHint
@@ -32,6 +33,23 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 
     val canSignIn: Boolean get() = repository.canSignIn
 
+    init {
+        // A deletion goes on after Settings is left, so Settings follows it whenever it shows, and
+        // says how one that ended while it was closed came out.
+        viewModelScope.launch {
+            repository.deletion.collect { deletion ->
+                when (deletion) {
+                    null -> Unit
+                    Deletion.Running -> state.value = AccountUiState(working = true)
+                    is Deletion.Ended -> said(textOf(deletion.outcome), isError = deletion.outcome !in DONE)
+                    is Deletion.Refused -> said(messageOf(deletion.error), isError = true)
+                }
+            }
+        }
+        // One the app was ended in the middle of, which its start could not finish, such as without a connection.
+        repository.finishInterruptedDeletion()
+    }
+
     /**
      * The count shown is the proxy's, so it is asked for each time Settings opens, quietly: no
      * progress, and nothing to say when the proxy just cannot be reached. An action stops it, because
@@ -54,20 +72,26 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 
     fun signOut(context: Context) = act { repository.signOut(context) }
 
-    /** Deletes the account, and [withPhoneData] also what only this phone keeps, once the proxy has deleted the account. */
-    fun deleteAccount(context: Context, withPhoneData: Boolean) = act(
-        done = text(if (withPhoneData) R.string.settings_account_and_phone_data_deleted else R.string.settings_account_deleted),
-    ) { repository.deleteAccount(context, withPhoneData) }
+    /**
+     * Deletes the account, and [withPhoneData] also what only this phone keeps, once the proxy has
+     * deleted the account. It goes on when Settings is left, and Settings says how it ended.
+     */
+    fun deleteAccount(withPhoneData: Boolean) {
+        if (state.value.working) return
+        refreshing.cancel()
+        state.value = AccountUiState(working = true)
+        repository.deleteAccount(withPhoneData)
+    }
 
-    /** Runs one account action at a time. [done] is said once it has worked. */
-    private fun act(done: UiText? = null, block: suspend () -> Unit) {
+    /** Runs one account action at a time. */
+    private fun act(block: suspend () -> Unit) {
         if (state.value.working) return
         refreshing.cancel()
         state.value = AccountUiState(working = true)
         viewModelScope.launch {
             state.value = try {
                 block()
-                AccountUiState(message = done)
+                AccountUiState()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -75,6 +99,26 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
             }
         }
     }
+
+    /** Shows [message] about how the last deletion ended, which then counts as said. */
+    private fun said(message: UiText?, isError: Boolean) {
+        state.value = AccountUiState(message = message, isError = isError)
+        repository.deletionShown()
+    }
+
+    private companion object {
+        /** The outcomes of a deletion that did all the person asked for. */
+        val DONE = setOf(DeletionOutcome.DELETED, DeletionOutcome.DELETED_WITH_PHONE_DATA)
+    }
+}
+
+/** What Settings says about a deletion that ended as [outcome]. */
+internal fun textOf(outcome: DeletionOutcome): UiText = when (outcome) {
+    DeletionOutcome.DELETED -> text(R.string.settings_account_deleted)
+    DeletionOutcome.DELETED_WITH_PHONE_DATA -> text(R.string.settings_account_and_phone_data_deleted)
+    DeletionOutcome.ACCOUNT_DATA_NOT_DELETED -> text(R.string.settings_account_data_not_deleted)
+    DeletionOutcome.PHONE_DATA_NOT_DELETED -> text(R.string.settings_phone_data_not_deleted)
+    DeletionOutcome.NOT_CONFIRMED -> text(R.string.settings_deletion_not_confirmed)
 }
 
 /**
@@ -100,8 +144,6 @@ internal fun messageOf(error: Exception): UiText? = when (error) {
     }
 
     is IOException -> text(R.string.server_unreachable)
-
-    is PhoneDataException -> text(R.string.settings_phone_data_not_deleted)
 
     else -> text(R.string.common_something_went_wrong)
 }

@@ -187,9 +187,12 @@ class AccountStore(
         state.update { it.copy(session = null, signInExpired = true, callsLeft = null, purchaser = null) }
     }
 
-    /** Forgets the sign-in, after signing out or deleting the account; the install is the caller again. */
+    /**
+     * Forgets the sign-in, after signing out or deleting the account; the install is the caller again.
+     * It is on disk when this returns, so a deleted account's session never comes back after the app ends.
+     */
     fun clearSession() {
-        preferences.edit {
+        preferences.edit(commit = true) {
             remove(KEY_SESSION)
             remove(KEY_SESSION_EXPIRES_AT)
             remove(KEY_SIGNED_IN_AS)

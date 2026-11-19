@@ -55,9 +55,12 @@ class SettingsStore(context: Context) {
         state.value = read()
     }
 
-    /** Forgets the name the user goes by, as when they delete what the phone keeps about them. */
+    /**
+     * Forgets the name the user goes by, as when they delete what the phone keeps about them. It is
+     * on disk when this returns, so a deletion that the app is ended after does not leave it behind.
+     */
     fun forgetName() {
-        preferences.edit { remove(KEY_MY_NAME) }
+        preferences.edit(commit = true) { remove(KEY_MY_NAME) }
         state.value = read()
     }
 

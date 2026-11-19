@@ -47,8 +47,7 @@ class TestStorage(context: Context) : AutoCloseable {
     )
 
     /** What only the phone keeps, as account deletion deletes it, with [settings] for the user's name. */
-    fun phoneData(context: Context, settings: SettingsStore = SettingsStore(context)) =
-        PhoneData(database, pages, settings, context.cacheDir)
+    fun phoneData(context: Context, settings: SettingsStore = SettingsStore(context)) = PhoneData(database, pages, settings, context)
 
     /** Remembers [TestPeople] as people the user split with before. */
     fun rememberTestPeople() = runBlocking {

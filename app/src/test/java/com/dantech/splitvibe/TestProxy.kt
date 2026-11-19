@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Looper
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
+import com.dantech.splitvibe.data.account.DeletionStore
 import com.dantech.splitvibe.data.account.GoogleAccount
 import com.dantech.splitvibe.data.account.GoogleAccounts
 import com.dantech.splitvibe.data.account.GoogleSignInException
@@ -23,17 +24,23 @@ import org.robolectric.Shadows.shadowOf
  * The app's real proxy client, pointed at [server] in place of the AI proxy, as a phone that has
  * not signed in yet.
  */
-class TestProxy(server: MockWebServer, context: Context, clock: () -> Long = System::currentTimeMillis) {
+class TestProxy(server: MockWebServer, private val context: Context, clock: () -> Long = System::currentTimeMillis) {
     val account = AccountStore(context, proxySetUp = true, cipher = PlainCipher, clock = clock)
     val api = ProxyApi(server.url("/").toString(), account, appVersion = APP_VERSION)
     val analyzer = GatewayBillAnalyzer(api, account, canSignIn = true, sellsPro = false)
 
     /**
      * The account's actions as the app wires them, with [cache] for groups and requests, [phone] for
-     * what only the phone keeps, and no push.
+     * what only the phone keeps, and no push. [deletions] is where the app keeps an account deletion
+     * while it runs, which a repository made later, as at the app's next start, reads again.
      */
-    fun accountRepository(google: GoogleAccounts?, cache: ProxyCache, phone: PhoneData, proxy: ProxyApi = api) =
-        AccountRepository(proxy, account, google, cache, DeviceRegistrar(proxy, account) { null }, phone)
+    fun accountRepository(
+        google: GoogleAccounts?,
+        cache: ProxyCache,
+        phone: PhoneData,
+        proxy: ProxyApi = api,
+        deletions: DeletionStore = DeletionStore(context),
+    ) = AccountRepository(proxy, account, google, cache, DeviceRegistrar(proxy, account) { null }, phone, deletions, context)
 
     companion object {
         const val APP_VERSION = 7

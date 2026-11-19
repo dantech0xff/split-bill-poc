@@ -1,7 +1,9 @@
 package com.dantech.splitvibe
 
 import android.app.Application
+import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
+import com.dantech.splitvibe.data.account.DeletionStore
 import com.dantech.splitvibe.di.appModule
 import com.dantech.splitvibe.di.spendingModule
 import com.dantech.splitvibe.notifications.DeviceRegistrar
@@ -29,6 +31,9 @@ class SplitVibeApp : Application() {
             androidContext(this@SplitVibeApp)
             modules(appModule, spendingModule)
         }.koin
+        // A deletion of the account that the app was ended in the middle of is finished first, so that
+        // a session the proxy deleted is gone before anything sends it.
+        if (koin.get<DeletionStore>().pending != null) koin.get<AccountRepository>().finishInterruptedDeletion()
         Push.start(this)
         // Whenever someone signs in, the proxy learns where to send their push notices.
         if (Push.isConfigured) {

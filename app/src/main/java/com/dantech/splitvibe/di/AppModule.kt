@@ -8,6 +8,7 @@ import com.dantech.splitvibe.billing.RevenueCatBilling
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CredentialManagerGoogleAccounts
+import com.dantech.splitvibe.data.account.DeletionStore
 import com.dantech.splitvibe.data.account.PhoneData
 import com.dantech.splitvibe.data.bills.BillPages
 import com.dantech.splitvibe.data.bills.BillRepository
@@ -95,8 +96,11 @@ val appModule = module {
             cache = get(),
             devices = get(),
             phone = get(),
+            deletions = get(),
+            app = androidContext(),
         )
     }
+    single { DeletionStore(androidContext()) }
     single { DeviceRegistrar(api = get(), account = get()) }
     single { BillImageLoader(androidContext()) }
     single<BillTextRecognizer> { MlKitBillTextRecognizer() }
@@ -114,7 +118,7 @@ val appModule = module {
     // their last answers kept here to read without a connection.
     single { PaymentMethodRepository(database = get()) }
     single { ProxyCache(get<SplitVibeDatabase>().proxyCache()) }
-    single { PhoneData(database = get(), pages = get(), settings = get(), cacheDir = androidContext().cacheDir) }
+    single { PhoneData(database = get(), pages = get(), settings = get(), context = androidContext()) }
     single { GroupRepository(api = get(), cache = get(), account = get()) }
     single { RequestRepository(api = get(), cache = get(), account = get()) }
     single { ShareRepository(api = get(), words = get()) }

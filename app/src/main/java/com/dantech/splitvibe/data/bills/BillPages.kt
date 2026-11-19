@@ -35,9 +35,14 @@ class BillPages(context: Context) {
         names.forEach { name -> fileOf(name)?.delete() }
     }
 
-    /** Deletes every stored page, also those of a bill that was never saved. */
+    /**
+     * Deletes every stored page, also those of a bill that was never saved.
+     *
+     * @throws IOException when a page is still there afterwards.
+     */
     suspend fun deleteAll() = withContext(Dispatchers.IO) {
-        directory.listFiles()?.forEach { it.delete() }
+        val left = directory.listFiles().orEmpty().filter { !it.delete() && it.exists() }
+        if (left.isNotEmpty()) throw IOException("${left.size} photos of bill pages could not be deleted")
     }
 
     /** Only plain names inside the pages folder, so a stored name can never point anywhere else. */

@@ -93,21 +93,38 @@ the resources shows up in them; `PseudoLocaleGalleryTest` draws four main screen
 Settings deletes the account only once the person confirms it, and the confirmation has a box, off
 each time it opens, to delete what only this phone keeps with it.
 
-1. The proxy deletes what it keeps about the account (`DELETE /v1/account`, see
-   [proxy.md](proxy.md)). When it refuses, limits the deletion (429) or cannot reach RevenueCat
-   (502), nothing on the phone changes and the account stays signed in.
-2. Once it has, the phone forgets the session and the groups and requests kept from the proxy, as
-   it always did.
-3. With the box ticked, `PhoneData` then deletes the bills and their drafts with the photos of their
-   pages, the recurring bills, the people split with, the ways to get paid, the copies waiting in
-   the cache to be shared, and the user's name. The rows go in one transaction, so a failure leaves
-   every table as it was, and the screen then says what is left. The currency and the consent to
-   the speech service stay. Without the box ticked, all of it stays as before.
+1. The person's choice is written to the phone's storage (`DeletionStore`) before the request goes
+   out.
+2. The proxy deletes what it keeps about the account (`DELETE /v1/account`, see
+   [proxy.md](proxy.md)). Only its 204 counts, and the call follows no redirect. When the proxy
+   refuses, limits the deletion (429), cannot reach RevenueCat (502) or cannot be reached, nothing
+   on the phone is deleted and the account stays signed in. A 401 means the proxy no longer takes
+   the session, so the sign-in counts as run out on the phone, as after any call, and nothing else
+   changes.
+3. Once the proxy has deleted the account, the phone notes that, then forgets the session and the
+   groups and requests kept from the proxy.
+4. With the box ticked, `PhoneData` then deletes the bills and their drafts with the photos of their
+   pages, the recurring bills, the people split with, the ways to get paid, all of the app's cache
+   (where photos from the camera and the document scanner and the copies shared to another app
+   wait), the app's notices, and the user's name. The rows go in one transaction, so a failure there
+   leaves every table as it was. A file that is still there after it was deleted counts as a failure
+   too. The screen then says that not all of it could be deleted, and that clearing Split Vibe's
+   storage in the phone's settings deletes the rest. The currency and the consent to the speech
+   service stay. Without the box ticked, all of it stays as before.
 
-It runs to the end once the proxy has deleted the account, also when the person leaves Settings
-meanwhile. Deleting the account does not cancel Pro, which the dialog says. Settings and the Pro
-screen link the privacy policy and the terms of use, which the proxy serves at `/privacy` and
-`/terms`; a build without the proxy's address shows neither link.
+The deletion runs in `AccountRepository`'s own scope rather than the screen's, so leaving Settings
+stops neither the request nor what follows it. Settings opened meanwhile shows it working, and the
+next time Settings shows it says how the deletion ended. When the app is ended part of the way
+through, its next start finishes the deletion: it asks the proxy again when the answer had not come,
+and once the proxy has deleted the account it deletes what is left on the phone, the phone's data
+too when the box was ticked. If the proxy then no longer takes the session, which is also how it
+answers once the earlier request deleted the account, nothing on the phone is deleted and Settings
+says that the deletion could not be confirmed. Without a connection, the next start, or Settings
+opening, asks again.
+
+Deleting the account does not cancel Pro, which the dialog says. Settings and the Pro screen link
+the privacy policy and the terms of use, which the proxy serves at `/privacy` and `/terms`; a build
+without the proxy's address shows neither link.
 
 ### Dependency wiring
 

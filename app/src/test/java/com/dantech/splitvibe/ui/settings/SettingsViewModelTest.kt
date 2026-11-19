@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.ui.settings
 
 import android.content.Context
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.FakeGoogleAccounts
@@ -8,6 +9,8 @@ import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.data.account.Deletion
+import com.dantech.splitvibe.data.account.DeletionStore
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.settings.SettingsStore
@@ -15,6 +18,7 @@ import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.inEnglish
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
@@ -87,7 +91,7 @@ class SettingsViewModelTest {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context, withPhoneData = false)
+        viewModel.deleteAccount(withPhoneData = false)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertEquals("Your account was deleted.", viewModel.ui.value.message.inEnglish())
@@ -101,7 +105,7 @@ class SettingsViewModelTest {
         settings.saveName("Minh")
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context, withPhoneData = true)
+        viewModel.deleteAccount(withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         val said = "Your account was deleted, and so were the bills, people and payment methods on this phone."
@@ -120,7 +124,7 @@ class SettingsViewModelTest {
         runBlocking { broken.bills.save(lunch) }
         val viewModel = viewModel(phone = broken)
 
-        viewModel.deleteAccount(context, withPhoneData = true)
+        viewModel.deleteAccount(withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().startsWith("Your account was deleted, but the bills"))
@@ -136,7 +140,7 @@ class SettingsViewModelTest {
         answers["/v1/account"] = { json(500, """{"error":"internal"}""") }
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context, withPhoneData = true)
+        viewModel.deleteAccount(withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().contains("server had a problem"))
@@ -150,7 +154,7 @@ class SettingsViewModelTest {
         answers["/v1/account"] = { json(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "2400") }
         val viewModel = viewModel()
 
-        viewModel.deleteAccount(context, withPhoneData = true)
+        viewModel.deleteAccount(withPhoneData = true)
         awaitOnMain { !viewModel.ui.value.working }
 
         val said = "That was tried too many times just now, so nothing was changed. Try again in about 40 minutes."
@@ -171,9 +175,62 @@ class SettingsViewModelTest {
         assertFalse(viewModel.ui.value.working)
     }
 
-    private fun viewModel(phone: TestStorage = storage) = SettingsViewModel(
-        proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), phone.phoneData(context, settings)),
-    )
+    @Test
+    fun `leaving Settings while the account is deleted does not stop it, and Settings says how it ended when it opens again`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        settings.saveName("Minh")
+        answers["/v1/account"] = { MockResponse().setResponseCode(204).setHeadersDelay(500, TimeUnit.MILLISECONDS) }
+        val repository = repository()
+        val left = SettingsViewModel(repository)
+
+        left.deleteAccount(withPhoneData = true)
+        assertTrue(left.ui.value.working)
+        // Back, the top bar's arrow or Save: the screen goes, and its view model with it.
+        left.viewModelScope.cancel()
+        awaitOnMain { repository.deletion.value != Deletion.Running }
+
+        assertNull(proxy.account.account.value.session)
+        assertEquals("", settings.settings.value.myName)
+        val said = "Your account was deleted, and so were the bills, people and payment methods on this phone."
+        assertEquals(said, SettingsViewModel(repository).ui.value.message.inEnglish())
+        assertNull("it is said once", SettingsViewModel(repository).ui.value.message)
+    }
+
+    @Test
+    fun `Settings opened while the deletion runs shows it working and then how it ended`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        answers["/v1/account"] = { MockResponse().setResponseCode(204).setHeadersDelay(500, TimeUnit.MILLISECONDS) }
+        val repository = repository()
+        SettingsViewModel(repository).apply {
+            deleteAccount(withPhoneData = false)
+            viewModelScope.cancel()
+        }
+
+        val again = SettingsViewModel(repository)
+        assertTrue(again.ui.value.working)
+        awaitOnMain { !again.ui.value.working }
+
+        assertEquals("Your account was deleted.", again.ui.value.message.inEnglish())
+        assertEquals("Settings opening asked for no count meanwhile", 1, server.requestCount)
+    }
+
+    @Test
+    fun `a deletion the app ended in, which the proxy no longer confirms, says so when Settings opens`() {
+        proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
+        DeletionStore(context).begin(withPhoneData = true)
+        answers["/v1/account"] = { json(401, """{"error":"session"}""") }
+        val viewModel = viewModel()
+
+        awaitOnMain { !viewModel.ui.value.working && viewModel.ui.value.message != null }
+
+        assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().startsWith("Deleting your account was cut off"))
+        assertTrue(viewModel.ui.value.isError)
+    }
+
+    private fun repository(phone: TestStorage = storage) =
+        proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), phone.phoneData(context, settings))
+
+    private fun viewModel(phone: TestStorage = storage) = SettingsViewModel(repository(phone))
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)
