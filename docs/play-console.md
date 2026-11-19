@@ -143,8 +143,10 @@ two-step verification.
   `<review Google account>` and `<its password>`. Enter them only in Play Console, never in the
   repository. Play asks for the full account details when an app uses Sign in with Google.
 - **Steps for the reviewer:** open the app; tap **Use the sample bill** on the new split screen to
-  try a bill without a photo; open Settings (gear icon) and tap **Sign in with Google**, choosing
-  the review account (add it to the device first if the picker does not offer it).
+  try a bill without a photo, then **Read and split the bill**, and **Agree** on the screen that
+  asks before Split Vibe first sends a bill's text to the AI; open Settings (gear icon) and tap
+  **Sign in with Google**, choosing the review account (add it to the device first if the picker
+  does not offer it).
 - **AI calls:** an install has 3 free calls, and the review account 10 a month, shared by every
   reviewer who uses it. So that a review does not run out, grant the review account Pro from
   RevenueCat's dashboard once it has signed in once: the proxy counts such a grant as Pro until it
