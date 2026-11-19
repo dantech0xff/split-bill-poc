@@ -2,6 +2,8 @@ package com.dantech.splitvibe
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AccountStore
@@ -22,6 +24,7 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import java.io.File
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
@@ -54,7 +57,22 @@ class TestStorage(context: Context) : AutoCloseable {
         people.remember(TestPeople.names.mapIndexed { index, name -> Participant("p${index + 1}", name) })
     }
 
-    override fun close() = database.close()
+    /** The view models that read from this storage, which stop before it closes. */
+    private val readers = mutableListOf<ViewModel>()
+
+    /**
+     * Stops [viewModel] when this storage closes, before the database does, as leaving its screen
+     * would. A view model left running would query the closed database after the test, and the
+     * failure would be reported in a later test.
+     */
+    fun closeWith(viewModel: ViewModel) {
+        readers += viewModel
+    }
+
+    override fun close() {
+        readers.forEach { it.viewModelScope.cancel() }
+        database.close()
+    }
 }
 
 /**
@@ -91,4 +109,4 @@ fun testSplitViewModel(
     savedState = savedState,
     saveDelayMs = saveDelayMs,
     shares = shares,
-)
+).also(storage::closeWith)
