@@ -6,7 +6,7 @@ tests in `app/src/androidTest`, which need an Android runtime: an emulator or a 
 
 | Tests | What they prove |
 |---|---|
-| `AppLaunchTest` | The app starts as the launcher starts it, and every screen opens and comes back after the activity is recreated. |
+| `AppLaunchTest` | The app starts as the launcher starts it, opens Settings and a new split, and keeps the open screen when the activity is recreated. |
 | `SplitFlowOnDeviceTest` | The sample bill is split from its photo to the sent requests, with the real recognizer and a recorded answer in place of the AI. |
 | `KeystoreCipherTest`, `GatewayBillAnalyzerOnDeviceTest`, `MlKitBillTextRecognizerTest`, `PdfSummaryOnDeviceTest` | On the Android runtime: the Keystore encryption, the proxy client reading a streamed answer, ML Kit on the sample bill, and the PDF summary written as a real PDF file. |
 | `e2e/` | The end-to-end journeys below: the real app, from its home screen, against a fake proxy. |
