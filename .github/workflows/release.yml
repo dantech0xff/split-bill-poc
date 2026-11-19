@@ -1,0 +1,398 @@
+name: Release
+
+# Releases the commit of a version tag: the app bundle, signed with the upload key, to Google Play's
+# internal testing track, and the Worker after its D1 migrations. A pushed tag v* starts it, and it
+# goes on only when main holds the tagged commit; pull requests never start it.
+#
+# Every job that touches a secret runs in the environment production, whose reviewers approve each
+# such job before it starts, and so before it can read a secret: once for the signed bundle, then
+# once for publishing it and deploying the Worker. docs/release.md describes the setup and the steps.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+# One release at a time, and none cancelled halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Tag on main, and the version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.version.outputs.code }}
+      name: ${{ steps.version.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Every branch, so that main is there to compare with.
+          fetch-depth: 0
+
+      - name: The tag points at a commit on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::$TAG points at $(git rev-parse --short HEAD), which is not on main. Only a commit that main holds is released."
+            exit 1
+          fi
+
+      # A tag vMAJOR.MINOR.PATCH, with MINOR and PATCH below 100, gives the version name
+      # MAJOR.MINOR.PATCH and the version code MAJOR * 10000 + MINOR * 100 + PATCH, so every later
+      # version has a higher code, as Google Play requires.
+      - name: Version from the tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+            echo "::error::A release tag is vMAJOR.MINOR.PATCH, such as v1.2.3, with MAJOR below 100000, MINOR and PATCH below 100, and no leading zeros. $TAG is not."
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          code=$((major * 10000 + minor * 100 + patch))
+          if [ "$code" -lt 1 ]; then
+            echo "::error::$TAG gives the version code 0, and Google Play needs 1 or more."
+            exit 1
+          fi
+          echo "Version $major.$minor.$patch, version code $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+
+  # Every check of ci.yml again, on this commit: style, unit tests and screenshots, lint, the
+  # packages, the release checks, npm audit, and the proxy's and the web app's tests.
+  checks:
+    name: Checks
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  bundle:
+    name: Signed app bundle
+    needs: [version, checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # A clean build: nothing comes from a cache that another run wrote, and nothing is written back.
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          validate-wrappers: true
+          cache-disabled: true
+
+      # The prod build's settings, from the environment's variables into local.properties, which
+      # app/build.gradle.kts reads. All of them ship inside the app, so none is a secret. The build
+      # checks each value's form; only the proxy address is required here.
+      - name: Build settings
+        env:
+          AI_PROXY_URL: ${{ vars.AI_PROXY_URL }}
+          GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          REVENUECAT_API_KEY: ${{ vars.REVENUECAT_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AI_PROXY_URL" ]; then
+            echo "::error::The variable AI_PROXY_URL of the environment production is not set. A release needs the Worker's https address."
+            exit 1
+          fi
+          : > local.properties
+          while read -r variable property feature; do
+            value="${!variable}"
+            if [ -z "$value" ]; then
+              echo "::warning::The variable $variable of the environment production is not set, so this build has $feature off."
+              continue
+            fi
+            # One line per setting: a line break would start another one.
+            if [[ "$value" =~ [[:space:]\\] ]]; then
+              echo "::error::The variable $variable holds a space, a line break or a backslash."
+              exit 1
+            fi
+            echo "$property=$value" >> local.properties
+          done <<'SETTINGS'
+          AI_PROXY_URL splitvibe.aiProxyUrl AI reading
+          GOOGLE_WEB_CLIENT_ID splitvibe.googleWebClientId signing in
+          REVENUECAT_API_KEY splitvibe.revenueCatApiKey selling Pro
+          FIREBASE_APP_ID splitvibe.firebaseAppId push notices
+          FIREBASE_API_KEY splitvibe.firebaseApiKey push notices
+          FIREBASE_PROJECT_ID splitvibe.firebaseProjectId push notices
+          FIREBASE_SENDER_ID splitvibe.firebaseSenderId push notices
+          SETTINGS
+
+      # The keystore, from its base64 form in the secret into a file only this job's user can read,
+      # in the runner's temporary directory. The step after the build deletes it.
+      - name: Upload key
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "::error::The secret UPLOAD_KEYSTORE_BASE64 of the environment production is not set."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+
+      # Signed because all four SPLITVIBE_UPLOAD_ variables are set; when a secret is missing the
+      # build stops and names it. --no-daemon leaves no Gradle process with the passwords behind.
+      - name: Signed bundle
+        env:
+          SPLITVIBE_UPLOAD_KEYSTORE_FILE: ${{ runner.temp }}/upload-keystore.jks
+          SPLITVIBE_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          SPLITVIBE_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          SPLITVIBE_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+        run: >
+          ./gradlew --no-daemon :app:bundleProdRelease
+          -Psplitvibe.versionCode="$VERSION_CODE"
+          -Psplitvibe.versionName="$VERSION_NAME"
+
+      - name: Delete the upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-keystore.jks"
+
+      # The certificate that signed the bundle, for the reviewer to compare with the upload key's in
+      # Play Console (Test and release > App integrity) before approving the publishing.
+      - name: Signature
+        env:
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+        run: |
+          set -euo pipefail
+          certificate="$(keytool -printcert -jarfile app/build/outputs/bundle/prodRelease/app-prod-release.aab)"
+          fingerprint="$(grep -m 1 -o 'SHA256: [0-9A-F:]*' <<< "$certificate" || true)"
+          if [ -z "$fingerprint" ]; then
+            echo "::error::The bundle is not signed."
+            exit 1
+          fi
+          echo "Signed by the certificate with $fingerprint"
+          {
+            echo "### Version $VERSION_NAME, version code $VERSION_CODE"
+            echo
+            echo "Signed by the certificate with \`$fingerprint\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # aapt2 and zipalign at a pinned version; zipalign checks 16 KB alignment from 35.0.0 on.
+      - name: Android build tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;36.0.0" > /dev/null
+          echo "ANDROID_BUILD_TOOLS=$ANDROID_HOME/build-tools/36.0.0" >> "$GITHUB_ENV"
+
+      # The APKs that Google Play makes from the bundle for each kind of phone, made here by
+      # bundletool, checked against its SHA-256 first. Every uncompressed native library in them
+      # must start on a 16 KB boundary, or phones with 16 KB memory pages cannot load it.
+      - name: 16 KB alignment of the split APKs
+        env:
+          BUNDLETOOL_VERSION: 1.18.3
+          BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl --silent --show-error --fail --location --retry 3 --output bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          echo "${BUNDLETOOL_SHA256}  bundletool.jar" | sha256sum --check
+          java -jar bundletool.jar build-apks --bundle="$GITHUB_WORKSPACE/app/build/outputs/bundle/prodRelease/app-prod-release.aab" --output=app.apks
+          unzip -q app.apks -d apks
+          shopt -s nullglob
+          apks=(apks/splits/*.apk)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::bundletool made no split APKs from the bundle."
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            if ! "$ANDROID_BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$apk" > zipalign.log; then
+              grep -v '(OK' zipalign.log || true
+              echo "::error::${apk#apks/splits/} is not aligned for 16 KB pages."
+              exit 1
+            fi
+          done
+          echo "All ${#apks[@]} split APKs are aligned for 16 KB pages."
+
+      # Not debuggable, no plain HTTP, the https proxy address in the code, no secret key; on the
+      # split APKs together, which is what a phone installs.
+      - name: Release checks
+        env:
+          AI_PROXY_URL: ${{ vars.AI_PROXY_URL }}
+        run: python3 scripts/release-checks.py --proxy-url "$AI_PROXY_URL" "$RUNNER_TEMP"/apks/splits/*.apk
+
+      # For the publishing job. The bundle holds nothing secret: it is what Google Play hands out.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-bundle
+          path: app/build/outputs/bundle/prodRelease/app-prod-release.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  worker:
+    name: Worker and its database
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: proxy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      # Exactly the versions in the lock files. The Cloudflare token is not in these steps' reach.
+      - name: Packages
+        run: |
+          npm ci
+          npm ci --prefix ../web
+
+      # Stops rather than embed the placeholder page in the Worker.
+      - name: Web app into the Worker
+        env:
+          REQUIRE_WEB: "1"
+        run: npm run build:web
+
+      # The point that D1's Time Travel can restore the database to, kept in the run's summary.
+      - name: Database bookmark
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::The secret CLOUDFLARE_API_TOKEN and the variable CLOUDFLARE_ACCOUNT_ID of the environment production must both be set."
+            exit 1
+          fi
+          bookmark="$(npx wrangler d1 time-travel info split-vibe --json | jq -r '.bookmark // empty')"
+          if [ -z "$bookmark" ]; then
+            echo "::error::Wrangler gave no bookmark for the database split-vibe."
+            exit 1
+          fi
+          echo "The bookmark of split-vibe before the migrations is $bookmark"
+          {
+            echo "### D1 bookmark before the migrations"
+            echo
+            echo "\`$bookmark\`, which this restores the database to, overwriting everything written since:"
+            echo
+            echo "\`npx wrangler d1 time-travel restore split-vibe --bookmark=$bookmark\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Applies those in proxy/migrations that the database does not have yet; none is fine.
+      - name: Database migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply split-vibe --remote
+
+      - name: Deploy the Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+  play:
+    name: Google Play internal testing
+    needs: [version, bundle]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: app-bundle
+          path: ${{ runner.temp }}/bundle
+
+      # Google's access token for the service account that may release to testing tracks, in
+      # exchange for this job's OIDC token through Workload Identity Federation: no key file exists.
+      # It lasts an hour and is written to no file.
+      - id: google
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+          export_environment_variables: false
+
+      # The Android Publisher API's edits flow: open an edit, upload the bundle into it, give the
+      # internal track a release of it, and commit the edit. An edit not committed is deleted.
+      - name: Upload to the internal testing track
+        env:
+          ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+          # The prod flavor's application id, from app/build.gradle.kts.
+          PACKAGE: com.dantech.splitvibe
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+          VERSION_NAME: ${{ needs.version.outputs.name }}
+        run: |
+          set -euo pipefail
+          aab="$RUNNER_TEMP/bundle/app-prod-release.aab"
+          edits="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE/edits"
+          uploads="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE/edits"
+          answer="$RUNNER_TEMP/answer.json"
+
+          # Calls the API and keeps its answer in $answer. The token goes to curl through standard
+          # input, never on a command line. An HTTP error prints Google's message and fails.
+          call() {
+            local method="$1" url="$2" status
+            shift 2
+            status="$(printf 'header = "Authorization: Bearer %s"\n' "$ACCESS_TOKEN" |
+              curl --silent --show-error --config - --request "$method" --output "$answer" --write-out '%{http_code}' "$@" "$url")"
+            if [ "$status" -lt 200 ] || [ "$status" -gt 299 ]; then
+              echo "::error::$method ${url#https://androidpublisher.googleapis.com} answered $status: $(jq -r '.error.message // "no message"' "$answer" 2> /dev/null || true)"
+              return 1
+            fi
+          }
+
+          call POST "$edits"
+          edit="$(jq -r '.id' "$answer")"
+          committed=no
+          trap 'if [ "$committed" != yes ]; then call DELETE "$edits/$edit" || true; fi' EXIT
+
+          # Google Play checks and processes the bundle before it answers, which can take minutes.
+          call POST "$uploads/$edit/bundles?uploadType=media" --header "Content-Type: application/octet-stream" --data-binary "@$aab" --max-time 1800
+          uploaded="$(jq -r '.versionCode' "$answer")"
+          if [ "$uploaded" != "$VERSION_CODE" ]; then
+            echo "::error::Google Play read the version code $uploaded from the bundle, not $VERSION_CODE."
+            exit 1
+          fi
+
+          # The internal track then serves this release to the internal testers, and no other.
+          release="$(jq -n --arg name "$VERSION_NAME" --arg code "$VERSION_CODE" \
+            '{track: "internal", releases: [{name: $name, versionCodes: [$code], status: "completed"}]}')"
+          call PUT "$edits/$edit/tracks/internal" --header "Content-Type: application/json" --data "$release"
+
+          # Fails rather than cancel a review in progress for other changes, which the default would.
+          call POST "$edits/$edit:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW"
+          committed=yes
+          echo "Version $VERSION_NAME ($VERSION_CODE) is on the internal testing track."
+          echo "### Version $VERSION_NAME ($VERSION_CODE) is on Google Play's internal testing track." >> "$GITHUB_STEP_SUMMARY"
