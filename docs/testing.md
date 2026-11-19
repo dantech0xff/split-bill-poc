@@ -29,6 +29,9 @@ repositories, the database and the proxy client are the ones that ship.
 
 The amounts of the manual journeys are typed as whole numbers, so they read the same in any
 currency, and the expected text is formatted the way the app formats it, for the phone's language.
+Once something was typed, a journey taps through the element's click action rather than a touch at
+its place on the screen: on a phone with a soft keyboard, the keyboard may still be moving the
+screen, and a touch would land on whatever slid under it.
 
 ### The fake proxy
 
