@@ -228,7 +228,7 @@ Sửa:
 
 ## Kết quả thực hiện
 
-<!-- Updated: thực hiện ngày 19/11/2026 trên nhánh feat/phase-09-quality-compliance-release, chưa merge vào main -->
+<!-- Updated: thực hiện ngày 19/11/2026 trên nhánh feat/phase-09-quality-compliance-release, đã fast-forward vào main ngày 19/11/2026 -->
 Mọi việc làm được trong repo và trên Cloudflare đã xong, có test và bằng chứng. Tuy vậy, trong chín tiêu chí chưa tiêu chí nào đạt trọn, vì tiêu chí nào cũng còn một phần cần chủ sản phẩm: app trên Play Console và vòng thử kín, máy tham chiếu, khóa Anthropic để chạy hai bộ đánh giá, các giá trị production của proxy, người xét duyệt pháp lý, material3 1.5.0 bản stable, và việc phát hành theo nấc. Thứ tự các bước ở [docs/release-checklist.md](../../docs/release-checklist.md).
 
 | Tiêu chí | Kết quả | Bằng chứng |
