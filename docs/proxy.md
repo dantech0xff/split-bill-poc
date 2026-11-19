@@ -40,7 +40,7 @@ flowchart LR
 | `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage, purchaser}`: a session the proxy signs, for 30 days, and the id the app gives RevenueCat |
 | `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on; with `purchaser` too for a signed-in caller |
 | `POST /v1/plan` | the Pro screen, and the app once a purchase or a restore is done | `{purchaser, usage, aiEnabled}` once the proxy has read the account's plan from RevenueCat, [below](#pro-subscriptions) |
-| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its spend counter and its part in the shared data are gone, and its calls but those of the month, which stay until the month ends, [below](#deleting-an-account) |
+| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its spend counter and its part in the shared data are gone, and its calls but those of the month, which stay until the month ends; every session issued before then is refused from then on, [below](#deleting-an-account) |
 | `POST /v1/account/delete-with-google` | the page `/delete-account`, after "Sign in with Google" | 204 once the account of the ID token is deleted, as `DELETE /v1/account` deletes one, [below](#deleting-an-account) |
 | `POST /v1/subscription-events` | RevenueCat's webhook | `{"ok":true}` once the plans the event is about are read again, [below](#pro-subscriptions) |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
@@ -53,7 +53,9 @@ flowchart LR
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
 its version with `X-SplitVibe-Version`; the exchange rates, the shared data, the links, the pages
 and the deletion with Google need neither. A signed-in app adds `Authorization: Bearer <session>`,
-which is all the shared data needs. RevenueCat's webhook carries none of them: its own `Authorization` value lets it in. The body of a bill read is exactly
+which is all the shared data needs. A session issued before its account was deleted is refused
+everywhere as 401 `session`, as one that has run out is. RevenueCat's webhook carries none of them:
+its own `Authorization` value lets it in. The body of a bill read is exactly
 [`sample_bill_request.json`](../app/src/sharedTest/resources/fixtures/sample_bill_request.json) in
 shape; the app's and the proxy's tests both use that file. A bill photographed in several pages is
 still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="…">` per photo, in
@@ -99,6 +101,12 @@ The numbers live in [`proxy/src/policy.ts`](../proxy/src/policy.ts) and change w
 - Each network address may send 10 calls to the model a minute and 100 a day, bill reads and edits
   together, whoever sends them. IPv6 counts by its /64.
 - Spend is capped over each 24 hours: $3 per caller, $6 per address and $20 for the whole proxy.
+  Of the $20, installs that are not signed in may spend $5 together (`installCapMicro`), counted
+  in the same window as the $20, so that signed-in accounts, Pro among them, always keep $15; once
+  the installs' $5 is spent, their calls are refused with 429 `busy` until the window ends. The
+  first hold of a window that takes a cap to 80% of it (`spendWarnPercent`), or that the cap
+  refuses, logs `spend_cap_near` with which cap it is and counts it ([Counters](#counters)), once
+  per cap and window.
   Each call holds the most it could cost, then settles at what it did cost. An edit, which only its
   own model answers, is held at that model's price: half a cent to 1.3 cents with Haiku. A bill
   read, which a refusal can move to another model, is held at the dearest price in `spend.ts`:
@@ -330,12 +338,14 @@ the cron always asks. Only when there has never been a snapshot does a failed fe
 ### What it keeps
 
 Durable Objects hold counters: calls used per install or per account, in hundredths of a
-call, request ids for a day with what each one takes, requests and spend per address. A Google
-account's `QuotaBook` also keeps its plan as RevenueCat last gave it, `proUntil` and `checkedAt`,
-and when its id first went out as a purchaser; both go when the account is deleted, with
-everything else it holds but the calls of the current month, which stay until the month ends, as
-[Deleting an account](#deleting-an-account) says. An install's `QuotaBook` also keeps when it
-first had a call held, so that the first call of an install is [counted](#counters) once. One more
+call, request ids for a day with what each one takes, requests and spend per address, and for the
+whole proxy what installs that are not signed in spent, apart. A Google account's `QuotaBook` also
+keeps its plan as RevenueCat last gave it, `proUntil` and `checkedAt`, and when its id first went
+out as a purchaser; both go when the account is deleted, with everything else it holds but the
+calls of the current month, which stay until the month ends, and the time of the deletion, which
+stays for 30 days, as [Deleting an account](#deleting-an-account) says. An install's `QuotaBook`
+also keeps that it had a call held, never when, so that the first call of an install is
+[counted](#counters) once. One more
 holds the latest exchange rates, which are public. Objects are named by salted hashes, never by an
 IP address or a Google id. A request id is kept with a salted hash of what it asked, so that it
 cannot be reused for another bill or another edit. Nothing of a bill read or of an edit, an
@@ -380,7 +390,10 @@ a `QuotaBook` cannot be asked prints `request_failed` instead, as any request th
 RevenueCat cannot be read, or does not take a deletion, it prints the status or the error's name
 (`revenuecat_unavailable`, `revenuecat_unreadable`, `revenuecat_delete_failed`), never an id, a
 body or a key. When an account's `QuotaBook` cannot record its purchaser, it prints
-`purchaser_not_recorded` and nothing more. When Turnstile cannot judge
+`purchaser_not_recorded` and nothing more. When a call's hold takes a spend cap to 80% of it, it
+prints `spend_cap_near` with the cap, `caller`, `address`, `install` or `global`, once per cap and
+window, and nothing more. A fingerprint for App Links that is not one prints
+`bad_cert_fingerprint` with its variable's name and how many there were. When Turnstile cannot judge
 a claim, it prints Cloudflare's error codes; when a token was solved for another action or host, the
 action and the hostname Cloudflare gave; and when a test secret is refused, that it was. It never
 prints a token. Cloudflare's invocation
@@ -406,14 +419,15 @@ and the Worker logs `metric_not_written` with the error's name.
 
 | Event | Counted when | Outcome | Numbers |
 |---|---|---|---|
-| `bill_analysis`, `split_revision` | a bill read or an edit of a split ends, however it ends | `ok`, or the code of the error line or refusal that ended it, such as `quota_exhausted`, `ai_off` or `upstream` | cost, tokens and time; cost and tokens only once the model answered |
+| `bill_analysis`, `split_revision` | a bill read or an edit of a split ends, however it ends | `ok`, or the code of the error line or refusal that ended it, such as `quota_exhausted`, `ai_off` or `upstream`; `session` for a session issued before its account was deleted; `internal` for a call an error cut short, which the Worker answered 500 or ended with the error line `internal` | cost, tokens and time; cost and tokens only once the model answered |
 | `install_first_call` | the call that an install not signed in had held first, once per install | the outcome of that call | none |
 | `sign_in` | `POST /v1/session` answers | `ok`, `input`, `id_token` or `sign_in_off` | none |
 | `share_created` | a bill link is made | `ok` | none |
 | `share_claim` | a claim lands on a bill link | `new`, or `changed` for a claim the link had | none |
 | `request_created`, `request_reported_paid`, `request_confirmed_paid` | a payment request is made, reported paid or confirmed paid; each happens once per request | `ok` | none |
-| `plan_refresh` | `POST /v1/plan` answers a signed-in account | `ok`, `not_configured`, `rate_limited` or `subscription_unavailable` | none |
+| `plan_refresh` | `POST /v1/plan` answers a signed-in account | `ok`, `not_configured`, `session`, `rate_limited` or `subscription_unavailable` | none |
 | `subscription_event` | RevenueCat's webhook answers | what its log line says came of the event, such as `ok`, `test`, `no_account` or `webhook_auth`; never the event's type | time |
+| `spend_cap_near` | a call's hold takes a spend cap to 80% of it, or the cap refuses it, the first time in the cap's window | the cap: `caller`, `address`, `install` (the pool of installs that are not signed in) or `global` | none |
 | `daily_run` | the daily cron ends | `ok`, or `failed` when one of its parts failed | time |
 
 An install's `QuotaBook` marks its first call when it holds it, so a first call that gets no
@@ -536,8 +550,10 @@ with `groupId`, `toMemberId`, `creditorMemberId` and `billId` set to null.
 The owner can remove a member who has an account, other than their own member: the member becomes
 a placeholder exactly as if they had left, keeping its name and every amount, and their account,
 and any claim of theirs in the group, goes. Payment requests already made stay as they are.
-Removing the owner's own member, or a placeholder, is 409. A removed account can join again only
-through an invite, which the owner can revoke.
+Removing the owner's own member, or a placeholder, is 409. Removing a member, and leaving, revoke
+every invite of the group that still works, in the same batch, so that no invite made before, one
+the member kept among them, brings anyone back: the members who stay make a new one, and a removed
+account can join again only through such a new invite, which the owner can revoke too.
 
 A group holds at most 100 members, placeholders included, 500 bills that are not deleted, 1 MB of
 those bills' documents together (as serialized; a changed bill counts as it would be), and 2,000
@@ -717,9 +733,13 @@ The cron of `wrangler.jsonc` (16:30 UTC) fetches the exchange rates, and alongsi
 ### App Links
 
 `GET /.well-known/assetlinks.json` lets Android open the proxy's `/g/` and `/r/` links in the app.
-It lists `com.dantech.splitvibe` and `com.dantech.splitvibe.dev`, each with every fingerprint in the
-variable `ANDROID_CERT_SHA256` (comma-separated SHA-256 fingerprints, `AB:CD:…`, upper-cased by the
-Worker; one that is not one is left out and logged). Without any, it is `[]`. Where the app does
+It lists each package with the fingerprints of its own variable alone, comma-separated SHA-256
+fingerprints (`AB:CD:…`, upper-cased by the Worker; one that is not one is left out and logged):
+`com.dantech.splitvibe` with `ANDROID_CERT_SHA256`, the upload key's and the Play app signing
+key's, and `com.dantech.splitvibe.dev` with `ANDROID_DEV_CERT_SHA256`, the debug key's. A package
+whose variable lists none is left out, and without any the file is `[]`. So no key is trusted for a
+package it does not sign. Leave `ANDROID_DEV_CERT_SHA256` empty on production, so that no app
+signed with a debug key opens its links. Where the app does
 not open a link, a browser asks for `GET /g/` or `GET /r/`, without the fragment that holds the
 token, and gets the web app's page, the same for every link: its script reads the token from the
 fragment and shows the invite or the request, as [the pages](#the-pages) describe. A token in the
@@ -750,13 +770,18 @@ say so before they delete the account. Next the proxy takes the account out of t
 one batch, without changing anyone's balance: amounts and settlements stay as they are. Last it
 forgets the account's `QuotaBook` and deletes its spend counter.
 
-- The `QuotaBook` keeps the count of the calendar month the account was deleted in, and nothing
-  else: its plan, the record of its purchaser and the request ids it remembers go, so a later
-  webhook event about the account asks RevenueCat nothing. The count holds the month and the
-  calls used, under the account's salted hash, so that deleting the account and signing in again
-  starts no new allowance: a sign-in in the same month sees the calls used, on the free plan. When
-  the month ends, the object wakes and deletes the count. A call still held when the account is
-  deleted runs on, and is charged to that count once the model answers.
+- The `QuotaBook` keeps two things and nothing else: the count of the calendar month the account
+  was deleted in, and the time of the deletion. Its plan, the record of its purchaser and the
+  request ids it remembers go, so a later webhook event about the account asks RevenueCat nothing.
+  The count holds the month and the calls used, under the account's salted hash, so that deleting
+  the account and signing in again starts no new allowance: a sign-in in the same month sees the
+  calls used, on the free plan. A call still held when the account is deleted runs on, and is
+  charged to that count once the model answers. The time of the deletion stays for 30 days
+  (`sessionMs`), the longest a session lasts, so that every session issued before it is refused,
+  as below. The object wakes when the month ends and deletes the count, and when the 30 days are
+  over and deletes the time, so that nothing is left after the later of the two. Every call to the
+  object first forgets what has outlived its time and sets the alarm again for what is left, so
+  that nothing stays past its time when older code ran the alarm after a rollback.
 - Its members become placeholders named "Former member", keeping their ids; each group logs
   `member_left`. A group where nobody else has an account is deleted, as when its last account
   leaves.
@@ -764,8 +789,8 @@ forgets the account's `QuotaBook` and deletes its spend counter.
   the group's owner.
 - Its claims and devices are deleted. Its hourly counters stay, holding nothing of the account but
   its salted hash, until the daily run forgets them once their hour is over, as it forgets every
-  one. So neither deleting the account again and again nor a session that outlives the deletion
-  starts a limit over, and RevenueCat cannot be asked without end.
+  one. So deleting the account again and again, signing in again each time, starts no limit over,
+  and RevenueCat cannot be asked without end.
 - Its bill links are deleted, with their claims, so their links stop working at once. Pages that
   have one open hear nothing more, and learn it at their next request.
 - On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and on
@@ -776,13 +801,20 @@ forgets the account's `QuotaBook` and deletes its spend counter.
   gets `unpaid` notices instead of the debtor's reminders. Signing in again with the same Google
   account finds none of it.
 
-Sessions are not revoked: the proxy keeps no list of them, and a session it signed stays valid
-until it expires, at most 30 days after it was issued. A session issued before the deletion can
-therefore still do whatever a session can, as the same account: read bills on a new month's
-calls, make groups, requests and devices again, which a later sign-in would then find, and have
-its plan read, which hands its purchaser out again and has RevenueCat create the customer anew. The
-app forgets its session when the account is deleted, so only a copy kept elsewhere, such as on a
-second phone signed in to the same account, could still be used.
+Every session issued before the deletion is refused from then on, as 401 `session`, wherever a
+session is taken: the shared data, devices, the calls left, the plan, bill reads and edits, and
+`DELETE /v1/account`. So a phone still signed in to the account, as when it was deleted on the web,
+brings nothing back: no device, no record of its purchaser, no question to RevenueCat, no group,
+request or count. The app takes 401 `session` as a sign-in that ran out, forgets the session and
+asks to sign in again. A session carries its issue time, `iat`, to the millisecond, so a sign-in
+after the deletion, even in the same second, gets a session that works; sessions issued in whole
+seconds, before sessions had milliseconds, still count. The check rides on the call each route
+makes to the account's `QuotaBook` anyway: the hold of a bill read or an edit, and the purchaser of
+`/v1/usage` and `/v1/plan`. The routes on shared data, devices and `DELETE /v1/account` make one
+more call to it. One thing the proxy cannot stop: when the app starts, it starts RevenueCat's SDK
+as the purchaser it kept, before any call tells it that its session ended, and RevenueCat's read
+creates the customer again, empty, under the account's id. The proxy asks RevenueCat nothing about
+it, since the record of the purchaser is gone.
 
 While an account is being deleted, two things can still read its customer at RevenueCat between
 RevenueCat's deletion and the proxy's own, and so create the customer again, empty, under the
@@ -1029,9 +1061,12 @@ The live connection:
 
 ### The pages
 
-- `GET /s/`, `GET /r/` and `GET /g/` answer the web app's page, the same for every link. Its
-  script reads the token from the fragment and calls the routes above; a token in the path, as in
-  `/s/<token>`, is 404.
+- `GET /s/`, `GET /r/` and `GET /g/`, and HEAD as below, answer the web app's page, the same for
+  every link. Its script reads the token from the fragment and calls the routes above; a token in
+  the path, as in `/s/<token>`, is 404.
+- On a payment request and on each amount of a settled bill link, the page says above how to pay
+  that the person who sent the link wrote it and that Split Vibe does not check it, with the
+  "Report abuse" link while `ABUSE_EMAIL` is set ([web.md](web.md)).
 - The Worker fills two tags of the page from its variables:
   - `<meta name="sv-turnstile-site-key">` from `TURNSTILE_SITE_KEY`;
   - `<meta name="sv-abuse-email">` from `ABUSE_EMAIL`, the address of the "Report abuse" link,
@@ -1065,7 +1100,9 @@ The live connection:
     Services tells the page's origin from the referrer, and refuses its button without it. A
     request to another origin carries the origin alone, and the page's address holds nothing
     else.
-- These three answer GET at their paths as written only: `/privacy/` or `/terms.html` is 404.
+- These three, like the link pages, answer GET and HEAD at their paths as written only. HEAD gets
+  the status and headers GET gets, without the body, for link checkers and uptime monitors.
+  `/privacy/` or `/terms.html` is 404, and any other method 405.
 - `GET /assets/<name>` serves the pages' scripts and styles with `cache-control: public,
   max-age=31536000, immutable` and `x-content-type-options: nosniff`; any other name is 404.
 - The web app is built from [`web/`](../web) and put into the Worker's bundle, as the module
@@ -1153,9 +1190,13 @@ adb reverse tcp:8787 tcp:8787
 ```
 
 To sign in from a debug build, also put the web client ID (see below) into `GOOGLE_CLIENT_ID` in
-`wrangler.jsonc` and into `local.properties`. The page `http://localhost:8787/delete-account` signs
-in with Google only once `http://localhost` and `http://localhost:8787` are both among the web
-client's Authorized JavaScript origins, as Google's guide asks for testing on a computer.
+`wrangler.jsonc` and into `local.properties`. To try the page
+`http://localhost:8787/delete-account`, use a separate OAuth client of type *Web application*, best
+in a Google Cloud project kept for testing, with `http://localhost` and `http://localhost:8787` as
+its Authorized JavaScript origins, and its client ID in `GOOGLE_CLIENT_ID` in `proxy/.dev.vars`
+([web.md](web.md#deleting-an-account-on-the-web)). Never add `localhost` origins to the production
+client: any page served on a person's own computer could then get ID tokens for it, and such a
+token signs in to that person's account or deletes it.
 
 ### Tests
 
@@ -1182,7 +1223,9 @@ are raced by landing one just before the other's batch, both ways round, and a c
 before the batch of a settlement that matches it. The tests of the pages read nothing of what the
 page says, so they hold for the web app and for the placeholders alike. The tests of deleting an
 account walk the matrix of what the proxy holds about it, one row of it per test, through both
-routes: devices; the calls of the month, which a new sign-in sees; the plan and the record of the
+routes: devices; the calls of the month, which a new sign-in sees; the time of the deletion, kept
+for 30 days; the sessions issued before it, refused on every kind of route without bringing
+anything back, and a sign-in after it, which works; the plan and the record of the
 purchaser; the customer at RevenueCat, deleted first; the spend counter; the hourly counters,
 until the daily cleanup; groups and their bills, where the balances of the members who stay must
 not move; payment requests not confirmed; and bill links with their claims. The counters go to a
@@ -1248,9 +1291,11 @@ These steps need the owner's accounts.
    ```
 
    Delete the key file afterwards. For App Links, put the SHA-256 fingerprints of the keys that sign
-   the app (the debug key, the upload key and the Play app signing key) into `ANDROID_CERT_SHA256`
-   in `wrangler.jsonc`, separated by commas; they are public. `keytool -list -v` prints them, and
-   Play Console shows the app signing key's.
+   the release app, the upload key and the Play app signing key, into `ANDROID_CERT_SHA256` in
+   `wrangler.jsonc`, separated by commas; they are public. `keytool -list -v` prints them, and Play
+   Console shows the app signing key's. The debug key's fingerprint goes into
+   `ANDROID_DEV_CERT_SHA256`, and only on a Worker that debug builds use. On production it stays
+   empty, so that no app signed with a debug key opens the production links.
 
 4. **The web pages.** Make a Turnstile widget for `<the proxy's host>`: in the Cloudflare
    dashboard under Turnstile, or with the API's `POST /accounts/{account_id}/challenges/widgets`
@@ -1368,6 +1413,21 @@ These steps need the owner's accounts.
    window, the month's count too, so that account may sign in again to a fresh allowance, and it
    marks no first call of an install, so those go uncounted. Deploy with
    `--durable-objects-code-update-mode immediate`, as above, to leave no such window.
+
+   **The first deploy that ends sessions at a deletion and keeps installs within their pool**: for
+   up to about five minutes, a `QuotaBook` still on the code from before keeps no time of a
+   deletion, so an account deleted in that window keeps its sessions until they expire; the Worker
+   takes the runtime's refusal of the method that code lacks as "no deletion", so no request fails.
+   An `AbuseLedger` still on the code from before holds no pool, so in that window installs may
+   spend more than $5 of the proxy's cap. Deploy with `--durable-objects-code-update-mode
+   immediate`, as above, to leave no such window.
+
+   **Rolling back** past it: the older code neither keeps nor checks the time of a deletion, so
+   sessions issued before a deletion work again until they expire, and it may run a deleted
+   account's alarm without setting it again. Once this version is deployed again, each such
+   `QuotaBook` forgets what has outlived its time at its first call and sets its alarm again; one
+   that nothing calls keeps its count and its deletion time, which hold nothing but the account's
+   salted hash, until something does.
 
 8. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
