@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
@@ -44,8 +45,10 @@ internal fun InputField(
             onTextChange(typed)
         },
         modifier = modifier,
-        label = { Text(label, maxLines = 1) },
-        placeholder = placeholder?.let { { Text(it, maxLines = 1) } },
+        // A label longer than a narrow field, as in another language or with large text, ends in "…"
+        // rather than being cut off; a screen reader reads it whole.
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
         suffix = suffix?.let { { Text(it) } },
         singleLine = true,
         isError = isError(typed),

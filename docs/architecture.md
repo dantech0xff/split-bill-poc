@@ -99,7 +99,9 @@ which sets English for numbers.
 
 Debug builds carry the pseudolocales `en-XA`, which makes every text of the resources longer and
 accented, and `ar-XB`, which writes them right to left. Text that is cut off, overlaps or is not in
-the resources shows up in them; `PseudoLocaleGalleryTest` draws four main screens in `en-XA`.
+the resources shows up in them; `PseudoLocaleGalleryTest` draws four main screens and the bill
+editor, whose fields are the narrowest, in `en-XA`. A field's label that is longer than its field
+ends in "…", and a screen reader reads it whole.
 
 ### Deleting the account
 
@@ -554,7 +556,7 @@ like code.
 `ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
 them with the reference images. Every screen has a light and a dark image, and the four main
 screens have one more with text at twice its size, where nothing may be cut off. Home, a split's
-result, Settings and the Pro screen also have one in the pseudolocale `en-XA`.
+result, Settings, the Pro screen and the bill editor also have one in the pseudolocale `en-XA`.
 `ComponentCatalogTest` does the same for the catalog of design system components, so a change to
 a token or a component shows up even when no screen uses it yet.
 

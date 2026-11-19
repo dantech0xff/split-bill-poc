@@ -113,6 +113,34 @@ class PseudoLocaleGalleryTest {
         }
     }
 
+    /** The narrowest fields of the app: an item's quantity, price each and amount side by side, whose labels end in "…" when long. */
+    @Test
+    @Config(sdk = [34], qualifiers = PSEUDO_TALL)
+    fun `the bill editor in en-XA`() {
+        server.start()
+        server.enqueue(Fixtures.proxyAnswer())
+        val proxy = TestProxy(server, context)
+        val viewModel = testSplitViewModel(context, storage, proxy.account.account, recognizer = RECORDED, analyzer = proxy.analyzer)
+        viewModel.onSamplePicked()
+        await { viewModel.state.value.let { it.photo != null && !it.isBusy } }
+        viewModel.analyze(defaultInstruction = INSTRUCTION)
+        await { viewModel.state.value.let { (it.result != null || it.error != null) && !it.isBusy } }
+        assertNull(viewModel.state.value.error)
+        viewModel.startEditing()
+
+        shot("54-edit-bill-en-xa") {
+            SplitScreen(
+                viewModel = viewModel,
+                aiStatus = AiStatus.AVAILABLE,
+                newCameraTarget = { Uri.EMPTY },
+                scanIntent = { null },
+                onExit = {},
+                onOpenSettings = {},
+                onOpenPro = {},
+            )
+        }
+    }
+
     @Test
     @Config(sdk = [34], qualifiers = PSEUDO_TALL)
     fun `Settings of a signed-in account in en-XA`() = shot("52-settings-en-xa") {
