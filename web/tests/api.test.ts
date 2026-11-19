@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimShare, openShare, previewInvite, retryAfterSeconds, viewRequest } from "../src/api";
+import { claimShare, deleteAccountWithGoogle, openShare, previewInvite, retryAfterSeconds, viewRequest } from "../src/api";
 import { FakeFetch } from "./fakes";
 import invite from "./fixtures/invite.json";
 import requestOpen from "./fixtures/request-open.json";
@@ -65,5 +65,47 @@ describe("the proxy's routes", () => {
     expect(retryAfterSeconds("0")).toBe(1);
     expect(retryAfterSeconds("Wed, 21 Oct 2026 07:28:00 GMT")).toBeNull();
     expect(retryAfterSeconds(null)).toBeNull();
+  });
+});
+
+describe("deleting an account with Google", () => {
+  it("posts the ID token as JSON, without a referrer, and takes 204 as done", async () => {
+    let seen: { path: string; init: RequestInit } | undefined;
+    const done = await deleteAccountWithGoogle("id.token.value", async (path, init) => {
+      seen = { path, init };
+      return new Response(null, { status: 204 });
+    });
+
+    expect(done).toEqual({ ok: true });
+    expect(seen?.path).toBe("/v1/account/delete-with-google");
+    expect(seen?.init.method).toBe("POST");
+    expect(seen?.init.headers).toEqual({ "content-type": "application/json" });
+    expect(seen?.init.referrerPolicy).toBe("no-referrer");
+    expect(JSON.parse(String(seen?.init.body))).toEqual({ idToken: "id.token.value" });
+  });
+
+  it("tells each refusal of the proxy apart", async () => {
+    const fetch = new FakeFetch().answer(
+      "/v1/account/delete-with-google",
+      { status: 401, body: { error: "id_token" } },
+      { status: 429, body: { error: "rate_limited" }, headers: { "retry-after": "1800" } },
+      { status: 502, body: { error: "subscription_unavailable" } },
+      { status: 503, body: { error: "sign_in_off" } },
+      { status: 400, body: { error: "input" } },
+      { status: 500, body: { error: "internal" } },
+      new TypeError("Failed to fetch"),
+    );
+    const results = [];
+    for (let attempt = 0; attempt < 7; attempt++) results.push(await deleteAccountWithGoogle("t", fetch.fetch));
+
+    expect(results).toEqual([
+      { ok: false, error: { kind: "id_token" } },
+      { ok: false, error: { kind: "rate_limited", retryAfterSeconds: 1800 } },
+      { ok: false, error: { kind: "subscription_unavailable" } },
+      { ok: false, error: { kind: "sign_in_off" } },
+      { ok: false, error: { kind: "unexpected" } },
+      { ok: false, error: { kind: "unexpected" } },
+      { ok: false, error: { kind: "network" } },
+    ]);
   });
 });

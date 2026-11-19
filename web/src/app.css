@@ -660,6 +660,168 @@ a {
   padding: var(--sv-space-md) var(--sv-space-xl);
 }
 
+/* The deletion page */
+
+.bullets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-sm);
+  padding-inline-start: var(--sv-space-xl);
+  list-style: disc;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sv-space-sm);
+}
+
+.button--danger {
+  background: var(--sv-error);
+  color: var(--sv-on-error);
+}
+
+.button--danger:hover {
+  box-shadow: var(--sv-elevation-1);
+}
+
+.button:disabled {
+  cursor: default;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+/* Google's button keeps its height while it loads, so the page does not jump. */
+.google-button {
+  min-height: 44px;
+}
+
+/* A heading that takes the focus when its step is shown; it is not something to act on. */
+h2[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* The footer of the legal pages and the deletion page */
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: var(--sv-space-md);
+}
+
+.footer__link[aria-current="page"] {
+  color: var(--sv-on-surface-variant);
+  text-decoration: none;
+}
+
+/* The legal pages: Markdown from docs/, rendered when the page is built */
+
+.prose {
+  gap: var(--sv-space-md);
+}
+
+.prose h1 {
+  font-size: var(--sv-type-headline-small-size);
+  line-height: var(--sv-type-headline-small-line-height);
+  font-weight: var(--sv-type-headline-small-weight);
+  letter-spacing: var(--sv-type-headline-small-tracking);
+}
+
+.prose h2 {
+  margin-top: var(--sv-space-lg);
+  font-size: var(--sv-type-title-large-size);
+  line-height: var(--sv-type-title-large-line-height);
+  font-weight: var(--sv-type-title-large-weight);
+  letter-spacing: var(--sv-type-title-large-tracking);
+}
+
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin: var(--sv-space-sm) 0 0;
+  font-size: var(--sv-type-title-medium-size);
+  line-height: var(--sv-type-title-medium-line-height);
+  font-weight: var(--sv-type-title-medium-weight);
+  letter-spacing: var(--sv-type-title-medium-tracking);
+}
+
+.prose ul,
+.prose ol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-xs);
+  padding-inline-start: var(--sv-space-xl);
+}
+
+.prose ul {
+  list-style: disc;
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: var(--sv-space-xs);
+}
+
+.prose blockquote {
+  margin: 0;
+  padding-inline-start: var(--sv-space-lg);
+  border-inline-start: 4px solid var(--sv-outline-variant);
+  color: var(--sv-on-surface-variant);
+}
+
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.prose th,
+.prose td {
+  padding: var(--sv-space-sm) var(--sv-space-md);
+  border: 1px solid var(--sv-outline-variant);
+  text-align: start;
+  vertical-align: top;
+}
+
+.prose th {
+  background: var(--sv-surface-container-high);
+}
+
+.prose code {
+  padding: 0 var(--sv-space-xs);
+  border-radius: var(--sv-shape-extra-small);
+  background: var(--sv-surface-container);
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.prose pre {
+  margin: 0;
+  padding: var(--sv-space-md) var(--sv-space-lg);
+  overflow-x: auto;
+  border-radius: var(--sv-shape-medium);
+  background: var(--sv-surface-container);
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.prose hr {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--sv-outline-variant);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -112,14 +112,20 @@ export class Account {
   }
 }
 
-/** The headers the contract gives the page, for the proxy at [host]. */
+/** The headers the contract gives the link pages, for the proxy at [host]. */
 export function expectPageHeaders(headers: Record<string, string>, host: string): void {
-  expect(headers["content-type"]).toBe("text/html; charset=utf-8");
-  expect(headers["content-security-policy"]).toBe(
+  expectHeadersOfPage(
+    headers,
     "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; " +
       `connect-src 'self' wss://${host}; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   );
-  expect(headers["referrer-policy"]).toBe("no-referrer");
+}
+
+/** The headers every page the Worker serves has, with its own [policy] and [referrerPolicy]. */
+export function expectHeadersOfPage(headers: Record<string, string>, policy: string, referrerPolicy = "no-referrer"): void {
+  expect(headers["content-type"]).toBe("text/html; charset=utf-8");
+  expect(headers["content-security-policy"]).toBe(policy);
+  expect(headers["referrer-policy"]).toBe(referrerPolicy);
   expect(headers["x-robots-tag"]).toBe("noindex, nofollow");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["cache-control"]).toBe("no-store");

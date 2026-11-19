@@ -141,3 +141,42 @@ export function viewRequest(token: string, fetchImpl?: Fetch): Promise<ApiResult
 export function previewInvite(token: string, fetchImpl?: Fetch): Promise<ApiResult<InvitePreview>> {
   return postJson("/v1/invites/preview", { token }, parseInviteAnswer, fetchImpl);
 }
+
+/** Why the proxy did not delete an account, as the deletion page needs to tell it. */
+export type DeletionError =
+  /** Google's sign-in ran out, or could not be checked: sign in again. */
+  | { kind: "id_token" }
+  | { kind: "rate_limited"; retryAfterSeconds: number | null }
+  /** RevenueCat, which the proxy asks first, did not take the deletion, so nothing was deleted. */
+  | { kind: "subscription_unavailable" }
+  /** Sign-in with Google is off on the proxy just now. */
+  | { kind: "sign_in_off" }
+  | { kind: "network" }
+  | { kind: "unexpected" };
+
+/**
+ * `POST /v1/account/delete-with-google` with the ID token Google gave the page: 204 once the
+ * account is deleted, and every failure as a [DeletionError], never as an exception.
+ */
+export async function deleteAccountWithGoogle(idToken: string, fetchImpl: Fetch = (input, init) => fetch(input, init)): Promise<{ ok: true } | { ok: false; error: DeletionError }> {
+  let response: Response;
+  try {
+    response = await fetchImpl("/v1/account/delete-with-google", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken }),
+      cache: "no-store",
+      credentials: "same-origin",
+      referrerPolicy: "no-referrer",
+    });
+  } catch {
+    return { ok: false, error: { kind: "network" } };
+  }
+  if (response.status === 204) return { ok: true };
+  const code = await errorCodeOf(response);
+  if (response.status === 401 && code === "id_token") return { ok: false, error: { kind: "id_token" } };
+  if (response.status === 429) return { ok: false, error: { kind: "rate_limited", retryAfterSeconds: retryAfterSeconds(response.headers.get("retry-after")) } };
+  if (response.status === 502 && code === "subscription_unavailable") return { ok: false, error: { kind: "subscription_unavailable" } };
+  if (response.status === 503 && code === "sign_in_off") return { ok: false, error: { kind: "sign_in_off" } };
+  return { ok: false, error: { kind: "unexpected" } };
+}

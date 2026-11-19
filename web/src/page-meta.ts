@@ -8,3 +8,4 @@ export function metaContent(name: string, doc: Document = document): string {
 
 export const TURNSTILE_SITE_KEY_META = "sv-turnstile-site-key";
 export const ABUSE_EMAIL_META = "sv-abuse-email";
+export const GOOGLE_CLIENT_ID_META = "sv-google-client-id";

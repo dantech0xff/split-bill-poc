@@ -34,10 +34,11 @@ describe("the page's source", () => {
     expect(filesMatching(/localStorage/)).toEqual(["../src/claim-store.ts"]);
   });
 
-  it("loads nothing from another origin but Turnstile and links to Google Play", () => {
+  it("loads nothing from another origin but Turnstile and Google's sign-in, and links to Google Play", () => {
     const origins = new Set(
       Object.values(sources).flatMap((text) => [...text.matchAll(/https:\/\/([a-z0-9.-]+)/gi)].map((match) => match[1]?.toLowerCase())),
     );
-    expect([...origins].sort()).toEqual(["challenges.cloudflare.com", "play.google.com"]);
+    expect([...origins].sort()).toEqual(["accounts.google.com", "challenges.cloudflare.com", "play.google.com"]);
+    expect(filesMatching(/accounts\.google\.com/)).toEqual(["../src/google-sign-in.ts"]);
   });
 });
