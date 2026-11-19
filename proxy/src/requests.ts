@@ -293,7 +293,9 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
  * which needs no session: who asks whom for how much and for what, whether it is `open`,
  * `reported` or `confirmed`, and how to pay it, as the creditor's app built it: null when it sent
  * none, and once the request is confirmed, as nothing is left to pay. Nothing names an account.
- * 404 and 410 as for `open`; a link that works counts as a read of the IP.
+ * 404 and 410 as for `open`, and 410 too once [POLICY.requestLinkMs] have passed since the request
+ * was made, as for an expired invite; the request itself stays in both people's apps. A link that
+ * works counts as a read of the IP.
  */
 export async function viewRequestLinkRoute(request: Request, env: Env): Promise<Response> {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
@@ -302,6 +304,7 @@ export async function viewRequestLinkRoute(request: Request, env: Env): Promise<
   if (!address.ok) return address.response;
   const linked = await linkedRequest(env.DB, input.value.token);
   if (!linked.ok) return linked.response;
+  if (Date.now() >= linked.row.created_at + POLICY.requestLinkMs) return errorResponse(410, "gone");
   const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
   if (refused !== null) return refused;
   const row = linked.row;

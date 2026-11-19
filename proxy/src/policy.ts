@@ -141,6 +141,12 @@ export const POLICY = {
   maxSharedBodyBytes: 16 * 1024,
   /** How long an invite link works after it was made. */
   inviteMs: 14 * 24 * 60 * 60 * 1000,
+  /**
+   * How long a payment request's web page shows it after the request was made, how to pay it
+   * among the rest, to anyone with the link. Then the page's route answers 410 `gone`, as for an
+   * expired invite. The request stays in both people's apps, whose routes of it are unchanged.
+   */
+  requestLinkMs: 90 * 24 * 60 * 60 * 1000,
   /** Invites one account may make in an hour, over every group, and payment requests one creditor may. */
   invitesPerHour: 20,
   requestsPerHour: 30,

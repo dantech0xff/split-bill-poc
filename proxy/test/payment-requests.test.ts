@@ -376,6 +376,37 @@ describe("a request link's web page", () => {
     expect(await rows("SELECT payment FROM requests")).toEqual([{ payment: null }]);
   });
 
+  it("works for 90 days after the request was made, then answers as an expired link, counting no read, while the request stays in both people's apps", async () => {
+    const lan = await person();
+    const minh = await person();
+    const made = await ask(lan, { payment: PAYMENT });
+    const id = made.body.request.id;
+    const token = tokenOf(made.body.url);
+    await api(minh, "POST", "/v1/request-links/accept", { token });
+    const madeDaysAgo = (days: number) => env.DB.prepare("UPDATE requests SET created_at = ?2 WHERE id = ?1").bind(id, Date.now() - days * DAY).run();
+    const reads = () => rows("SELECT used FROM rate_windows WHERE kind = 'web_read'");
+
+    await madeDaysAgo(89);
+    const seen = await view(token);
+    expect(seen.status).toBe(200);
+    expect(seen.body.request).toMatchObject({ status: "open", payment: PAYMENT });
+
+    await madeDaysAgo(91);
+    const counted = await reads();
+    const expired = await view(token);
+    expect(expired.status).toBe(410);
+    expect(expired.body).toEqual({ error: "gone" });
+    expect(await reads()).toEqual(counted);
+
+    // In the app, the request and its routes are as they were, for both people.
+    const listed = async (who: Person) => (await api<{ requests: RequestView[] }>(who, "GET", "/v1/requests")).body.requests.map((request) => request.id);
+    expect(await listed(lan)).toEqual([id]);
+    expect(await listed(minh)).toEqual([id]);
+    expect((await api<RequestView>(minh, "POST", "/v1/request-links/open", { token })).body).toMatchObject({ id, method: METHOD });
+    expect((await api<RequestView>(minh, "POST", `/v1/requests/${id}/reported-paid`)).status).toBe(200);
+    expect((await api<RequestView>(lan, "POST", `/v1/requests/${id}/confirmed-paid`)).body).toMatchObject({ confirmedPaidAt: expect.any(Number) });
+  });
+
   it("takes only a payment whose link is https with a host or a UPI payment, and whose fields follow the contract", async () => {
     const lan = await person();
     for (const payment of [
