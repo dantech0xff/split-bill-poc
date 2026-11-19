@@ -212,19 +212,103 @@ Sửa:
 
 ## Todo
 
-- [ ] Tra cứu nhãn hiệu trước khi tạo app trên Play Console
-- [ ] Vòng thử kín 12 người trong 14 ngày
-- [ ] Chuỗi trong tài nguyên, ngôn ngữ giả
-- [ ] Test đầu-cuối trên thiết bị
-- [ ] Rà soát bảo mật và sửa phát hiện mức cao
-- [ ] Ma trận xóa tài khoản qua hết
-- [ ] Chính sách quyền riêng tư, điều khoản, trang xóa tài khoản
-- [ ] An toàn dữ liệu, phân loại nội dung, chế độ đồng ý
-- [ ] Đánh giá đại diện EU và hồ sơ xuyên biên giới Việt Nam
-- [ ] Luồng CI phát hành có duyệt tay và OIDC; diễn tập
-- [ ] Bảng theo dõi, cảnh báo, sao lưu, sổ tay sự cố
-- [ ] Kiểm 16 KB, API mục tiêu, material3 stable trên AAB cuối
-- [ ] Phát hành theo nấc tới 100% và theo dõi 7 ngày
+- [ ] Tra cứu nhãn hiệu trước khi tạo app trên Play Console (chủ sản phẩm)
+- [ ] Vòng thử kín 12 người trong 14 ngày (chủ sản phẩm)
+- [x] Chuỗi trong tài nguyên, ngôn ngữ giả
+- [x] Test đầu-cuối trên thiết bị
+- [x] Rà soát bảo mật và sửa phát hiện mức cao
+- [x] Ma trận xóa tài khoản qua hết
+- [x] Chính sách quyền riêng tư, điều khoản, trang xóa tài khoản
+- [ ] An toàn dữ liệu, phân loại nội dung, chế độ đồng ý (bản nháp và màn đồng ý đã xong; điền trên Play Console là việc của chủ sản phẩm)
+- [ ] Đánh giá đại diện EU và hồ sơ xuyên biên giới Việt Nam (chủ sản phẩm, với người có chuyên môn pháp lý)
+- [ ] Luồng CI phát hành có duyệt tay và OIDC; diễn tập (đã dựng; diễn tập cần project dev của chủ sản phẩm)
+- [x] Bảng theo dõi, cảnh báo, sao lưu, sổ tay sự cố
+- [ ] Kiểm 16 KB, API mục tiêu, material3 stable trên AAB cuối (material3 1.5.0 chưa có trên Google Maven)
+- [ ] Phát hành theo nấc tới 100% và theo dõi 7 ngày (chủ sản phẩm)
+
+## Kết quả thực hiện
+
+<!-- Updated: thực hiện ngày 19/11/2026 trên nhánh feat/phase-09-quality-compliance-release, chưa merge vào main -->
+Mọi việc làm được trong repo và trên Cloudflare đã xong, có test và bằng chứng. Tuy vậy, trong chín tiêu chí chưa tiêu chí nào đạt trọn, vì tiêu chí nào cũng còn một phần cần chủ sản phẩm: app trên Play Console và vòng thử kín, máy tham chiếu, khóa Anthropic để chạy hai bộ đánh giá, các giá trị production của proxy, người xét duyệt pháp lý, material3 1.5.0 bản stable, và việc phát hành theo nấc. Thứ tự các bước ở [docs/release-checklist.md](../../docs/release-checklist.md).
+
+| Tiêu chí | Kết quả | Bằng chứng |
+|---|---|---|
+| Mọi cổng chặn phát hành xanh trên bản dùng để phát hành | Các cổng tự động xanh trên `c7a3707`; ba cổng chờ chủ sản phẩm | Unit test, proxy, web và test đầu-cuối trên Android 14 đều qua (số liệu ở dưới). Mô hình mối đe dọa ở [docs/security-threat-model.md](../../docs/security-threat-model.md); ba phát hiện mức cao của các bản review đã sửa. Còn chờ: đo hiệu năng trên máy tham chiếu, chạy hai bộ đánh giá AI bằng khóa của chủ sản phẩm, và một bản phát hành đã ký |
+| Play Console cấp quyền production sau vòng thử kín | Chưa làm | Cần app trên Play Console và 12 người thử trong 14 ngày liền |
+| 100% trong 7 ngày, từ 99,5% người dùng không gặp sự cố, ANR dưới ngưỡng xấu của Play | Chưa tới | Đo sau khi phát hành; ngưỡng và cách đọc ở [docs/release-checklist.md](../../docs/release-checklist.md) và [docs/runbook.md](../../docs/runbook.md) |
+| An toàn dữ liệu được duyệt; chính sách quyền riêng tư và trang xóa tài khoản công khai | Một phần | Bản nháp An toàn dữ liệu và phân loại nội dung ở [docs/play-console.md](../../docs/play-console.md). `/privacy`, `/terms` và `/delete-account` chạy trên Worker (trả 200, có `noindex`), dựng từ `docs/privacy-policy.md` và `docs/terms.md`. Còn xét duyệt pháp lý, điền chỗ trống trong ngoặc vuông và nộp biểu mẫu |
+| Ma trận xóa tài khoản qua trên emulator và một lần trên prod; số dư của người còn lại không đổi | Đạt trong test; chưa chạy trên prod | `proxy/test/account.test.ts` chạy trong runtime của Workers, có kiểm số dư của các thành viên còn lại. `AccountRepositoryTest` kiểm việc xóa vẫn xong sau khi rời Settings hay app bị tắt. Lần trên prod cần đăng nhập Google trên proxy, mà `GOOGLE_CLIENT_ID` còn trống |
+| Luồng phát hành không chạy được nếu thiếu duyệt tay; không có tệp khóa tài khoản dịch vụ trong secret | Đã dựng; chưa diễn tập | `release.yml` đi qua hai môi trường cần chủ sản phẩm duyệt, và tải lên Play qua Workload Identity Federation, không có tệp khóa. Trước khi ký, bản phát hành chờ `ci.yml`, test Android 14 và bước kiểm thiết lập Worker; bước này dừng khi `GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256` hay `ABUSE_EMAIL` trống. Diễn tập cần project dev của chủ sản phẩm ([docs/release.md](../../docs/release.md)) |
+| Diễn tập tắt AI và khôi phục từ bản sao lưu | Chưa diễn tập | Các bước ở [docs/runbook.md](../../docs/runbook.md), mục "Switching AI off" và "The restore drill". Cách app xử lý `ai_off` có unit test |
+| `zipalign -c -P 16` đạt; `targetSdk` 36; material3 stable | Một phần | `release.yml` kiểm 16 KB trên mọi APK tách từ AAB; `targetSdk` là 36. material3 vẫn ghim `1.5.0-rc01`: ghi chú phát hành của AndroidX có 1.5.0 từ ngày 18/11, nhưng ngày 19/11 Google Maven chưa có |
+| Chi phí AI trung bình mỗi người dùng hoạt động tuần đầu trong ngân sách của Phase 3 | Chưa tới | Phase 3 chỉ đặt trần chi tiêu, chưa đặt ngân sách cho mỗi người dùng; chủ sản phẩm cần đặt con số này trước khi phát hành theo nấc. Bộ đếm Analytics Engine và `npm run metrics` đo được chi phí |
+
+Kiểm tra trên `c7a3707`, commit mã cuối của nhánh:
+- **App:** 493 unit test của bản prod, domain 200, hệ thiết kế 3, mọi ảnh chuẩn khớp; ktlint và lint sạch (0 lỗi); bản release và AAB dựng được với R8.
+- **Proxy và web:** proxy 508 test vitest và 27 test Node, typecheck sạch; web 235 test và dựng được bốn trang.
+- **Thiết bị:** trên Android 14, 13 test qua ở lượt 44478240987, gồm journey mới "từ chối AI rồi nhập tay". Trên API 26, 30 và 36, các journey qua ở lượt 44482956856; job API 30 phải chạy lại một lần vì lần đầu không tải được plugin.
+- **Checksum:** Maven Central trả 429 cho runner của GitHub, và Gradle chuyển sang Gradle Plugin Portal. Portal có marker POM riêng cho hai plugin Kotlin, khác byte với bản của Central. Marker của compose đã tin cả hai checksum từ trước, nay thêm cho marker của serialization. Jar và module của hai plugin trên Portal trùng từng byte với bản đã ghim.
+
+Những gì đã làm:
+- **App:**
+  - hộp xóa tài khoản có lựa chọn xóa luôn dữ liệu trên máy, mặc định không chọn; việc xóa vẫn xong sau khi rời Settings hay app bị tắt, và chỉ câu trả lời 204 của proxy mới được tính là đã xóa;
+  - link tới chính sách và điều khoản; mọi chuỗi nằm trong tài nguyên, có số nhiều; hai ngôn ngữ giả en-XA và ar-XB ở bản debug;
+  - màn hỏi đồng ý trước lần gọi AI đầu tiên, rút lại được trong Settings;
+  - RevenueCat chỉ khởi động với phiên mà proxy đã nhận;
+  - mọi con số trong chữ viết theo kiểu tiếng Anh;
+  - sửa lỗi văng app trên Android 8 đến 11 do `BigInteger.longValueExact`, lỗi mà test đầu-cuối tìm ra.
+- **Proxy và web:**
+  - xóa tài khoản trên web bằng Google (`/delete-account`); xóa xong thì mọi phiên cấp trước đó bị từ chối, và lời mời của nhóm bị thu hồi;
+  - bộ đếm sự kiện bằng Workers Analytics Engine, không SDK, với `npm run metrics`;
+  - giữ 12 tháng: `QuotaBook` của bản cài tự xóa sau 12 tháng không gọi; cách nhận tiền của yêu cầu đã xác nhận bị xóa sau 12 tháng;
+  - link yêu cầu trả tiền hết hạn với người ngoài sau 90 ngày;
+  - quỹ $5 cho bản cài chưa đăng nhập nằm trong trần chung, và cảnh báo `spend_cap_near` khi một trần chạm 80%;
+  - bộ đánh giá đọc hóa đơn với 35 hóa đơn (`npm run eval:read`), khoảng $11 mỗi lượt chạy đủ.
+- **Phát hành và CI:**
+  - `release.yml`, bước kiểm bản phát hành (`scripts/release-checks.py`) và bước kiểm thiết lập Worker (`scripts/worker-settings.py`);
+  - quét secret mọi commit bằng gitleaks, review phụ thuộc cho pull request, kiểm lỗ hổng npm và Gradle, Dependabot cho web;
+  - test thiết bị trên Android 14 chặn phát hành, và ma trận API 26, 30 và 36 để đo.
+- **Tài liệu:** chính sách quyền riêng tư, điều khoản, sổ tay vận hành, danh sách kiểm tra phát hành, bản nháp Play Console, mô tả trên cửa hàng, mô hình mối đe dọa và hồ sơ tuân thủ.
+- **Bốn bản review độc lập**, mọi phát hiện mức cao đã sửa:
+  - proxy và web: 1 lỗi trung bình, 7 nhẹ, đã sửa hết ([báo cáo](../reports/code-reviewer-261119-0255-phase-9-proxy-web-review.md), [phần sửa](../reports/fullstack-developer-261119-0318-proxy-web-review-fixes.md));
+  - bảo mật: 1 cao, 4 trung bình, 5 nhẹ ([báo cáo](../reports/code-reviewer-261119-0309-security-review.md)). Lỗi mức cao, một bản cài chưa đăng nhập lấp được trần chi tiêu chung, đã sửa bằng quỹ riêng $5. Xóa tài khoản giờ kết thúc mọi phiên cấp trước đó. Ba mục còn lại ghi ở phần giới hạn và ở danh sách kiểm tra phát hành;
+  - phát hành, CI và test đầu-cuối: 2 lỗi mức cao, đã sửa hết ([báo cáo](../reports/code-reviewer-261119-0309-phase-9-release-ci-e2e-review.md), [phần sửa](../reports/fullstack-developer-261119-0345-release-ci-review-fixes.md));
+  - app: 1 lỗi trung bình, 9 nhẹ, đã sửa hết ([báo cáo](../reports/code-reviewer-261119-0431-phase-9-app-review.md), [phần sửa](../reports/fullstack-developer-261119-0508-app-consent-deletion-review-fixes.md)).
+
+Triển khai lên Cloudflare ngày 19/11/2026:
+- **Lần 1, 05:39 UTC, gói dựng từ `ba39008`:**
+  - Trước đó lấy bookmark Time Travel của D1: `0000000e-00000000-00005128-2c6bc013d15e8edea9f8c78336cb516b`. Không có migration.
+  - Thêm binding `METRICS` (dataset `split_vibe_events`) và `ANDROID_DEV_CERT_SHA256` để trống.
+  - Durable Object nhận mã mới ngay. Log và trace được lưu.
+- **Lần 2, 08:17 UTC, gói dựng từ `c7a3707`:** mã proxy giống hệt lần 1, chỉ khác trang `/privacy` có phần đồng ý dùng AI.
+  - SHA-256 của `index.js`: `110b7e86279d6b055892ab54aee0715ccea69d721f75a706174fefce814e5d17`.
+  - Bookmark trước khi triển khai: `0000000f-00000000-00005128-8716ce506ab54d6d228aa4e2c2c750a1`.
+  - Binding, secret và lịch chạy hằng ngày giữ nguyên.
+- **Thử bản đang chạy:**
+  - các trang `/privacy`, `/terms`, `/delete-account`, `/r/` và `/s/` trả 200;
+  - `/v1/usage` của bản cài mới trả 3 lượt thử, AI bật;
+  - xóa bằng Google trả 503 và đăng nhập trả `sign_in_off`, vì `GOOGLE_CLIENT_ID` còn trống;
+  - link yêu cầu không có thật trả 404; mở link khi chưa đăng nhập trả 401;
+  - bộ đếm đã ghi hai sự kiện `sign_in` với kết quả `sign_in_off`.
+- Worker và KV namespace tạm dùng để chuyển gói lên đều bị xóa sau mỗi lần.
+
+Các mặc định đã chọn, chủ sản phẩm có thể đổi:
+- Sau 90 ngày, link yêu cầu trả tiền chỉ còn mở được cho người yêu cầu và cho người trả đã nhận yêu cầu trong app.
+- 12 tháng tính là 365 ngày.
+- Mọi con số trong chữ, kể cả tiền và ngày, viết theo kiểu tiếng Anh dù máy đặt vùng nào. Trên máy đặt vùng Việt Nam, "250.993 ₫" thành "₫250,993". Tệp CSV vẫn theo quy ước của máy.
+- Câu trả lời ở màn đồng ý chỉ lưu trên máy, và vẫn còn khi người dùng chọn xóa dữ liệu trên máy lúc xóa tài khoản.
+- Ngưỡng đánh giá đọc hóa đơn (`BAR`): không hóa đơn nào sai tổng hay tiền tệ, không câu trả lời nào làm theo dòng chữ in trên hóa đơn, và ít nhất 90% hóa đơn qua ở mọi lượt chạy.
+
+Giới hạn đã biết:
+- Lint không kiểm mức API (NewApi) trên `:core:domain`, vì đó là module Kotlin thuần. Lệnh gọi tới API mới hơn minSdk ở đó chỉ bị bắt khi test đầu-cuối trên API 26 và 30 đi qua đoạn mã ấy.
+- Dạng số nhiều vẫn chọn theo quy tắc của ngôn ngữ trên máy: trên máy tiếng Ba Tư, số 0 lấy dạng số ít ("0 bill").
+- Có hai trường hợp app chỉ báo được là việc xóa "chưa xác nhận": app bị tắt giữa lúc proxy trả 204 và lúc ghi lại, hoặc tài khoản đã bị lần gửi trước xóa rồi. Khi đó app bảo người dùng đăng nhập và xóa lại.
+- Thông báo hóa đơn định kỳ tạo ngay trước lúc xóa vẫn có thể hiện ra; chạm vào thì app báo hóa đơn không còn.
+- Khi Maven Central giới hạn lâu, một lượt CI vẫn có thể hỏng ở bước tải plugin (lỗi 429 hoặc "not found"). Chạy lại là qua.
+- API của Cloudflare nhận `code_update_strategy: immediate` nhưng không trả lại giá trị này, nên không xác nhận được từ phía API.
+- Một phiên bị sao chép khỏi máy vẫn dùng được tới 30 ngày sau khi đăng xuất. Xóa tài khoản thì kết thúc ngay mọi phiên cũ.
+- Trên gói Workers Free, một máy gọi dồn có thể làm cả dịch vụ ngừng tới nửa đêm UTC. Việc chuyển sang Workers Paid nằm trong danh sách kiểm tra phát hành.
+- Trace của Cloudflare vẫn lấy mẫu toàn bộ, và chính sách quyền riêng tư nói rõ trace ghi những gì.
 
 ## Success Criteria
 
