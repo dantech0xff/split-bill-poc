@@ -1,11 +1,25 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
+import java.math.BigInteger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SplitCalculatorTest {
+
+    @Test
+    fun `a big integer becomes a Long exactly when it fits, as on Android before longValueExact existed`() {
+        val longs = listOf(0L, 1L, -1L, Long.MAX_VALUE, Long.MIN_VALUE)
+        longs.forEach { assertEquals(it, BigInteger.valueOf(it).toLongExact()) }
+
+        val justOver = BigInteger.valueOf(Long.MAX_VALUE) + BigInteger.ONE
+        val justUnder = BigInteger.valueOf(Long.MIN_VALUE) - BigInteger.ONE
+        listOf(justOver, justUnder, justOver.shiftLeft(10)).forEach { number ->
+            assertThrows(ArithmeticException::class.java) { number.toLongExact() }
+        }
+    }
 
     private val usd = BillCurrency("USD", 2)
     private val vnd = BillCurrency("VND", 0)

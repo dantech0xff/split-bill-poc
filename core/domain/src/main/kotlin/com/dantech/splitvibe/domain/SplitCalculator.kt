@@ -218,11 +218,11 @@ object SplitCalculator {
         val remainders = Array(usable.size) { BigInteger.ZERO }
         usable.forEachIndexed { i, weight ->
             val (quotient, remainder) = (magnitude * BigInteger.valueOf(weight)).divideAndRemainder(weightSum)
-            quotients[i] = quotient.longValueExact()
+            quotients[i] = quotient.toLongExact()
             remainders[i] = remainder
         }
 
-        var leftover = (magnitude - BigInteger.valueOf(quotients.sum())).longValueExact()
+        var leftover = (magnitude - BigInteger.valueOf(quotients.sum())).toLongExact()
         // Largest remainder first; ties keep list order.
         val order = usable.indices.sortedWith(compareByDescending<Int> { remainders[it] }.thenBy { it })
         for (i in order) {
@@ -236,3 +236,13 @@ object SplitCalculator {
 
 /** Hundredths of a percent as people write a percentage: "10%", "33.33%", "0.5%". */
 internal fun percentText(basisPoints: Long): String = BigDecimal.valueOf(basisPoints, 2).stripTrailingZeros().toPlainString() + "%"
+
+/**
+ * This number as a Long, throwing [ArithmeticException] when it does not fit, as
+ * `BigInteger.longValueExact` does. That method only exists from Android 12 (API 31), and the app
+ * runs from Android 8, where calling it crashes; a Long holds any number of up to 63 bits besides the sign.
+ */
+internal fun BigInteger.toLongExact(): Long {
+    if (bitLength() > Long.SIZE_BITS - 1) throw ArithmeticException("BigInteger out of long range")
+    return toLong()
+}
