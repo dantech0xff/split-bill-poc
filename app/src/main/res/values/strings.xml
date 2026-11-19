@@ -99,7 +99,7 @@
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_delete_account">Delete account</string>
     <string name="settings_delete_title">Delete your account?</string>
-    <string name="settings_delete_text">Split Vibe\'s server deletes what it keeps about your Google account: the count of your calls and your plan. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</string>
+    <string name="settings_delete_text">Split Vibe\'s server deletes your account, with its plan and its bill links. In groups and payment requests you become \"Former member\", and what you paid and owe stays, so nobody\'s balance changes. The AI calls you used this month stay counted until the month ends. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</string>
     <string name="settings_pro_plan">Pro plan</string>
     <string name="settings_free_plan">Free plan</string>
     <string name="settings_manage_pro">Manage Pro</string>
