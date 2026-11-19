@@ -43,7 +43,11 @@ class DeclinedAiJourneyTest {
         compose.fillInTheBill(where = "Corner Cafe", item = "Lunch", amount = "90")
 
         compose.onNodeWithText("Corner Cafe").assertIsDisplayed()
-        compose.assertShare("You", currency.format(currency.toMinor(BigDecimal(90))))
+        // Alone on the bill, the user's share and what they paid are the same amount, and the two
+        // rows could not be told apart, so the bill is split three ways.
+        compose.addPerson("Minh")
+        compose.addPerson("Lan")
+        compose.assertShare("You", currency.format(currency.toMinor(BigDecimal(30))))
         val modelCalls = fake.proxy.received.filter { it.path == "/v1/bill-analysis" || it.path == "/v1/split-revision" }
         assertEquals("Calls to the model: ${modelCalls.map { "${it.method} ${it.path}" }}", 0, modelCalls.size)
         assertFalse("turning it down is no consent", GlobalContext.get().get<SettingsStore>().settings.value.aiAllowed)
