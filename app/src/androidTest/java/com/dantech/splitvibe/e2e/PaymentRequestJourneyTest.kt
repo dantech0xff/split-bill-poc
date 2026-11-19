@@ -73,7 +73,7 @@ class PaymentRequestJourneyTest {
         compose.onNodeWithText("Split a bill").performClick()
         compose.typeBillByHand(where = "Pho 24", item = "Pho bo", amount = "90")
         compose.addPerson("Minh")
-        compose.onNodeWithText("Request $owed from 1 person").performClick()
+        compose.onNodeWithText("Request $owed from 1 person").tap()
         compose.awaitNode(hasText("Ask for the money"))
         compose.list().performScrollToNode(hasSetTextAction() and hasText("Your name on the requests"))
         compose.field("Your name on the requests").performTextReplacement("Lan")
@@ -83,7 +83,7 @@ class PaymentRequestJourneyTest {
         try {
             val send = hasText("Send") and hasClickAction()
             compose.list().performScrollToNode(send)
-            compose.onNode(send).performClick()
+            compose.onNode(send).tap()
             compose.awaitNode(hasText("Again"))
             assertEquals(1, shareSheet.hits)
         } finally {
@@ -102,8 +102,8 @@ class PaymentRequestJourneyTest {
         assertTrue("The request carries no way to get paid: ${created.body}", (request["method"] as? JsonObject)?.isNotEmpty() == true)
 
         // The list of requests, as the proxy gives it, shows the request as the user's own.
-        compose.onNodeWithText("Done").performClick()
-        compose.onNodeWithText("Requests").performClick()
+        compose.onNodeWithText("Done").tap()
+        compose.onNodeWithText("Requests").tap()
         compose.waitUntil(TIMEOUT_MS) { fake.proxy.callsTo("GET", "/v1/requests").isNotEmpty() }
         compose.awaitNode(hasText("You asked for"))
         compose.onNodeWithText("Minh · Pho 24").assertIsDisplayed()

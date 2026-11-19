@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.e2e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.domain.BillCurrency
@@ -41,6 +43,13 @@ fun ComposeTestRule.awaitNoNode(matcher: SemanticsMatcher) = waitUntil(TIMEOUT_M
 /** The text field labelled [label]. */
 fun ComposeTestRule.field(label: String): SemanticsNodeInteraction = onNode(hasSetTextAction() and hasText(label))
 
+/**
+ * Taps the element through its click action rather than a touch at its place on the screen. Once
+ * something was typed, the keyboard may still be moving the screen, and a touch lands on whatever
+ * slid under it, as it did on an Android 8.0 emulator.
+ */
+fun SemanticsNodeInteraction.tap(): SemanticsNodeInteraction = performSemanticsAction(SemanticsActions.OnClick)
+
 /** The list that scrolls the screen; each screen of the journeys has one while no sheet is open. */
 fun ComposeTestRule.list(): SemanticsNodeInteraction = onNode(hasScrollToIndexAction())
 
@@ -53,11 +62,11 @@ fun ComposeTestRule.typeBillByHand(where: String, item: String, amount: String) 
     awaitNode(hasText("Edit bill"))
     field("Where").performTextInput(where)
     list().performScrollToNode(hasText("Add an item"))
-    onNodeWithText("Add an item").performClick()
+    onNodeWithText("Add an item").tap()
     list().performScrollToNode(hasSetTextAction() and hasText("Item"))
     field("Item").performTextInput(item)
     field("Amount").performTextInput(amount)
-    onNodeWithText("Done").performClick()
+    onNodeWithText("Done").tap()
     awaitNode(hasText("Bill total"))
 }
 
@@ -65,7 +74,7 @@ fun ComposeTestRule.typeBillByHand(where: String, item: String, amount: String) 
 fun ComposeTestRule.addPerson(name: String) {
     val addSomeone = hasText("Add someone") and hasClickAction()
     list().performScrollToNode(addSomeone)
-    onNode(addSomeone).performClick()
+    onNode(addSomeone).tap()
     awaitNode(hasSetTextAction() and hasText("Name"))
     field("Name").performTextInput(name)
     // Done on the keyboard adds what was typed, as the sheet's own Add does. A suggestion of someone

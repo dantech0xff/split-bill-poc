@@ -40,7 +40,7 @@ class SampleBillJourneyTest {
         compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
         compose.awaitNode(hasText("Read and split the bill") and isEnabled())
         compose.field("How should it be split?").performScrollTo().performTextReplacement(INSTRUCTION)
-        compose.onNodeWithText("Read and split the bill").performClick()
+        compose.onNodeWithText("Read and split the bill").tap()
 
         // The bill as Claude read it, under the restaurant's name.
         compose.awaitNode(hasText("Bill total"))
