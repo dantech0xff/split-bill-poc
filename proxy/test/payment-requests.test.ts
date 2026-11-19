@@ -288,6 +288,45 @@ describe("a request link", () => {
     expect((await api(minh, "POST", "/v1/request-links/open", { token })).body).toEqual({ error: "gone" });
     expect((await api(minh, "POST", "/v1/request-links/accept", { token })).status).toBe(410);
   });
+
+  it("stops opening and accepting 90 days after the request was made for anyone but its creditor and its bound debtor, and binds nobody then", async () => {
+    const lan = await person();
+    const made = await ask(lan);
+    const id = made.body.request.id;
+    const token = tokenOf(made.body.url);
+    const minh = await person();
+    const stranger = await person();
+    const madeDaysAgo = (days: number) => env.DB.prepare("UPDATE requests SET created_at = ?2 WHERE id = ?1").bind(id, Date.now() - days * DAY).run();
+    const open = (who: Person) => api<RequestView>(who, "POST", "/v1/request-links/open", { token });
+    const accept = (who: Person) => api<RequestView>(who, "POST", "/v1/request-links/accept", { token });
+    const asDebtor = { ...made.body.request, createdAt: expect.any(Number), role: "debtor", debtorBound: true };
+
+    // At 91 days, nobody who has not taken it on yet can open it or take it on.
+    await madeDaysAgo(91);
+    for (const route of [open, accept]) {
+      const refused = await route(minh);
+      expect(refused.status).toBe(410);
+      expect(refused.body).toEqual({ error: "gone" });
+    }
+    expect(await rows("SELECT debtor, debtor_bound_at FROM requests")).toEqual([{ debtor: null, debtor_bound_at: null }]);
+
+    // At 89 days, it opens and binds as it always did.
+    await madeDaysAgo(89);
+    expect((await open(minh)).body).toEqual(asDebtor);
+    expect((await accept(minh)).body).toEqual(asDebtor);
+    expect((await open(stranger)).body).toEqual({ error: "conflict" });
+    expect((await accept(stranger)).body).toEqual({ error: "conflict" });
+
+    // At 91 days, its creditor and its bound debtor get what they got before; anyone else, 410.
+    await madeDaysAgo(91);
+    expect((await open(lan)).body).toEqual({ ...made.body.request, createdAt: expect.any(Number), debtorBound: true });
+    expect((await accept(lan)).body).toEqual({ error: "forbidden" });
+    expect((await open(minh)).body).toEqual(asDebtor);
+    expect((await accept(minh)).body).toEqual(asDebtor);
+    for (const route of [open, accept]) expect((await route(stranger)).body).toEqual({ error: "gone" });
+    expect(await rows("SELECT debtor FROM requests")).toEqual([{ debtor: minh.account }]);
+    expect((await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests")).body.requests.map((request) => request.id)).toEqual([id]);
+  });
 });
 
 describe("a request link's web page", () => {

@@ -142,9 +142,11 @@ export const POLICY = {
   /** How long an invite link works after it was made. */
   inviteMs: 14 * 24 * 60 * 60 * 1000,
   /**
-   * How long a payment request's web page shows it after the request was made, how to pay it
-   * among the rest, to anyone with the link. Then the page's route answers 410 `gone`, as for an
-   * expired invite. The request stays in both people's apps, whose routes of it are unchanged.
+   * How long a payment request's link works for anyone who has it after the request was made: its
+   * web page shows the request, how to pay it among the rest, and the app opens and accepts it.
+   * Then it stops working for anyone but the request's creditor and the debtor who already took
+   * it on: the page's route answers 410 `gone`, as for an expired invite, and so do opening and
+   * accepting it for any other account. The request stays in those two people's apps.
    */
   requestLinkMs: 90 * 24 * 60 * 60 * 1000,
   /** Invites one account may make in an hour, over every group, and payment requests one creditor may. */

@@ -272,10 +272,27 @@ async function linkedRequest(db: D1Database, token: string | null): Promise<{ ok
 }
 
 /**
+ * Whether the link of [row] has run out at [now]: [POLICY.requestLinkMs] after the request was
+ * made, it stops working for anyone but the request's creditor and the debtor who already took it
+ * on. Its web page, which cannot tell who asks, then shows it to nobody. The request stays in
+ * those two people's apps, with every route of it.
+ */
+function linkRanOut(row: RequestRow, now: number): boolean {
+  return now >= row.created_at + POLICY.requestLinkMs;
+}
+
+/** Whether [account] is the debtor who took the request of [row] on. */
+function isBoundDebtor(row: RequestRow, account: string): boolean {
+  return row.debtor_bound_at !== null && row.debtor === account;
+}
+
+/**
  * `POST /v1/request-links/open` with `{"token"}`: the request a link carries, as the caller will
- * see it once they accept it: as its debtor, bound. Its creditor sees it as theirs. When another
- * account already accepted it, the answer is 409, and nothing of the request is shown. The token
- * comes in the body so that no URL, and so no trace, ever holds it.
+ * see it once they accept it: as its debtor, bound. Its creditor sees it as theirs, and its bound
+ * debtor as theirs, however old the link. When another account already accepted it, the answer is
+ * 409, and nothing of the request is shown. Once the link has run out, as [linkRanOut] says, any
+ * other account gets 410 `gone`. The token comes in the body so that no URL, and so no trace, ever
+ * holds it.
  */
 export const openRequestLinkRoute = signedIn(async ({ request, env, account }) => {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
@@ -284,7 +301,10 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
   if (!linked.ok) return linked.response;
   const row = linked.row;
   if (row.creditor === account) return viewResponse(row, "creditor");
-  if (row.debtor_bound_at !== null && row.debtor !== account) return errorResponse(409, "conflict");
+  if (!isBoundDebtor(row, account)) {
+    if (linkRanOut(row, Date.now())) return errorResponse(410, "gone");
+    if (row.debtor_bound_at !== null) return errorResponse(409, "conflict");
+  }
   return jsonResponse(200, { ...viewOf(row, "debtor"), debtorBound: true });
 });
 
@@ -293,9 +313,9 @@ export const openRequestLinkRoute = signedIn(async ({ request, env, account }) =
  * which needs no session: who asks whom for how much and for what, whether it is `open`,
  * `reported` or `confirmed`, and how to pay it, as the creditor's app built it: null when it sent
  * none, and once the request is confirmed, as nothing is left to pay. Nothing names an account.
- * 404 and 410 as for `open`, and 410 too once [POLICY.requestLinkMs] have passed since the request
- * was made, as for an expired invite; the request itself stays in both people's apps. A link that
- * works counts as a read of the IP.
+ * 404 and 410 as for `open`, and 410 too, for everyone, as for an expired invite, once the link
+ * has run out, as [linkRanOut] says; the request stays in the apps of its creditor and of the
+ * debtor who took it on. A link that works counts as a read of the IP.
  */
 export async function viewRequestLinkRoute(request: Request, env: Env): Promise<Response> {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
@@ -304,7 +324,7 @@ export async function viewRequestLinkRoute(request: Request, env: Env): Promise<
   if (!address.ok) return address.response;
   const linked = await linkedRequest(env.DB, input.value.token);
   if (!linked.ok) return linked.response;
-  if (Date.now() >= linked.row.created_at + POLICY.requestLinkMs) return errorResponse(410, "gone");
+  if (linkRanOut(linked.row, Date.now())) return errorResponse(410, "gone");
   const refused = await hourlyRefusal(env.DB, address.name, "web_read", POLICY.webReadsPerHour);
   if (refused !== null) return refused;
   const row = linked.row;
@@ -328,7 +348,9 @@ export async function viewRequestLinkRoute(request: Request, env: Env): Promise<
 /**
  * `POST /v1/request-links/accept` with `{"token"}`: the caller becomes the request's debtor, when
  * nobody is yet; accepting again changes nothing. 409 when another account is the debtor, 403 for
- * the creditor, who cannot owe themself.
+ * the creditor, who cannot owe themself. Once the link has run out, as [linkRanOut] says, it binds
+ * nobody: any account but the creditor and the bound debtor gets 410 `gone`, and those two get
+ * what they got before.
  */
 export const acceptRequestLinkRoute = signedIn(async ({ request, env, account }) => {
   const input = await inputOf(request, POLICY.maxSharedBodyBytes, bodyTokenOf);
@@ -338,11 +360,15 @@ export const acceptRequestLinkRoute = signedIn(async ({ request, env, account })
     if (!linked.ok) return linked.response;
     const row = linked.row;
     if (row.creditor === account) return errorResponse(403, "forbidden");
-    if (row.debtor_bound_at !== null) return row.debtor === account ? viewResponse(row, "debtor") : errorResponse(409, "conflict");
+    if (isBoundDebtor(row, account)) return viewResponse(row, "debtor");
+    // A debtor is bound at the time the link was checked at, so never after it ran out.
+    const now = Date.now();
+    if (linkRanOut(row, now)) return errorResponse(410, "gone");
+    if (row.debtor_bound_at !== null) return errorResponse(409, "conflict");
     const bound = await env.DB.prepare(
       `UPDATE requests SET debtor = ?2, debtor_bound_at = ?3 WHERE id = ?1 AND debtor_bound_at IS NULL AND deleted_at IS NULL RETURNING ${COLUMNS}`,
     )
-      .bind(row.id, account, Date.now())
+      .bind(row.id, account, now)
       .first<RequestRow>();
     if (bound !== null) return viewResponse(bound, "debtor");
     // Someone accepted it, or its creditor deleted it, just now: the next read says which.
