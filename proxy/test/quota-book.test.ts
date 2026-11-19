@@ -636,17 +636,80 @@ it("forgets old request ids, so its storage does not grow", async () => {
   expect(left).toBe(0);
 });
 
-it("deletes everything it holds for a deleted account", async () => {
-  const stub = book();
-  const now = Date.now();
-  await call(stub, now, MONTHLY);
-  await call(stub, now, MONTHLY);
+describe("a deleted account", () => {
+  it("keeps the count of the month alone, and wakes when the month ends", async () => {
+    const now = Date.now();
+    const stub = await accountBook({ proUntil: now + POLICY.dayMs, checkedAt: now });
+    await call(stub, now, MONTHLY);
+    await call(stub, now, MONTHLY, crypto.randomUUID(), EDIT);
+    expect(await stub.hold(now, crypto.randomUUID(), MONTHLY, BILL, READ)).toMatchObject({ ok: true });
 
-  await stub.forget();
+    await stub.forget(now);
 
-  expect(await stub.usage(now, MONTHLY)).toMatchObject({ used: 0, remaining: 10 });
-  const left = await runInDurableObject(stub, async (_, state) => (await state.storage.list()).size);
-  expect(left).toBe(0);
+    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 120, used: 2 } });
+    expect(await stub.purchaserIssued()).toBe(false);
+    expect(await stub.usage(now, MONTHLY)).toEqual(month(now, "free", 1.2, 8.8));
+    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+  });
+
+  it("charges to that count a call that was held when it was deleted, once the model answers", async () => {
+    const now = Date.now();
+    const stub = book();
+    await call(stub, now, MONTHLY);
+    const held = crypto.randomUUID();
+    expect(await stub.hold(now, held, MONTHLY, BILL, READ)).toMatchObject({ ok: true });
+
+    await stub.forget(now);
+
+    expect(await stub.commit(now, held, MONTHLY, BILL, READ)).toEqual(month(now, "free", 2, 8));
+  });
+
+  it("keeps no count of a month that is over, nor anything else", async () => {
+    const now = Date.now();
+    const lastMonth = nextMonthStart(now) - 40 * POLICY.dayMs;
+    const stub = await accountBook();
+    await call(stub, lastMonth, MONTHLY);
+
+    await stub.forget(now);
+
+    expect(await storageOf(stub)).toEqual({});
+  });
+
+  it("deletes the count once its month is over", async () => {
+    const now = Date.now();
+    const lastMonth = nextMonthStart(now) - 40 * POLICY.dayMs;
+    const stub = await accountBook();
+    await call(stub, lastMonth, MONTHLY);
+    // Deleted last month: the alarm for the month's end is due now.
+    await stub.forget(lastMonth);
+    await runDurableObjectAlarm(stub);
+
+    expect(await storageOf(stub)).toEqual({});
+  });
+
+  it("wakes again when the month ends, when it was woken before that", async () => {
+    const now = Date.now();
+    const stub = book();
+    await call(stub, now, MONTHLY);
+    await stub.forget(now);
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+
+    expect(await storageOf(stub)).toEqual({ book: { period: periodOf(MONTHLY, now), hundredths: 100, used: 1 } });
+    expect(await runInDurableObject(stub, (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+  });
+
+  it("leaves the trial of an install alone, whenever it wakes", async () => {
+    const now = Date.now();
+    const stub = book();
+    await call(stub, now, TRIAL);
+    await runInDurableObject(stub, (_, state) => state.storage.setAlarm(now));
+
+    await runDurableObjectAlarm(stub);
+
+    expect((await storageOf(stub)).book).toEqual({ period: "trial", hundredths: 100, used: 1 });
+  });
 });
 
 describe("the first call of an install", () => {

@@ -99,6 +99,9 @@ const MAX_PUT_KEYS = 128;
  * A call has a weight, in hundredths of a call: a bill read takes a whole call, an edit of a split
  * less. It runs only while what is left of the allowance is at least its weight, and its request id
  * keeps the weight it was first held with.
+ *
+ * A deleted account's object keeps the count of the calendar month it was deleted in, and nothing
+ * else, until that month ends, then deletes itself; see [forget].
  */
 export class QuotaBook extends DurableObject {
   /** Whether this object has looked for counts in whole calls since it started; see [upgrade]. */
@@ -222,17 +225,49 @@ export class QuotaBook extends DurableObject {
     if (stored === null || next.checkedAt >= stored.checkedAt) await this.ctx.storage.put(PLAN, next);
   }
 
-  /** Deletes everything this object holds, for a deleted account: its plan and its purchaser's record too. */
-  async forget(): Promise<void> {
-    await this.ctx.storage.deleteAlarm();
-    await this.ctx.storage.deleteAll();
+  /**
+   * Forgets a deleted account as of [now]: its plan, the record of its purchaser, the request ids
+   * it remembers and everything else go, but the count of the calendar month of [now]. That count
+   * stays until the month ends, so that deleting the account and signing in again starts no new
+   * allowance; it holds nothing but the month and the calls used, under the account's salted
+   * hash. The object wakes when the month ends and deletes it; see [alarm]. A call still held
+   * runs on, and is charged to that count once the model answers. [now] defaults to the time of
+   * the call, as a Worker deployed before the count was kept sends none.
+   */
+  async forget(now: number = Date.now()): Promise<void> {
+    const book = await this.ctx.storage.get<StoredBook>(BOOK);
+    if (book === undefined || book.period !== monthOf(now)) {
+      await this.ctx.storage.deleteAlarm();
+      await this.ctx.storage.deleteAll();
+      return;
+    }
+    const others = [...(await this.ctx.storage.list()).keys()].filter((key) => key !== BOOK);
+    const deletions: Array<Promise<number>> = [];
+    for (let start = 0; start < others.length; start += MAX_PUT_KEYS) {
+      deletions.push(this.ctx.storage.delete(others.slice(start, start + MAX_PUT_KEYS)));
+    }
+    // Issued with no wait between them, the deletions land in one write.
+    await Promise.all(deletions);
+    await this.ctx.storage.setAlarm(nextMonthStart(now));
   }
 
+  /**
+   * Forgets the request ids whose time is up, then sleeps until the next one is due. An object that
+   * holds nothing else but the count of one calendar month, as a deleted account's does, deletes
+   * itself once that month has ended, and otherwise wakes again when it ends.
+   */
   async alarm(): Promise<void> {
     await this.upgrade();
     const now = Date.now();
-    await this.liveRequests(now);
-    await this.arm(now);
+    const requests = await this.liveRequests(now);
+    const month = requests.size === 0 ? await this.loneMonth() : null;
+    if (month === null) {
+      await this.arm(now);
+    } else if (month === monthOf(now)) {
+      await this.ctx.storage.setAlarm(nextMonthStart(now));
+    } else {
+      await this.ctx.storage.deleteAll();
+    }
   }
 
   /**
@@ -295,6 +330,13 @@ export class QuotaBook extends DurableObject {
       await this.ctx.storage.delete(expired);
     }
     return live;
+  }
+
+  /** The month of the count, when storage holds a monthly count and nothing else. */
+  private async loneMonth(): Promise<string | null> {
+    const stored = await this.ctx.storage.list<StoredBook>();
+    const book = stored.get(BOOK);
+    return stored.size === 1 && book !== undefined && book.period !== "trial" ? book.period : null;
   }
 
   /** Wakes the object when the next request id is due to be forgotten, so storage does not grow. */
@@ -391,7 +433,11 @@ function isProAt(plan: PlanState | null, now: number): boolean {
 
 /** "trial" for a trial, and the calendar month in UTC, such as "2026-11", for a monthly allowance. */
 export function periodOf(allowance: Allowance, now: number): string {
-  if (allowance.kind === "trial") return "trial";
+  return allowance.kind === "trial" ? "trial" : monthOf(now);
+}
+
+/** The calendar month of [now] in UTC, such as "2026-11". */
+function monthOf(now: number): string {
   const date = new Date(now);
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }

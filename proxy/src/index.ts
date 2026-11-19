@@ -1,4 +1,4 @@
-import { accountRoute, planRoute, sessionRoute, usageRoute } from "./account";
+import { accountRoute, deleteWithGoogleRoute, planRoute, sessionRoute, usageRoute } from "./account";
 import { billAnalysis } from "./bill-analysis";
 import { deleteBillRoute, putBillRoute, recordSettlementRoute } from "./bills";
 import { deleteDeviceRoute, putDeviceRoute } from "./devices";
@@ -122,6 +122,8 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/usage", { GET: usageRoute }],
   ["/v1/plan", { POST: planRoute }],
   ["/v1/account", { DELETE: accountRoute }],
+  // The page /delete-account, which signs in with Google and has no session.
+  ["/v1/account/delete-with-google", { POST: deleteWithGoogleRoute }],
   // RevenueCat's webhook, which needs neither a session nor an install id.
   ["/v1/subscription-events", { POST: subscriptionEventsRoute }],
   ["/v1/fx-rates", { GET: fxRatesRoute }],

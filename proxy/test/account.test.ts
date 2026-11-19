@@ -4,14 +4,19 @@ import { decodeJwt, errors, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { GroupState } from "../src/group-state";
+import { ALLOWANCES } from "../src/identity";
+import type { Env } from "../src/index";
 import { hashed } from "../src/ledger";
 import { POLICY } from "../src/policy";
 import { nextMonthStart, periodOf, type QuotaBook } from "../src/quota-book";
+import { forgetExpired } from "../src/reminders";
 import type { RequestView } from "../src/requests";
 import { issueSession, verdictOf } from "../src/session";
 import { type FakeRevenueCat, fakeRevenueCat, playCustomer, TEST_KEY } from "./fake-revenuecat";
+import { fakeTurnstile } from "./fake-turnstile";
 import { network } from "./network";
-import { ANSWER, billRequest, last, model, proxyRequest, send } from "./requests";
+import { ANSWER, billRequest, IP, last, model, proxyRequest, quotaOf, send, spendOf } from "./requests";
+import { newClaim, openShare, publish } from "./share-fixtures";
 import {
   addBill,
   addPlaceholder,
@@ -27,6 +32,7 @@ import {
   rows,
   signedInAgain,
   stateOf,
+  THB,
   VND,
 } from "./shared";
 
@@ -57,7 +63,7 @@ async function heldFor(account: string): Promise<{ book: Record<string, unknown>
   };
 }
 
-type IdTokenChange = { key?: CryptoKey; issuer?: string; audience?: string; expires?: number | string };
+type IdTokenChange = { key?: CryptoKey; issuer?: string; audience?: string; expires?: number | string; subject?: string };
 
 /** An ID token as Google signs one for the app at sign-in, with [change] made to it. */
 function idToken(change: IdTokenChange = {}): Promise<string> {
@@ -65,7 +71,7 @@ function idToken(change: IdTokenChange = {}): Promise<string> {
     .setProtectedHeader({ alg: "RS256", kid: "google-test" })
     .setIssuer(change.issuer ?? "https://accounts.google.com")
     .setAudience(change.audience ?? CLIENT_ID)
-    .setSubject(GOOGLE_SUB)
+    .setSubject(change.subject ?? GOOGLE_SUB)
     .setIssuedAt()
     .setExpirationTime(change.expires ?? "1h")
     .sign(change.key ?? google.privateKey);
@@ -292,43 +298,131 @@ describe("while an account's QuotaBook still runs the code from before Pro", () 
   });
 });
 
-describe("deleting an account", () => {
-  it("deletes everything the proxy holds about the account", async () => {
-    const { account, session } = await accountSession();
-    model(ANSWER);
-    await send(billRequest({ session }));
+/** Someone signed in with Google: the `sub` Google names them by, the account the proxy names them by, and a session for it. */
+type GooglePerson = Person & { sub: string };
 
-    const deleted = await send(proxyRequest("DELETE", "/v1/account", { session }));
+async function googlePerson(): Promise<GooglePerson> {
+  const sub = `1${crypto.getRandomValues(new Uint32Array(3)).join("")}`;
+  const account = await hashed(sub, env.HASH_SALT);
+  return { sub, account, session: (await issueSession(account, env, Date.now())).session };
+}
 
-    expect(deleted.status).toBe(204);
-    for (const stub of [
-      env.QUOTA_BOOK.get(env.QUOTA_BOOK.idFromName(`google:${account}`)),
-      env.ABUSE_LEDGER.get(env.ABUSE_LEDGER.idFromName(`google:${account}`)),
-    ]) {
-      const left = await runInDurableObject(stub, async (_, state) => (await state.storage.list()).size);
-      expect(left).toBe(0);
-    }
-  });
+/** A deletion as the page /delete-account asks for it: the ID token Google gave the page, without a session, an install id or a version. */
+function deleteWithGoogle(token: string, settings: Partial<Env> = {}) {
+  const headers = new Headers({ "content-type": "application/json", "CF-Connecting-IP": IP });
+  return send(new Request("https://proxy.test/v1/account/delete-with-google", { method: "POST", headers, body: JSON.stringify({ idToken: token }) }), settings);
+}
 
-  it("needs the account's session", async () => {
-    const sent = await send(proxyRequest("DELETE", "/v1/account"));
+/** The two routes that delete an account: with the app's session, and with Google from the page. They delete alike. */
+const DELETIONS = [
+  {
+    route: "DELETE /v1/account",
+    remove: (who: GooglePerson, settings: Partial<Env> = {}) => send(proxyRequest("DELETE", "/v1/account", { session: who.session }), settings),
+  },
+  {
+    route: "POST /v1/account/delete-with-google",
+    remove: async (who: GooglePerson, settings: Partial<Env> = {}) => deleteWithGoogle(await idToken({ subject: who.sub }), settings),
+  },
+];
 
-    expect(sent.status).toBe(401);
-    expect(JSON.parse(sent.body)).toEqual({ error: "session" });
-    expect(revenueCat.asked).toEqual([]);
-  });
+/** An account on Pro that read a bill and made a group. */
+async function activeAccount() {
+  const who = await googlePerson();
+  revenueCat.hold(who.account, playCustomer({ expires: Date.now() + 20 * POLICY.dayMs }));
+  expect((await api(who, "POST", "/v1/plan")).body).toMatchObject({ usage: { plan: "pro" } });
+  model(ANSWER);
+  expect(last(await send(billRequest({ session: who.session })))).toMatchObject({ type: "result" });
+  return { who, group: await newGroup(who) };
+}
 
-  /** An account on Pro that read a bill and made a group. */
-  async function activeAccount() {
-    const who = await person();
-    revenueCat.hold(who.account, playCustomer({ expires: Date.now() + 20 * POLICY.dayMs }));
-    expect((await api(who, "POST", "/v1/plan")).body).toMatchObject({ usage: { plan: "pro" } });
-    model(ANSWER);
-    expect(last(await send(billRequest({ session: who.session })))).toMatchObject({ type: "result" });
-    return { who, group: await newGroup(who) };
+/** The count an account's QuotaBook keeps of the month of [now], once [calls] bill reads were charged. */
+function monthsCount(calls: number, now: number = Date.now()) {
+  return { period: periodOf(ALLOWANCES.monthly, now), hundredths: calls * 100, used: calls };
+}
+
+/** What each member's balance is made of: their shares and payments of bills, and the settlements they paid and received. */
+function sums(state: GroupState) {
+  const sums: Record<string, { shares: number; paid: number; sent: number; received: number }> = {};
+  const of = (id: string) => (sums[id] ??= { shares: 0, paid: 0, sent: 0, received: 0 });
+  for (const member of state.members) of(member.id);
+  for (const bill of state.bills) {
+    for (const [id, amount] of Object.entries(bill.shares)) of(id).shares += amount;
+    for (const [id, amount] of Object.entries(bill.paid)) of(id).paid += amount;
   }
+  for (const settlement of state.settlements) {
+    of(settlement.fromMemberId).sent += settlement.amountMinor;
+    of(settlement.toMemberId).received += settlement.amountMinor;
+  }
+  return sums;
+}
 
-  it("deletes the customer at RevenueCat before anything else", async () => {
+/** Each member's balance: what they paid and sent, less their shares and what they received. */
+function balances(state: GroupState): Record<string, number> {
+  return Object.fromEntries(Object.entries(sums(state)).map(([id, sum]) => [id, sum.paid + sum.sent - sum.shares - sum.received]));
+}
+
+/** A payment request [creditor] makes, with how to pay it for its web page. */
+function newRequest(creditor: Person, extra: Record<string, unknown> = {}) {
+  return api<{ request: RequestView; url: string }>(creditor, "POST", "/v1/requests", {
+    id: crypto.randomUUID(),
+    amountMinor: 70_000,
+    currency: VND,
+    payerName: "Minh",
+    creditorName: "Lan",
+    title: "Groceries",
+    method: { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789" },
+    payment: { link: "https://paypal.me/lan/70000VND", qrPayload: null, details: "PayPal: paypal.me/lan", amountFilledIn: true },
+    ...extra,
+  });
+}
+
+// The account deletion matrix: one test for each row of what the proxy holds, through each of the two routes.
+describe.each(DELETIONS)("deleting an account through $route", ({ remove }) => {
+  it("devices that get notifications: are deleted", async () => {
+    const who = await googlePerson();
+    const other = await person();
+    for (const [owner, token] of [
+      [who, "token-of-the-account-1"],
+      [who, "token-of-the-account-2"],
+      [other, "token-of-someone-else"],
+    ] as const) {
+      expect((await api(owner, "PUT", `/v1/devices/${crypto.randomUUID()}`, { token })).status).toBe(204);
+    }
+
+    expect((await remove(who)).status).toBe(204);
+
+    expect(await rows("SELECT account, token FROM devices")).toEqual([{ account: other.account, token: "token-of-someone-else" }]);
+  });
+
+  it("the calls used this month: stay in its QuotaBook until the month ends, alone, so that signing in again starts no new allowance", async () => {
+    const { who } = await activeAccount();
+    model(ANSWER);
+    expect(last(await send(billRequest({ session: who.session, ip: "198.51.100.9" })))).toMatchObject({ type: "result" });
+    expect(Object.keys((await heldFor(who.account)).book).filter((key) => !key.startsWith("request:"))).toEqual(["book", "issued", "plan"]);
+    const now = Date.now();
+
+    expect((await remove(who)).status).toBe(204);
+
+    expect((await heldFor(who.account)).book).toEqual({ book: monthsCount(2, now) });
+    expect(await runInDurableObject(bookOf(who.account), (_, state) => state.storage.getAlarm())).toBe(nextMonthStart(now));
+    // Signing in again with the same Google account finds the month's calls used, on the free plan.
+    const again = await signIn(await idToken({ subject: who.sub }));
+    expect(again.status).toBe(200);
+    expect(JSON.parse(again.body)).toMatchObject({ usage: monthly(2), purchaser: who.account });
+  });
+
+  it("the plan and the record of the purchaser: are deleted", async () => {
+    const { who } = await activeAccount();
+    expect(await bookOf(who.account).purchaserIssued()).toBe(true);
+
+    expect((await remove(who)).status).toBe(204);
+
+    expect(await bookOf(who.account).purchaserIssued()).toBe(false);
+    expect(Object.keys((await heldFor(who.account)).book)).toEqual(["book"]);
+    expect(await quotaOf(`google:${who.account}`)).toEqual(monthly(1));
+  });
+
+  it("the customer at RevenueCat: is deleted before anything else", async () => {
     const { who, group } = await activeAccount();
     const before = { held: await heldFor(who.account), group: await stateOf(group) };
     let atDeletion: typeof before | undefined;
@@ -337,16 +431,235 @@ describe("deleting an account", () => {
       return undefined;
     };
 
-    const deleted = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
+    expect((await remove(who)).status).toBe(204);
 
-    expect(deleted.status).toBe(204);
     expect(revenueCat.asked.filter((asked) => asked.method === "DELETE")).toEqual([
       { method: "DELETE", id: who.account, authorization: `Bearer ${TEST_KEY}`, platform: null },
     ]);
     expect(atDeletion).toEqual(before);
     expect(revenueCat.has(who.account)).toBe(false);
-    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
     expect(await rows("SELECT id FROM members WHERE account = ?1", who.account)).toEqual([]);
+  });
+
+  it("the customer at RevenueCat: when RevenueCat does not take the deletion, nothing is deleted, so that it can be asked again", async () => {
+    const { who, group } = await activeAccount();
+    const before = { held: await heldFor(who.account), group: await stateOf(group) };
+    const failures = [
+      () => HttpResponse.json({ code: 7110, message: "Internal server error." }, { status: 500 }),
+      () => HttpResponse.error(),
+      () => HttpResponse.json({ code: 7731, message: "Too many requests." }, { status: 429 }),
+      () => HttpResponse.json({}, { status: 201 }),
+    ];
+
+    for (const failure of failures) {
+      revenueCat.answer = (asked) => (asked.method === "DELETE" ? failure() : undefined);
+      const sent = await remove(who);
+      expect(sent.status).toBe(502);
+      expect(JSON.parse(sent.body)).toEqual({ error: "subscription_unavailable" });
+    }
+
+    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
+    expect(revenueCat.has(who.account)).toBe(true);
+    revenueCat.answer = undefined;
+    expect((await remove(who)).status).toBe(204);
+    expect(await heldFor(who.account)).toEqual({ book: { book: monthsCount(1) }, ledger: {} });
+  });
+
+  it("the spend counter: is deleted", async () => {
+    const who = await googlePerson();
+    model(ANSWER);
+    expect(last(await send(billRequest({ session: who.session })))).toMatchObject({ type: "result" });
+    expect(await spendOf(`google:${who.account}`)).toMatchObject({ held: 0 });
+
+    expect((await remove(who)).status).toBe(204);
+
+    expect((await heldFor(who.account)).ledger).toEqual({});
+  });
+
+  it("the hourly counters: stay until the daily cleanup, under the account's salted hash alone", async () => {
+    const who = await googlePerson();
+    const group = await newGroup(who);
+    await invite(group);
+    expect((await newRequest(who)).status).toBe(201);
+
+    expect((await remove(who)).status).toBe(204);
+
+    const kept = ["account_delete", "group_write", "invite", "request"].map((kind) => ({ account: who.account, kind }));
+    expect(await rows("SELECT account, kind FROM rate_windows ORDER BY kind")).toEqual(kept);
+    // Once their hour is over, the daily cleanup forgets them.
+    await env.DB.prepare("UPDATE rate_windows SET started_at = started_at - ?1").bind(POLICY.hourMs).run();
+    await forgetExpired(env, Date.now());
+    expect(await rows("SELECT * FROM rate_windows")).toEqual([]);
+  });
+
+  it("membership of groups and the groups' bills: become a member who left, every amount kept, so no other balance moves, and its groups and bills pass on", async () => {
+    const lan = await googlePerson();
+    const flat = await newGroup(lan, "Flat 4B", VND);
+    const lanId = flat.ownerMemberId;
+    const minh = await person();
+    const minhId = await join(flat, minh, "Minh");
+    const khoa = await person();
+    const khoaId = await join(flat, khoa, "Khoa");
+    const hoaId = await addPlaceholder(flat, "Hoa");
+    const lansBill = await addBill(flat, lan, { [lanId]: 300, [minhId]: 300, [khoaId]: 200, [hoaId]: 200 }, { [lanId]: 1_000 });
+    const minhsBill = await addBill(flat, minh, { [lanId]: 500, [minhId]: 500 }, { [minhId]: 1_000 });
+    await api(lan, "POST", `/v1/groups/${flat.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor: 150 });
+    await api(khoa, "POST", `/v1/groups/${flat.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: lanId, amountMinor: 100 });
+    // A group someone else owns, where Lan has a bill; a group nobody else with an account is in;
+    // and a claim waiting in a third group.
+    const trip = await newGroup(await person(), "Chiang Mai trip", THB);
+    const lanInTrip = await join(trip, lan, "Lan");
+    const lansTripBill = await addBill(trip, lan, { [trip.ownerMemberId]: 400, [lanInTrip]: 400 }, { [lanInTrip]: 800 });
+    const alone = await newGroup(lan, "Just me", VND);
+    const somebody = await addPlaceholder(alone, "Somebody");
+    await api(lan, "POST", `/v1/groups/${alone.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: somebody, amountMinor: 100 });
+    const waiting = await newGroup(await person());
+    const placeholder = await addPlaceholder(waiting, "Lan?");
+    expect((await api(lan, "POST", "/v1/invites/join", { token: await invite(waiting), claimMemberId: placeholder, name: "Lan" })).status).toBe(202);
+    const before = { flat: await stateOf(flat, minh), trip: await stateOf(trip) };
+
+    expect((await remove(lan)).status).toBe(204);
+
+    const after = await stateOf(flat, minh);
+    expect(after.members.find((member) => member.id === lanId)).toEqual(memberView(lanId, "Former member", false));
+    expect(after.log[0]).toEqual({ at: expect.any(Number), kind: "member_left", memberId: lanId, subjectId: lanId });
+    expect(sums(after)).toEqual(sums(before.flat));
+    expect(after.settlements).toEqual(before.flat.settlements);
+    for (const staying of [minh, khoa]) expect(balances(await stateOf(flat, staying)), staying.account).toEqual(balances(before.flat));
+    expect(after.group.ownerMemberId).toBe(minhId);
+    expect(after.bills.map((bill) => [bill.id, bill.ownerMemberId])).toEqual([
+      [lansBill, minhId],
+      [minhsBill, minhId],
+    ]);
+    const tripAfter = await stateOf(trip);
+    expect(balances(tripAfter)).toEqual(balances(before.trip));
+    expect(tripAfter.bills.find((bill) => bill.id === lansTripBill)?.ownerMemberId).toBe(trip.ownerMemberId);
+    expect(await rows("SELECT id FROM groups WHERE id = ?1", alone.id)).toEqual([]);
+    expect(await rows("SELECT id FROM settlements WHERE group_id = ?1", alone.id)).toEqual([]);
+    expect((await stateOf(waiting)).claims).toEqual([]);
+    for (const table of ["groups", "members", "claims", "group_bills", "settlements", "group_log"]) {
+      expect(JSON.stringify(await rows(`SELECT * FROM ${table}`)), table).not.toContain(lan.account);
+    }
+    const again = await signedInAgain(lan);
+    expect((await api(again, "GET", "/v1/groups")).body).toEqual({ groups: [] });
+    expect((await api(again, "GET", `/v1/groups/${flat.id}`)).status).toBe(403);
+  });
+
+  it("payment requests not confirmed: lose how the account is paid, and the other side keeps every request", async () => {
+    const lan = await googlePerson();
+    const owner = await person();
+    const group = await newGroup(owner, "Flat 4B", VND);
+    const lanId = await join(group, lan, "Lan");
+    const minh = await person();
+    const minhId = await join(group, minh, "Minh");
+    const open = (await newRequest(lan, { groupId: group.id, toMemberId: minhId })).body;
+    const paid = (await newRequest(lan)).body;
+    await api(minh, "POST", "/v1/request-links/accept", { token: linkToken(paid.url) });
+    await api(lan, "POST", `/v1/requests/${paid.request.id}/confirmed-paid`);
+    const owed = (await newRequest(owner, { groupId: group.id, toMemberId: lanId, creditorName: "Owner" })).body.request;
+
+    expect((await remove(lan)).status).toBe(204);
+
+    const minhs = (await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests")).body.requests;
+    expect(minhs.find((request) => request.id === open.request.id)).toEqual({ ...open.request, role: "debtor", method: {}, creditorName: "Former member" });
+    expect(minhs.find((request) => request.id === paid.request.id)).toMatchObject({ method: paid.request.method, creditorName: "Former member" });
+    expect((await api(owner, "GET", "/v1/requests")).body).toEqual({ requests: [{ ...owed, debtorBound: true }] });
+    for (const made of [open, paid]) {
+      const viewed = await api<{ request: Record<string, unknown> }>(null, "POST", "/v1/request-links/view", { token: linkToken(made.url) });
+      expect(viewed.body.request).toMatchObject({ creditorName: "Former member", payment: null });
+    }
+    expect(JSON.stringify(await rows("SELECT * FROM requests"))).not.toContain(lan.account);
+    expect((await api(await signedInAgain(lan), "GET", "/v1/requests")).body).toEqual({ requests: [] });
+  });
+
+  it("bill links and their claims: the links stop working, and their claims are deleted", async () => {
+    const lan = await googlePerson();
+    const turnstile = fakeTurnstile();
+    const mine = await publish(lan);
+    const someoneElses = await publish(await person());
+    for (const link of [mine, someoneElses]) expect((await newClaim(turnstile, link.token, "Minh", ["i1"])).status).toBe(200);
+
+    expect((await remove(lan)).status).toBe(204);
+
+    expect((await openShare(mine.token)).status).toBe(404);
+    expect(await rows("SELECT id FROM shares")).toEqual([{ id: someoneElses.id }]);
+    expect(await rows("SELECT DISTINCT share_id FROM share_claims")).toEqual([{ share_id: someoneElses.id }]);
+    expect((await openShare(someoneElses.token)).body.share.claims).toHaveLength(1);
+    expect(JSON.stringify(await rows("SELECT * FROM shares"))).not.toContain(lan.account);
+  });
+});
+
+describe("deleting an account", () => {
+  it("with the app needs the account's session", async () => {
+    const sent = await send(proxyRequest("DELETE", "/v1/account"));
+
+    expect(sent.status).toBe(401);
+    expect(JSON.parse(sent.body)).toEqual({ error: "session" });
+    expect(revenueCat.asked).toEqual([]);
+  });
+
+  it("with Google takes an ID token as signing in does, and refuses the rest as signing in does, deleting nothing", async () => {
+    const who = await googlePerson();
+    const group = await newGroup(who);
+    const before = await stateOf(group);
+    const refused = (sent: Awaited<ReturnType<typeof send>>, status: number, code: string) => {
+      expect(sent.status, code).toBe(status);
+      expect(JSON.parse(sent.body)).toEqual({ error: code });
+    };
+
+    for (const body of ["{}", '{"idToken": 42}', '{"idToken": ""}', "not json"]) {
+      const headers = new Headers({ "content-type": "application/json" });
+      refused(await send(new Request("https://proxy.test/v1/account/delete-with-google", { method: "POST", headers, body })), 400, "input");
+    }
+    for (const change of [
+      { key: stranger.privateKey },
+      { expires: Math.floor(Date.now() / 1000) - 60 },
+      { audience: "another-app.apps.googleusercontent.com" },
+      { issuer: "https://accounts.example.com" },
+    ]) {
+      refused(await deleteWithGoogle(await idToken({ ...change, subject: who.sub })), 401, "id_token");
+    }
+    const token = await idToken({ subject: who.sub });
+    for (const settings of [{ GOOGLE_CLIENT_ID: "" }, { SESSION_SIGNING_KEY: "too short" }]) refused(await deleteWithGoogle(token, settings), 503, "sign_in_off");
+
+    expect(revenueCat.asked).toEqual([]);
+    expect(await stateOf(group)).toEqual(before);
+    expect(await rows("SELECT kind FROM rate_windows WHERE kind = 'account_delete'")).toEqual([]);
+  });
+
+  it("with Google issues no session", async () => {
+    const who = await googlePerson();
+
+    const sent = await deleteWithGoogle(await idToken({ subject: who.sub }));
+
+    expect(sent.status).toBe(204);
+    expect(sent.body).toBe("");
+    expect([...sent.headers.keys()].sort()).toEqual(["cache-control"]);
+  });
+
+  it("is taken 5 times an hour for one account, by either route, and 429 with Retry-After past that, deleting nothing", async () => {
+    const who = await googlePerson();
+    for (let count = 0; count < POLICY.accountDeletionsPerHour; count++) {
+      const deletion = DELETIONS[count % DELETIONS.length];
+      expect((await deletion.remove(who)).status, `deletion ${count + 1} through ${deletion.route}`).toBe(204);
+    }
+    // A session outlives the deletion: the same one makes a group and has its purchaser recorded again.
+    const group = await newGroup(who);
+    expect((await api(who, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
+    const before = { held: await heldFor(who.account), group: await stateOf(group) };
+
+    for (const deletion of DELETIONS) {
+      const refused = await deletion.remove(who);
+      expect(refused.status, deletion.route).toBe(429);
+      expect(JSON.parse(refused.body)).toEqual({ error: "rate_limited" });
+      const wait = Number(refused.headers.get("retry-after"));
+      expect(wait).toBeGreaterThan(3_500);
+      expect(wait).toBeLessThanOrEqual(3_600);
+    }
+    expect(revenueCat.asked.filter((asked) => asked.method === "DELETE")).toHaveLength(POLICY.accountDeletionsPerHour);
+    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
+    // Another account is counted apart.
+    expect((await send(proxyRequest("DELETE", "/v1/account", { session: (await person()).session }))).status).toBe(204);
   });
 
   it("counts a customer RevenueCat does not have as deleted", async () => {
@@ -360,53 +673,6 @@ describe("deleting an account", () => {
     expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
   });
 
-  it("deletes nothing when RevenueCat does not take the deletion, so that the app can try again", async () => {
-    const { who, group } = await activeAccount();
-    const before = { held: await heldFor(who.account), group: await stateOf(group) };
-    const failures = [
-      () => HttpResponse.json({ code: 7110, message: "Internal server error." }, { status: 500 }),
-      () => HttpResponse.error(),
-      () => HttpResponse.json({ code: 7731, message: "Too many requests." }, { status: 429 }),
-      () => HttpResponse.json({}, { status: 201 }),
-    ];
-
-    for (const failure of failures) {
-      revenueCat.answer = (asked) => (asked.method === "DELETE" ? failure() : undefined);
-      const sent = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
-      expect(sent.status).toBe(502);
-      expect(JSON.parse(sent.body)).toEqual({ error: "subscription_unavailable" });
-    }
-
-    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
-    expect(revenueCat.has(who.account)).toBe(true);
-    revenueCat.answer = undefined;
-    expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status).toBe(204);
-    expect(await heldFor(who.account)).toEqual({ book: {}, ledger: {} });
-  });
-
-  it("is taken 5 times an hour for one account, and 429 with Retry-After past that, deleting nothing", async () => {
-    const who = await person();
-    for (let count = 0; count < POLICY.accountDeletionsPerHour; count++) {
-      expect((await send(proxyRequest("DELETE", "/v1/account", { session: who.session }))).status, `deletion ${count + 1}`).toBe(204);
-    }
-    // A session outlives the deletion: the same one makes a group and has its purchaser recorded again.
-    const group = await newGroup(who);
-    expect((await api(who, "GET", "/v1/usage")).body).toMatchObject({ purchaser: who.account });
-    const before = { held: await heldFor(who.account), group: await stateOf(group) };
-
-    const refused = await send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
-
-    expect(refused.status).toBe(429);
-    expect(JSON.parse(refused.body)).toEqual({ error: "rate_limited" });
-    const wait = Number(refused.headers.get("retry-after"));
-    expect(wait).toBeGreaterThan(3_500);
-    expect(wait).toBeLessThanOrEqual(3_600);
-    expect(revenueCat.asked.filter((asked) => asked.method === "DELETE")).toHaveLength(POLICY.accountDeletionsPerHour);
-    expect({ held: await heldFor(who.account), group: await stateOf(group) }).toEqual(before);
-    // Another account is counted apart.
-    expect((await send(proxyRequest("DELETE", "/v1/account", { session: (await person()).session }))).status).toBe(204);
-  });
-
   it("deletes as before without RevenueCat's key, asking RevenueCat nothing", async () => {
     const { account, session } = await accountSession();
     model(ANSWER);
@@ -416,121 +682,6 @@ describe("deleting an account", () => {
 
     expect(deleted.status).toBe(204);
     expect(revenueCat.asked).toEqual([]);
-    expect(await heldFor(account)).toEqual({ book: {}, ledger: {} });
-  });
-});
-
-describe("deleting an account, in the shared data", () => {
-  /** What makes up each member's balance: their shares and payments of bills, and the settlements they paid and received. */
-  function sums(state: GroupState) {
-    const sums: Record<string, { shares: number; paid: number; sent: number; received: number }> = {};
-    const of = (id: string) => (sums[id] ??= { shares: 0, paid: 0, sent: 0, received: 0 });
-    for (const member of state.members) of(member.id);
-    for (const bill of state.bills) {
-      for (const [id, amount] of Object.entries(bill.shares)) of(id).shares += amount;
-      for (const [id, amount] of Object.entries(bill.paid)) of(id).paid += amount;
-    }
-    for (const settlement of state.settlements) {
-      of(settlement.fromMemberId).sent += settlement.amountMinor;
-      of(settlement.toMemberId).received += settlement.amountMinor;
-    }
-    return sums;
-  }
-
-  function deleteAccount(who: Person) {
-    return send(proxyRequest("DELETE", "/v1/account", { session: who.session }));
-  }
-
-  function newRequest(creditor: Person, extra: Record<string, unknown> = {}) {
-    return api<{ request: RequestView; url: string }>(creditor, "POST", "/v1/requests", {
-      id: crypto.randomUUID(),
-      amountMinor: 70_000,
-      currency: VND,
-      payerName: "Minh",
-      creditorName: "Lan",
-      title: "Groceries",
-      method: { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789" },
-      ...extra,
-    });
-  }
-
-  it("leaves its members as placeholders, and every member's shares, payments and settlements as they were", async () => {
-    const owner = await person();
-    const group = await newGroup(owner, "Flat 4B", VND);
-    const lan = await person();
-    const lanId = await join(group, lan, "Lan");
-    const minh = await person();
-    const minhId = await join(group, minh, "Minh");
-    const hoaId = await addPlaceholder(group, "Hoa");
-    const lansBill = await addBill(group, lan, { [group.ownerMemberId]: 300, [lanId]: 300, [minhId]: 200, [hoaId]: 200 }, { [lanId]: 1_000 });
-    await addBill(group, owner, { [lanId]: 500, [minhId]: 500 }, { [group.ownerMemberId]: 400, [minhId]: 600 });
-    await api(lan, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: minhId, amountMinor: 150 });
-    await api(owner, "POST", `/v1/groups/${group.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: lanId, amountMinor: 250 });
-    const before = await stateOf(group);
-    // What else Lan left: a device, a claim waiting in another group, requests made and owed.
-    await api(lan, "PUT", `/v1/devices/${crypto.randomUUID()}`, { token: "token-lan" });
-    const other = await newGroup(await person());
-    const otherPlaceholder = await addPlaceholder(other, "Lan?");
-    await api(lan, "POST", "/v1/invites/join", { token: await invite(other), claimMemberId: otherPlaceholder, name: "Lan" });
-    const open = (await newRequest(lan, { groupId: group.id, toMemberId: minhId })).body.request;
-    const paid = await newRequest(lan);
-    await api(minh, "POST", "/v1/request-links/accept", { token: linkToken(paid.body.url) });
-    await api(lan, "POST", `/v1/requests/${paid.body.request.id}/confirmed-paid`);
-    const owed = (await newRequest(owner, { groupId: group.id, toMemberId: lanId, creditorName: "Owner" })).body.request;
-    expect((await rows<{ kind: string }>("SELECT kind FROM rate_windows WHERE account = ?1", lan.account)).map((window) => window.kind)).toContain("request");
-
-    expect((await deleteAccount(lan)).status).toBe(204);
-
-    const after = await stateOf(group);
-    expect(after.members.find((member) => member.id === lanId)).toEqual(memberView(lanId, "Former member", false));
-    expect(sums(after)).toEqual(sums(before));
-    expect(sums(await stateOf(group, minh))).toEqual(sums(before));
-    expect(after.settlements).toEqual(before.settlements);
-    expect(after.bills.find((bill) => bill.id === lansBill)?.ownerMemberId).toBe(group.ownerMemberId);
-    expect(after.log[0]).toEqual({ at: expect.any(Number), kind: "member_left", memberId: lanId, subjectId: lanId });
-    expect((await stateOf(other)).claims).toEqual([]);
-
-    const minhs = (await api<{ requests: RequestView[] }>(minh, "GET", "/v1/requests")).body.requests;
-    expect(minhs.find((request) => request.id === open.id)).toEqual({ ...open, role: "debtor", method: {}, creditorName: "Former member" });
-    expect(minhs.find((request) => request.id === paid.body.request.id)).toMatchObject({ method: paid.body.request.method, creditorName: "Former member" });
-    const owners = (await api<{ requests: RequestView[] }>(owner, "GET", "/v1/requests")).body.requests;
-    expect(owners).toEqual([{ ...owed, debtorBound: true }]);
-    for (const table of ["groups", "members", "claims", "group_bills", "settlements", "group_log", "requests", "devices"]) {
-      expect(JSON.stringify(await rows(`SELECT * FROM ${table}`)), table).not.toContain(lan.account);
-    }
-    // Of the hourly windows, only the count of deletions outlives it, as that of plan reads would.
-    expect(await rows("SELECT kind FROM rate_windows WHERE account = ?1", lan.account)).toEqual([{ kind: "account_delete" }]);
-
-    const again = await signedInAgain(lan);
-    expect((await api(again, "GET", "/v1/groups")).body).toEqual({ groups: [] });
-    expect((await api(again, "GET", "/v1/requests")).body).toEqual({ requests: [] });
-    expect((await api(again, "GET", `/v1/groups/${group.id}`)).status).toBe(403);
-  });
-
-  it("passes a group it owns to the member with an account who joined first, and deletes one nobody else is in", async () => {
-    const owner = await person();
-    const shared = await newGroup(owner);
-    await addPlaceholder(shared, "Hoa");
-    const lan = await person();
-    const lanId = await join(shared, lan, "Lan");
-    await join(shared, await person(), "Minh");
-    const ownersBill = await addBill(shared, owner, { [lanId]: 100 }, { [shared.ownerMemberId]: 100 });
-    const alone = await newGroup(owner, "Just me", VND);
-    const somebody = await addPlaceholder(alone, "Somebody");
-    await api(owner, "POST", `/v1/groups/${alone.id}/settlements`, { id: crypto.randomUUID(), fromMemberId: somebody, amountMinor: 100 });
-    const request = (await newRequest(owner, { groupId: alone.id, toMemberId: somebody })).body.request;
-
-    expect((await deleteAccount(owner)).status).toBe(204);
-
-    const state = await stateOf(shared, lan);
-    expect(state.group.ownerMemberId).toBe(lanId);
-    expect(state.members.find((member) => member.id === lanId)?.isOwner).toBe(true);
-    expect(state.bills.find((bill) => bill.id === ownersBill)?.ownerMemberId).toBe(lanId);
-    expect(await rows("SELECT id FROM groups WHERE id = ?1", alone.id)).toEqual([]);
-    expect(await rows("SELECT id FROM members WHERE group_id = ?1", alone.id)).toEqual([]);
-    expect(await rows("SELECT id FROM settlements WHERE group_id = ?1", alone.id)).toEqual([]);
-    expect(await rows("SELECT group_id, to_member_id, creditor, method FROM requests WHERE id = ?1", request.id)).toEqual([
-      { group_id: null, to_member_id: null, creditor: null, method: "{}" },
-    ]);
+    expect(await heldFor(account)).toEqual({ book: { book: monthsCount(1) }, ledger: {} });
   });
 });

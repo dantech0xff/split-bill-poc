@@ -119,27 +119,50 @@ export async function planRoute(request: Request, env: Env): Promise<Response> {
 }
 
 /**
- * `DELETE /v1/account`: deletes everything the proxy holds about the signed-in account: first its
- * customer at RevenueCat, when RevenueCat is set up; then its part in the shared data, which
- * `forgetSharedData` takes out without changing anyone else's balances; then its call count, with
- * its plan and the record of its purchaser, and its spend counter. When RevenueCat does not take the
- * deletion, the answer is 502 `subscription_unavailable` and nothing else is deleted, so that the app
- * can try again. A subscription on Google Play goes on: the app says so before it deletes. The app
- * then forgets the session.
- *
- * An account may ask for its deletion [POLICY.accountDeletionsPerHour] times an hour, counted before
- * RevenueCat is asked; past that the answer is 429 `rate_limited` and nothing is deleted. The count
- * outlives the deletion, as `forgetSharedData` keeps it, because a session outlives it too.
+ * `DELETE /v1/account`: deletes the signed-in account, as [deleteAccount] does. The app then
+ * forgets the session.
  */
 export async function accountRoute(request: Request, env: Env): Promise<Response> {
   const account = await sessionAccountOf(request, env);
   if (account === null) return errorResponse(401, "session");
+  return deleteAccount(env, account);
+}
+
+/**
+ * `POST /v1/account/delete-with-google` with `{"idToken": …}`: deletes the account of a Google ID
+ * token, as `DELETE /v1/account` deletes the account of a session, for the page `/delete-account`,
+ * where a person who no longer has the app signs in with Google. The token is checked as
+ * `POST /v1/session` checks it, with its errors, and no session is ever issued.
+ */
+export async function deleteWithGoogleRoute(request: Request, env: Env): Promise<Response> {
+  const checked = await googleAccountIn(request, env);
+  if (!checked.ok) return errorResponse(checked.status, checked.code);
+  return deleteAccount(env, checked.account);
+}
+
+/**
+ * Deletes what the proxy holds about [account], answering 204: first its customer at RevenueCat,
+ * when RevenueCat is set up; then its part in the shared data, which `forgetSharedData` takes out
+ * without changing anyone else's balances; then its QuotaBook, but for the calls it used this
+ * calendar month, which [QuotaBook.forget] keeps until the month ends so that deleting the account
+ * and signing in again starts no new allowance, and its spend counter. When RevenueCat does not
+ * take the deletion, the answer is 502 `subscription_unavailable` and nothing else is deleted, so
+ * that it can be asked again. A subscription on Google Play goes on: the app and the page say so
+ * before they delete.
+ *
+ * An account may ask for its deletion [POLICY.accountDeletionsPerHour] times an hour, by either
+ * route, counted before RevenueCat is asked; past that the answer is 429 `rate_limited` and nothing
+ * is deleted. The count outlives the deletion, as every hourly count of the account does until the
+ * daily run, because a session outlives it too.
+ */
+async function deleteAccount(env: Env, account: string): Promise<Response> {
   const refused = await hourlyRefusal(env.DB, account, "account_delete", POLICY.accountDeletionsPerHour);
   if (refused !== null) return refused;
   const key = revenueCatKey(env);
   if (key !== null && !(await deleteCustomer(key, account))) return errorResponse(502, "subscription_unavailable");
-  await forgetSharedData(env.DB, account, Date.now());
+  const now = Date.now();
+  await forgetSharedData(env.DB, account, now);
   const name = accountName(account);
-  await Promise.all([quotaBook(env, name).forget(), ledger(env, name).forget()]);
+  await Promise.all([quotaBook(env, name).forget(now), ledger(env, name).forget()]);
   return emptyResponse(204);
 }
