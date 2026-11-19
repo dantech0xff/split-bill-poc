@@ -76,7 +76,7 @@ const REQUEST = "request:";
 const PLAN = "plan";
 /** When the proxy first handed a Google account's id to the app as its purchaser. */
 const ISSUED = "issued";
-/** When an install first had a call held, so that its first call is told apart once. */
+/** That an install has had a call held, so that its first call is told apart once; never when. */
 const FIRST_CALL = "firstCall";
 /** The most keys one write of storage takes. */
 const MAX_PUT_KEYS = 128;
@@ -145,7 +145,7 @@ export class QuotaBook extends DurableObject {
       allowance.kind === "trial" && book.hundredths === 0 && requests.size === 0 && (await this.ctx.storage.get(FIRST_CALL)) === undefined;
     const entry: RequestEntry = { heldAt: now, runs: 1, active: 1, committedAt: null, digest, weight: cost };
     requests.set(requestId, entry);
-    await this.ctx.storage.put(first ? { [REQUEST + requestId]: entry, [FIRST_CALL]: now } : { [REQUEST + requestId]: entry });
+    await this.ctx.storage.put(first ? { [REQUEST + requestId]: entry, [FIRST_CALL]: true } : { [REQUEST + requestId]: entry });
     await this.arm(now);
     const usage = usageOf(book, requests, terms, now);
     return first ? { ok: true, usage, first } : { ok: true, usage };

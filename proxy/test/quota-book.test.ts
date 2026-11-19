@@ -728,15 +728,18 @@ describe("the first call of an install", () => {
     expect(again).not.toHaveProperty("first");
     expect(next).toMatchObject({ ok: true });
     expect(next).not.toHaveProperty("first");
-    expect((await storageOf(stub)).firstCall).toBe(now);
+    // The mark says that it happened, never when.
+    expect((await storageOf(stub)).firstCall).toBe(true);
   });
 
-  it("is never an account's call, nor one of an install that had calls charged before the mark existed", async () => {
+  it("is never an account's call, nor one of an install that had calls charged before the mark existed, or whose mark holds a time", async () => {
     const now = Date.now();
     const account = await accountBook();
     const older = await bookWith({ book: { period: "trial", hundredths: 100, used: 1 } });
+    // As the version before kept the mark: the time of the first call.
+    const timed = await bookWith({ firstCall: now - POLICY.dayMs });
 
-    for (const stub of [account, older]) {
+    for (const stub of [account, older, timed]) {
       const held = await stub.hold(now, crypto.randomUUID(), stub === account ? MONTHLY : TRIAL, BILL, READ);
       expect(held).toMatchObject({ ok: true });
       expect(held).not.toHaveProperty("first");
