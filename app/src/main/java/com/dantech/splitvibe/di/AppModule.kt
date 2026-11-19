@@ -83,6 +83,7 @@ val appModule = module {
             api = get(),
             store = get(),
             canSignIn = get<AccountRepository>().canSignIn,
+            checkSession = get<AccountRepository>()::refresh,
         )
     }
     // One for each screen that listens, which lets go of the recognizer when the screen goes.

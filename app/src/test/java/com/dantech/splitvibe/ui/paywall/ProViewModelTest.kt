@@ -389,7 +389,7 @@ class ProViewModelTest {
     fun `a build without RevenueCat's key says Pro is not available and asks nothing`() {
         proxy.account.saveSession(SESSION, purchaser = PURCHASER)
 
-        val viewModel = viewModel(BillingRepository(billing = null, proxy.api, proxy.account, canSignIn = true))
+        val viewModel = viewModel(BillingRepository(billing = null, proxy.api, proxy.account, canSignIn = true, checkSession = NO_CHECK))
 
         assertFalse(viewModel.state.value.sold)
         viewModel.load()
@@ -419,12 +419,13 @@ class ProViewModelTest {
         assertEquals("That did not work. Please try again." to true, proMessageOf(failure).shown())
     }
 
-    private fun viewModel(repository: BillingRepository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true)) =
-        ProViewModel(
-            billing = repository,
-            accounts = proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), storage.phoneData(context)),
-            account = proxy.account.account,
-        )
+    private fun viewModel(
+        repository: BillingRepository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true, checkSession = NO_CHECK),
+    ) = ProViewModel(
+        billing = repository,
+        accounts = proxy.accountRepository(FakeGoogleAccounts(), ProxyCache(storage.database.proxyCache()), storage.phoneData(context)),
+        account = proxy.account.account,
+    )
 
     /** The screen of an account signed in with its purchaser, once the plans are on it. */
     private fun signedInViewModel(): ProViewModel {
@@ -453,3 +454,6 @@ class ProViewModelTest {
             "The subscription on this Google Play account belongs to another Split Vibe account. Sign in with that account to use it."
     }
 }
+
+/** The sessions of these tests are new sign-ins, which the proxy took, so nothing checks them again. */
+private val NO_CHECK: suspend () -> Unit = {}

@@ -114,6 +114,13 @@ data class Account(
      * until the proxy has said it.
      */
     val purchaser: String? = null,
+    /**
+     * The proxy took [session] in this run of the app: it gave it at a sign-in, or answered a check of
+     * the calls left or of the plan made with it. A session kept from an earlier run may belong to an
+     * account deleted since, on the web, which the proxy then refuses; until it took the session,
+     * nothing is done for the account elsewhere, such as starting RevenueCat as its purchaser.
+     */
+    val sessionAccepted: Boolean = false,
 )
 
 /**
@@ -153,9 +160,21 @@ class AccountStore(
             if (purchaser == null) remove(KEY_PURCHASER) else putString(KEY_PURCHASER, cipher.encrypt(purchaser))
             remove(KEY_SIGN_IN_EXPIRED)
         }
-        // A new person may have signed in, so the old count no longer applies.
-        state.update { it.copy(session = session, signedInAs = signedInAs, signInExpired = false, callsLeft = null, purchaser = purchaser) }
+        // A new person may have signed in, so the old count no longer applies. The proxy has just given the session.
+        state.update {
+            it.copy(
+                session = session,
+                signedInAs = signedInAs,
+                signInExpired = false,
+                callsLeft = null,
+                purchaser = purchaser,
+                sessionAccepted = true,
+            )
+        }
     }
+
+    /** The proxy answered a call made with [session], so it takes it, while it is still the one signed in. */
+    fun onSessionAccepted(session: Session) = state.update { if (it.session == session) it.copy(sessionAccepted = true) else it }
 
     /**
      * The purchaser the proxy gave in an answer to [session], such as a sign-in from before the app
@@ -184,7 +203,7 @@ class AccountStore(
             putBoolean(KEY_SIGN_IN_EXPIRED, true)
         }
         // The count was the account's, and no read is possible until the person signs in again.
-        state.update { it.copy(session = null, signInExpired = true, callsLeft = null, purchaser = null) }
+        state.update { it.copy(session = null, signInExpired = true, callsLeft = null, purchaser = null, sessionAccepted = false) }
     }
 
     /**
@@ -199,7 +218,9 @@ class AccountStore(
             remove(KEY_PURCHASER)
             remove(KEY_SIGN_IN_EXPIRED)
         }
-        state.update { it.copy(session = null, signedInAs = null, signInExpired = false, callsLeft = null, purchaser = null) }
+        state.update {
+            it.copy(session = null, signedInAs = null, signInExpired = false, callsLeft = null, purchaser = null, sessionAccepted = false)
+        }
     }
 
     fun onCallsLeft(callsLeft: CallsLeft) = state.update { it.copy(callsLeft = callsLeft) }

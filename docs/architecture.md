@@ -443,6 +443,14 @@ flowchart LR
   configures it when someone is signed in with a known purchaser, switches with `logIn` when another
   account signs in, and closes it with `Purchases.close()` while nobody is. It never calls `logOut`,
   which would make an anonymous id, so a phone where nobody signed in sends nothing to RevenueCat.
+- A session kept from an earlier run of the app configures the SDK only once the proxy has taken it
+  in this run (`Account.sessionAccepted`): it gave it at a sign-in, or answered a check of the calls
+  left or of the plan made with it. `follow` asks for the calls left as soon as there is such a
+  session. An account deleted on the web meanwhile is refused with 401 `session`, its sign-in ends
+  on the phone, and RevenueCat is never started for it, so its first read makes no empty customer
+  under the account's id. Without a connection, the SDK waits for the next call the proxy answers. A
+  purchase, a switch, a restore and reading the offer check the plan first in the same case, and
+  fail without starting the SDK when the proxy refuses or cannot be reached.
   A change of user, a purchase, a restore and reading the offer take turns under one lock, so a
   sign-out while Google Play's purchase is open waits until it is done. `follow` starts in the
   activity rather than the application because every local test creates the application, and as

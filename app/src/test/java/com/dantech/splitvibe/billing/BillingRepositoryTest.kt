@@ -6,13 +6,18 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.TestProxy
+import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
+import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
 import com.revenuecat.purchases.models.StoreReplacementMode
+import java.io.IOException
 import java.math.BigDecimal
 import java.time.Duration
 import java.util.concurrent.TimeUnit
@@ -25,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,6 +51,7 @@ class BillingRepositoryTest {
     private val server = MockWebServer()
     private val activity: Activity = Robolectric.buildActivity(Activity::class.java).get()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val storage = TestStorage(context)
     private lateinit var proxy: TestProxy
     private lateinit var billing: FakeBilling
     private lateinit var repository: BillingRepository
@@ -54,13 +61,93 @@ class BillingRepositoryTest {
         server.start()
         proxy = TestProxy(server, context)
         billing = FakeBilling(proxy.account.account)
-        repository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true)
+        repository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true, checkSession = {})
     }
 
     @After
     fun tearDown() {
         scope.cancel()
         server.shutdown()
+        storage.close()
+    }
+
+    @Test
+    fun `a session kept from an earlier run that the proxy refuses, as after a deletion on the web, never starts the store`() {
+        signIn()
+        val next = nextRun()
+        server.enqueue(json(401, """{"error":"session"}"""))
+
+        scope.launch { next.repository.follow() }
+        awaitOnMain { next.proxy.account.account.value.signInExpired }
+        idle()
+
+        assertEquals("/v1/usage", server.takeRequest().path)
+        assertEquals(emptyList<String>(), next.billing.starts)
+        assertNull(next.proxy.account.account.value.purchaser)
+    }
+
+    @Test
+    fun `a session kept from an earlier run starts the store once the proxy takes it`() {
+        signIn()
+        val next = nextRun()
+        server.enqueue(json(200, """{"usage":$FREE_MONTH,"aiEnabled":true,"purchaser":"$PURCHASER"}"""))
+
+        scope.launch { next.repository.follow() }
+        awaitOnMain { next.billing.user != null }
+
+        assertEquals("/v1/usage", server.takeRequest().path)
+        assertEquals(listOf(PURCHASER), next.billing.starts)
+        assertEquals(emptyList<String>(), next.billing.startsWithoutTheAccount)
+    }
+
+    @Test
+    fun `without a connection the store waits for the next call the proxy answers`() {
+        signIn()
+        val next = nextRun()
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+
+        scope.launch { next.repository.follow() }
+        awaitOnMain { server.requestCount == 1 }
+        val waited = System.currentTimeMillis() + 500
+        awaitOnMain { System.currentTimeMillis() > waited }
+        assertEquals("nothing started while the proxy could not be asked", emptyList<String>(), next.billing.starts)
+
+        // Settings opens, and its count goes through.
+        server.enqueue(json(200, """{"usage":$FREE_MONTH,"aiEnabled":true,"purchaser":"$PURCHASER"}"""))
+        runBlocking { next.accounts.refresh() }
+        awaitOnMain { next.billing.user != null }
+        assertEquals(listOf(PURCHASER), next.billing.starts)
+    }
+
+    @Test
+    fun `a purchase or a restore with a session kept from an earlier run has the proxy take it before the store starts`() = runBlocking {
+        signIn()
+        val refused = nextRun()
+        server.enqueue(json(401, """{"error":"session"}"""))
+        try {
+            refused.repository.restore()
+            fail("A session the proxy refuses restores nothing")
+        } catch (e: ProxyException) {
+            assertEquals(ProxyApi.SESSION_REFUSED, e.code)
+        }
+        assertEquals(emptyList<String>(), refused.billing.starts)
+
+        signIn()
+        val offline = nextRun()
+        repeat(2) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        try {
+            offline.repository.buy(activity, FakeBilling.MONTHLY)
+            fail("Without the proxy taking the session, nothing is bought")
+        } catch (e: IOException) {
+            // Google Play is not opened either.
+        }
+        assertEquals(emptyList<String>(), offline.billing.starts)
+
+        val taken = nextRun()
+        repeat(2) { server.enqueue(planAnswer(FREE_MONTH)) }
+        taken.repository.restore()
+        assertEquals(listOf("start $PURCHASER"), taken.billing.log.take(1))
+        assertEquals(1, taken.billing.restores)
     }
 
     @Test
@@ -318,7 +405,8 @@ class BillingRepositoryTest {
         assertTrue(billing.purchases.isEmpty())
 
         // When it said nothing of the kind, the purchase goes ahead, and the proxy counts it at its next check.
-        val change = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true).buy(activity, FakeBilling.MONTHLY)
+        val change = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true, checkSession = {
+        }).buy(activity, FakeBilling.MONTHLY)
         assertEquals(1, billing.purchases.size)
         assertNull(change.plan)
     }
@@ -449,8 +537,8 @@ class BillingRepositoryTest {
 
     @Test
     fun `a build without RevenueCat's key, or one that cannot sign in, sells no Pro and never starts a store`() {
-        val withoutKey = BillingRepository(billing = null, proxy.api, proxy.account, canSignIn = true)
-        val withoutSignIn = BillingRepository(billing, proxy.api, proxy.account, canSignIn = false)
+        val withoutKey = BillingRepository(billing = null, proxy.api, proxy.account, canSignIn = true, checkSession = {})
+        val withoutSignIn = BillingRepository(billing, proxy.api, proxy.account, canSignIn = false, checkSession = {})
         proxy.account.saveSession(SESSION, purchaser = PURCHASER)
 
         scope.launch { withoutKey.follow() }
@@ -464,6 +552,35 @@ class BillingRepositoryTest {
     }
 
     private fun signIn() = proxy.account.saveSession(SESSION, signedInAs = "minh.tran@example.com", purchaser = PURCHASER)
+
+    /**
+     * The app as it starts again after [signIn]: with the session and the purchaser kept on the phone,
+     * which the proxy has not taken in this run, and Settings' own check of the calls left.
+     */
+    private fun nextRun(): NextRun {
+        val next = TestProxy(server, context)
+        val kept = next.account.account.value
+        check(kept.session == SESSION && kept.purchaser == PURCHASER && !kept.sessionAccepted) { "Not as an earlier run kept it: $kept" }
+        val accounts = next.accountRepository(
+            google = null,
+            cache = ProxyCache(storage.database.proxyCache()),
+            phone = storage.phoneData(context),
+        )
+        val billing = FakeBilling(next.account.account)
+        return NextRun(
+            next,
+            accounts,
+            billing,
+            BillingRepository(billing, next.api, next.account, canSignIn = true, checkSession = accounts::refresh),
+        )
+    }
+
+    private class NextRun(
+        val proxy: TestProxy,
+        val accounts: AccountRepository,
+        val billing: FakeBilling,
+        val repository: BillingRepository,
+    )
 
     /** Buys the monthly plan, whatever comes of it; the proxy is asked before, and after a purchase that goes through. */
     private fun buyAllowingFailure() = runBlocking {

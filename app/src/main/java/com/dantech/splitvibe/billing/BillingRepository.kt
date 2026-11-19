@@ -14,11 +14,14 @@ import com.revenuecat.purchases.PurchasesTransactionException
 import com.revenuecat.purchases.models.StoreReplacementMode
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -52,6 +55,11 @@ class BillingRepository(
     private val store: AccountStore,
     /** Whether this build can sign in with Google, as [AccountRepository.canSignIn] says. */
     canSignIn: Boolean,
+    /**
+     * Has the proxy check the stored session, as [AccountRepository.refresh] does, which marks it taken
+     * ([com.dantech.splitvibe.data.account.Account.sessionAccepted]) or ends a sign-in it refuses.
+     */
+    private val checkSession: suspend () -> Unit,
 ) {
     /** Whether this build sells Pro: it has RevenueCat's key and can sign in, as only a signed-in account buys. */
     val sellsPro: Boolean = billing != null && canSignIn
@@ -90,10 +98,34 @@ class BillingRepository(
      * not as the account that made it. So when this run saw a purchase left unsent, the store first
      * gets a few seconds to send it as its buyer. Runs until cancelled, and nothing it meets stops
      * it: the next purchase starts the store again anyway.
+     *
+     * A session kept from an earlier run of the app starts the store only once the proxy has taken it
+     * in this one, which the proxy is asked here as soon as there is such a session. An account
+     * deleted on the web meanwhile is refused, its sign-in ends, and RevenueCat never makes a
+     * customer for it again. Without a connection, the store waits for the next call that works.
      */
-    suspend fun follow() {
-        if (!sellsPro) return
-        store.account.map { if (it.session != null) it.purchaser else null }.distinctUntilChanged().collect { purchaser ->
+    suspend fun follow(): Unit = coroutineScope {
+        if (!sellsPro) return@coroutineScope
+        launch {
+            store.account.map { it.session != null && !it.sessionAccepted }.distinctUntilChanged().filter { it }.collect {
+                try {
+                    checkSession()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Such as no connection: the store starts with the next call that the proxy answers.
+                }
+            }
+        }
+        store.account.map {
+            if (it.session != null &&
+                it.sessionAccepted
+            ) {
+                it.purchaser
+            } else {
+                null
+            }
+        }.distinctUntilChanged().collect { purchaser ->
             try {
                 identity.withLock { useAs(purchaser) }
             } catch (e: CancellationException) {
@@ -126,6 +158,7 @@ class BillingRepository(
         if (store.account.value.session == session) {
             store.onCallsLeft(usage.callsLeft)
             store.onAiEnabled(usage.aiEnabled)
+            store.onSessionAccepted(session)
             usage.purchaser?.let { store.onPurchaser(it, session) }
         }
         return usage.callsLeft
@@ -207,12 +240,22 @@ class BillingRepository(
     /** The signed-in account's purchaser, as the proxy gave it. Throws [SignInNeededException] without one. */
     private fun purchaserNow(): String = store.currentSession()?.let { store.account.value.purchaser } ?: throw SignInNeededException()
 
-    /** Runs [block] on the store as the signed-in account's purchaser, under [identity]. */
-    private suspend fun <T> asPurchaser(block: suspend (Billing, String) -> T): T = identity.withLock {
-        val billing = checkNotNull(billing) { "This build sells no Pro" }
-        val purchaser = purchaserNow()
-        useAs(purchaser)
-        block(billing, purchaser)
+    /**
+     * Runs [block] on the store as the signed-in account's purchaser, under [identity]. Throws
+     * [SignInNeededException] without one. A session the proxy has not taken in this run of the app
+     * is checked first ([refreshPlan]), which throws when the proxy refuses it or cannot be reached:
+     * the store never starts for a session the proxy did not take.
+     */
+    private suspend fun <T> asPurchaser(block: suspend (Billing, String) -> T): T {
+        purchaserNow()
+        if (!store.account.value.sessionAccepted) refreshPlan()
+        return identity.withLock {
+            val billing = checkNotNull(billing) { "This build sells no Pro" }
+            val purchaser = purchaserNow()
+            if (!store.account.value.sessionAccepted) throw SignInNeededException()
+            useAs(purchaser)
+            block(billing, purchaser)
+        }
     }
 
     /** Uses the store as [purchaser], or stops it for null. Called only under [identity]. */

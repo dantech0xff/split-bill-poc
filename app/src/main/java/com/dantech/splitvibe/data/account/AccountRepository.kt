@@ -203,7 +203,10 @@ class AccountRepository(
         }
         store.onCallsLeft(usage.callsLeft)
         store.onAiEnabled(usage.aiEnabled)
-        if (session != null) usage.purchaser?.let { store.onPurchaser(it, session) }
+        if (session != null) {
+            store.onSessionAccepted(session)
+            usage.purchaser?.let { store.onPurchaser(it, session) }
+        }
     }
 
     private suspend fun forgetGoogle(context: Context) {
