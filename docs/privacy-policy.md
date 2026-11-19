@@ -1,3 +1,5 @@
+<!-- Draft for legal review. Do not publish it before the owner and a legal adviser have reviewed it and filled in every placeholder in square brackets: see compliance.md. The page builder leaves this comment out of the page. -->
+
 # Split Vibe Privacy Policy
 
 Last updated: [effective date]
@@ -233,4 +235,4 @@ When we change this policy, we publish the new version on this page before it ta
 
 Support: [support channel].
 
-See also our [Terms of Use](/terms).
+See also our [Terms of Use](terms.md).

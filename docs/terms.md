@@ -1,10 +1,12 @@
+<!-- Draft for legal review. Do not publish it before the owner and a legal adviser have reviewed it and filled in every placeholder in square brackets: see compliance.md. The page builder leaves this comment out of the page. -->
+
 # Split Vibe Terms of Use
 
 Last updated: [effective date]
 
 These terms are an agreement between you and [owner name], [postal address] ("we", "us"), about your use of Split Vibe: the app for Android, the web pages that its links open, and the server behind them (together, "the service"). By using the service you agree to these terms. If you do not agree, do not use it.
 
-Our [Privacy Policy](/privacy) explains what we do with information about you.
+Our [Privacy Policy](privacy-policy.md) explains what we do with information about you.
 
 ## Who can use Split Vibe
 

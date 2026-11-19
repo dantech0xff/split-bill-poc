@@ -9,10 +9,11 @@ needs the adviser's confirmation. Facts about the law and the providers' terms w
 ## The two drafts
 
 [privacy-policy.md](privacy-policy.md) and [terms.md](terms.md) are **drafts for legal review**.
-The Worker renders them into the public pages `/privacy` and `/terms` when it is built, so neither
-file can carry a "draft" note: they are plain Markdown, without HTML or front matter, and anything
-written in them shows on the page. This page carries the note instead. Do not ship a build of the
-Worker with them until the adviser has reviewed them and every placeholder is filled in.
+The web app's build (`web/scripts/static-pages.mjs`) renders them into the public pages `/privacy`
+and `/terms`, so they are plain Markdown, without front matter. Each starts with its "draft for
+legal review" note as an HTML comment, which that build leaves out of the page and GitHub does not
+show; this page carries the note too. Do not ship a build of the Worker with them until the adviser
+has reviewed them and every placeholder is filled in, and remove the comment then.
 
 ### Placeholders
 
@@ -32,8 +33,9 @@ a Markdown paragraph `<owner name>` is an HTML tag, which the page renderer, or 
 | `[governing law]`, `[courts]` | terms | The law and courts the adviser chooses |
 | `[Decide whether we refund the unused part of a paid period in that case, and how.]` | terms | The owner's decision when the service or an account ends while Pro is paid |
 
-The links `/privacy`, `/terms` and `/delete-account` in the drafts are relative, so they work on the
-Worker's own pages; they do not resolve on GitHub.
+The drafts link each other as `privacy-policy.md` and `terms.md`, which the build turns into
+`/privacy` and `/terms`, so the links work on GitHub and on the pages alike. The link to
+`/delete-account` works on the Worker's pages only.
 
 ### What the drafts assume
 
