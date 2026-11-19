@@ -115,6 +115,21 @@ type Route = (request: Request, env: Env, ctx: ExecutionContext, params: string[
 /** The salt keeps the names of IPs and accounts from being worked back; without one, nothing may run. */
 const MIN_SALT_BYTES = 16;
 
+/**
+ * The methods of a web page: GET, and HEAD, which answers as GET does, with its status and headers,
+ * but without the body, for the link checkers and uptime monitors that ask with HEAD.
+ */
+function page(route: Route): Record<string, Route> {
+  return {
+    GET: route,
+    HEAD: async (request, env, ctx, params) => {
+      const response = await route(request, env, ctx, params);
+      await response.body?.cancel();
+      return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
+    },
+  };
+}
+
 const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, Route>]> = [
   ["/v1/bill-analysis", { POST: (request, env, ctx) => billAnalysis(request, env, ctx) }],
   ["/v1/split-revision", { POST: (request, env, ctx) => splitRevision(request, env, ctx) }],
@@ -160,13 +175,13 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/v1/shares/:share/finalize", { POST: finalizeShareRoute }],
   ["/v1/shares/:share/claims/:claim", { DELETE: removeClaimRoute }],
   ["/.well-known/assetlinks.json", { GET: assetLinksRoute }],
-  ["/s/", { GET: webPageRoute }],
-  ["/r/", { GET: webPageRoute }],
-  ["/g/", { GET: webPageRoute }],
+  ["/s/", page(webPageRoute)],
+  ["/r/", page(webPageRoute)],
+  ["/g/", page(webPageRoute)],
   ["/assets/:name", { GET: webAssetRoute }],
-  ["/privacy", { GET: privacyPageRoute }],
-  ["/terms", { GET: termsPageRoute }],
-  ["/delete-account", { GET: deleteAccountPageRoute }],
+  ["/privacy", page(privacyPageRoute)],
+  ["/terms", page(termsPageRoute)],
+  ["/delete-account", page(deleteAccountPageRoute)],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */

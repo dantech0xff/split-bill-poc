@@ -138,7 +138,7 @@ describe("the privacy policy and the terms", () => {
     expect(LEGAL_PAGES.terms).not.toBe("");
   });
 
-  it("are served at their paths only, to GET", async () => {
+  it("are served at their paths only, to GET and HEAD", async () => {
     for (const path of ["/privacy/", "/terms/", "/privacy.html", "/terms.html", "/privacy/x"]) {
       expect((await get(path)).status, path).toBe(404);
     }
@@ -200,11 +200,28 @@ describe("the page to delete an account", () => {
     expect(logs).toEqual(pages.map(() => JSON.stringify({ event: "bad_setting", name: "GOOGLE_CLIENT_ID" })));
   });
 
-  it("is served at its path only, to GET", async () => {
+  it("is served at its path only, to GET and HEAD", async () => {
     for (const path of ["/delete-account/", "/delete-account.html", "/delete"]) {
       expect((await get(path)).status, path).toBe(404);
     }
     expect((await send(new Request("https://proxy.test/delete-account", { method: "POST" }))).status).toBe(405);
+  });
+});
+
+describe("every page", () => {
+  it("answers HEAD as it answers GET, with the same status and headers but no body, as link checkers and uptime monitors ask", async () => {
+    for (const path of ["/s/", "/r/", "/g/", "/privacy", "/terms", "/delete-account"]) {
+      const got = await get(path);
+      const head = await send(new Request(`https://proxy.test${path}`, { method: "HEAD" }));
+
+      expect(head.status, path).toBe(200);
+      expect([...head.headers], path).toEqual([...got.headers]);
+      expect(head.body, path).toBe("");
+      expect(got.body, path).not.toBe("");
+    }
+    for (const path of ["/privacy/", "/s/AAAAAAAAAAAAAAAAAAAAAA"]) {
+      expect((await send(new Request(`https://proxy.test${path}`, { method: "HEAD" }))).status, path).toBe(404);
+    }
   });
 });
 
