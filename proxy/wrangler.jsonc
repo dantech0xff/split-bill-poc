@@ -17,9 +17,12 @@
   },
   // Switches and public settings. GOOGLE_CLIENT_ID is the app's web client ID at Google; sign-in
   // stays off until it is set. ANDROID_CERT_SHA256 lists the SHA-256 fingerprints of the keys that
-  // sign the app, comma-separated, for App Links; it is public too. TURNSTILE_SITE_KEY is the site
-  // key of the Turnstile widget the web pages show before a new claim, and ABUSE_EMAIL the address
-  // of their "Report abuse" link, left out while it is empty; both are public. Secrets
+  // sign the release app, the upload key and Play's app signing key, comma-separated, for its App
+  // Links; ANDROID_DEV_CERT_SHA256 those of the debug key, for the debug app's, set only on a Worker
+  // that debug builds use and left empty here, so that no app signed with a debug key opens the
+  // production links. Both are public. TURNSTILE_SITE_KEY is the site key of the Turnstile widget
+  // the web pages show before a new claim, and ABUSE_EMAIL the address of their "Report abuse"
+  // link, left out while it is empty; both are public. Secrets
   // (ANTHROPIC_API_KEY, HASH_SALT, SESSION_SIGNING_KEY and the optional FCM_SERVICE_ACCOUNT,
   // TURNSTILE_SECRET, REVENUECAT_SECRET_KEY and REVENUECAT_WEBHOOK_AUTH) are set with
   // `wrangler secret put` and never written here.
@@ -28,6 +31,7 @@
     "MIN_APP_VERSION": "1",
     "GOOGLE_CLIENT_ID": "",
     "ANDROID_CERT_SHA256": "",
+    "ANDROID_DEV_CERT_SHA256": "",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAGB-qh7Zte4I2dnY",
     "ABUSE_EMAIL": ""
   },
