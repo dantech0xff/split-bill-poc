@@ -1,0 +1,61 @@
+name: Security
+
+# Scans that read no secret, so code from anywhere can run them: the secret scan for every push, to
+# any branch or tag, and for every pull request, including one from a fork; the dependency review
+# for every pull request. npm audit runs in ci.yml, next to the packages it audits.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The whole history: a secret that was committed and later removed is still exposed.
+          fetch-depth: 0
+
+      # gitleaks itself, not its action, whose use in an organisation needs a licence. The release
+      # archive is checked against its SHA-256 before it runs.
+      - name: Scan every commit for secrets
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl --silent --show-error --fail --location --retry 3 --output gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check
+          tar --extract --gzip --file gitleaks.tar.gz gitleaks
+          cd "$GITHUB_WORKSPACE"
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner
+
+  dependencies:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Fails a pull request that adds or updates a package with a known vulnerability of high or
+      # critical severity, the same bar as npm audit in ci.yml. It compares GitHub's dependency
+      # graph, which reads the npm lock files and the workflows; Gradle dependencies reach that graph
+      # only through dependency submission, which is not set up, so Dependabot covers those.
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          fail-on-severity: high
