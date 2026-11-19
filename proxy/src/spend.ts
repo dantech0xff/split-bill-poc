@@ -78,27 +78,44 @@ export function isPriced(model: string): boolean {
   return model in PRICES;
 }
 
-/** One spend cap a call is held against, and the error a caller sees when it is reached. */
-export type SpendCap = { ledger: DurableObjectStub<AbuseLedger>; cap: number; code: "spend_limited" | "busy" };
+/**
+ * One spend cap a call is held against, the error a caller sees when it is reached, and which cap
+ * it is. [pool], on the global cap of an install's call, is the installs' pool inside it.
+ */
+export type SpendCap = {
+  ledger: DurableObjectStub<AbuseLedger>;
+  cap: number;
+  code: "spend_limited" | "busy";
+  kind: "caller" | "address" | "global";
+  pool?: number;
+};
+
+/** A cap, or the installs' pool, that a hold took to the warning mark first in its window. */
+export type NearCap = SpendCap["kind"] | "install";
 
 /**
  * Holds [amount] against every cap at once. When one refuses or cannot be reached, the holds the
  * others took are given back; then the first refusal in the order of [caps] is reported, or the
- * failure thrown.
+ * failure thrown. [near] lists the caps this hold was the first in their window to take to
+ * [POLICY.spendWarnPercent], refused or not, as each ledger says.
  */
 export async function holdAll(
   caps: SpendCap[],
   now: number,
   amount: number,
-): Promise<{ ok: true } | { ok: false; code: SpendCap["code"]; retryAfter: number }> {
-  const results = await Promise.allSettled(caps.map((cap) => cap.ledger.holdSpend(now, amount, cap.cap)));
+): Promise<({ ok: true } | { ok: false; code: SpendCap["code"]; retryAfter: number }) & { near: NearCap[] }> {
+  const results = await Promise.allSettled(caps.map((cap) => cap.ledger.holdSpend(now, amount, cap.cap, cap.pool)));
+  const near = results.flatMap((result, index): NearCap[] => {
+    if (result.status === "rejected") return [];
+    return [...(result.value.nearCap ? [caps[index].kind] : []), ...(result.value.nearPool ? (["install"] as const) : [])];
+  });
   const took = (result: PromiseSettledResult<Gate>) => result.status === "fulfilled" && result.value.ok;
   const failed = results.findIndex((result) => !took(result));
-  if (failed === -1) return { ok: true };
+  if (failed === -1) return { ok: true, near };
   await settleAll(caps.filter((_, index) => took(results[index])), amount, 0);
   const result = results[failed];
   if (result.status === "rejected") throw result.reason;
-  return { ok: false, code: caps[failed].code, retryAfter: (result.value as Extract<Gate, { ok: false }>).retryAfter };
+  return { ok: false, code: caps[failed].code, retryAfter: (result.value as Extract<Gate, { ok: false }>).retryAfter, near };
 }
 
 /**
@@ -107,7 +124,7 @@ export async function holdAll(
  */
 export async function settleAll(caps: SpendCap[], held: number, actual: number): Promise<void> {
   const now = Date.now();
-  const results = await Promise.allSettled(caps.map((cap) => cap.ledger.settleSpend(now, held, actual)));
+  const results = await Promise.allSettled(caps.map((cap) => cap.ledger.settleSpend(now, held, actual, cap.pool !== undefined)));
   for (const result of results) {
     if (result.status === "rejected") console.error(JSON.stringify({ event: "settle_failed", error: errorName(result.reason) }));
   }

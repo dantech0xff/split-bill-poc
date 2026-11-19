@@ -67,6 +67,18 @@ export const POLICY = {
   callerCapMicro: 3_000_000,
   ipCapMicro: 6_000_000,
   globalCapMicro: 20_000_000,
+  /**
+   * Of [globalCapMicro], what the calls of installs that are not signed in may spend together, in
+   * the same 24 hour window: anyone can make a new install, so a script of many could otherwise
+   * spend the whole cap and stop AI for everyone. Signed-in accounts, Pro among them, always keep
+   * the rest, $15 of the $20.
+   */
+  installCapMicro: 5_000_000,
+  /**
+   * The share of a spend cap, in percent, at which the proxy logs `spend_cap_near` and counts it,
+   * once per cap and window: for one caller, one address, the installs' pool and the whole proxy.
+   */
+  spendWarnPercent: 80,
 
   /** The model that reads bills, and how hard it thinks. The model must have a price in `spend.ts`. */
   model: "claude-opus-5-5",

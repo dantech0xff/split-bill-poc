@@ -22,7 +22,13 @@ export type MetricEvent =
   | "request_confirmed_paid"
   | "plan_refresh"
   | "subscription_event"
-  | "daily_run";
+  | "daily_run"
+  /**
+   * A spend cap that a call's hold took to `POLICY.spendWarnPercent` of what it allows, the first
+   * time in its window; its outcome says which: `caller`, `address`, `install` for the pool of
+   * installs that are not signed in, or `global`.
+   */
+  | "spend_cap_near";
 
 /**
  * The numbers of a data point, each in a double of its own: `double1` the cost in microdollars of

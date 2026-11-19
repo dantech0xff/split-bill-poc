@@ -22,6 +22,7 @@ import {
   send,
   spendOf,
 } from "./requests";
+import { person } from "./shared";
 
 describe("a bill read", () => {
   it("streams wait lines, then the model's answer with the calls left", async () => {
@@ -399,6 +400,25 @@ describe("spend", () => {
     expect(JSON.parse(sent.body)).toEqual({ error: "busy" });
     expect(Number(sent.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(seen).toHaveLength(0);
+  });
+
+  it("keeps signed-in accounts their share of the proxy's cap: installs that are not signed in spend at most their pool of it", async () => {
+    const seen = model(ANSWER);
+    const global = env.ABUSE_LEDGER.get(env.ABUSE_LEDGER.idFromName("global"));
+    // Installs, each one new, have held all their pool, a quarter of the cap.
+    await global.holdSpend(Date.now(), POLICY.installCapMicro, POLICY.globalCapMicro, POLICY.installCapMicro);
+
+    const install = await send(billRequest());
+    const account = await send(billRequest({ session: (await person()).session }));
+
+    expect(install.status).toBe(429);
+    expect(JSON.parse(install.body)).toEqual({ error: "busy" });
+    expect(Number(install.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(last(account)).toMatchObject({ type: "result", answer: billAnswer });
+    expect(seen).toHaveLength(1);
+    // What installs could not take: the accounts keep $15 of every day's $20.
+    expect(await spendOf("global")).toMatchObject({ pool: { held: POLICY.installCapMicro } });
+    expect(POLICY.globalCapMicro - POLICY.installCapMicro).toBe(15_000_000);
   });
 });
 

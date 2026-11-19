@@ -39,7 +39,8 @@ describe("spend", () => {
     const now = Date.now();
     expect(await stub.holdSpend(now, 600, 1_000)).toEqual({ ok: true });
 
-    expect(await stub.holdSpend(now, 500, 1_000)).toEqual({ ok: false, retryAfter: POLICY.dayMs / 1_000 });
+    // A hold refused by the cap would take it past its warning mark too, and is the first to.
+    expect(await stub.holdSpend(now, 500, 1_000)).toEqual({ ok: false, retryAfter: POLICY.dayMs / 1_000, nearCap: true });
   });
 
   it("replaces a hold with the real cost, and gives it all back when the call cost nothing", async () => {
@@ -47,7 +48,7 @@ describe("spend", () => {
     const now = Date.now();
     await stub.holdSpend(now, 600, 1_000);
     await stub.settleSpend(now, 600, 100);
-    expect(await stub.holdSpend(now, 900, 1_000)).toEqual({ ok: true });
+    expect(await stub.holdSpend(now, 900, 1_000)).toEqual({ ok: true, nearCap: true });
 
     await stub.settleSpend(now, 900, 0);
     expect(await stub.holdSpend(now, 900, 1_000)).toEqual({ ok: true });
@@ -60,7 +61,46 @@ describe("spend", () => {
     await stub.holdSpend(now, 1_000, 1_000);
     await stub.settleSpend(now, 1_000, 1_000);
 
-    expect(await stub.holdSpend(now + POLICY.dayMs, 1_000, 1_000)).toEqual({ ok: true });
+    expect(await stub.holdSpend(now + POLICY.dayMs, 1_000, 1_000)).toEqual({ ok: true, nearCap: true });
+  });
+
+  it("keeps the calls of a pool within it, in the cap's own window, so that the other calls always keep the rest of the cap", async () => {
+    const stub = ledger();
+    const now = Date.now();
+    const million = 1_000_000;
+    const { globalCapMicro: cap, installCapMicro: pool } = POLICY;
+    for (let held = 0; held < pool; held += million) expect(await stub.holdSpend(now, million, cap, pool), `pooled ${held}`).toMatchObject({ ok: true });
+
+    // The pool is full, with the cap far from it: the calls of the pool are refused, the others not.
+    expect(await stub.holdSpend(now, 1, cap, pool)).toMatchObject({ ok: false, retryAfter: POLICY.dayMs / 1_000 });
+    for (let held = pool; held < cap; held += million) expect(await stub.holdSpend(now, million, cap), `other ${held}`).toMatchObject({ ok: true });
+    expect(await stub.holdSpend(now, 1, cap)).toMatchObject({ ok: false });
+    expect(cap - pool).toBe(15_000_000);
+
+    // A call of the pool that cost less gives the pool back what it did not spend, in the same window.
+    await stub.settleSpend(now, million, 0, true);
+    expect(await stub.holdSpend(now, million, cap, pool)).toMatchObject({ ok: true });
+    // A new window starts the pool over with the cap.
+    expect(await stub.holdSpend(now + POLICY.dayMs, pool, cap, pool)).toMatchObject({ ok: true });
+  });
+
+  it("tells of the first hold of a window to take the cap, and the pool, to the warning mark, once each", async () => {
+    const stub = ledger();
+    const now = Date.now();
+    const cap = 1_000;
+    const pool = 500;
+
+    expect(await stub.holdSpend(now, 300, cap, pool)).toEqual({ ok: true });
+    expect(await stub.holdSpend(now, 100, cap, pool)).toEqual({ ok: true, nearPool: true });
+    expect(await stub.holdSpend(now, 50, cap, pool)).toEqual({ ok: true });
+    expect(await stub.holdSpend(now, 350, cap)).toEqual({ ok: true, nearCap: true });
+    expect(await stub.holdSpend(now, 100, cap)).toEqual({ ok: true });
+    expect(await stub.holdSpend(now, 500, cap)).toEqual({ ok: false, retryAfter: POLICY.dayMs / 1_000 });
+
+    // The next window tells of them again.
+    const tomorrow = now + POLICY.dayMs;
+    expect(await stub.holdSpend(tomorrow, 900, cap, pool)).toEqual({ ok: false, retryAfter: POLICY.dayMs / 1_000, nearCap: true, nearPool: true });
+    expect(await stub.holdSpend(tomorrow, 400, cap, pool)).toEqual({ ok: true });
   });
 });
 

@@ -3,17 +3,31 @@ import { POLICY, type RateLimit } from "./policy";
 
 export type Gate = { ok: true } | { ok: false; retryAfter: number };
 
+/**
+ * What a hold of spend comes to: [Gate], and whether it is the first hold of the window to take
+ * what is spent and held to [POLICY.spendWarnPercent] of the cap or more, refused or not: [nearCap]
+ * for the cap, [nearPool] for the pool of the hold, when it has one. A refused hold always would.
+ */
+export type SpendGate = Gate & { nearCap?: true; nearPool?: true };
+
 type RateWindow = { minuteStart: number; minuteCount: number; dayStart: number; dayCount: number };
-type SpendWindow = { start: number; spent: number; held: number };
+/**
+ * Money over one window: what was spent, what is held, and whether a hold has taken them to the
+ * warning mark yet. [pool] is the part of it that calls with a pool spent and hold, the calls of
+ * installs that are not signed in on the global ledger, with its own mark.
+ */
+type SpendWindow = { start: number; spent: number; held: number; warned?: true; pool?: PoolSpend };
+type PoolSpend = { spent: number; held: number; warned?: true };
 
 const RATE = "rate";
 const SPEND = "spend";
 
 /**
  * Counters against abuse for one name: a hashed IP, one caller, or the single name `global`. It
- * counts requests per minute and per day, and money spent over a fixed 24 hour window. Storage
- * holds counters only; the IP itself is never written. Once every window has passed, the object
- * deletes itself, so a hashed IP is not kept after its window.
+ * counts requests per minute and per day, and money spent over a fixed 24 hour window; `global`
+ * also counts, inside that window, what the calls of installs that are not signed in spent, which
+ * have a pool of their own. Storage holds counters only; the IP itself is never written. Once every
+ * window has passed, the object deletes itself, so a hashed IP is not kept after its window.
  */
 export class AbuseLedger extends DurableObject {
   async admit(now: number, limit: RateLimit): Promise<Gate> {
@@ -31,26 +45,53 @@ export class AbuseLedger extends DurableObject {
     return { ok: true };
   }
 
-  /** Holds [amount] against [cap] before the model runs; the most the call could cost. */
-  async holdSpend(now: number, amount: number, cap: number): Promise<Gate> {
+  /**
+   * Holds [amount] against [cap] before the model runs; the most the call could cost. With
+   * [poolCap], the hold also counts against a pool inside [cap], which has a cap of its own, in the
+   * same window: so the calls with a pool never spend more of a window than [poolCap], and the
+   * others always keep the rest of [cap]. A Worker deployed before pools sends none.
+   */
+  async holdSpend(now: number, amount: number, cap: number, poolCap?: number): Promise<SpendGate> {
     const spend = rolledSpend(await this.ctx.storage.get<SpendWindow>(SPEND), now);
-    if (spend.spent + spend.held + amount > cap) {
-      return { ok: false, retryAfter: secondsLeft(now, spend.start, POLICY.dayMs) };
+    const pool = poolCap === undefined ? undefined : (spend.pool ?? { spent: 0, held: 0 });
+    const total = spend.spent + spend.held + amount;
+    const pooled = pool === undefined ? 0 : pool.spent + pool.held + amount;
+    const nearCap = spend.warned === undefined && total >= warnMark(cap);
+    const nearPool = pool !== undefined && poolCap !== undefined && pool.warned === undefined && pooled >= warnMark(poolCap);
+    if (nearCap) spend.warned = true;
+    if (pool !== undefined && nearPool) pool.warned = true;
+    const ok = total <= cap && (poolCap === undefined || pooled <= poolCap);
+    if (ok) {
+      spend.held += amount;
+      if (pool !== undefined) pool.held += amount;
     }
-    spend.held += amount;
-    await this.ctx.storage.put(SPEND, spend);
-    await this.arm(now);
-    return { ok: true };
+    if (pool !== undefined) spend.pool = pool;
+    if (ok || nearCap || nearPool) {
+      await this.ctx.storage.put(SPEND, spend);
+      await this.arm(now);
+    }
+    const marks = { ...(nearCap ? { nearCap: true as const } : {}), ...(nearPool ? { nearPool: true as const } : {}) };
+    return ok ? { ok: true, ...marks } : { ok: false, retryAfter: secondsLeft(now, spend.start, POLICY.dayMs), ...marks };
   }
 
-  /** Replaces a hold of [held] with what the call really cost. Zero gives the whole hold back. */
-  async settleSpend(now: number, held: number, actual: number): Promise<void> {
+  /**
+   * Replaces a hold of [held] with what the call really cost. Zero gives the whole hold back.
+   * [pooled] says the hold counted against the pool too, as [holdSpend] took it with a pool.
+   */
+  async settleSpend(now: number, held: number, actual: number, pooled = false): Promise<void> {
     const stored = await this.ctx.storage.get<SpendWindow>(SPEND);
     const spend = rolledSpend(stored, now);
-    if (stored === spend) {
+    const sameWindow = stored === spend;
+    if (sameWindow) {
       spend.held = Math.max(0, spend.held - held);
     }
     spend.spent += actual;
+    if (pooled) {
+      const pool = spend.pool ?? { spent: 0, held: 0 };
+      if (sameWindow) pool.held = Math.max(0, pool.held - held);
+      pool.spent += actual;
+      spend.pool = pool;
+    }
     await this.ctx.storage.put(SPEND, spend);
     await this.arm(now);
   }
@@ -163,4 +204,9 @@ function rolledSpend(stored: SpendWindow | undefined, now: number): SpendWindow 
 
 function secondsLeft(now: number, start: number, windowMs: number): number {
   return Math.max(1, Math.ceil((start + windowMs - now) / 1000));
+}
+
+/** What spent and held come to at the warning mark of [cap]. */
+function warnMark(cap: number): number {
+  return (cap * POLICY.spendWarnPercent) / 100;
 }

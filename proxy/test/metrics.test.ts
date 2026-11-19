@@ -182,6 +182,33 @@ describe("the counters", () => {
     ]);
   });
 
+  it("log and count a spend cap that a call takes to 80% of it, once in the cap's window, naming the cap and nothing else", async () => {
+    const { points, settings } = dataset();
+    model(ANSWER);
+    const global = env.ABUSE_LEDGER.get(env.ABUSE_LEDGER.idFromName("global"));
+    const mark = (cap: number) => (cap * POLICY.spendWarnPercent) / 100;
+    // Just short of the warning marks of the installs' pool and of the proxy's cap.
+    await global.holdSpend(Date.now(), mark(POLICY.installCapMicro) - 1, POLICY.globalCapMicro, POLICY.installCapMicro);
+    await global.holdSpend(Date.now(), mark(POLICY.globalCapMicro) - mark(POLICY.installCapMicro), POLICY.globalCapMicro);
+
+    const { lines } = await logsOf(async () => {
+      await send(billRequest({ install: crypto.randomUUID() }), settings);
+      await send(billRequest({ session: (await person()).session }), settings);
+    });
+
+    const near = points.filter((point) => point.blobs?.[0] === "spend_cap_near");
+    expect(counted(near)).toEqual([
+      ["spend_cap_near", "global"],
+      ["spend_cap_near", "install"],
+    ]);
+    for (const point of near) expect(point).toEqual({ indexes: ["spend_cap_near"], blobs: point.blobs, doubles: [0, 0, 0, 0] });
+    const logged = lines.map((line) => JSON.parse(line) as Record<string, unknown>).filter((line) => line.event === "spend_cap_near");
+    expect(logged).toEqual([
+      { event: "spend_cap_near", cap: "global" },
+      { event: "spend_cap_near", cap: "install" },
+    ]);
+  });
+
   it("count sign-ins, with their outcome", async () => {
     const { points, settings } = dataset();
 

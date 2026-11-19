@@ -73,8 +73,9 @@ export type ModelTask<Input extends { requestId: string }> = {
  * Before the model runs, the request passes, in order: the AI switch, the app's version, the
  * caller, the contract check, the rate limit of its IP, the caller's allowance (the call's weight
  * is held against it), and the spend caps of the caller, the IP and the whole proxy (the most the
- * call can cost is held against each). A refusal at any step is an error reply, and what earlier
- * steps held is given back.
+ * call can cost is held against each, and for an install that is not signed in against the
+ * installs' pool inside the proxy's cap too). A refusal at any step is an error reply, and what
+ * earlier steps held is given back.
  *
  * Then the reply streams as NDJSON while the model works. The call is charged once the model has
  * answered, also when the app has hung up, as long as the answer comes within
@@ -146,10 +147,13 @@ export async function callModel<Input extends { requestId: string }>(
       settings.maxTokens,
       settings.fallback ? undefined : settings.model,
     );
+    // An install's call also counts against the installs' pool inside the global cap, so that
+    // installs together never take what signed-in accounts keep of it.
+    const pool = caller.kind === "install" ? { pool: POLICY.installCapMicro } : {};
     const caps: SpendCap[] = [
-      { ledger: ledger(env, caller.name), cap: POLICY.callerCapMicro, code: "spend_limited" },
-      { ledger: ipLedger, cap: POLICY.ipCapMicro, code: "spend_limited" },
-      { ledger: ledger(env, "global"), cap: POLICY.globalCapMicro, code: "busy" },
+      { ledger: ledger(env, caller.name), cap: POLICY.callerCapMicro, code: "spend_limited", kind: "caller" },
+      { ledger: ipLedger, cap: POLICY.ipCapMicro, code: "spend_limited", kind: "address" },
+      { ledger: ledger(env, "global"), cap: POLICY.globalCapMicro, code: "busy", kind: "global", ...pool },
     ];
     let spend: Awaited<ReturnType<typeof holdAll>>;
     try {
@@ -157,6 +161,11 @@ export async function callModel<Input extends { requestId: string }>(
     } catch (error) {
       await quota.release(now, input.requestId).catch(() => undefined);
       throw error;
+    }
+    // Once per cap and window, when a cap comes near its end: which cap, never whose.
+    for (const cap of spend.near) {
+      log("spend_cap_near", { cap });
+      count(env, "spend_cap_near", cap);
     }
     if (!spend.ok) {
       await quota.release(now, input.requestId);
