@@ -1,0 +1,66 @@
+name: Dependency graph
+
+# Sends the libraries the app ships, the runtime classpath of :app's prodRelease build, to GitHub's
+# dependency graph on every push to main, so that Dependabot raises an alert when one of them has
+# a known vulnerability, as it does for the npm packages and the actions. Nothing submits a graph
+# for a pull request, so the dependency review in security.yml does not see a pull request's
+# Gradle changes (docs/release.md).
+#
+# The first job resolves that classpath with Gradle, with dependency verification on and with read
+# access only. The second may write the graph, and runs no Gradle and nothing from the repository.
+# Neither reads a secret.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# A newer push to main sends a newer graph.
+concurrency:
+  group: dependency-graph
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: The libraries the app ships
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The action runs Gradle with dependency verification off; --dependency-verification strict
+      # turns it back on, so that every file Gradle fetches, the action's own plugin among them, has
+      # to match gradle/verification-metadata.xml. The graph is kept as an artifact of this run.
+      - uses: gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        env:
+          # Every library in the graph ships in the app.
+          DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: ^prodReleaseRuntimeClasspath$
+        with:
+          dependency-graph: generate-and-upload
+          dependency-graph-include-projects: ^:app$
+          dependency-graph-include-configurations: ^prodReleaseRuntimeClasspath$
+          additional-arguments: --dependency-verification strict
+          validate-wrappers: true
+
+  submit:
+    name: Send them to GitHub
+    needs: generate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # Downloads the graph that the first job of this run made, and submits it.
+      - uses: gradle/actions/dependency-submission@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          dependency-graph: download-and-submit
+          cache-disabled: true
