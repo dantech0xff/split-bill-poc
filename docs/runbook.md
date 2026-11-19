@@ -24,7 +24,8 @@ that [release.md](release.md) describes; how each part of the proxy behaves is i
 
 The Worker's own log lines are JSON with an `event` field, never holding an ID, a token, a name or
 a text: `bill_analysis` and `split_revision` per AI call (outcome, caller kind, model, tokens, cost,
-time), `reminders` per daily run, `subscription_event` per RevenueCat event, and errors such as
+time), `reminders` per daily run, `subscription_event` per RevenueCat event, `spend_cap_near` when a
+spend cap comes near its end ([below](#when-a-cap-comes-near-its-end)), and errors such as
 `request_failed`, `revenuecat_unavailable`, `revenuecat_delete_failed`, `google_keys_unavailable`
 and `not_configured`. [proxy.md](proxy.md#what-it-keeps) lists them.
 
@@ -76,6 +77,7 @@ in millionths of a dollar:
 | `callerCapMicro` | 3,000,000 ($3) | One install or one account |
 | `ipCapMicro` | 6,000,000 ($6) | One network address (an IPv6 /64) |
 | `globalCapMicro` | 20,000,000 ($20) | The whole proxy |
+| `installCapMicro` | 5,000,000 ($5) | What installs that are not signed in spend together, inside the global cap and in its window, so that signed-in accounts, Pro among them, always keep $15 |
 
 Each AI call holds the most it could cost while it runs and settles at what it cost. Besides the
 caps, `ip.perMinute` (10) and `ip.perDay` (100) limit the calls per address, and `trialCalls`,
@@ -92,12 +94,32 @@ month, so that a fault in the proxy's counting cannot run up an unbounded bill.
 What people see when a cap holds:
 
 - the global cap: 429 `busy`, "The AI is busy right now. Try again in about N minutes.";
+- the installs' pool: the same 429 `busy` and message, but only for installs that are not signed
+  in, until the window ends; signed-in people keep reading bills, and signing in with Google brings
+  the AI back at once, with 10 calls a month;
 - a caller's or an address's cap, or an address's limit: 429 `spend_limited` or `rate_limited`,
   "Too many bills were read just now." with when to try again;
 - the calls used up: 429 `quota_exhausted`, with when they come back and, in a build that sells it,
   an offer of Pro.
 
 Typing bills in by hand never counts against anything.
+
+### When a cap comes near its end
+
+The first hold of a window that takes a cap to 80% of it (`spendWarnPercent`), or that the cap
+refuses, logs `{"event":"spend_cap_near","cap":"<cap>"}` and counts the event `spend_cap_near`, with
+the cap as its outcome, once per cap and window; `npm run metrics` shows it per day. It is the alert
+for a spend cap at 80%: watch for it in the logs every day of the rollout.
+
+| Cap | Means | Do |
+|---|---|---|
+| `global` | The whole proxy has held or spent $16 of its $20 in this window | Compare the day's `bill_analysis` and `split_revision` cost in `npm run metrics` with the days before. For real growth, as accounts move to Pro, raise `globalCapMicro` and check the monthly limit in the Anthropic console. For a spike that sign-ins do not explain, lower the caps, or [switch AI off](#switching-ai-off) if spend must stop now |
+| `install` | Installs that are not signed in have taken $4 of their $5 pool | Compare `install_first_call` with the days before: a jump means a script making new installs. Accounts are safe either way, as installs get 429 `busy` once the pool is spent and accounts keep $15. Lower `installCapMicro` if it repeats; raise it, below `globalCapMicro`, only for real use |
+| `address` | One network address has taken $4.80 of its $6 | Nothing: the cap holds by itself. Look closer only if it fires day after day; it may be one shared network |
+| `caller` | One install or account has taken $2.40 of its $3 | Nothing: the cap holds by itself |
+
+A cap is changed and released as above. A release does not start a window over: the counts of the
+current window stay.
 
 ## When a provider fails
 
@@ -143,8 +165,10 @@ RevenueCat's test event answers 200 when the setup is right.
 
 The cron runs every day at 16:30 UTC. It fetches the exchange rates, sends the payment reminders that
 are due (40 at most per run), and deletes expired invites, deleted requests older than 30 days,
-expired or revoked bill links with their picks, and the hourly counters whose hour is over. Each part
-runs whatever the others do, and the run is marked failed when one of them failed. Its outcomes are
+expired or revoked bill links with their picks, and the hourly counters whose hour is over. It also
+empties the payment method, and the web page's payment details, of each request confirmed as paid
+more than 12 months (365 days) ago, keeping its amount, names and paid state. Each part runs
+whatever the others do, and the run is marked failed when one of them failed. Its outcomes are
 under Trigger Events > View events; the logs hold its `reminders` line and any error.
 
 When it fails:
@@ -152,8 +176,10 @@ When it fails:
 - Exchange rates: the first request that finds them a day old fetches them, so they stay fresh.
 - Reminders: those due go out at the next run that works, 40 at a time.
 - Clean-up: nothing is deleted that day. The privacy policy promises that expired and revoked bill
-  links, and hourly counters, are deleted by the daily clean-up, so fix a failure within a day or
-  two. An expired link still answers 410 meanwhile; nobody can read it.
+  links, and hourly counters, are deleted by the daily clean-up, and that a paid request's payment
+  method goes 12 months after its confirmation, so fix a failure within a day or two. An expired
+  link still answers 410 meanwhile; nobody can read it. The next run that works catches up, as each
+  run empties every request past its 12 months.
 
 A deployed cron cannot be started by hand. Fix the cause and let the next run catch up, or run the
 clean-up's own statements once, after taking a Time Travel bookmark (`npx wrangler d1 time-travel
@@ -161,7 +187,7 @@ info split-vibe`). Times are milliseconds since the epoch: replace `<now>` with 
 for example `$(date +%s)000`.
 
 ```bash
-npx wrangler d1 execute split-vibe --remote --command "DELETE FROM invites WHERE expires_at < <now> - 2592000000; DELETE FROM requests WHERE deleted_at IS NOT NULL AND deleted_at < <now> - 2592000000; DELETE FROM shares WHERE expires_at <= <now>; DELETE FROM shares WHERE revoked_at IS NOT NULL; DELETE FROM rate_windows WHERE started_at < <now> - 3600000;"
+npx wrangler d1 execute split-vibe --remote --command "DELETE FROM invites WHERE expires_at < <now> - 2592000000; DELETE FROM requests WHERE deleted_at IS NOT NULL AND deleted_at < <now> - 2592000000; UPDATE requests SET method = '{}', payment = NULL WHERE confirmed_paid_at < <now> - 31536000000 AND (method <> '{}' OR payment IS NOT NULL); DELETE FROM shares WHERE expires_at <= <now>; DELETE FROM shares WHERE revoked_at IS NOT NULL; DELETE FROM rate_windows WHERE started_at < <now> - 3600000;"
 ```
 
 These are the statements of `forgetExpired` in `proxy/src/reminders.ts`; check them there before
@@ -266,8 +292,10 @@ Federation, and the Cloudflare API token) live in its protected `production` env
 ([release.md](release.md)). If the upload key leaks, ask for an upload key reset in Play Console. The owner's own Cloudflare API token
 for the counters is rolled in the Cloudflare dashboard under API Tokens.
 
-`GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256`, `TURNSTILE_SITE_KEY` and `ABUSE_EMAIL` are public
-variables in `wrangler.jsonc`, not secrets.
+`GOOGLE_CLIENT_ID`, `ANDROID_CERT_SHA256`, `ANDROID_DEV_CERT_SHA256`, `TURNSTILE_SITE_KEY` and
+`ABUSE_EMAIL` are public variables in `wrangler.jsonc`, not secrets. `ANDROID_DEV_CERT_SHA256`, the
+debug key's fingerprint, stays empty on production, so that no app signed with a debug key opens
+its links.
 
 ## Reading the counters
 
@@ -275,8 +303,8 @@ The proxy writes one data point per event to Workers Analytics Engine (binding `
 `split_vibe_events`), each with only the event's name, its outcome and a number, such as a cost in
 millionths of a dollar: bill reads and edits by a sentence, the first AI call of an install,
 sign-ins, bill links made and picks, payment requests made, reported paid and confirmed, plan
-checks and webhook events, and the daily runs. No data point holds an account, an install ID or an
-IP. Cloudflare keeps them for three months.
+checks and webhook events, the spend caps that come near their end, and the daily runs. No data
+point holds an account, an install ID or an IP. Cloudflare keeps them for three months.
 
 `npm run metrics`, from `proxy/`, reads them through Cloudflare's SQL API with an API token of the
 owner's that has the Account Analytics Read permission. At high volumes Analytics Engine samples the
@@ -288,6 +316,8 @@ During the rollout, check every day:
 - the user-perceived crash rate and ANR rate in Android vitals (the release checklist gives the
   limits for each step);
 - the AI's outcomes and its cost per day and per active user, against the Phase 3 budget;
+- `spend_cap_near`, which says that a spend cap reached 80% of itself
+  ([Spend caps](#when-a-cap-comes-near-its-end));
 - that the daily run worked;
 - new installs calling the AI for the first time, a sign that the free calls are being farmed when
   it jumps;
@@ -306,8 +336,9 @@ two ways, and mention that:
 
 - a Pro subscription is not cancelled by the deletion and must be cancelled in Google Play;
 - the bills on the phone stay unless they tick the box in the app's dialog, or uninstall the app;
-- another phone still signed in to the same account should sign out, as its session keeps working
-  for up to 30 days.
+- every phone still signed in to the account is signed out, as the server refuses every session
+  issued before the deletion; signing in again starts the account afresh, but for the AI calls
+  already used that month.
 
 A deletion that fails with 502 `subscription_unavailable` failed at RevenueCat and deleted nothing:
 it works once RevenueCat answers again. Each account may ask for its deletion 5 times an hour.
@@ -369,7 +400,21 @@ What usually comes in, and where the answer is:
 - "Reading the bill failed": the messages in [When a provider fails](#when-a-provider-fails) and
   [Spend caps](#spend-caps); typing the bill in by hand always works.
 - "My calls are used up": 3 per install without signing in, 10 a month signed in, 300 with Pro; the
-  month is counted in UTC.
+  month is counted in UTC. An install that made no AI call for 12 months (365 days) is forgotten,
+  and gets its 3 calls again, as a new install does.
+- "The AI is busy, but my friend's phone reads bills": installs that are not signed in share $5 of
+  the day's $20 cap, and it was spent ([Spend caps](#spend-caps)). Signing in with Google brings the
+  AI back at once; otherwise it comes back when the cap's 24 hours are over.
+- "My payment request link says it no longer works": either the person who asked withdrew the
+  request, which ends its link for everyone, or the request was made more than 90 days ago
+  (`requestLinkMs`). In that second case the link works only for the person who asked and for the
+  payer who already took the request on in the app, and the request stays in those two people's
+  apps. The web page then says "This link no longer works" to everyone, and the app says "This link
+  has run out or was taken back." to anyone else. For a link that works again, the person who asked
+  makes a new request.
+- "An old group invite no longer works": an invite works for 14 days, and every invite that still
+  works is revoked when the owner turns invites off, when a member is removed or leaves, and when a
+  member deletes their account. A member who stays makes a new one.
 - "Pro does not show": the purchase is checked by the proxy within minutes; opening the Pro screen
   checks it again. A subscription bought on another Split Vibe account stays with that account.
 - "Cancel or refund Pro": in Google Play; Google Play handles refunds.
