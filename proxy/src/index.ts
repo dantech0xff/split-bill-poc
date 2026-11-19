@@ -37,7 +37,7 @@ import { ShareRoom } from "./share-room";
 import { finalizeShareRoute, lockShareRoute, putShareRoute, readShareRoute, removeClaimRoute, reopenShareRoute, revokeShareRoute } from "./shares";
 import { splitRevision } from "./split-revision";
 import { subscriptionEventsRoute } from "./subscription-webhook";
-import { webAssetRoute, webPageRoute } from "./web";
+import { deleteAccountPageRoute, privacyPageRoute, termsPageRoute, webAssetRoute, webPageRoute } from "./web";
 
 export { AbuseLedger, FxBook, QuotaBook, ShareRoom };
 
@@ -164,6 +164,9 @@ const ROUTES: ReadonlyArray<readonly [pattern: string, methods: Record<string, R
   ["/r/", { GET: webPageRoute }],
   ["/g/", { GET: webPageRoute }],
   ["/assets/:name", { GET: webAssetRoute }],
+  ["/privacy", { GET: privacyPageRoute }],
+  ["/terms", { GET: termsPageRoute }],
+  ["/delete-account", { GET: deleteAccountPageRoute }],
 ];
 
 /** The methods of the route whose pattern [pathname] matches, with the path's parameters; null when none does. */

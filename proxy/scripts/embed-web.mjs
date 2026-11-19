@@ -1,22 +1,26 @@
 // Puts the web app that `web/` builds into the Worker's bundle, as the module
-// `src/web-assets.generated.ts`, which git ignores. The Worker serves its page at /s/, /r/ and /g/
-// and its scripts and styles at /assets/<name>; Workers Static Assets are not used, because the
-// Worker is deployed through the Cloudflare API, which cannot upload them the same way.
+// `src/web-assets.generated.ts`, which git ignores. The Worker serves its pages at /s/, /r/ and
+// /g/ (`index.html`), at /delete-account (`delete-account.html`), and at /privacy and /terms
+// (`privacy.html` and `terms.html`, which `npm run build` in `web/` renders from
+// docs/privacy-policy.md and docs/terms.md), and their scripts and styles at /assets/<name>;
+// Workers Static Assets are not used, because the Worker is deployed through the Cloudflare API,
+// which cannot upload them the same way.
 //
-// It reads `web/dist`, where `npm run build` in `web/` writes `index.html` and, in `assets/`, the
-// page's hashed `.js` and `.css` files. Until `web/dist` exists, it writes a small placeholder
-// page instead, so that the proxy's typecheck, tests and `wrangler dev` work without the web app.
-// With `--require`, or `REQUIRE_WEB=1`, it stops instead, as a bundle for a deploy must hold the
-// web app: `npm run bundle` asks for that.
+// It reads `web/dist`, where `npm run build` in `web/` writes those pages and, in `assets/`, their
+// hashed `.js` and `.css` files. Until a page is there, it writes a small placeholder page in its
+// place, so that the proxy's typecheck, tests and `wrangler dev` work without the web app. With
+// `--require`, or `REQUIRE_WEB=1`, it stops instead, as a bundle for a deploy must hold the web
+// app: `npm run bundle` asks for that.
 //
-// The page's two meta tags that the Worker fills, `sv-turnstile-site-key` and `sv-abuse-email`,
-// are written as `<meta name="…" content="">`, and added before `</head>` when the page lacks
-// them. A page the Worker could not serve whole stops the build: anything the checks of
-// `web/scripts/page-checks.mjs` find, the same that `npm run build` in `web/` makes (a script or
-// style not under `/assets/`, a reference with a scheme or to another origin, an inline script or
-// style, a `style` attribute or an inline event handler, which the page's Content-Security-Policy
-// would block, or a missing meta tag); a script or style it refers to that is not in `assets/`; or
-// any other kind of file in `assets/`.
+// The meta tags that the Worker fills, `sv-turnstile-site-key` and `sv-abuse-email` on the link
+// pages and `sv-google-client-id` on /delete-account, are written as `<meta name="…" content="">`,
+// and added before `</head>` when a page lacks them. A page the Worker could not serve whole stops
+// the build: anything the checks of `web/scripts/page-checks.mjs` find, the same that
+// `npm run build` in `web/` makes (a script or style not under `/assets/`, a reference with a
+// scheme or to another origin but the links of a legal page, an inline script or style, a `style`
+// attribute or an inline event handler, which the page's Content-Security-Policy would block, or a
+// missing meta tag); a script or style it refers to that is not in `assets/`; or any other kind of
+// file in `assets/`.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -27,18 +31,25 @@ import { pageProblems } from "../../web/scripts/page-checks.mjs";
 const DIST = fileURLToPath(new URL("../../web/dist/", import.meta.url));
 const OUT = fileURLToPath(new URL("../src/web-assets.generated.ts", import.meta.url));
 const CONTENT_TYPES = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
-const FILLED = ["sv-turnstile-site-key", "sv-abuse-email"];
 const ASSET_NAME = /^[A-Za-z0-9._-]+$/;
 
-const PLACEHOLDER_PAGE = `<!doctype html>
+/** The pages the Worker serves, by their names in the module: the file, its kind of checks, and the meta tags the Worker fills in it. */
+const PAGES = {
+  link: { file: "index.html", kind: "link", filled: ["sv-turnstile-site-key", "sv-abuse-email"] },
+  deleteAccount: { file: "delete-account.html", kind: "delete-account", filled: ["sv-google-client-id"] },
+  privacy: { file: "privacy.html", kind: "legal", filled: [] },
+  terms: { file: "terms.html", kind: "legal", filled: [] },
+};
+
+/** A placeholder page with [head] in its head, in the place of a page that was not built. */
+function placeholder(head) {
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="referrer" content="no-referrer">
-<meta name="sv-turnstile-site-key" content="">
-<meta name="sv-abuse-email" content="">
+${head}
 <title>Split Vibe</title>
 <link rel="stylesheet" href="/assets/placeholder.css">
 </head>
@@ -50,46 +61,55 @@ const PLACEHOLDER_PAGE = `<!doctype html>
 </body>
 </html>
 `;
+}
+
+/** The placeholder of each kind of page, with the tags that kind needs. */
+const PLACEHOLDERS = {
+  link: placeholder('<meta name="referrer" content="no-referrer">\n<meta name="sv-turnstile-site-key" content="">\n<meta name="sv-abuse-email" content="">'),
+  "delete-account": placeholder('<meta name="referrer" content="strict-origin-when-cross-origin">\n<meta name="sv-google-client-id" content="">'),
+  legal: placeholder('<meta name="referrer" content="no-referrer">'),
+};
 const PLACEHOLDER_STYLE = "body{font-family:system-ui,sans-serif;line-height:1.5;max-width:32rem;margin:4rem auto;padding:0 1.5rem}\n";
 
 export class EmbedError extends Error {}
 
-/** The page with each meta tag the Worker fills written as it expects, exactly once. */
-export function withFilledTags(page) {
+/** [page], the file [file], with each meta tag of [names] that the Worker fills written as it expects, exactly once. */
+export function withFilledTags(page, names = PAGES.link.filled, file = PAGES.link.file) {
   let html = page;
-  for (const name of FILLED) {
+  for (const name of names) {
     const tag = `<meta name="${name}" content="">`;
     const found = html.match(new RegExp(`<meta\\b[^>]*\\bname\\s*=\\s*(["']?)${name}\\1(?=[\\s/>])[^>]*>`, "gi")) ?? [];
-    if (found.length > 1) throw new EmbedError(`index.html has ${found.length} meta tags named ${name}; it needs one.`);
+    if (found.length > 1) throw new EmbedError(`${file} has ${found.length} meta tags named ${name}; it needs one.`);
     if (found.length === 1) {
       html = html.replace(found[0], () => tag);
       continue;
     }
     const head = html.search(/<\/head\s*>/i);
-    if (head < 0) throw new EmbedError(`index.html has neither a meta tag named ${name} nor a </head> to add one before.`);
+    if (head < 0) throw new EmbedError(`${file} has neither a meta tag named ${name} nor a </head> to add one before.`);
     html = `${html.slice(0, head)}${tag}\n${html.slice(head)}`;
   }
   return html;
 }
 
 /**
- * Stops on what the page's Content-Security-Policy would block, by the checks `npm run build` in
- * `web/` makes, and on scripts and styles the Worker does not serve.
+ * Stops on what the Content-Security-Policy of [page], the file [file] checked as a page of
+ * [kind], would block, by the checks `npm run build` in `web/` makes, and on scripts and styles the
+ * Worker does not serve.
  */
-export function checkPage(page, assets) {
-  const problems = pageProblems(page);
-  if (problems.length > 0) throw new EmbedError(`index.html does not fit the page's Content-Security-Policy:\n- ${problems.join("\n- ")}`);
+export function checkPage(page, assets, kind = PAGES.link.kind, file = PAGES.link.file) {
+  const problems = pageProblems(page, kind);
+  if (problems.length > 0) throw new EmbedError(`${file} does not fit its page's Content-Security-Policy:\n- ${problems.join("\n- ")}`);
   for (const [, , reference] of page.matchAll(/\b(?:src|href)\s*=\s*(["'])(.*?)\1/gi)) {
     const path = reference.split(/[?#]/)[0];
     if (reference === "data:," || !/\.(?:js|css)$/i.test(path)) continue;
     const name = /^\/assets\/([^/]+)$/.exec(path)?.[1];
     if (name === undefined || !assets.has(name)) {
-      throw new EmbedError(`index.html refers to ${reference}, which the Worker does not serve: scripts and styles must be in /assets/ (Vite's base must be "/").`);
+      throw new EmbedError(`${file} refers to ${reference}, which the Worker does not serve: scripts and styles must be in /assets/ (Vite's base must be "/").`);
     }
   }
 }
 
-/** The page's scripts and styles, by name. */
+/** The pages' scripts and styles, by name. */
 async function assetsIn(directory) {
   const assets = new Map();
   if (!existsSync(directory)) return assets;
@@ -103,41 +123,61 @@ async function assetsIn(directory) {
   return assets;
 }
 
-/** The TypeScript module that holds [page] and [assets]. */
-function moduleOf(source, page, assets) {
+/** The TypeScript module that holds [pages] and [assets]. */
+function moduleOf(source, pages, assets) {
   const entries = [...assets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([name, asset]) => `  [${JSON.stringify(name)}, { type: ${JSON.stringify(asset.type)}, body: ${JSON.stringify(asset.body)} }],`);
   return `// Generated by scripts/embed-web.mjs from ${source}. Git ignores it; do not edit it: run \`npm run build:web\` in proxy/.
 
 /** The page every bill, request and invite link opens in a browser, with the meta tags the Worker fills left empty. */
-export const WEB_PAGE = ${JSON.stringify(page)};
+export const WEB_PAGE = ${JSON.stringify(pages.link)};
 
-/** The page's scripts and styles, by their names under /assets/. */
+/** The page /delete-account, with the meta tag the Worker fills left empty. */
+export const DELETE_ACCOUNT_PAGE = ${JSON.stringify(pages.deleteAccount)};
+
+/** The pages /privacy and /terms, as they were rendered from docs/ when the web app was built. */
+export const LEGAL_PAGES: { readonly privacy: string; readonly terms: string } = {
+  privacy: ${JSON.stringify(pages.privacy)},
+  terms: ${JSON.stringify(pages.terms)},
+};
+
+/** The pages' scripts and styles, by their names under /assets/. */
 export const WEB_ASSETS: ReadonlyMap<string, { type: string; body: string }> = new Map<string, { type: string; body: string }>([
 ${entries.join("\n")}
 ]);
 `;
 }
 
-/** Whether this run must embed the web app, as for a deploy, and stop rather than write the placeholder. */
+/** Whether this run must embed the web app, as for a deploy, and stop rather than write a placeholder. */
 function webRequired() {
   return process.argv.includes("--require") || process.env.REQUIRE_WEB === "1";
 }
 
 async function main() {
-  const built = existsSync(join(DIST, "index.html"));
-  if (!built && webRequired()) {
-    throw new EmbedError("web/dist was not built, and this bundle must hold the web app: run `npm ci --prefix ../web`, then `npm run build:web`.");
+  const missing = Object.values(PAGES)
+    .map((page) => page.file)
+    .filter((file) => !existsSync(join(DIST, file)));
+  if (missing.length > 0 && webRequired()) {
+    throw new EmbedError(`web/dist lacks ${missing.join(", ")}, and this bundle must hold the web app: run \`npm ci --prefix ../web\`, then \`npm run build:web\`.`);
   }
-  const assets = built ? await assetsIn(join(DIST, "assets")) : new Map([["placeholder.css", { type: CONTENT_TYPES[".css"], body: PLACEHOLDER_STYLE }]]);
-  const page = withFilledTags(built ? await readFile(join(DIST, "index.html"), "utf8") : PLACEHOLDER_PAGE);
-  checkPage(page, assets);
-  const module = moduleOf(built ? "web/dist" : "a placeholder, as web/dist was not built", page, assets);
+  const assets = await assetsIn(join(DIST, "assets"));
+  if (missing.length > 0) assets.set("placeholder.css", { type: CONTENT_TYPES[".css"], body: PLACEHOLDER_STYLE });
+  const pages = {};
+  for (const [name, page] of Object.entries(PAGES)) {
+    const html = missing.includes(page.file) ? PLACEHOLDERS[page.kind] : await readFile(join(DIST, page.file), "utf8");
+    const filled = withFilledTags(html, page.filled, page.file);
+    checkPage(filled, assets, page.kind, page.file);
+    pages[name] = filled;
+  }
+  const source = missing.length === 0 ? "web/dist" : `web/dist, with a placeholder for ${missing.join(", ")}, which it lacks`;
+  const module = moduleOf(source, pages, assets);
   const current = existsSync(OUT) ? await readFile(OUT, "utf8") : null;
   // Written only when it changes, so that `wrangler dev` does not reload for nothing.
   if (current !== module) await writeFile(OUT, module);
-  if (!built) console.warn("web/dist was not built: the Worker serves a placeholder page. Run `npm run build:web` to embed the web app.");
+  if (missing.length > 0) {
+    console.warn(`web/dist lacks ${missing.join(", ")}: the Worker serves a placeholder page for each. Run \`npm run build:web\` to embed the web app.`);
+  }
 }
 
 // Run as a script; imported, it only lends its checks.

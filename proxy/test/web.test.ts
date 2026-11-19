@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/index";
-import { WEB_ASSETS } from "../src/web-assets.generated";
+import { DELETE_ACCOUNT_PAGE, LEGAL_PAGES, WEB_ASSETS } from "../src/web-assets.generated";
 import { send } from "./requests";
 
 // These hold for the web app built from web/ and for the placeholder the proxy embeds without it,
@@ -109,10 +109,112 @@ describe("the web page", () => {
   });
 });
 
+/** The headers every page has but its policy and referrer policy. */
+function expectPageHeaders(page: Awaited<ReturnType<typeof get>>) {
+  expect(page.status).toBe(200);
+  expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
+  expect(page.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  expect(page.headers.get("x-content-type-options")).toBe("nosniff");
+  expect(page.headers.get("cache-control")).toBe("no-store");
+}
+
+describe("the privacy policy and the terms", () => {
+  it("are the pages rendered when the web app was built, which run no script and load nothing from elsewhere", async () => {
+    for (const [path, body] of [
+      ["/privacy", LEGAL_PAGES.privacy],
+      ["/terms", LEGAL_PAGES.terms],
+    ] as const) {
+      const page = await get(path);
+
+      expectPageHeaders(page);
+      expect(page.headers.get("content-security-policy"), path).toBe(
+        "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      );
+      expect(page.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(page.body).toBe(body);
+      expect(page.body).not.toMatch(/<script\b/i);
+    }
+    expect(LEGAL_PAGES.privacy).not.toBe("");
+    expect(LEGAL_PAGES.terms).not.toBe("");
+  });
+
+  it("are served at their paths only, to GET", async () => {
+    for (const path of ["/privacy/", "/terms/", "/privacy.html", "/terms.html", "/privacy/x"]) {
+      expect((await get(path)).status, path).toBe(404);
+    }
+    for (const method of ["POST", "PUT", "DELETE"]) {
+      expect((await send(new Request("https://proxy.test/privacy", { method }))).status, method).toBe(405);
+    }
+  });
+});
+
+describe("the page to delete an account", () => {
+  it("loads Google's sign-in only from the origins its guide names, and tells Google its origin alone", async () => {
+    const page = await get("/delete-account", {}, "https://links.example.org");
+
+    expectPageHeaders(page);
+    expect(page.headers.get("content-security-policy")).toBe(
+      [
+        "default-src 'none'",
+        "script-src 'self' https://accounts.google.com/gsi/client",
+        "style-src 'self' https://accounts.google.com/gsi/style",
+        "img-src 'self' data:",
+        "connect-src 'self' https://accounts.google.com/gsi/",
+        "frame-src https://accounts.google.com/gsi/",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+      ].join("; "),
+    );
+    expect(page.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+  });
+
+  it("carries the Worker's Google client ID while sign-in works, and nothing otherwise", async () => {
+    const filled = await get("/delete-account", { GOOGLE_CLIENT_ID: " test-web-client.apps.googleusercontent.com " });
+    const unset = await get("/delete-account", { GOOGLE_CLIENT_ID: "" });
+    const signInOff = await get("/delete-account", { SESSION_SIGNING_KEY: "too short" });
+
+    expect(filled.body).toBe(DELETE_ACCOUNT_PAGE.replace('<meta name="sv-google-client-id" content="">', '<meta name="sv-google-client-id" content="test-web-client.apps.googleusercontent.com">'));
+    for (const page of [unset, signInOff]) {
+      expect(page.status).toBe(200);
+      expect(page.body).toBe(DELETE_ACCOUNT_PAGE);
+    }
+    expect(DELETE_ACCOUNT_PAGE.match(/<meta name="sv-google-client-id" content="">/g)).toHaveLength(1);
+  });
+
+  it("leaves the client ID out when it is not of the shape Google gives, and logs it", async () => {
+    const logs: unknown[] = [];
+    const spied = vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      logs.push(line);
+    });
+    const pages = [];
+    for (const clientId of ['"><script>alert(1)</script>.apps.googleusercontent.com', "client-id-without-its-domain", "a b.apps.googleusercontent.com"]) {
+      pages.push(await get("/delete-account", { GOOGLE_CLIENT_ID: clientId }));
+    }
+    spied.mockRestore();
+
+    for (const page of pages) {
+      expect(page.body).toBe(DELETE_ACCOUNT_PAGE);
+      expect(page.body).not.toContain("alert(1)");
+    }
+    expect(logs).toEqual(pages.map(() => JSON.stringify({ event: "bad_setting", name: "GOOGLE_CLIENT_ID" })));
+  });
+
+  it("is served at its path only, to GET", async () => {
+    for (const path of ["/delete-account/", "/delete-account.html", "/delete"]) {
+      expect((await get(path)).status, path).toBe(404);
+    }
+    expect((await send(new Request("https://proxy.test/delete-account", { method: "POST" }))).status).toBe(405);
+  });
+});
+
 describe("the page's scripts and styles", () => {
-  it("are served under /assets/ to be cached for a year, every one the page refers to", async () => {
-    const page = await get("/s/");
-    const referred = [...page.body.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g)].map((match) => match[1]);
+  it("are served under /assets/ to be cached for a year, every one the pages refer to", async () => {
+    const referred: string[] = [];
+    for (const path of ["/s/", "/delete-account", "/privacy", "/terms"]) {
+      const page = await get(path);
+      referred.push(...[...page.body.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g)].map((match) => match[1]));
+    }
 
     expect(WEB_ASSETS.size).toBeGreaterThan(0);
     expect(referred.length).toBeGreaterThan(0);
