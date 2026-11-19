@@ -200,3 +200,55 @@ For `docs/runbook.md`, in its own format. Paths are from the repository root.
 Status: DONE_WITH_CONCERNS
 Summary: All six items are implemented, tested, documented, committed and pushed, and every proxy and web check, the bundle and the e2e suite pass on the final tree. The runbook lines are above for the coordinator.
 Concerns/Blockers: Four intermediate commits (`9289a5a` to `52520da`) fail `tsc` until `db5047f` fixes it. The 90-day expiry covers the web page's route only, not the app's `open` and `accept`.
+
+## Follow-up
+
+The coordinator settled three of the questions above: 365 days stands for 12 months, no index migration, and the intermediate commits that fail `tsc` stay as they are. It then asked for the four changes below. I ran `npm run typecheck` in `proxy/` before each of these commits.
+
+### Commits
+| Commit | What |
+|---|---|
+| `60bc958` feat(proxy) | The request link also ends in the app after 90 days, for anyone but its creditor and its bound debtor |
+| `bc0822b` docs | `docs/proxy.md` says what each Durable Object is named by |
+| `d6856f4` docs | The 90-day rule for the two people, in `docs/proxy.md`, `docs/privacy-policy.md` and `docs/web.md` |
+| `5abaac8` docs | The runbook lines, in `docs/runbook.md` |
+
+### What changed
+- **The app's link routes** (`proxy/src/requests.ts`). Once `POLICY.requestLinkMs` has passed since the request was made:
+  - `POST /v1/request-links/open` and `/accept` answer 410 `gone` to any account that is neither the creditor nor the bound debtor (`debtor_bound_at` set and `debtor` the caller). This holds whether or not someone took the request on.
+  - On that path nothing is bound and nothing is counted. `accept` binds at the same `now` it checked the time with, so no debtor is bound after the link ran out.
+  - The creditor and the bound debtor keep their answers. `open` gives each their view. `accept` gives the creditor 403 `forbidden` and the bound debtor their view.
+  - `view` and both app routes share one helper, `linkRanOut`. The comments on the three routes and on `requestLinkMs` state the rule.
+- **Object names.** `docs/proxy.md`'s wrong sentence is replaced by a list of each Durable Object's name:
+  - `install:<install id>` or `google:<salted hash>` for a caller's `QuotaBook` and spend counter;
+  - `ip:<salted hash>` for an address;
+  - `global` for the whole proxy's spend, and `rates` for the `FxBook`;
+  - the link's id and creation time for a `ShareRoom`.
+- **The rule in the docs.** The link stops working after 90 days for anyone but the person who asked and the payer who already took it on, and the request stays in those two people's apps.
+  - `docs/proxy.md`: the payment request table and bullets, the web routes, and the tests.
+  - `docs/privacy-policy.md`, in three places. It keeps only its leading comment; the build's renderer and `npm run build` both render it.
+  - `docs/web.md`: the `/r/` bullet. The page's own text was already right.
+- **The runbook.** Each line went into the runbook's own sections:
+  - "Where to look": the `spend_cap_near` log line.
+  - "Spend caps": an `installCapMicro` row, what installs see when their pool is spent, and a new part, "When a cap comes near its end", with a table of what each cap means and what to do.
+  - "The daily run failing": the method cleanup, and its statement added to the manual clean-up command.
+  - "Rotating secrets": `ANDROID_DEV_CERT_SHA256`, which stays empty on production.
+  - "Reading the counters": the new event, and a daily check of it.
+  - "Support": four cases. The request link case follows the new rule, and its messages are the page's and the app's own.
+  - **Beyond the lines I was given.** "Account deletion requests" said that another phone's session keeps working for 30 days after a deletion. That stopped being true when deleting an account began to end every session, so the runbook now says such phones are signed out.
+
+### Tests
+- New, in `proxy/test/payment-requests.test.ts`: "stops opening and accepting 90 days after the request was made for anyone but its creditor and its bound debtor, and binds nobody then".
+  - At 91 days, a stranger gets 410 `gone` from both routes, and nothing is bound.
+  - At 89 days, the same account opens the request and takes it on, and another stranger gets 409 from both routes, as before.
+  - At 91 days again, the creditor's `open` gives their view and `accept` 403, the bound debtor's `open` and `accept` give their view, and the other stranger gets 410 from both routes. The request is still in the debtor's list.
+
+| Command | Result |
+|---|---|
+| `cd proxy && npm run typecheck` | exit 0 |
+| `cd proxy && npm test` | exit 0; Vitest 24 files, 508 tests pass (one more than before); Node 27 of 27 pass |
+| `cd web && npm test` | exit 0; 20 files, 235 tests pass |
+| `cd web && npm run build` | exit 0; "The build fits the pages' CSPs: 4 pages and 2 files under /assets/" |
+
+Status: DONE
+Summary: The 90-day link expiry now covers the app's `open` and `accept` for anyone but the request's two people. The object names, the 90-day rule in the docs and the runbook lines are done, and every acceptance check passes.
