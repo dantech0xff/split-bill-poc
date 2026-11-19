@@ -64,7 +64,9 @@ function WhatHappens() {
         <h1 id="delete-title" class="type-headline-small hero__title">
           Delete your Split Vibe account
         </h1>
-        <p class="type-body-large">Deleting your account removes what Split Vibe's server keeps about you. It cannot be undone.</p>
+        <p class="type-body-large">
+          Deleting your account removes what Split Vibe's server keeps about you, apart from what is listed under What stays. It cannot be undone.
+        </p>
       </section>
       <section class="section" aria-labelledby="deleted-title">
         <h2 id="deleted-title" class="type-title-medium">
@@ -76,6 +78,10 @@ function WhatHappens() {
           <li>How to pay you, on the payment requests you made that are not confirmed yet.</li>
           <li>The bill links you shared, which stop working, and what people picked on them.</li>
           <li>The phones that get Split Vibe's notifications for you.</li>
+          <li>
+            Your sign-in on every phone. A phone still signed in to the account is signed out: Split Vibe's server no longer accepts its sign-in, so it cannot use the
+            account until you sign in again.
+          </li>
         </ul>
       </section>
       <section class="section" aria-labelledby="kept-title">
@@ -91,6 +97,7 @@ function WhatHappens() {
             A Pro subscription goes on until you cancel it in Google Play: deleting your account does not cancel it. <PlaySubscriptionsLink />.
           </li>
           <li>How many AI calls your account used this month, until the month ends, so that deleting the account and signing in again does not start them over.</li>
+          <li>When your account was deleted, for 30 days, so that phones still signed in to it are signed out.</li>
           <li>Counts of what your account did in the last hour, until the next daily clean-up.</li>
           <li>The bills and settlements of your groups, so that their balances stay right, and the payment requests between you and others, for the other person.</li>
         </ul>
@@ -211,8 +218,8 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
             Delete this account?
           </h2>
           <p class="type-body-large">
-            {step.email === null ? "You signed in with Google." : `You signed in as ${step.email}.`} Deleting the account cannot be undone, and it does not cancel a Pro
-            subscription: cancel that on Google Play.
+            {step.email === null ? "You signed in with Google." : `You signed in as ${step.email}.`} Deleting the account cannot be undone. It signs out every phone
+            still signed in to it, and it does not cancel a Pro subscription: cancel that on Google Play.
           </p>
           <div class="actions">
             <button type="button" class="button button--danger" disabled={deleting} onClick={() => remove(step.idToken, step.email)}>
@@ -249,8 +256,12 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
             Your account is deleted
           </h2>
           <p class="type-body-large">
-            Split Vibe's server no longer keeps your account. The bills, people and payment methods on your phone are still there until you delete them in the app or
-            uninstall it.
+            Split Vibe's server has deleted your account, apart from what this page lists under What stays. The bills, people and payment methods on your phone are
+            still there until you delete them in the app or uninstall it.
+          </p>
+          <p class="type-body-large">
+            Phones that were still signed in to the account are now signed out: Split Vibe's server no longer accepts their sign-in, so they cannot use the account
+            until you sign in again.
           </p>
           <p class="type-body-large">
             If you have Pro, cancel the subscription on Google Play: deleting your account does not cancel it. <PlaySubscriptionsLink />.

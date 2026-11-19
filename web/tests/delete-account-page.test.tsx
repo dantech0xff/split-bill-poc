@@ -69,10 +69,18 @@ describe("the page to delete an account", () => {
 
     expect(textOf(page.querySelector("h1"))).toBe("Delete your Split Vibe account");
     expect(all(page, "h2").map(textOf)).toEqual(["What is deleted", "What stays", "Delete your account", "Delete it in the app"]);
+    expect(textOf(page.querySelector(".hero p"))).toBe(
+      "Deleting your account removes what Split Vibe's server keeps about you, apart from what is listed under What stays. It cannot be undone.",
+    );
+    const deleted = textOf(page.querySelector('[aria-labelledby="deleted-title"]'));
+    expect(deleted).toContain(
+      "Your sign-in on every phone. A phone still signed in to the account is signed out: Split Vibe's server no longer accepts its sign-in, so it cannot use the account until you sign in again.",
+    );
     const stays = textOf(page.querySelector('[aria-labelledby="kept-title"]'));
     expect(stays).toContain("Bills, people and payment methods on your phone stay on your phone.");
     expect(stays).toContain("A Pro subscription goes on until you cancel it in Google Play: deleting your account does not cancel it.");
     expect(stays).toContain("How many AI calls your account used this month, until the month ends");
+    expect(stays).toContain("When your account was deleted, for 30 days, so that phones still signed in to it are signed out.");
     const play = page.querySelector<HTMLAnchorElement>(`a[href="${PLAY_SUBSCRIPTIONS_URL}"]`);
     expect(textOf(play)).toBe("Manage your subscriptions on Google Play");
     expect(play?.rel).toBe("noopener noreferrer");
@@ -110,7 +118,7 @@ describe("the page to delete an account", () => {
 
     expect(heading(page)).toBe("Delete this account?");
     expect(textOf(page.querySelector('[aria-labelledby="action-title"] p'))).toBe(
-      "You signed in as person@example.com. Deleting the account cannot be undone, and it does not cancel a Pro subscription: cancel that on Google Play.",
+      "You signed in as person@example.com. Deleting the account cannot be undone. It signs out every phone still signed in to it, and it does not cancel a Pro subscription: cancel that on Google Play.",
     );
     expect(document.activeElement).toBe(page.querySelector("#action-title"));
     expect(deleteAccount).not.toHaveBeenCalled();
@@ -124,7 +132,12 @@ describe("the page to delete an account", () => {
     await vi.waitFor(() => expect(heading(page)).toBe("Your account is deleted"));
     expect(deleteAccount.mock.calls).toEqual([[ID_TOKEN]]);
     const outcome = textOf(page.querySelector('[aria-labelledby="action-title"]'));
+    expect(outcome).toContain("Split Vibe's server has deleted your account, apart from what this page lists under What stays.");
     expect(outcome).toContain("The bills, people and payment methods on your phone are still there");
+    expect(outcome).toContain(
+      "Phones that were still signed in to the account are now signed out: Split Vibe's server no longer accepts their sign-in, so they cannot use the account until you sign in again.",
+    );
+    expect(outcome).not.toContain("no longer keeps your account");
     expect(outcome).toContain("If you have Pro, cancel the subscription on Google Play: deleting your account does not cancel it.");
     expect(document.activeElement).toBe(page.querySelector("#action-title"));
   });
