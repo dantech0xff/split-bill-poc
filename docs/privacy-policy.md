@@ -10,6 +10,7 @@ This policy explains what Split Vibe does with information about you: in the Spl
 
 - The photos of your bills never leave your phone. The phone reads the text of a bill itself.
 - When you ask the AI to read a bill, the text your phone read and the instruction you typed go through our server to Anthropic, whose AI model works out the items. When you change a split by a sentence, the bill, the names on it and your sentence go the same way.
+- The app asks for your consent before it first uses the AI, and you can take it back in Settings.
 - Your bills, the people you split with and your ways to get paid are kept on your phone. Our server keeps only what you share with other people: bills you add to a group, payment requests you send, and bills you open for picking with a link.
 - We keep no email address, name or photo of your Google account. Our server knows an account only by a code worked out from the account's Google ID, from which the ID cannot be read back.
 - The app shows no ads and contains no analytics or advertising SDK. We count how the service is used only as totals, with no account, install or network address attached.
@@ -45,6 +46,10 @@ The app turns Android's backup to Google Drive off, so this data is not copied t
 Besides the internet and the technical permissions Android grants apps when they are installed, the app asks you for two permissions: notifications, which only show notices, and the microphone, which it asks for only when you tap the microphone to say a change. It does not ask for the camera, your files or your contacts. Photos come from Google's document scanner, the camera app or the photo picker, and a person from the system's contact picker, which hands the app only the contact you pick.
 
 ## What leaves your phone, and why
+
+### Your consent before the AI is used
+
+Before the app first sends anything to the AI, it asks for your consent on a screen of its own, which says what reading a bill and changing a split send, and to whom, and links this policy. Until you agree, nothing goes to the AI: you can type a bill in by hand instead, or keep a split as it is, and everything else in the app works the same. The app keeps your answer on your phone, with its other settings, and does not send it to our server. You can take your consent back at any time in the app's Settings; the app then asks again before it next uses the AI.
 
 ### Reading a bill with AI
 
@@ -215,6 +220,7 @@ You can see most of what our server keeps about you in the app: your groups, you
 Where the law asks us to name a legal basis:
 
 - we use your data to provide the features you ask for: reading bills, changing splits, signing in, groups, payment requests, bill links, notifications and Pro;
+- where the law asks for consent before data is collected, as Vietnam's does, sending the text of a bill, or a change of a split with the bill it is about, to Anthropic rests on the consent you give on the screen the app shows before it first uses the AI;
 - we have a legitimate interest in keeping Split Vibe safe and affordable, so we limit requests per install, account and network address, cap spending, check first picks with Turnstile, keep short logs and traces, and count use in totals;
 - where we ask for your permission, such as for notifications or for your phone's online speech service, you can change your mind in the app's Settings or in your phone's settings.
 
