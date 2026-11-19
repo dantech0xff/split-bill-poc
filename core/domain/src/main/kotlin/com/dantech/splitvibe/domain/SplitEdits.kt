@@ -47,7 +47,7 @@ object SplitEdits {
      * the user is called on the bill; a blank one makes them "You". A ref of someone added by an
      * earlier edit is not on [plan]: the list form of [describe] names them.
      */
-    fun describe(edit: SplitEdit, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = Locale.getDefault()): String =
+    fun describe(edit: SplitEdit, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = TEXT_LOCALE): String =
         Describer(State(bill, plan), meName, emptyMap(), locale).sentence(edit)
 
     /**
@@ -55,7 +55,7 @@ object SplitEdits {
      * it leave, as [apply] meets them. So a ref names the person its [SplitEdit.AddPerson] adds, and
      * a percentage charge shows the amount it adds.
      */
-    fun describe(edits: List<SplitEdit>, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = Locale.getDefault()): List<String> {
+    fun describe(edits: List<SplitEdit>, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = TEXT_LOCALE): List<String> {
         val newPeople = edits.filterIsInstance<SplitEdit.AddPerson>().associate { it.ref to it.name }
         val sentences = mutableListOf<String>()
         walk(bill, plan, edits) { _, edit, before, _ -> sentences += Describer(before, meName, newPeople, locale).sentence(edit) }

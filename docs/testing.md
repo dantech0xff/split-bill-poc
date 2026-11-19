@@ -30,7 +30,8 @@ out.
 | `PaymentRequestJourneyTest` | Signed in: type a bill in by hand (90 at Pho 24), add Minh, request his 45, send it; Minh takes it on in his app; open Requests | The request goes to the proxy with the session, Minh's share, the user's name and the way to get paid; the share sheet is asked for. Requests then shows what only the proxy's list can say: the request under "You asked for" as not paid yet, since Minh took it on, where the answer that made it said "Not opened in the app yet". No error message shows. |
 
 The amounts of the manual journeys are typed as whole numbers, so they read the same in any
-currency, and the expected text is formatted the way the app formats it, for the phone's language.
+currency, and the expected text is formatted the way the app writes money, which is in English
+whatever the phone's language.
 Once something was typed, a journey taps through the element's click action rather than a touch at
 its place on the screen: on a phone with a soft keyboard, the keyboard may still be moving the
 screen, and a touch would land on whatever slid under it.

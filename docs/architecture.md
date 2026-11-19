@@ -63,7 +63,8 @@ resource wherever it holds a count, and a formatted string, with numbered argume
 sentence is built from parts. v1.0 is in English only, so a new language is a new
 `values-xx/strings.xml` and no change to the code.
 
-- Screens read their texts with `stringResource` and `pluralStringResource`.
+- Screens read their texts with `stringResource`, and through `UiText` every text that holds a
+  count and every plural.
 - View models, repositories and `llm/` say what to show as a `UiText` (`text/UiText.kt`): a string
   or plurals resource with its arguments, which may be `UiText`s themselves, or text that is not
   the app's own, such as a name someone typed or what the model wrote (`UiText.Raw`). The screen
@@ -72,6 +73,15 @@ sentence is built from parts. v1.0 is in English only, so a new language is a ne
   `Context` for it.
 - A failed call to the model carries its text as the cause of the domain's `BillAnalyzerException`
   (`ModelCallFailure`), as that exception holds only a message for developers; `e.text` reads it.
+- Numbers are written as English writes them, whatever the phone's language or region: the digits 0
+  to 9, "." before decimals and "," between thousands, as the counts, the calls left and the
+  ordinals of the texts always were. `TEXT_LOCALE` in `:core:domain` is that locale. `UiText` fills a
+  text's placeholders in it, where `Resources.getString` would use the phone's locale and so, on a
+  phone set to Persian or Arabic, its digits; `NumbersInTextsTest` fails when a text with a count, or
+  a plural, is read another way. Money (`BillCurrency.format`), exchange rates, the payment details a
+  request carries, the domain's own sentences and dates (`dateText`, with English month and day
+  names) are written in `TEXT_LOCALE` too. Only the CSV files follow the phone's locale, for the
+  spreadsheet app that opens them.
 - What the app writes into what it keeps or sends, rather than shows, comes from `ContentWords`,
   read from the resources once when the app starts: the user as "You" in the stored list of a
   bill's people and in the totals by person, the name of a recurring bill without one, the lines
@@ -79,10 +89,10 @@ sentence is built from parts. v1.0 is in English only, so a new language is a ne
   was kept or sent stays in the language it was written in.
 - Some text stays in code, each for a reason: the sentences `:core:domain` writes (a reason a split
   does not add up, a proposed edit, a payment method's problem or name, a bill's warnings), which
-  the screens show as they come; dates, written with English month and day names as before; the CSV
-  files' headings and words, a format for spreadsheet apps that stays the same in every language;
-  and the PDF summary's headings, as the device test builds `PdfSummary` without them. Log lines and
-  messages of exceptions are for developers and stay in code too.
+  the screens show as they come; the CSV files' headings and words, a format for spreadsheet apps
+  that stays the same in every language; and the PDF summary's headings, as the device test builds
+  `PdfSummary` without them. Log lines and messages of exceptions are for developers and stay in
+  code too.
 
 Debug builds carry the pseudolocales `en-XA`, which makes every text of the resources longer and
 accented, and `ar-XB`, which writes them right to left. Text that is cut off, overlaps or is not in

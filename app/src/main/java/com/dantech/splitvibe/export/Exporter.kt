@@ -10,6 +10,7 @@ import androidx.core.content.FileProvider
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.InsightGroup
 import com.dantech.splitvibe.domain.Insights
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.text.UiText
 import java.io.File
 import java.io.IOException
@@ -41,8 +42,9 @@ class ExportContent(
 /**
  * Writes the finished bills of a period as files: three CSV files ([CsvExport]) or a PDF summary
  * ([PdfSummary]). The files only ever go where the user chooses: to the app they pick in the share
- * sheet, or to the place they pick in the system's file picker. [locale] decides how numbers are
- * written, so a spreadsheet app in the same locale reads them right.
+ * sheet, or to the place they pick in the system's file picker. [locale] decides how the CSV files
+ * write numbers, so a spreadsheet app in the same locale reads them right; the PDF summary writes
+ * them as the app's texts do.
  */
 class Exporter(private val context: Context, private val locale: () -> Locale = Locale::getDefault) {
 
@@ -53,7 +55,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
     suspend fun files(content: ExportContent, format: ExportFormat): List<ExportFile> = withContext(Dispatchers.Default) {
         when (format) {
             ExportFormat.CSV -> CsvExport.files(content.bills, CsvConvention.of(locale()))
-            ExportFormat.PDF -> listOf(ExportFile(pdfName(content.periodKey), PDF_TYPE, PdfSummary(content, locale()).bytes()))
+            ExportFormat.PDF -> listOf(ExportFile(pdfName(content.periodKey), PDF_TYPE, PdfSummary(content, TEXT_LOCALE).bytes()))
         }
     }
 

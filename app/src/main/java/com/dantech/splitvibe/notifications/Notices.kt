@@ -17,8 +17,8 @@ import com.dantech.splitvibe.MainActivity
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.dayOf
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import com.dantech.splitvibe.text.dateText
+import com.dantech.splitvibe.text.plural
 
 /**
  * The notices the app shows: the push notices the proxy sends, and one for the drafts a recurring
@@ -114,12 +114,11 @@ object Notices {
             putExtra(EXTRA_BILL_ID, newest.id)
         }
         val tap = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val day = dayOf(newest.bill.date)?.let { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(it) }
-        val resources = context.resources
+        val day = dayOf(newest.bill.date)?.let(::dateText)
         val text = when {
-            day != null -> resources.getQuantityString(R.plurals.notice_drafts_on, drafts.size, drafts.size, day)
-            else -> resources.getQuantityString(R.plurals.notice_drafts, drafts.size, drafts.size)
-        }
+            day != null -> plural(R.plurals.notice_drafts_on, drafts.size, drafts.size, day)
+            else -> plural(R.plurals.notice_drafts, drafts.size)
+        }.resolve(context.resources)
         // What a lock screen that hides private notices shows instead: nothing the user typed.
         val hidden = NotificationCompat.Builder(context, DRAFTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)

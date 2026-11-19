@@ -45,7 +45,7 @@ data class ExchangeRate(
     }
 
     /** The rate as people write it, such as "1 USD = 25,350 VND". */
-    fun describe(locale: Locale = Locale.getDefault()): String = "1 $from = ${rateText(rate, locale)} $to"
+    fun describe(locale: Locale = TEXT_LOCALE): String = "1 $from = ${rateText(rate, locale)} $to"
 
     companion object {
         /** The [source] of a rate the user typed in. */
@@ -67,7 +67,7 @@ data class ExchangeRate(
         }
 
         /** A rate the way it is shown and typed: six significant digits, grouped as [locale] does. */
-        fun rateText(rate: BigDecimal, locale: Locale = Locale.getDefault()): String {
+        fun rateText(rate: BigDecimal, locale: Locale = TEXT_LOCALE): String {
             val shown = rate.round(SHOWN).stripTrailingZeros()
             return NumberFormat.getNumberInstance(locale).apply {
                 maximumFractionDigits = shown.scale().coerceAtLeast(0)

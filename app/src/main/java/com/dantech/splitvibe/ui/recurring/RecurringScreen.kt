@@ -38,14 +38,13 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.dateText
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.text
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.time.format.TextStyle
-import java.util.Locale
 
 /** What the screen of recurring bills can ask for. */
 class RecurringActions(
@@ -159,7 +158,7 @@ private fun RecurringBillRow(row: RecurringRow, position: SvRowPosition, actions
 internal fun describe(schedule: RecurrenceSchedule): UiText {
     val start = schedule.start
     return when (schedule.frequency) {
-        Frequency.WEEKLY -> text(R.string.recurring_every_week, start.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+        Frequency.WEEKLY -> text(R.string.recurring_every_week, start.dayOfWeek.getDisplayName(TextStyle.FULL, TEXT_LOCALE))
 
         Frequency.MONTHLY -> {
             val day = start.dayOfMonth
@@ -184,7 +183,7 @@ internal fun detailOf(row: RecurringRow): UiText = when {
 }
 
 /** A day as the app shows dates, such as "Dec 1, 2026". */
-internal fun dayText(day: LocalDate): String = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(day)
+internal fun dayText(day: LocalDate): String = dateText(day)
 
 /** The days every month has. */
 private const val SHORTEST_MONTH = 28

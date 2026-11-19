@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.domain.payments
 
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.URLEncoder
@@ -56,7 +57,7 @@ object PaymentRequestBuilder {
         amountMinor: Long,
         currency: BillCurrency,
         note: String?,
-        locale: Locale = Locale.getDefault(),
+        locale: Locale = TEXT_LOCALE,
     ): PaymentRequest {
         val shownAmount = "Amount: ${currency.format(amountMinor, locale)}"
         val shownNote = note?.trim()?.takeIf { it.isNotEmpty() }?.let { "Note: $it" }

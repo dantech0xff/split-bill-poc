@@ -38,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -59,6 +58,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.LegalLinks
 import com.dantech.splitvibe.ui.common.LegalLinksRow
@@ -135,12 +135,12 @@ fun ProScreen(
 @Composable
 private fun BenefitCard() = HeroCard {
     Text(
-        pluralStringResource(R.plurals.pro_calls_a_month, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY),
+        plural(R.plurals.pro_calls_a_month, CallsLeft.PRO_MONTHLY).resolve(),
         modifier = Modifier.semantics { heading() },
         style = MaterialTheme.typography.titleLargeEmphasized,
     )
     Text(
-        pluralStringResource(R.plurals.pro_benefit, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY, CallsLeft.FREE_MONTHLY),
+        plural(R.plurals.pro_benefit, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY, CallsLeft.FREE_MONTHLY).resolve(),
         style = MaterialTheme.typography.bodyMedium,
     )
     Text(stringResource(R.string.pro_everything_else_free), style = MaterialTheme.typography.bodyMedium)
@@ -162,7 +162,7 @@ private fun MemberCard(state: ProUiState, onManage: () -> Unit) {
         )
         if (state.member) {
             Text(
-                pluralStringResource(R.plurals.pro_member_calls, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY),
+                plural(R.plurals.pro_member_calls, CallsLeft.PRO_MONTHLY).resolve(),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -202,7 +202,7 @@ private fun Offer(state: ProUiState, actions: ProActions) {
             text = if (state.signInExpired) {
                 stringResource(R.string.pro_sign_in_again)
             } else {
-                pluralStringResource(R.plurals.pro_sign_in_first, CallsLeft.FREE_MONTHLY, CallsLeft.FREE_MONTHLY)
+                plural(R.plurals.pro_sign_in_first, CallsLeft.FREE_MONTHLY).resolve()
             },
             isError = false,
         )

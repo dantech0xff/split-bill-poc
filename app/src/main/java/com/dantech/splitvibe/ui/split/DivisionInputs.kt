@@ -16,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
@@ -24,6 +23,8 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.NUMBER_FIELD_WIDTH
 import com.dantech.splitvibe.ui.common.NumberField
 
@@ -142,7 +143,7 @@ internal fun DivisionTotalRow(mode: SplitMode, given: Long, amountMinor: Long, c
             }
         }
 
-        SplitMode.BY_SHARES -> pluralStringResource(R.plurals.split_shares_in_all, given.toInt(), given)
+        SplitMode.BY_SHARES -> plural(R.plurals.split_shares_in_all, given.toInt(), given).resolve()
 
         SplitMode.EQUAL, SplitMode.BY_ITEM -> return
     }

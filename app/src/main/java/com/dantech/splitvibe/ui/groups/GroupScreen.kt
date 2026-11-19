@@ -37,7 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.dantech.splitvibe.R
@@ -58,11 +57,13 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Transfer
 import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.dateText
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyWork
-import java.text.DateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 
 /** What the group screen can ask for. */
@@ -318,7 +319,7 @@ private fun LazyListScope.members(state: GroupState, actions: GroupActions, onAd
     item {
         SvSectionHeader(
             stringResource(R.string.groups_people),
-            hint = pluralStringResource(R.plurals.groups_people_count, state.members.size, state.members.size),
+            hint = plural(R.plurals.groups_people_count, state.members.size).resolve(),
         )
     }
     itemsIndexed(state.members, key = { _, member -> member.id }) { index, member ->
@@ -426,7 +427,7 @@ private fun LazyListScope.activity(state: GroupState) {
                     stringResource(
                         R.string.groups_log_line,
                         describe(entry, state).resolve(),
-                        DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(entry.at)),
+                        dateText(Instant.ofEpochMilli(entry.at).atZone(ZoneId.systemDefault())),
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

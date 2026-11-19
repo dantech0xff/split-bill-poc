@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -20,6 +19,7 @@ import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.export.CsvExport
 import com.dantech.splitvibe.export.ExportFormat
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 
 /**
@@ -31,12 +31,7 @@ internal fun ExportSheet(state: InsightsState, onShare: (ExportFormat) -> Unit, 
     var format by rememberSaveable { mutableStateOf(ExportFormat.CSV) }
     SvBottomSheet(
         title = stringResource(R.string.insights_export),
-        supportingText = pluralStringResource(
-            R.plurals.insights_export_hint,
-            state.bills.size,
-            state.bills.size,
-            state.periodName.resolve(),
-        ),
+        supportingText = plural(R.plurals.insights_export_hint, state.bills.size, state.bills.size, state.periodName).resolve(),
         onDismiss = onDismiss,
         actions = {
             TextButton(onClick = { onSave(format) }) { Text(stringResource(R.string.insights_save_to_files)) }

@@ -80,6 +80,24 @@ class BillCurrencyTest {
     }
 
     @Test
+    fun `money, rates and the domain's sentences are written in English, whatever the phone's locale`() {
+        val before = Locale.getDefault()
+        // Persian and Arabic phones write numbers with digits of their own, and another decimal mark.
+        for (phone in listOf("fa-IR", "ar-EG")) {
+            Locale.setDefault(Locale.forLanguageTag(phone))
+            try {
+                val vnd = BillCurrency("VND", 0)
+                assertEquals(phone, "₫250,993", vnd.format(250_993))
+                assertEquals(phone, "1 USD = 25,350 VND", ExchangeRate("USD", "VND", BigDecimal(25_350)).describe())
+                val problem = Payments.problem(listOf(Payment("me", 100)), totalMinor = 300, BillCurrency("USD", 2))
+                assertEquals(phone, "Payments add up to $1.00, $2.00 short of the bill total of $3.00.", problem)
+            } finally {
+                Locale.setDefault(before)
+            }
+        }
+    }
+
+    @Test
     fun `an amount far beyond any bill is not an amount`() {
         val vnd = BillCurrency("VND", 0)
 

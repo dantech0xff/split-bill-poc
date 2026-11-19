@@ -46,13 +46,12 @@ import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
+import com.dantech.splitvibe.text.dateText
 import com.dantech.splitvibe.text.labelRes
 import com.dantech.splitvibe.ui.recurring.RepeatBillSheet
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /**
  * Every bill kept on the phone, newest first, to search, open again or delete, and a finished bill
@@ -217,5 +216,4 @@ internal fun BillListingRow(
 @Composable
 private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_bill)
 
-private fun dayOf(millis: Long): String =
-    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+private fun dayOf(millis: Long): String = dateText(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))

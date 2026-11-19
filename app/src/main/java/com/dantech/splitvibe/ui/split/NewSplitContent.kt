@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AiStatus
@@ -53,6 +52,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import kotlinx.coroutines.launch
 
@@ -183,7 +183,7 @@ private fun PhotoSection(
                 SvBillPhoto(
                     photo = image,
                     contentDescription = if (pages > 1) {
-                        pluralStringResource(R.plurals.split_photo_first_page, pages, pages)
+                        plural(R.plurals.split_photo_first_page, pages).resolve()
                     } else {
                         stringResource(R.string.split_photo)
                     },
@@ -191,7 +191,7 @@ private fun PhotoSection(
                     scanning = state.isBusy && state.progress != Progress.LOADING_PHOTO,
                 )
                 if (pages > 1) {
-                    Text(pluralStringResource(R.plurals.split_pages_as_one, pages, pages), style = MaterialTheme.typography.labelLarge)
+                    Text(plural(R.plurals.split_pages_as_one, pages).resolve(), style = MaterialTheme.typography.labelLarge)
                 }
             } else {
                 Text(stringResource(R.string.split_add_the_bill), style = MaterialTheme.typography.titleMedium)

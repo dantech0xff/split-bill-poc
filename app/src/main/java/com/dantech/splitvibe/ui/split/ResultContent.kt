@@ -45,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -89,6 +88,7 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.groups.AddToGroupSheet
 import java.math.BigDecimal
@@ -734,13 +734,9 @@ private fun FinishBar(
             )
 
             iPaidItAll && others.isNotEmpty() -> {
+                val asked = result.bill.format(others.sumOf { it.totalMinor })
                 SvSplitButton(
-                    text = pluralStringResource(
-                        R.plurals.split_request_from,
-                        others.size,
-                        result.bill.format(others.sumOf { it.totalMinor }),
-                        others.size,
-                    ),
+                    text = plural(R.plurals.split_request_from, others.size, asked, others.size).resolve(),
                     onClick = onSendRequests,
                     moreLabel = moreWays,
                     options = listOf(toGroup, pickTogether, SvMenuOption(stringResource(R.string.split_finish_without_asking), onFinish)),
@@ -779,7 +775,7 @@ private fun describe(division: Division?, result: SplitResultState): String {
             if (chosen.isEmpty() || chosen.size == sharing.size) everyone else names(chosen)
         }
 
-        is Division.ByShares -> parts(division.shares) { resources.getQuantityString(R.plurals.split_shares, it.toInt(), it) }
+        is Division.ByShares -> parts(division.shares) { plural(R.plurals.split_shares, it.toInt(), it).resolve(resources) }
 
         is Division.ByPercent -> parts(division.basisPoints) { resources.getString(R.string.split_percent, percentText(it)) }
 

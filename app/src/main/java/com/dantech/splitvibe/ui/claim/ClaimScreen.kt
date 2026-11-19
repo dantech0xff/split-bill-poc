@@ -56,6 +56,7 @@ import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.share.ShareCardRenderer
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.resolve
@@ -103,7 +104,7 @@ private sealed interface Confirm {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, actions: ClaimActions, locale: Locale = Locale.getDefault()) {
+fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, actions: ClaimActions, locale: Locale = TEXT_LOCALE) {
     val share = state.share
     var confirming by rememberSaveable(stateSaver = ConfirmSaver) { mutableStateOf<Confirm?>(null) }
     Scaffold(

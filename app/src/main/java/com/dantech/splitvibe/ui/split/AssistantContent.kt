@@ -34,7 +34,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -57,6 +56,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 
 /** What the assistant on the result screen asks the flow to do. */
@@ -194,7 +194,7 @@ internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modif
 
             proposal.edits.forEach { edit -> EditRow(edit, onToggle = { actions.onToggleEdit(edit.index) }) }
             if (proposal.unreadable > 0) {
-                Note(pluralStringResource(R.plurals.assistant_unreadable, proposal.unreadable, proposal.unreadable))
+                Note(plural(R.plurals.assistant_unreadable, proposal.unreadable).resolve())
             }
 
             // A proposal that could not be worked out has no amounts to show.

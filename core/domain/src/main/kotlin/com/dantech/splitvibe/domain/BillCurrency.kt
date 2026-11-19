@@ -56,7 +56,8 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
     @Transient
     private val formatters = ThreadLocal<Pair<Locale, NumberFormat>>()
 
-    fun format(minor: Long, locale: Locale = Locale.getDefault()): String {
+    /** [minor] as an amount of money, such as "₫250,993", written as [locale] writes it, English unless another is given. */
+    fun format(minor: Long, locale: Locale = TEXT_LOCALE): String {
         val number = formatterFor(locale).format(toMajor(minor))
         return if (isoCurrency(code) != null || code.isBlank()) number else "$number $code"
     }

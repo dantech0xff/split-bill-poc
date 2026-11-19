@@ -7,12 +7,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalResources
 import com.dantech.splitvibe.R
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 
 /**
  * Words for the person, decided where no resources are read: in view models, repositories and the
  * proxy's client. It names a string resource and the values that go into it, and the screen reads it
  * in the phone's language. Text that is not the app's own, such as a name someone typed, what the
  * model wrote or a message of `:core:domain`, is [Raw].
+ *
+ * The values go into the text as [TEXT_LOCALE] writes them, never as the phone's locale does: a
+ * count is "300" on a phone set to Persian too, like every other number in the English texts. Every
+ * text with a count is read through here, and plurals only through here.
  */
 sealed interface UiText {
     /** The string resource [id], with [args] for its placeholders. An argument that is a [UiText] is read first. */
@@ -32,8 +37,8 @@ sealed interface UiText {
 
     /** The text in the language of [resources]. */
     fun resolve(resources: Resources): String = when (this) {
-        is Res -> if (args.isEmpty()) resources.getString(id) else resources.getString(id, *resolved(args, resources))
-        is Plural -> resources.getQuantityString(id, count, *resolved(args, resources))
+        is Res -> if (args.isEmpty()) resources.getString(id) else formatted(resources.getString(id), args, resources)
+        is Plural -> formatted(resources.getQuantityString(id, count), args, resources)
         is Raw -> text
         is Lines -> parts.joinToString("\n") { it.resolve(resources) }
         is Joined -> parts.joinToString(separator) { it.resolve(resources) }
@@ -54,5 +59,6 @@ fun sentences(first: UiText, second: UiText?): UiText = if (second == null) firs
 @ReadOnlyComposable
 fun UiText.resolve(): String = resolve(LocalResources.current)
 
-private fun resolved(args: List<Any>, resources: Resources): Array<Any> =
-    args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray()
+/** [pattern] with [args] in its placeholders, as [Resources.getString] fills them in but in [TEXT_LOCALE]. */
+private fun formatted(pattern: String, args: List<Any>, resources: Resources): String =
+    String.format(TEXT_LOCALE, pattern, *args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray())
