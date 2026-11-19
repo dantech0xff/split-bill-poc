@@ -353,9 +353,19 @@ install is [counted](#counters) once. It keeps the time of the last call it held
 holds, the count of its calls with it. No object is ever listed for that: each one's own alarm
 does it, and every call to the object first deletes it when that time has passed, so nothing
 stays when the alarm was missed. One more holds the latest exchange rates, which are public.
-Objects are named by salted hashes, never by an IP address or a Google id. A request id is kept
-with a salted hash of what it asked, so that it cannot be reused for another bill or another edit.
-Nothing of a bill read or of an edit, an instruction or a name is stored.
+Each object is named for whom or what it counts, never by an IP address or a Google id:
+
+- the `QuotaBook` and the spend counter of an install by `install:<install id>`, the random id the
+  app made for itself and sends as `X-SplitVibe-Install`;
+- those of a Google account by `google:<account>`, the salted hash of its Google id that its
+  session carries;
+- the limits and spend of an address by `ip:<salted hash of the address>`, an IPv6 address by its
+  /64;
+- the spend of the whole proxy by `global`, and the `FxBook` by `rates`;
+- the `ShareRoom` of a bill link by the link's id and when the link was made.
+
+A request id is kept with a salted hash of what it asked, so that it cannot be reused for another
+bill or another edit. Nothing of a bill read or of an edit, an instruction or a name is stored.
 
 The `QuotaBook` objects written before calls had weights counted whole calls. Each turns its count
 and its request ids into hundredths the first time it is asked after the deploy, record by record;
