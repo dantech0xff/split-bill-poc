@@ -41,9 +41,18 @@ export const revokeInvitesRoute = signedIn(async ({ env, params, account }) => {
   if (groupId === null || group === null) return errorResponse(404, "not_found");
   if (!isMember(group)) return outsider(group);
   if (!group.isOwner) return errorResponse(403, "forbidden");
-  await env.DB.prepare("UPDATE invites SET revoked_at = ?2 WHERE group_id = ?1 AND revoked_at IS NULL").bind(groupId, Date.now()).run();
+  await revokeInvitesStatement(env.DB, groupId, Date.now()).run();
   return emptyResponse(204);
 });
+
+/**
+ * Revokes every invite of [groupId] that still works, as of [now]: as the owner asks, and whenever
+ * a member is taken out or leaves, so that no invite made before can bring them back. The members
+ * who stay make a new one.
+ */
+export function revokeInvitesStatement(db: D1Database, groupId: string, now: number): D1PreparedStatement {
+  return db.prepare("UPDATE invites SET revoked_at = ?2 WHERE group_id = ?1 AND revoked_at IS NULL").bind(groupId, now);
+}
 
 /**
  * The group an invite token leads to, or the answer: 404 for a token never made (or that no

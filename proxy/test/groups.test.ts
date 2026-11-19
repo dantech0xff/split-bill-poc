@@ -305,6 +305,34 @@ describe("a member", () => {
     expect((await api<{ requests: RequestView[] }>(member, "GET", "/v1/requests")).body.requests).toEqual([asked.body.request]);
   });
 
+  it("taken out by the owner, or leaving, cannot come back through an invite made before: the group's invites are revoked, and a new one works", async () => {
+    const owner = await person();
+    const group = await newGroup(owner);
+    const mallory = await person();
+    const malloryId = await join(group, mallory, "Mallory");
+    const hers = await invite(group, mallory);
+    const owners = await invite(group);
+    const joinWith = (who: Person, token: string, name: string) => api(who, "POST", "/v1/invites/join", { token, memberId: crypto.randomUUID(), name });
+
+    expect((await api(owner, "POST", `/v1/groups/${group.id}/members/${malloryId}/remove`)).status).toBe(200);
+
+    for (const token of [hers, owners]) {
+      expect((await joinWith(mallory, token, "Mallory")).body).toEqual({ error: "gone" });
+      expect((await api(mallory, "POST", "/v1/invites/open", { token })).status).toBe(410);
+    }
+    expect((await api(mallory, "GET", `/v1/groups/${group.id}`)).body).toEqual({ error: "forbidden" });
+    // The members who stay make a new invite, which works.
+    const lan = await person();
+    const fresh = await invite(group);
+    expect((await joinWith(lan, fresh, "Lan")).status).toBe(200);
+
+    // Leaving revokes them too.
+    const kept = await invite(group, lan);
+    expect((await api(lan, "POST", `/v1/groups/${group.id}/leave`)).status).toBe(204);
+    expect((await joinWith(lan, kept, "Lan")).body).toEqual({ error: "gone" });
+    expect((await joinWith(await person(), await invite(group), "Hoa")).status).toBe(200);
+  });
+
   it("is removed by the owner only, and only when it has an account and is not the owner's own", async () => {
     const owner = await person();
     const group = await newGroup(owner);

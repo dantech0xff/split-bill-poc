@@ -15,6 +15,7 @@ import {
 } from "./group-state";
 import { signedIn } from "./identity";
 import { type Currency, currencyOf, idOf, inputOf, textOf, uuidOf } from "./input";
+import { revokeInvitesStatement } from "./invites";
 import { POLICY } from "./policy";
 import { emptyResponse, errorResponse, jsonResponse } from "./respond";
 
@@ -191,9 +192,10 @@ export const renameMemberRoute = signedIn(async ({ request, env, params, account
 
 /**
  * `POST /v1/groups/{gid}/leave`: the caller's member stays as a placeholder, with its name and
- * every amount, but without the caller's account. An owner who leaves hands the group to the
- * member with an account who joined first; when nobody with an account is left, the group and
- * everything in it is deleted. Answers 204.
+ * every amount, but without the caller's account, and every invite of the group that still works
+ * is revoked, so that none made before brings the caller back. An owner who leaves hands the
+ * group to the member with an account who joined first; when nobody with an account is left, the
+ * group and everything in it is deleted. Answers 204.
  */
 export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
   const groupId = uuidOf(params[0]);
@@ -206,6 +208,7 @@ export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
     const now = Date.now();
     const leaving = [
       db.prepare("UPDATE members SET account = NULL WHERE group_id = ?1 AND id = ?2").bind(groupId, me.id),
+      revokeInvitesStatement(db, groupId, now),
       logStatement(db, groupId, now, "member_left", me.id, me.id),
     ];
     // The answer is 204, so the batch need not read the group's state.
@@ -220,9 +223,11 @@ export const leaveGroupRoute = signedIn(async ({ env, params, account }) => {
 /**
  * `POST /v1/groups/{gid}/members/{mid}/remove`: the owner takes a member's account off the group.
  * The member stays as a placeholder, exactly as when they leave: its name and every amount stay,
- * and its account and any claim of that account in the group go. Payment requests already made
- * stay as they are. Only a member with an account, and not the owner's own member, can be
- * removed; anything else is 409. Answers with the group's state.
+ * and its account and any claim of that account in the group go. Every invite of the group that
+ * still works is revoked, so that none the member kept brings them back; the members who stay
+ * make a new one. Payment requests already made stay as they are. Only a member with an account,
+ * and not the owner's own member, can be removed; anything else is 409. Answers with the group's
+ * state.
  */
 export const removeMemberRoute = signedIn(async ({ env, params, account }) => {
   const groupId = uuidOf(params[0]);
@@ -240,6 +245,7 @@ export const removeMemberRoute = signedIn(async ({ env, params, account }) => {
       [
         db.prepare("UPDATE members SET account = NULL WHERE group_id = ?1 AND id = ?2").bind(groupId, memberId),
         db.prepare("DELETE FROM claims WHERE group_id = ?1 AND account = ?2").bind(groupId, member.account),
+        revokeInvitesStatement(db, groupId, now),
         logStatement(db, groupId, now, "member_removed", group.me.id, memberId),
       ],
       stateAnswer(),
