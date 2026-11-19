@@ -3,11 +3,15 @@ package com.dantech.splitvibe.ui.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountRepository
 import com.dantech.splitvibe.data.account.GoogleSignInException
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.llm.waitHint
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.sentences
+import com.dantech.splitvibe.text.text
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -17,7 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** What the account part of Settings is doing, and how the last action ended, if there is anything to say. */
-data class AccountUiState(val working: Boolean = false, val message: String? = null, val isError: Boolean = false)
+data class AccountUiState(val working: Boolean = false, val message: UiText? = null, val isError: Boolean = false)
 
 /** Signing in and out, deleting the account, and the calls left, for the Settings screen. */
 class SettingsViewModel(private val repository: AccountRepository) : ViewModel() {
@@ -49,10 +53,10 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 
     fun signOut(context: Context) = act { repository.signOut(context) }
 
-    fun deleteAccount(context: Context) = act(done = "Your account was deleted.") { repository.deleteAccount(context) }
+    fun deleteAccount(context: Context) = act(done = text(R.string.settings_account_deleted)) { repository.deleteAccount(context) }
 
     /** Runs one account action at a time. [done] is said once it has worked. */
-    private fun act(done: String? = null, block: suspend () -> Unit) {
+    private fun act(done: UiText? = null, block: suspend () -> Unit) {
         if (state.value.working) return
         refreshing.cancel()
         state.value = AccountUiState(working = true)
@@ -75,23 +79,23 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
  * hour, changed nothing. An exception's own message, written for developers, is never shown; the
  * Pro screen's sign-in says the same as Settings.
  */
-internal fun messageOf(error: Exception): String? = when (error) {
+internal fun messageOf(error: Exception): UiText? = when (error) {
     is GoogleSignInException -> when (error.reason) {
         GoogleSignInException.Reason.CANCELLED -> null
-        GoogleSignInException.Reason.NO_ACCOUNT -> "Add a Google account to this phone, then try again."
-        GoogleSignInException.Reason.UNAVAILABLE -> "Signing in with Google is not available on this phone."
-        GoogleSignInException.Reason.FAILED -> "Signing in with Google did not work. Please try again."
+        GoogleSignInException.Reason.NO_ACCOUNT -> text(R.string.sign_in_no_account)
+        GoogleSignInException.Reason.UNAVAILABLE -> text(R.string.sign_in_unavailable)
+        GoogleSignInException.Reason.FAILED -> text(R.string.sign_in_failed)
     }
 
     is ProxyException -> when (error.code) {
-        "id_token" -> "Split Vibe's server did not accept this Google sign-in. Please try again."
-        "sign_in_off" -> "Signing in is not available right now. Please try again later."
-        ProxyApi.SESSION_REFUSED -> "Your sign-in has run out. Sign in again."
-        "rate_limited" -> "That was tried too many times just now, so nothing was changed. ${waitHint(error.retryAfterSeconds)}"
-        else -> "Split Vibe's server had a problem. Try again in a moment."
+        "id_token" -> text(R.string.sign_in_id_token)
+        "sign_in_off" -> text(R.string.sign_in_off)
+        ProxyApi.SESSION_REFUSED -> text(R.string.sign_in_run_out)
+        "rate_limited" -> sentences(text(R.string.account_rate_limited), waitHint(error.retryAfterSeconds))
+        else -> text(R.string.server_problem)
     }
 
-    is IOException -> "Could not reach Split Vibe's server. Check the internet connection and try again."
+    is IOException -> text(R.string.server_unreachable)
 
-    else -> "Something went wrong. Please try again."
+    else -> text(R.string.common_something_went_wrong)
 }

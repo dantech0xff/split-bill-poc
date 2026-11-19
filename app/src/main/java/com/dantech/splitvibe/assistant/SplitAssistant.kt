@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.assistant
 
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.proxy.ProxyApi
@@ -13,6 +14,9 @@ import com.dantech.splitvibe.llm.ProxyModelCall
 import com.dantech.splitvibe.llm.SplitRevision
 import com.dantech.splitvibe.llm.SplitRevisionParser
 import com.dantech.splitvibe.llm.SplitRevisionRequest
+import com.dantech.splitvibe.llm.modelCallFailure
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 
 /**
  * Asks the AI proxy how to change a split, from a sentence the user typed or said, through
@@ -51,7 +55,7 @@ class SplitAssistant(
             // Edits that are all unreadable, with nothing else said, are no answer at all: the next
             // try is the same request.
             if (revision == null || (revision.edits.isEmpty() && revision.question == null && revision.unreadable > 0)) {
-                throw BillAnalyzerException(Kind.BAD_RESPONSE, ProxyModelCall.UNREADABLE_ANSWER)
+                throw modelCallFailure(Kind.BAD_RESPONSE, ProxyModelCall.UNREADABLE_ANSWER)
             }
             revision
         },
@@ -59,22 +63,22 @@ class SplitAssistant(
 
     companion object {
         /** What the assistant says when this build cannot change splits with AI at all. */
-        const val NOT_SET_UP = "Changing a split with AI is not set up in this build of the app."
+        val NOT_SET_UP: UiText = text(R.string.assistant_not_set_up)
 
         /** What the assistant says while the proxy has AI switched off. */
-        const val SWITCHED_OFF = "Changing a split with AI is switched off for now. Please try again later."
+        val SWITCHED_OFF: UiText = text(R.string.assistant_switched_off)
 
         private val WORDS = ModelCallWords(
             notSetUp = NOT_SET_UP,
             switchedOff = SWITCHED_OFF,
-            updateRequired = "Update Split Vibe to keep changing splits with AI.",
-            tooMany = "Too many changes were asked for just now.",
-            failedTries = "This change did not work after several tries. Please try again.",
-            refused = "The AI declined to make this change.",
-            tooLong = "The AI's answer was too long. Ask for fewer changes at a time.",
-            tooSlow = "Working out the change took too long. Please try again.",
-            notTaken = "This bill cannot be changed this way. Change it by hand instead.",
-            cost = "Changing a split takes ${CallsLeft.text(CallsLeft.REVISION)} of a call",
+            updateRequired = text(R.string.assistant_update_required),
+            tooMany = text(R.string.assistant_too_many),
+            failedTries = text(R.string.assistant_failed_tries),
+            refused = text(R.string.assistant_refused),
+            tooLong = text(R.string.assistant_too_long),
+            tooSlow = text(R.string.assistant_too_slow),
+            notTaken = text(R.string.assistant_not_taken),
+            cost = text(R.string.assistant_cost, CallsLeft.text(CallsLeft.REVISION)),
         )
     }
 }

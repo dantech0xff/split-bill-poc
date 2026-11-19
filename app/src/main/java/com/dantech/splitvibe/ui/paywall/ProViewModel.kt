@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.billing.BillingRepository
 import com.dantech.splitvibe.billing.NotOnSaleException
 import com.dantech.splitvibe.billing.ProChange
@@ -18,6 +19,10 @@ import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.llm.waitHint
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.sentences
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.settings.messageOf
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.PurchasesException
@@ -40,7 +45,7 @@ import kotlinx.coroutines.launch
 enum class ProWork { SIGNING_IN, BUYING, SWITCHING, RESTORING }
 
 /** Something to tell the person about what they just did, which with [isError] went wrong. */
-data class ProMessage(val text: String, val isError: Boolean)
+data class ProMessage(val text: UiText, val isError: Boolean)
 
 /** What the Pro screen shows. */
 data class ProUiState(
@@ -53,7 +58,7 @@ data class ProUiState(
     /** The plans and the person's Pro are being asked for. */
     val loading: Boolean = false,
     /** Why the plans could not be shown, which trying again may fix. */
-    val loadError: String? = null,
+    val loadError: UiText? = null,
     /** The plans Google Play sells, monthly before yearly. */
     val plans: List<ProPlan> = emptyList(),
     /** The plan the person picked to buy. */
@@ -189,8 +194,7 @@ class ProViewModel(
         val from = state.value.takeIf { it.onSale }?.membership?.takeIf { it.active } ?: return
         act(ProWork.SWITCHING) {
             purchased { billing.switchTo(activity, plan, from) } ?: return@act restored()
-            val name = nameOf(plan.period).lowercase()
-            ProMessage("You are on the $name plan now. Its price is charged from your next renewal.", isError = false)
+            ProMessage(text(R.string.pro_switched, nameInSentence(plan.period)), isError = false)
         }
     }
 
@@ -257,7 +261,7 @@ class ProViewModel(
     /** What the screen keeps between the person's steps. */
     private data class Local(
         val loading: Boolean = false,
-        val loadError: String? = null,
+        val loadError: UiText? = null,
         val plans: List<ProPlan> = emptyList(),
         val selected: ProPeriod = ProPeriod.MONTHLY,
         val membership: ProMembership? = null,
@@ -266,20 +270,18 @@ class ProViewModel(
     )
 
     private companion object {
-        const val WELCOME = "Welcome to Pro: you now have ${CallsLeft.PRO_MONTHLY} AI calls a month."
-        const val NOT_COUNTED_YET = "Your purchase went through. Your calls turn into Pro's ${CallsLeft.PRO_MONTHLY} a month as soon as " +
-            "Split Vibe's server has checked it, usually within a few minutes."
+        val WELCOME = plural(R.plurals.pro_welcome, CallsLeft.PRO_MONTHLY)
+        val NOT_COUNTED_YET = text(R.string.pro_not_counted_yet, CallsLeft.PRO_MONTHLY)
 
-        const val FOUND_NOT_COUNTED_YET = "Your Pro subscription was found. Your calls turn into Pro's ${CallsLeft.PRO_MONTHLY} a " +
-            "month as soon as Split Vibe's server has checked it."
+        val FOUND_NOT_COUNTED_YET = text(R.string.pro_found_not_counted_yet, CallsLeft.PRO_MONTHLY)
 
-        fun restoredText(change: ProChange): String {
+        fun restoredText(change: ProChange): UiText {
             val pro = change.membership
             return when {
-                pro == null || !(pro.active || pro.awaitingRenewal) -> "No Pro subscription was found for this Google Play account."
-                change.plan == Plan.PRO -> "Your Pro subscription is back on this account."
+                pro == null || !(pro.active || pro.awaitingRenewal) -> text(R.string.pro_no_subscription_found)
+                change.plan == Plan.PRO -> text(R.string.pro_back_on_account)
                 pro.active -> FOUND_NOT_COUNTED_YET
-                else -> "Your Pro subscription was found. Pro comes back once Google Play has renewed it."
+                else -> text(R.string.pro_back_after_renewal)
             }
         }
     }
@@ -296,7 +298,7 @@ internal fun proMessageOf(error: Exception): ProMessage? {
         is PurchasesException -> storeText(error.code)
         is ProxyException -> proxyText(error)
         is NotOnSaleException -> CANNOT_CHECK
-        is SignInNeededException -> "Sign in with Google to buy Pro."
+        is SignInNeededException -> text(R.string.pro_sign_in_to_buy)
         is IOException -> NO_CONNECTION
         else -> DID_NOT_WORK
     } ?: return null
@@ -310,33 +312,32 @@ internal fun proMessageOf(error: Exception): ProMessage? {
  * cancelled. A product that is not on sale, as before it is active in Google Play or in a build that
  * Google Play sells nothing to, cannot be bought by trying again.
  */
-private fun storeText(code: PurchasesErrorCode): String? = when (code) {
+private fun storeText(code: PurchasesErrorCode): UiText? = when (code) {
     PurchasesErrorCode.PurchaseCancelledError -> null
-    PurchasesErrorCode.PaymentPendingError -> "The payment is pending. Pro starts once Google Play confirms it."
+    PurchasesErrorCode.PaymentPendingError -> text(R.string.pro_payment_pending)
     PurchasesErrorCode.ReceiptAlreadyInUseError -> ANOTHER_ACCOUNT
     PurchasesErrorCode.NetworkError -> NO_CONNECTION
     PurchasesErrorCode.StoreProblemError -> STORE_PROBLEM
-    PurchasesErrorCode.PurchaseNotAllowedError -> "This phone or this Google Play account cannot buy subscriptions."
+    PurchasesErrorCode.PurchaseNotAllowedError -> text(R.string.pro_cannot_buy)
     PurchasesErrorCode.ConfigurationError, PurchasesErrorCode.ProductNotAvailableForPurchaseError -> NOTHING_ON_SALE
     else -> DID_NOT_WORK
 }
 
 /** What a refusal of the proxy's check of the plan means for the person. */
-private fun proxyText(refusal: ProxyException): String = when (refusal.code) {
-    "rate_limited" -> "Your plan was checked many times in the last hour. ${waitHint(refusal.retryAfterSeconds)}"
+private fun proxyText(refusal: ProxyException): UiText = when (refusal.code) {
+    "rate_limited" -> sentences(text(R.string.pro_checked_too_often), waitHint(refusal.retryAfterSeconds))
     ProxyApi.NOT_CONFIGURED -> CANNOT_CHECK
-    "subscription_unavailable" -> "Split Vibe's server could not check your subscription just now. Try again in a moment."
-    ProxyApi.SESSION_REFUSED -> "Your sign-in has run out. Sign in again to buy or manage Pro."
-    else -> "Split Vibe's server had a problem. Try again in a moment."
+    "subscription_unavailable" -> text(R.string.pro_subscription_unavailable)
+    ProxyApi.SESSION_REFUSED -> text(R.string.pro_sign_in_run_out)
+    else -> text(R.string.server_problem)
 }
 
-private const val NO_CONNECTION = "There is no connection. Check it and try again."
-private const val STORE_PROBLEM = "Google Play has a problem right now. Try again later."
-private const val DID_NOT_WORK = "That did not work. Please try again."
+private val NO_CONNECTION = text(R.string.pro_no_connection)
+private val STORE_PROBLEM = text(R.string.pro_store_problem)
+private val DID_NOT_WORK = text(R.string.pro_did_not_work)
 
 /** Why Pro is not on sale: Split Vibe's server would count none of what is bought, as it has no key for RevenueCat yet. */
-private const val CANNOT_CHECK = "Split Vibe's server cannot check subscriptions yet."
+private val CANNOT_CHECK = text(R.string.pro_cannot_check)
 
 /** A subscription bought by another Split Vibe account stays with it, and RevenueCat refuses it to this one. */
-private const val ANOTHER_ACCOUNT =
-    "The subscription on this Google Play account belongs to another Split Vibe account. Sign in with that account to use it."
+private val ANOTHER_ACCOUNT = text(R.string.pro_another_account)

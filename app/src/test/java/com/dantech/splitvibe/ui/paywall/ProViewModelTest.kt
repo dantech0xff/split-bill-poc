@@ -16,6 +16,8 @@ import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.english
+import com.dantech.splitvibe.inEnglish
 import com.revenuecat.purchases.CacheFetchPolicy
 import com.revenuecat.purchases.PurchasesErrorCode
 import com.revenuecat.purchases.models.StoreReplacementMode
@@ -96,7 +98,7 @@ class ProViewModelTest {
         viewModel.buy(activity)
         awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
 
-        assertEquals(ProMessage("Sign in with Google to buy Pro.", isError = true), viewModel.state.value.message)
+        assertEquals("Sign in with Google to buy Pro." to true, viewModel.state.value.message.shown())
         assertTrue(billing.purchases.isEmpty())
         assertEquals("nor is the proxy asked", asked, server.requestCount)
     }
@@ -143,7 +145,7 @@ class ProViewModelTest {
         assertTrue(state.member)
         assertEquals(BigDecimal(300), state.callsLeft?.limit)
         assertEquals(Plan.PRO, state.callsLeft?.plan)
-        assertEquals(ProMessage("Welcome to Pro: you now have 300 AI calls a month.", isError = false), state.message)
+        assertEquals("Welcome to Pro: you now have 300 AI calls a month." to false, state.message.shown())
     }
 
     @Test
@@ -170,8 +172,8 @@ class ProViewModelTest {
         viewModel.buy(activity)
         awaitOnMain { viewModel.state.value.message != null }
 
-        val pending = ProMessage("The payment is pending. Pro starts once Google Play confirms it.", isError = false)
-        assertEquals(pending, viewModel.state.value.message)
+        val pending = "The payment is pending. Pro starts once Google Play confirms it." to false
+        assertEquals(pending, viewModel.state.value.message.shown())
         assertFalse(viewModel.state.value.member)
         assertEquals("the proxy is asked only whether Pro is on sale", asked + 1, server.requestCount)
     }
@@ -195,7 +197,7 @@ class ProViewModelTest {
             viewModel.buy(activity)
             awaitOnMain { viewModel.state.value.let { it.working == null && it.message != null } }
 
-            assertEquals("$index", ProMessage(ANOTHER_ACCOUNT, isError = true), viewModel.state.value.message)
+            assertEquals("$index", ANOTHER_ACCOUNT to true, viewModel.state.value.message.shown())
             assertFalse(viewModel.state.value.member)
         }
         assertEquals("only Google Play's refusal is restored first", 1, billing.restores)
@@ -214,7 +216,7 @@ class ProViewModelTest {
 
         assertEquals(1, billing.restores)
         val state = viewModel.state.value
-        assertEquals(ProMessage("Your Pro subscription is back on this account.", isError = false), state.message)
+        assertEquals("Your Pro subscription is back on this account." to false, state.message.shown())
         assertTrue(state.member)
         assertEquals(Plan.PRO, state.callsLeft?.plan)
         repeat(asked) { server.takeRequest() }
@@ -269,7 +271,7 @@ class ProViewModelTest {
         viewModel.restore()
         awaitOnMain { viewModel.state.value.message != null }
 
-        assertEquals("Your Pro subscription is back on this account.", viewModel.state.value.message?.text)
+        assertEquals("Your Pro subscription is back on this account.", viewModel.state.value.message?.text.inEnglish())
         assertTrue(viewModel.state.value.member)
         assertEquals(1, billing.restores)
 
@@ -278,7 +280,7 @@ class ProViewModelTest {
         viewModel.restore()
         awaitOnMain { viewModel.state.value.message != null }
 
-        assertEquals(ProMessage(ANOTHER_ACCOUNT, isError = true), viewModel.state.value.message)
+        assertEquals(ANOTHER_ACCOUNT to true, viewModel.state.value.message.shown())
     }
 
     @Test
@@ -288,8 +290,8 @@ class ProViewModelTest {
         viewModel.restore()
         awaitOnMain { viewModel.state.value.message != null }
 
-        val nothing = ProMessage("No Pro subscription was found for this Google Play account.", isError = false)
-        assertEquals(nothing, viewModel.state.value.message)
+        val nothing = "No Pro subscription was found for this Google Play account." to false
+        assertEquals(nothing, viewModel.state.value.message.shown())
     }
 
     @Test
@@ -305,7 +307,8 @@ class ProViewModelTest {
 
         assertEquals(listOf(FakeBilling.YEARLY to PlanChange("pro", StoreReplacementMode.WITHOUT_PRORATION)), billing.purchases)
         assertEquals(FakeBilling.YEARLY, viewModel.state.value.currentPlan)
-        assertEquals("You are on the yearly plan now. Its price is charged from your next renewal.", viewModel.state.value.message?.text)
+        val switched = "You are on the yearly plan now. Its price is charged from your next renewal."
+        assertEquals(switched, viewModel.state.value.message?.text.inEnglish())
     }
 
     @Test
@@ -326,7 +329,7 @@ class ProViewModelTest {
             val viewModel = viewModel()
             awaitOnMain { viewModel.state.value.let { !it.loading && it.plans.isNotEmpty() } }
 
-            assertEquals(said, viewModel.state.value.message?.text)
+            assertEquals(said, viewModel.state.value.message?.text.inEnglish())
             assertEquals("the last known calls stay", KNOWN, viewModel.state.value.callsLeft)
             assertTrue("Pro stays on sale", viewModel.state.value.onSale)
         }
@@ -343,7 +346,7 @@ class ProViewModelTest {
 
         val state = viewModel.state.value
         assertFalse(state.onSale)
-        assertEquals(ProMessage("Split Vibe's server cannot check subscriptions yet.", isError = true), state.message)
+        assertEquals("Split Vibe's server cannot check subscriptions yet." to true, state.message.shown())
         viewModel.buy(activity)
         viewModel.switchTo(activity, FakeBilling.YEARLY)
         assertNull("nothing started", viewModel.state.value.working)
@@ -366,7 +369,7 @@ class ProViewModelTest {
 
         assertTrue(billing.purchases.isEmpty())
         assertFalse("the screen shows that Pro cannot be bought now", viewModel.state.value.onSale)
-        assertEquals(ProMessage("Split Vibe's server cannot check subscriptions yet.", isError = true), viewModel.state.value.message)
+        assertEquals("Split Vibe's server cannot check subscriptions yet." to true, viewModel.state.value.message.shown())
     }
 
     @Test
@@ -378,7 +381,7 @@ class ProViewModelTest {
         val viewModel = viewModel()
         awaitOnMain { viewModel.state.value.let { !it.loading && it.loadError != null } }
 
-        assertEquals("There is no connection. Check it and try again.", viewModel.state.value.loadError)
+        assertEquals("There is no connection. Check it and try again.", viewModel.state.value.loadError.inEnglish())
         assertTrue(billing.starts.isEmpty())
     }
 
@@ -402,18 +405,18 @@ class ProViewModelTest {
             FakeBilling.refused(PurchasesErrorCode.StoreProblemError) to STORE_PROBLEM,
             FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseNotAllowedError) to
                 "This phone or this Google Play account cannot buy subscriptions.",
-            FakeBilling.refused(PurchasesErrorCode.ConfigurationError) to NOTHING_ON_SALE,
-            FakeBilling.purchaseFailed(PurchasesErrorCode.ProductNotAvailableForPurchaseError) to NOTHING_ON_SALE,
+            FakeBilling.refused(PurchasesErrorCode.ConfigurationError) to NOTHING_ON_SALE.english(),
+            FakeBilling.purchaseFailed(PurchasesErrorCode.ProductNotAvailableForPurchaseError) to NOTHING_ON_SALE.english(),
             FakeBilling.purchaseFailed(PurchasesErrorCode.PurchaseCancelledError, cancelled = true) to null,
         )
-        for ((failure, said) in cases) assertEquals(failure.code.name, said, proMessageOf(failure)?.text)
+        for ((failure, said) in cases) assertEquals(failure.code.name, said, proMessageOf(failure)?.text.inEnglish())
     }
 
     @Test
     fun `a failure of the app's own says only that it did not work, never what the exception says`() {
         val failure = IllegalStateException("RevenueCat is used only once a purchaser is signed in")
 
-        assertEquals(ProMessage("That did not work. Please try again.", isError = true), proMessageOf(failure))
+        assertEquals("That did not work. Please try again." to true, proMessageOf(failure).shown())
     }
 
     private fun viewModel(repository: BillingRepository = BillingRepository(billing, proxy.api, proxy.account, canSignIn = true)) =
@@ -430,6 +433,9 @@ class ProViewModelTest {
         awaitOnMain { viewModel.state.value.let { !it.loading && it.plans.isNotEmpty() } }
         return viewModel
     }
+
+    /** What [this] says in English, and whether it is an error. */
+    private fun ProMessage?.shown(): Pair<String, Boolean>? = this?.let { it.text.english() to it.isError }
 
     private fun json(status: Int, body: String): MockResponse =
         MockResponse().setResponseCode(status).setHeader("content-type", "application/json").setBody(body)

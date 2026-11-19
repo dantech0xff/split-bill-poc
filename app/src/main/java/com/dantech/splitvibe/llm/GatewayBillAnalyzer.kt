@@ -1,11 +1,13 @@
 package com.dantech.splitvibe.llm
 
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.ocr.OcrResult
+import com.dantech.splitvibe.text.text
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -37,7 +39,7 @@ class GatewayBillAnalyzer(
             val document = OcrLayoutEncoder.encode(pages)
             // The proxy refuses longer text. Saying so here tells the person what to change.
             if (document.length > MAX_DOCUMENT_CHARS) {
-                throw BillAnalyzerException(Kind.BAD_REQUEST, if (pages.size > 1) TOO_MANY_PAGES else TOO_LONG)
+                throw modelCallFailure(Kind.BAD_REQUEST, text(if (pages.size > 1) R.string.read_too_many_pages else R.string.read_too_long))
             }
             buildJsonObject {
                 put("schemaVersion", 1)
@@ -52,21 +54,18 @@ class GatewayBillAnalyzer(
     private companion object {
         /** The longest text of a bill the AI proxy takes. */
         const val MAX_DOCUMENT_CHARS = 20_000
-        const val TOO_LONG =
-            "This bill holds too much text to read in one go. Photograph only the lines with the items and totals, or type it in by hand."
-        const val TOO_MANY_PAGES = "These pages hold too much text to read in one go. Try fewer pages at a time."
 
         val WORDS = ModelCallWords(
             notSetUp = checkNotNull(AiStatus.NOT_SET_UP.notice),
             switchedOff = checkNotNull(AiStatus.OFF.notice),
-            updateRequired = "Update Split Vibe to keep reading bills.",
-            tooMany = "Too many bills were read just now.",
-            failedTries = "Reading this bill did not work after several tries. Please try again.",
-            refused = "The AI declined to read this bill.",
-            tooLong = TOO_LONG,
-            tooSlow = "Reading the bill took too long. Please try again.",
-            notTaken = "This bill could not be sent to be read. Please try again.",
-            cost = "Reading a bill takes a whole call",
+            updateRequired = text(R.string.read_update_required),
+            tooMany = text(R.string.read_too_many),
+            failedTries = text(R.string.read_failed_tries),
+            refused = text(R.string.read_refused),
+            tooLong = text(R.string.read_too_long),
+            tooSlow = text(R.string.read_too_slow),
+            notTaken = text(R.string.read_not_taken),
+            cost = text(R.string.read_cost),
         )
     }
 }

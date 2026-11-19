@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.billing
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.inEnglish
 import com.dantech.splitvibe.ui.paywall.offerText
 import com.revenuecat.purchases.models.Period
 import com.revenuecat.purchases.models.Price
@@ -8,12 +10,14 @@ import com.revenuecat.purchases.models.RecurrenceMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
 
 /**
  * The terms of an offer, from the phases Google Play sends through RevenueCat for each of its three
  * kinds of offer to the words the Pro screen states before anything is bought. Google Play sends
  * the full price last, recurring without end, with 0 cycles.
  */
+@RunWith(AndroidJUnit4::class)
 class RevenueCatOfferTest {
 
     @Test
@@ -23,7 +27,7 @@ class RevenueCatOfferTest {
         val offer = checkNotNull(offerOf(listOf(trial, MONTHLY_FULL_PRICE)))
 
         assertEquals(listOf(OfferPhase(price = null, BillingPeriod(7, PeriodUnit.DAY), cycles = 1)), offer)
-        assertEquals("Free for 7 days, then $3.99 a month.", offerText(FakeBilling.MONTHLY.copy(offer = offer)))
+        assertEquals("Free for 7 days, then $3.99 a month.", offerText(FakeBilling.MONTHLY.copy(offer = offer)).inEnglish())
     }
 
     @Test
@@ -33,7 +37,7 @@ class RevenueCatOfferTest {
         val offer = checkNotNull(offerOf(listOf(discounted, MONTHLY_FULL_PRICE)))
 
         assertEquals(listOf(OfferPhase("$1.99", BillingPeriod(1, PeriodUnit.MONTH), cycles = 3)), offer)
-        assertEquals("$1.99 a month for 3 months, then $3.99 a month.", offerText(FakeBilling.MONTHLY.copy(offer = offer)))
+        assertEquals("$1.99 a month for 3 months, then $3.99 a month.", offerText(FakeBilling.MONTHLY.copy(offer = offer)).inEnglish())
     }
 
     @Test
@@ -43,7 +47,7 @@ class RevenueCatOfferTest {
         val offer = checkNotNull(offerOf(listOf(upFront, YEARLY_FULL_PRICE)))
 
         assertEquals(listOf(OfferPhase("$5.99", BillingPeriod(3, PeriodUnit.MONTH), cycles = 1)), offer)
-        assertEquals("$5.99 for the first 3 months, then $29.99 a year.", offerText(FakeBilling.YEARLY.copy(offer = offer)))
+        assertEquals("$5.99 for the first 3 months, then $29.99 a year.", offerText(FakeBilling.YEARLY.copy(offer = offer)).inEnglish())
     }
 
     @Test
@@ -53,7 +57,8 @@ class RevenueCatOfferTest {
 
             val offer = checkNotNull(offerOf(listOf(phase, MONTHLY_FULL_PRICE)))
 
-            assertEquals("$count", "$0.99 for the first month, then $3.99 a month.", offerText(FakeBilling.MONTHLY.copy(offer = offer)))
+            val said = offerText(FakeBilling.MONTHLY.copy(offer = offer)).inEnglish()
+            assertEquals("$count", "$0.99 for the first month, then $3.99 a month.", said)
         }
     }
 

@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvCard
@@ -54,7 +56,7 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCurrency
-import com.dantech.splitvibe.ui.paywall.GET_PRO
+import com.dantech.splitvibe.text.resolve
 
 /** What the assistant on the result screen asks the flow to do. */
 class AssistantActions(
@@ -86,7 +88,7 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
     val answering = state.question != null
     SvCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-            state.notice?.let { SvMessageCard(text = it, isError = false) }
+            state.notice?.let { SvMessageCard(text = it.resolve(), isError = false) }
             state.question?.let { question ->
                 // Read out as it arrives: the answer goes into the field below.
                 SvMessageCard(
@@ -140,12 +142,12 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
             }
             state.error?.let { error ->
                 SvMessageCard(
-                    text = error,
+                    text = error.resolve(),
                     isError = true,
                     action = when {
-                        state.errorOpensPro -> GET_PRO
-                        state.errorOpensSettings -> "Open settings"
-                        else -> "OK"
+                        state.errorOpensPro -> stringResource(R.string.common_get_pro)
+                        state.errorOpensSettings -> stringResource(R.string.common_open_settings)
+                        else -> stringResource(R.string.common_ok)
                     },
                     onAction = when {
                         state.errorOpensPro -> actions.onOpenPro

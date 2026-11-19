@@ -11,6 +11,7 @@ import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyApi
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.ocr.OcrLine
@@ -149,7 +150,7 @@ class GatewayBillAnalyzerTest {
             server.enqueue(case.reply)
             val failure = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
             assertEquals(case.toString(), case.kind, failure.kind)
-            assertTrue("${failure.message} should say \"${case.says}\"", failure.message.orEmpty().contains(case.says))
+            assertTrue("${failure.text.english()} should say \"${case.says}\"", failure.text.english().contains(case.says))
         }
     }
 
@@ -232,7 +233,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { expiring.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.SIGN_IN_EXPIRED, failure.kind)
-        assertTrue(failure.message.orEmpty().contains("Sign in again"))
+        assertTrue(failure.text.english().contains("Sign in again"))
         assertEquals(0, server.requestCount)
     }
 
@@ -306,7 +307,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { proxy.analyzer.analyze(listOf(long), INSTRUCTION, "VND") }
 
         assertEquals(Kind.BAD_REQUEST, failure.kind)
-        assertTrue(failure.message.orEmpty().contains("too much text"))
+        assertTrue(failure.text.english().contains("too much text"))
         assertEquals(0, server.requestCount)
     }
 
@@ -330,7 +331,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { proxy.analyzer.analyze(listOf(page, page), INSTRUCTION, "VND") }
 
         assertEquals(Kind.BAD_REQUEST, failure.kind)
-        assertTrue(failure.message.orEmpty().contains("fewer pages"))
+        assertTrue(failure.text.english().contains("fewer pages"))
         assertEquals(0, server.requestCount)
     }
 
@@ -342,7 +343,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
-        assertEquals("You have used your 3 free calls.", failure.message)
+        assertEquals("You have used your 3 free calls.", failure.text.english())
     }
 
     @Test
@@ -365,7 +366,7 @@ class GatewayBillAnalyzerTest {
             val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
             assertEquals(Kind.QUOTA_EXHAUSTED, failure.kind)
-            assertEquals(said, failure.message)
+            assertEquals(said, failure.text.english())
             assertEquals("Pro is offered to everyone not on it", !usage.contains("\"pro\""), failure.proHelps(sellsPro = true))
             assertFalse("the invite leads to Pro, not Settings", failure.signInHelps(canSignIn = true, signedIn = false, sellsPro = true))
         }
@@ -380,9 +381,9 @@ class GatewayBillAnalyzerTest {
         val trial = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
         val monthly = failureOf { proxy.analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
-        assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", trial.message)
+        assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", trial.text.english())
         assertTrue(trial.signInHelps(canSignIn = true, signedIn = false, sellsPro = false))
-        assertEquals("You have used this month's 10 calls. They come back on 1 December.", monthly.message)
+        assertEquals("You have used this month's 10 calls. They come back on 1 December.", monthly.text.english())
         assertFalse(trial.proHelps(sellsPro = false))
         assertFalse(monthly.proHelps(sellsPro = false))
     }
@@ -406,7 +407,7 @@ class GatewayBillAnalyzerTest {
         val failure = failureOf { analyzer.analyze(listOf(ocr), INSTRUCTION, "VND") }
 
         assertEquals(Kind.AI_OFF, failure.kind)
-        assertEquals(AiStatus.NOT_SET_UP.notice, failure.message)
+        assertEquals(AiStatus.NOT_SET_UP.notice, failure.text)
         assertEquals(AiStatus.NOT_SET_UP, account.account.value.ai)
         assertEquals(0, server.requestCount)
     }

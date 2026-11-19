@@ -30,6 +30,7 @@ import com.dantech.splitvibe.billing.ProPlan
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.text.UiText
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -169,7 +170,7 @@ class ProScreenTest {
         show(SIGNED_IN.copy(plans = emptyList(), loading = true))
         compose.onNodeWithText("Loading the plans…").assertExists()
 
-        state = SIGNED_IN.copy(plans = emptyList(), loadError = "There is no connection. Check it and try again.")
+        state = SIGNED_IN.copy(plans = emptyList(), loadError = UiText.Raw("There is no connection. Check it and try again."))
         compose.onNode(hasText("Try again") and hasClickAction()).performClick()
         compose.onNodeWithText("Subscribe", substring = true).assertDoesNotExist()
         assertEquals(listOf("retry"), done)
@@ -177,7 +178,8 @@ class ProScreenTest {
 
     @Test
     fun `what an action came to is said above the main button, and can be put away`() {
-        show(SIGNED_IN.copy(message = ProMessage("The payment is pending. Pro starts once Google Play confirms it.", isError = false)))
+        val pending = UiText.Raw("The payment is pending. Pro starts once Google Play confirms it.")
+        show(SIGNED_IN.copy(message = ProMessage(pending, isError = false)))
 
         compose.onAllNodesWithText("The payment is pending. Pro starts once Google Play confirms it.").assertCountEquals(1)
         compose.onNode(hasText("OK") and hasClickAction()).performClick()

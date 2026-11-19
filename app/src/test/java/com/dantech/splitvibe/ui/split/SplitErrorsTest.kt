@@ -24,6 +24,7 @@ import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.llm.BillAnalysis
 import com.dantech.splitvibe.llm.BillAnalyzer
 import com.dantech.splitvibe.llm.BillAnalyzerException
@@ -32,6 +33,7 @@ import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
+import com.dantech.splitvibe.text.UiText
 import java.math.BigDecimal
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
@@ -170,11 +172,11 @@ class SplitErrorsTest {
             }
         }
 
-        compose.onAllNodesWithText(notice).assertCountEquals(1)
+        compose.onAllNodesWithText(notice.english()).assertCountEquals(1)
     }
 
     private companion object {
-        const val USED_UP = "You have used this month's 10 calls. They come back on 1 December. Get Pro for 300 calls a month."
+        val USED_UP = UiText.Raw("You have used this month's 10 calls. They come back on 1 December. Get Pro for 300 calls a month.")
     }
 
     private data class Case(

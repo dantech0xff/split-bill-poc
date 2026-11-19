@@ -1,31 +1,36 @@
 package com.dantech.splitvibe.ui.paywall
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.billing.BillingPeriod
 import com.dantech.splitvibe.billing.FakeBilling
 import com.dantech.splitvibe.billing.OfferPhase
 import com.dantech.splitvibe.billing.PeriodUnit
+import com.dantech.splitvibe.english
+import com.dantech.splitvibe.inEnglish
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
 
 /** What the Pro screen says about prices, offers, renewals and where to manage a subscription. */
+@RunWith(AndroidJUnit4::class)
 class ProTextsTest {
 
     private val month = BillingPeriod(1, PeriodUnit.MONTH)
 
     @Test
     fun `each plan says its own price for its own period, the yearly one a year's`() {
-        assertEquals("$3.99 a month", priceText(FakeBilling.MONTHLY))
-        assertEquals("$29.99 a year", priceText(FakeBilling.YEARLY))
+        assertEquals("$3.99 a month", priceText(FakeBilling.MONTHLY).english())
+        assertEquals("$29.99 a year", priceText(FakeBilling.YEARLY).english())
         val quarterly = FakeBilling.MONTHLY.copy(price = "€9.99", billingPeriod = BillingPeriod(3, PeriodUnit.MONTH))
-        assertEquals("€9.99 every 3 months", priceText(quarterly))
+        assertEquals("€9.99 every 3 months", priceText(quarterly).english())
     }
 
     @Test
     fun `a plan without an offer says nothing more`() {
-        assertNull(offerText(FakeBilling.MONTHLY))
+        assertNull(offerText(FakeBilling.MONTHLY).inEnglish())
     }
 
     @Test
@@ -33,8 +38,8 @@ class ProTextsTest {
         val week = FakeBilling.MONTHLY.copy(offer = listOf(OfferPhase(price = null, BillingPeriod(7, PeriodUnit.DAY), cycles = 1)))
         val twoWeeks = FakeBilling.YEARLY.copy(offer = listOf(OfferPhase(price = null, BillingPeriod(1, PeriodUnit.WEEK), cycles = 2)))
 
-        assertEquals("Free for 7 days, then $3.99 a month.", offerText(week))
-        assertEquals("Free for 2 weeks, then $29.99 a year.", offerText(twoWeeks))
+        assertEquals("Free for 7 days, then $3.99 a month.", offerText(week).inEnglish())
+        assertEquals("Free for 2 weeks, then $29.99 a year.", offerText(twoWeeks).inEnglish())
     }
 
     @Test
@@ -43,9 +48,9 @@ class ProTextsTest {
         val threeMonths = FakeBilling.MONTHLY.copy(offer = listOf(OfferPhase("$1.99", month, cycles = 3)))
         val paidUpFront = FakeBilling.YEARLY.copy(offer = listOf(OfferPhase("$5.99", BillingPeriod(3, PeriodUnit.MONTH), cycles = 1)))
 
-        assertEquals("$0.99 for the first month, then $3.99 a month.", offerText(firstMonth))
-        assertEquals("$1.99 a month for 3 months, then $3.99 a month.", offerText(threeMonths))
-        assertEquals("$5.99 for the first 3 months, then $29.99 a year.", offerText(paidUpFront))
+        assertEquals("$0.99 for the first month, then $3.99 a month.", offerText(firstMonth).inEnglish())
+        assertEquals("$1.99 a month for 3 months, then $3.99 a month.", offerText(threeMonths).inEnglish())
+        assertEquals("$5.99 for the first 3 months, then $29.99 a year.", offerText(paidUpFront).inEnglish())
     }
 
     @Test
@@ -54,15 +59,15 @@ class ProTextsTest {
             offer = listOf(OfferPhase(null, BillingPeriod(1, PeriodUnit.WEEK), cycles = 1), OfferPhase("$1.99", month, cycles = 2)),
         )
 
-        assertEquals("Free for a week, then $1.99 a month for 2 months, then $3.99 a month.", offerText(plan))
+        assertEquals("Free for a week, then $1.99 a month for 2 months, then $3.99 a month.", offerText(plan).inEnglish())
     }
 
     @Test
     fun `Pro says when it renews, or when it ends when it will not renew`() {
-        assertEquals("Renews on 17 December 2026.", renewalText(FakeBilling.active(), ZoneOffset.UTC))
+        assertEquals("Renews on 17 December 2026.", renewalText(FakeBilling.active(), ZoneOffset.UTC).inEnglish())
         val ending = FakeBilling.active(willRenew = false)
-        assertEquals("Ends on 17 December 2026, as it is set not to renew.", renewalText(ending, ZoneOffset.UTC))
-        assertEquals("It does not end.", renewalText(FakeBilling.active().copy(expiresAt = null), ZoneOffset.UTC))
+        assertEquals("Ends on 17 December 2026, as it is set not to renew.", renewalText(ending, ZoneOffset.UTC).inEnglish())
+        assertEquals("It does not end.", renewalText(FakeBilling.active().copy(expiresAt = null), ZoneOffset.UTC).inEnglish())
     }
 
     @Test
@@ -71,9 +76,12 @@ class ProTextsTest {
         val onHold = FakeBilling.active(willRenew = false, billingIssue = true).copy(active = false)
         val ended = FakeBilling.active(willRenew = false).copy(active = false)
 
-        assertEquals("Renewal pending: Google Play is renewing your subscription, which can take a few hours.", renewalText(renewing))
-        assertNull(renewalText(onHold))
-        assertNull(renewalText(ended))
+        assertEquals(
+            "Renewal pending: Google Play is renewing your subscription, which can take a few hours.",
+            renewalText(renewing).inEnglish(),
+        )
+        assertNull(renewalText(onHold).inEnglish())
+        assertNull(renewalText(ended).inEnglish())
     }
 
     @Test

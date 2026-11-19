@@ -1,4 +1,259 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Split Vibe</string>
+
+    <!-- Shared by several screens -->
+    <string name="two_sentences">%1$s %2$s</string>
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_ok">OK</string>
+    <string name="common_open">Open</string>
+    <string name="common_save">Save</string>
+    <string name="common_try_again">Try again</string>
+    <string name="common_working">Working…</string>
+    <string name="common_sign_in_with_google">Sign in with Google</string>
+    <string name="common_get_pro">Get Pro</string>
+    <string name="common_something_went_wrong">Something went wrong. Please try again.</string>
+    <string name="server_problem">Split Vibe\'s server had a problem. Try again in a moment.</string>
+    <string name="server_unreachable">Could not reach Split Vibe\'s server. Check the internet connection and try again.</string>
+    <string name="wait_later">Try again later.</string>
+    <string name="wait_a_minute">Try again in a minute.</string>
+    <plurals name="wait_minutes">
+        <item quantity="one">Try again in about %d minute.</item>
+        <item quantity="other">Try again in about %d minutes.</item>
+    </plurals>
+    <plurals name="wait_hours">
+        <item quantity="one">Try again in about %d hour.</item>
+        <item quantity="other">Try again in about %d hours.</item>
+    </plurals>
+
+    <!-- Reading bills and changing splits with AI -->
+    <string name="ai_not_set_up">Reading bills with AI is not set up in this build of the app.</string>
+    <string name="ai_off">Reading bills with AI is switched off for now. Please try again later.</string>
+    <string name="model_sign_in_expired">Your sign-in has run out. Sign in again in Settings to use your monthly calls.</string>
+    <string name="model_busy">The AI is busy right now.</string>
+    <string name="model_unreadable_answer">The AI\'s answer could not be read. Please try again.</string>
+    <string name="model_quota_used">You have used your free calls.</string>
+    <plurals name="model_quota_used_month">
+        <item quantity="one">You have used this month\'s %1$s call. It comes back on %2$s.</item>
+        <item quantity="other">You have used this month\'s %1$s calls. They come back on %2$s.</item>
+    </plurals>
+    <plurals name="model_quota_left_month">
+        <item quantity="one">%1$s, and %2$s of this month\'s %3$s call is left. It comes back on %4$s.</item>
+        <item quantity="other">%1$s, and %2$s of this month\'s %3$s calls are left. They come back on %4$s.</item>
+    </plurals>
+    <plurals name="model_quota_used_free">
+        <item quantity="one">You have used your %1$s free call.</item>
+        <item quantity="other">You have used your %1$s free calls.</item>
+    </plurals>
+    <plurals name="model_quota_left_free">
+        <item quantity="one">%1$s, and %2$s of your %3$s free call is left.</item>
+        <item quantity="other">%1$s, and %2$s of your %3$s free calls are left.</item>
+    </plurals>
+    <plurals name="model_more_pro">
+        <item quantity="one">Get Pro for %d call a month.</item>
+        <item quantity="other">Get Pro for %d calls a month.</item>
+    </plurals>
+    <plurals name="model_more_sign_in_or_pro">
+        <item quantity="one">Sign in with Google for %1$d call a month, or get Pro for %2$d.</item>
+        <item quantity="other">Sign in with Google for %1$d calls a month, or get Pro for %2$d.</item>
+    </plurals>
+    <string name="model_more_sign_in">Sign in with Google in Settings to get more each month.</string>
+    <string name="read_update_required">Update Split Vibe to keep reading bills.</string>
+    <string name="read_too_many">Too many bills were read just now.</string>
+    <string name="read_failed_tries">Reading this bill did not work after several tries. Please try again.</string>
+    <string name="read_refused">The AI declined to read this bill.</string>
+    <string name="read_too_long">This bill holds too much text to read in one go. Photograph only the lines with the items and totals, or type it in by hand.</string>
+    <string name="read_too_many_pages">These pages hold too much text to read in one go. Try fewer pages at a time.</string>
+    <string name="read_too_slow">Reading the bill took too long. Please try again.</string>
+    <string name="read_not_taken">This bill could not be sent to be read. Please try again.</string>
+    <string name="read_cost">Reading a bill takes a whole call</string>
+    <string name="assistant_not_set_up">Changing a split with AI is not set up in this build of the app.</string>
+    <string name="assistant_switched_off">Changing a split with AI is switched off for now. Please try again later.</string>
+    <string name="assistant_update_required">Update Split Vibe to keep changing splits with AI.</string>
+    <string name="assistant_too_many">Too many changes were asked for just now.</string>
+    <string name="assistant_failed_tries">This change did not work after several tries. Please try again.</string>
+    <string name="assistant_refused">The AI declined to make this change.</string>
+    <string name="assistant_too_long">The AI\'s answer was too long. Ask for fewer changes at a time.</string>
+    <string name="assistant_too_slow">Working out the change took too long. Please try again.</string>
+    <string name="assistant_not_taken">This bill cannot be changed this way. Change it by hand instead.</string>
+    <string name="assistant_cost">Changing a split takes %1$s of a call</string>
+
+    <!-- Settings and the account -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_local_currency">Local currency</string>
+    <string name="settings_local_currency_hint">The currency this app works in, for example VND. Used when a bill does not show its currency.</string>
+    <string name="settings_local_currency_invalid">Enter a three-letter currency code such as VND, USD or EUR.</string>
+    <string name="settings_your_name">Your name</string>
+    <string name="settings_your_name_hint">How you show in groups and on the requests you send.</string>
+    <string name="settings_payment_methods">Ways to get paid</string>
+    <string name="settings_payment_methods_hint">Bank accounts, PayPal, UPI or links that your requests carry</string>
+    <string name="settings_ai_calls">AI calls</string>
+    <string name="settings_sign_in_expired">Your sign-in has run out. Sign in again to use your monthly calls.</string>
+    <string name="settings_sign_in_expired_as">Your sign-in as %1$s has run out. Sign in again to use your monthly calls.</string>
+    <string name="settings_signed_in">Signed in with Google as your Google account.</string>
+    <string name="settings_signed_in_as">Signed in with Google as %1$s.</string>
+    <string name="settings_sign_in_for_calls">Sign in with Google to get calls every month.</string>
+    <string name="settings_sign_in_not_set_up">Signing in is not set up in this build of the app.</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_delete_title">Delete your account?</string>
+    <string name="settings_delete_text">Split Vibe\'s server deletes what it keeps about your Google account: the count of your calls and your plan. Bills on this phone stay as they are. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</string>
+    <string name="settings_pro_plan">Pro plan</string>
+    <string name="settings_free_plan">Free plan</string>
+    <string name="settings_manage_pro">Manage Pro</string>
+    <string name="settings_speech_service">Use the phone\'s online speech service</string>
+    <string name="settings_speech_service_hint">For saying a change when the phone cannot turn speech into text by itself. It may send what you say over the internet.</string>
+    <string name="settings_account_deleted">Your account was deleted.</string>
+    <plurals name="calls_left_trial">
+        <item quantity="one">%1$s of %2$s free call left on this phone.</item>
+        <item quantity="other">%1$s of %2$s free calls left on this phone.</item>
+    </plurals>
+    <plurals name="calls_left_month">
+        <item quantity="one">%1$s of %2$s call left this month. It comes back on %3$s.</item>
+        <item quantity="other">%1$s of %2$s calls left this month. They come back on %3$s.</item>
+    </plurals>
+    <plurals name="call_costs">
+        <item quantity="one">Reading a bill takes %1$s call, and changing a split by a sentence takes %2$s.</item>
+        <item quantity="other">Reading a bill takes %1$s calls, and changing a split by a sentence takes %2$s.</item>
+    </plurals>
+    <string name="sign_in_no_account">Add a Google account to this phone, then try again.</string>
+    <string name="sign_in_unavailable">Signing in with Google is not available on this phone.</string>
+    <string name="sign_in_failed">Signing in with Google did not work. Please try again.</string>
+    <string name="sign_in_id_token">Split Vibe\'s server did not accept this Google sign-in. Please try again.</string>
+    <string name="sign_in_off">Signing in is not available right now. Please try again later.</string>
+    <string name="sign_in_run_out">Your sign-in has run out. Sign in again.</string>
+    <string name="account_rate_limited">That was tried too many times just now, so nothing was changed.</string>
+
+    <!-- Pro -->
+    <string name="pro_title">Split Vibe Pro</string>
+    <string name="pro_monthly">Monthly</string>
+    <string name="pro_yearly">Yearly</string>
+    <string name="pro_monthly_in_sentence">monthly</string>
+    <string name="pro_yearly_in_sentence">yearly</string>
+    <plurals name="pro_price_day">
+        <item quantity="one">%1$s a day</item>
+        <item quantity="other">%1$s every %2$d days</item>
+    </plurals>
+    <plurals name="pro_price_week">
+        <item quantity="one">%1$s a week</item>
+        <item quantity="other">%1$s every %2$d weeks</item>
+    </plurals>
+    <plurals name="pro_price_month">
+        <item quantity="one">%1$s a month</item>
+        <item quantity="other">%1$s every %2$d months</item>
+    </plurals>
+    <plurals name="pro_price_year">
+        <item quantity="one">%1$s a year</item>
+        <item quantity="other">%1$s every %2$d years</item>
+    </plurals>
+    <plurals name="pro_length_day">
+        <item quantity="one">a day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="pro_length_week">
+        <item quantity="one">a week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
+    <plurals name="pro_length_month">
+        <item quantity="one">a month</item>
+        <item quantity="other">%d months</item>
+    </plurals>
+    <plurals name="pro_length_year">
+        <item quantity="one">a year</item>
+        <item quantity="other">%d years</item>
+    </plurals>
+    <plurals name="pro_first_day">
+        <item quantity="one">%1$s for the first day</item>
+        <item quantity="other">%1$s for the first %2$d days</item>
+    </plurals>
+    <plurals name="pro_first_week">
+        <item quantity="one">%1$s for the first week</item>
+        <item quantity="other">%1$s for the first %2$d weeks</item>
+    </plurals>
+    <plurals name="pro_first_month">
+        <item quantity="one">%1$s for the first month</item>
+        <item quantity="other">%1$s for the first %2$d months</item>
+    </plurals>
+    <plurals name="pro_first_year">
+        <item quantity="one">%1$s for the first year</item>
+        <item quantity="other">%1$s for the first %2$d years</item>
+    </plurals>
+    <string name="pro_offer_free_first">Free for %1$s</string>
+    <string name="pro_offer_free">free for %1$s</string>
+    <string name="pro_offer_for">%1$s for %2$s</string>
+    <string name="pro_offer_then">then %1$s</string>
+    <string name="pro_offer_list">%1$s, %2$s</string>
+    <string name="pro_offer_end">%1$s.</string>
+    <string name="pro_renews_on">Renews on %1$s.</string>
+    <string name="pro_ends_on">Ends on %1$s, as it is set not to renew.</string>
+    <string name="pro_does_not_end">It does not end.</string>
+    <string name="pro_nothing_on_sale">Pro cannot be bought right now. Please try again later.</string>
+    <string name="pro_renewal_pending">Renewal pending: Google Play is renewing your subscription, which can take a few hours.</string>
+    <plurals name="pro_calls_a_month">
+        <item quantity="one">%d AI call a month</item>
+        <item quantity="other">%d AI calls a month</item>
+    </plurals>
+    <plurals name="pro_benefit">
+        <item quantity="one">Pro gives you %1$d AI call a month instead of %2$d, for reading bills and changing splits by a sentence.</item>
+        <item quantity="other">Pro gives you %1$d AI calls a month instead of %2$d, for reading bills and changing splits by a sentence.</item>
+    </plurals>
+    <string name="pro_everything_else_free">Everything else stays free: typing bills in by hand, groups, insights, exports and recurring bills. Split Vibe works without a subscription.</string>
+    <string name="pro_you_have_pro">You have Pro</string>
+    <string name="pro_your_subscription">Your Pro subscription</string>
+    <plurals name="pro_member_calls">
+        <item quantity="one">%d AI call a month. Everything else in Split Vibe stays free.</item>
+        <item quantity="other">%d AI calls a month. Everything else in Split Vibe stays free.</item>
+    </plurals>
+    <string name="pro_member_plan">%1$s plan, %2$s</string>
+    <string name="pro_open_google_play">Open Google Play</string>
+    <string name="pro_loading">Loading the plans…</string>
+    <string name="pro_switch_title">Switch to the %1$s plan</string>
+    <string name="pro_switch_button">Switch to %1$s</string>
+    <string name="pro_switch_terms">The new plan starts now, and Google Play charges its price from your next renewal.</string>
+    <string name="pro_renewal_terms">A plan renews automatically at the end of each month or year, at its price shown here, until you cancel it. You can cancel any time in Google Play, and Pro then lasts until the end of the period you paid for.</string>
+    <string name="pro_manage">Manage subscriptions in Google Play</string>
+    <string name="pro_restore">Restore purchases</string>
+    <string name="pro_cannot_open_play">Google Play could not be opened on this phone. Its Payments and subscriptions page manages Pro.</string>
+    <string name="pro_subscribe">Subscribe for %1$s</string>
+    <string name="pro_signing_in">Signing in…</string>
+    <string name="pro_waiting_for_play">Waiting for Google Play…</string>
+    <string name="pro_restoring">Restoring your purchases…</string>
+    <string name="pro_not_sold">Pro is not available in this build of the app. Everything else works as it does.</string>
+    <plurals name="pro_sign_in_first">
+        <item quantity="one">Sign in with Google to buy Pro, so that it stays with your account. Signing in alone gives you %d AI call a month, free.</item>
+        <item quantity="other">Sign in with Google to buy Pro, so that it stays with your account. Signing in alone gives you %d AI calls a month, free.</item>
+    </plurals>
+    <string name="pro_sign_in_again">Your sign-in has run out. Sign in with Google again to buy or manage Pro.</string>
+    <string name="pro_billing_issue">Google Play could not take your last payment. Update your payment method in Google Play to keep Pro.</string>
+    <plurals name="pro_welcome">
+        <item quantity="one">Welcome to Pro: you now have %d AI call a month.</item>
+        <item quantity="other">Welcome to Pro: you now have %d AI calls a month.</item>
+    </plurals>
+    <string name="pro_not_counted_yet">Your purchase went through. Your calls turn into Pro\'s %1$d a month as soon as Split Vibe\'s server has checked it, usually within a few minutes.</string>
+    <string name="pro_found_not_counted_yet">Your Pro subscription was found. Your calls turn into Pro\'s %1$d a month as soon as Split Vibe\'s server has checked it.</string>
+    <string name="pro_switched">You are on the %1$s plan now. Its price is charged from your next renewal.</string>
+    <string name="pro_no_subscription_found">No Pro subscription was found for this Google Play account.</string>
+    <string name="pro_back_on_account">Your Pro subscription is back on this account.</string>
+    <string name="pro_back_after_renewal">Your Pro subscription was found. Pro comes back once Google Play has renewed it.</string>
+    <string name="pro_sign_in_to_buy">Sign in with Google to buy Pro.</string>
+    <string name="pro_payment_pending">The payment is pending. Pro starts once Google Play confirms it.</string>
+    <string name="pro_cannot_buy">This phone or this Google Play account cannot buy subscriptions.</string>
+    <string name="pro_checked_too_often">Your plan was checked many times in the last hour.</string>
+    <string name="pro_subscription_unavailable">Split Vibe\'s server could not check your subscription just now. Try again in a moment.</string>
+    <string name="pro_sign_in_run_out">Your sign-in has run out. Sign in again to buy or manage Pro.</string>
+    <string name="pro_no_connection">There is no connection. Check it and try again.</string>
+    <string name="pro_store_problem">Google Play has a problem right now. Try again later.</string>
+    <string name="pro_did_not_work">That did not work. Please try again.</string>
+    <string name="pro_cannot_check">Split Vibe\'s server cannot check subscriptions yet.</string>
+    <string name="pro_another_account">The subscription on this Google Play account belongs to another Split Vibe account. Sign in with that account to use it.</string>
+
+    <!-- Shared by several screens, continued -->
+    <string name="common_open_settings">Open settings</string>
+
+    <!-- Reading a bill -->
+    <string name="split_no_text_found">No text was found in this photo. Make sure the bill is flat, in focus and well lit.</string>
+    <string name="split_image_not_opened">That image could not be opened. Try another photo.</string>
+    <string name="split_something_went_wrong">Something went wrong: %1$s</string>
 </resources>

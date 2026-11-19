@@ -29,6 +29,7 @@ import com.dantech.splitvibe.domain.SplitCalculator
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitEdits
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.inEnglish
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
@@ -354,7 +355,7 @@ class SplitAssistantFlowTest {
         ask("Lan didn't have beer", reply = null)
 
         val state = assistant.ui()
-        assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", state.error)
+        assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", state.error.inEnglish())
         assertTrue(state.errorOpensSettings)
         assertEquals("what was typed stays, to send again later", "Lan didn't have beer", state.text)
         assertEquals(BigDecimal.ZERO, proxy.account.account.value.callsLeft?.remaining)
@@ -364,7 +365,7 @@ class SplitAssistantFlowTest {
         proxy.account.saveSession(Session("signed-session", expiresAt = Long.MAX_VALUE))
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$MONTH_USED_UP}"""))
         ask("Lan didn't have beer", reply = null)
-        assertEquals("You have used this month's 10 calls. They come back on 1 December.", assistant.ui().error)
+        assertEquals("You have used this month's 10 calls. They come back on 1 December.", assistant.ui().error.inEnglish())
         assertFalse(assistant.ui().errorOpensSettings)
     }
 
@@ -382,14 +383,15 @@ class SplitAssistantFlowTest {
 
         ask("Lan didn't have beer", reply = null)
 
-        assertEquals("You have used your 3 free calls. Sign in with Google for 10 calls a month, or get Pro for 300.", assistant.ui().error)
+        val usedUp = "You have used your 3 free calls. Sign in with Google for 10 calls a month, or get Pro for 300."
+        assertEquals(usedUp, assistant.ui().error.inEnglish())
         assertTrue(assistant.ui().errorOpensPro)
         assertFalse("the Pro screen offers signing in itself", assistant.ui().errorOpensSettings)
 
         proxy.account.saveSession(Session("signed-session", expiresAt = Long.MAX_VALUE))
         server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$PRO_USED_UP}"""))
         ask("Lan didn't have beer", reply = null)
-        assertEquals("You have used this month's 300 calls. They come back on 1 December.", assistant.ui().error)
+        assertEquals("You have used this month's 300 calls. They come back on 1 December.", assistant.ui().error.inEnglish())
         assertFalse(assistant.ui().errorOpensPro)
         assertFalse(assistant.ui().errorOpensSettings)
     }

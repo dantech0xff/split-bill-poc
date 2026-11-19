@@ -24,6 +24,8 @@ import com.dantech.splitvibe.llm.SplitRevision
 import com.dantech.splitvibe.llm.SplitRevisionRequest
 import com.dantech.splitvibe.llm.proHelps
 import com.dantech.splitvibe.llm.signInHelps
+import com.dantech.splitvibe.llm.text
+import com.dantech.splitvibe.text.UiText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,13 +137,13 @@ data class AssistantUiState(
     val applied: String? = null,
     /** Something to tell the user that is not an error, such as that nothing needs changing. */
     val note: String? = null,
-    val error: String? = null,
+    val error: UiText? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
     /** The error is the calls used up, of which Pro gives more in this build, so it comes with a way to the Pro screen. */
     val errorOpensPro: Boolean = false,
     /** AI is not set up in this build or is switched off, which the assistant says above its field. */
-    val notice: String? = null,
+    val notice: UiText? = null,
     val canSend: Boolean = false,
     val voice: VoiceUi = VoiceUi(),
 )
@@ -217,7 +219,7 @@ class SplitAssistantViewModel(
                 val signedIn = account.value.session != null
                 val signInHelps = e.signInHelps(assistant.canSignIn, signedIn, sellsPro = assistant.sellsPro)
                 val proHelps = e.proHelps(assistant.sellsPro)
-                draft.update { it.copy(error = e.message, errorOpensSettings = signInHelps, errorOpensPro = proHelps) }
+                draft.update { it.copy(error = e.text, errorOpensSettings = signInHelps, errorOpensPro = proHelps) }
             }
         }
         asking = job
@@ -486,7 +488,7 @@ class SplitAssistantViewModel(
         val proposal: Proposal? = null,
         val undo: Undo? = null,
         val note: String? = null,
-        val error: String? = null,
+        val error: UiText? = null,
         val errorOpensSettings: Boolean = false,
         val errorOpensPro: Boolean = false,
         val voiceAvailable: Boolean,

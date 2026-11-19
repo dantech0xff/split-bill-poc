@@ -2,8 +2,11 @@ package com.dantech.splitvibe.data.account
 
 import android.content.Context
 import androidx.core.content.edit
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.settings.KeystoreCipher
 import com.dantech.splitvibe.data.settings.TextCipher
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneOffset
@@ -80,14 +83,14 @@ data class CallsLeft(
 }
 
 /** Whether bills can be read with AI, and what to tell the person when they cannot. */
-enum class AiStatus(val notice: String?) {
+enum class AiStatus(val notice: UiText?) {
     AVAILABLE(null),
 
     /** This build has no address for the AI proxy, so bills cannot be read with AI at all. */
-    NOT_SET_UP("Reading bills with AI is not set up in this build of the app."),
+    NOT_SET_UP(text(R.string.ai_not_set_up)),
 
     /** The proxy said AI reading is switched off. The next request asks again. */
-    OFF("Reading bills with AI is switched off for now. Please try again later."),
+    OFF(text(R.string.ai_off)),
 }
 
 /** What the app knows about its standing with the AI proxy. */

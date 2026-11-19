@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.bills.BillConflictException
@@ -37,10 +38,13 @@ import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.MAX_INSTRUCTION_CHARS
 import com.dantech.splitvibe.llm.proHelps
 import com.dantech.splitvibe.llm.signInHelps
+import com.dantech.splitvibe.llm.text
 import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrLayoutEncoder
 import com.dantech.splitvibe.scan.DocumentScanner
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.claim.BillOnScreen
 import java.io.IOException
 import java.math.BigDecimal
@@ -134,7 +138,7 @@ data class SplitUiState(
     val pages: List<Bitmap> = emptyList(),
     val instruction: String = DEFAULT_INSTRUCTION,
     val progress: Progress = Progress.IDLE,
-    val error: String? = null,
+    val error: UiText? = null,
     /** The error is fixed by signing in, which this build can do, so it comes with a way to Settings. */
     val errorOpensSettings: Boolean = false,
     /** The error is the calls used up, of which Pro gives more in this build, so it comes with a way to the Pro screen. */
@@ -350,13 +354,14 @@ class SplitBillViewModel(
         launchWork(Progress.READING_TEXT) {
             val read = current.pages.map { recognizer.recognize(it) }.filterNot { it.isEmpty }
             if (read.isEmpty()) {
-                showError("No text was found in this photo. Make sure the bill is flat, in focus and well lit.")
+                showError(text(R.string.split_no_text_found))
                 return@launchWork
             }
 
             mutableState.update { it.copy(progress = Progress.ASKING_CLAUDE) }
             when (val analysis = analyzer.analyze(read, current.instruction, appSettings.localCurrency)) {
-                is BillAnalysis.Rejected -> showError(analysis.reason)
+                // The reason is the model's, or the domain's, in English.
+                is BillAnalysis.Rejected -> showError(UiText.Raw(analysis.reason))
 
                 is BillAnalysis.Ready -> {
                     val bill = analysis.bill
@@ -757,7 +762,7 @@ class SplitBillViewModel(
         }
     }
 
-    private fun showError(message: String, opensSettings: Boolean = false, opensPro: Boolean = false) =
+    private fun showError(message: UiText, opensSettings: Boolean = false, opensPro: Boolean = false) =
         mutableState.update { it.copy(error = message, errorOpensSettings = opensSettings, errorOpensPro = opensPro) }
 
     private fun launchWork(progress: Progress, block: suspend () -> Unit) {
@@ -770,13 +775,13 @@ class SplitBillViewModel(
                 throw e
             } catch (e: BillAnalyzerException) {
                 val signInHelps = e.signInHelps(canSignIn, signedIn = account.value.session != null, sellsPro = sellsPro)
-                showError(e.message ?: "The bill could not be analysed.", opensSettings = signInHelps, opensPro = e.proHelps(sellsPro))
+                showError(e.text, opensSettings = signInHelps, opensPro = e.proHelps(sellsPro))
             } catch (e: IOException) {
-                showError("That image could not be opened. Try another photo.")
+                showError(text(R.string.split_image_not_opened))
             } catch (e: Exception) {
                 // Last line of defence at the UI boundary (for example an ML Kit failure): tell the
                 // user instead of crashing the flow.
-                showError("Something went wrong: ${e.message ?: e.javaClass.simpleName}")
+                showError(text(R.string.split_something_went_wrong, e.message ?: e.javaClass.simpleName))
             }
         }
         work = job

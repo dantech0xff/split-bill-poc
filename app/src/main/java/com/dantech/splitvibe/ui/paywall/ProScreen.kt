@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -49,6 +51,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.billing.ProPeriod
 import com.dantech.splitvibe.billing.ProPlan
 import com.dantech.splitvibe.data.account.CallsLeft
@@ -60,6 +63,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
+import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.settings.callsLeftText
 
 /** What the Pro screen asks the app to do. */
@@ -91,10 +95,10 @@ fun ProScreen(state: ProUiState, actions: ProActions) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Split Vibe Pro") },
+                title = { Text(stringResource(R.string.pro_title)) },
                 navigationIcon = {
                     IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -110,11 +114,11 @@ fun ProScreen(state: ProUiState, actions: ProActions) {
             verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
         ) {
             when {
-                !state.sold -> SvMessageCard(text = NOT_SOLD, isError = false)
+                !state.sold -> SvMessageCard(text = stringResource(R.string.pro_not_sold), isError = false)
                 state.subscribed -> MemberCard(state, onManage = manage)
                 else -> BenefitCard()
             }
-            state.callsLeft?.let { Text(callsLeftText(it), style = MaterialTheme.typography.bodyLarge) }
+            state.callsLeft?.let { Text(callsLeftText(it).resolve(), style = MaterialTheme.typography.bodyLarge) }
             if (state.sold) {
                 Offer(state, actions)
                 Terms(state, actions, onManage = manage, cannotOpen = cannotOpen)
@@ -127,16 +131,15 @@ fun ProScreen(state: ProUiState, actions: ProActions) {
 @Composable
 private fun BenefitCard() = HeroCard {
     Text(
-        "${CallsLeft.PRO_MONTHLY} AI calls a month",
+        pluralStringResource(R.plurals.pro_calls_a_month, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY),
         modifier = Modifier.semantics { heading() },
         style = MaterialTheme.typography.titleLargeEmphasized,
     )
     Text(
-        "Pro gives you ${CallsLeft.PRO_MONTHLY} AI calls a month instead of ${CallsLeft.FREE_MONTHLY}, for reading bills and " +
-            "changing splits by a sentence.",
+        pluralStringResource(R.plurals.pro_benefit, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY, CallsLeft.FREE_MONTHLY),
         style = MaterialTheme.typography.bodyMedium,
     )
-    Text(EVERYTHING_ELSE_FREE, style = MaterialTheme.typography.bodyMedium)
+    Text(stringResource(R.string.pro_everything_else_free), style = MaterialTheme.typography.bodyMedium)
 }
 
 /**
@@ -149,23 +152,31 @@ private fun MemberCard(state: ProUiState, onManage: () -> Unit) {
     val membership = state.membership
     HeroCard {
         Text(
-            if (state.member) "You have Pro" else "Your Pro subscription",
+            stringResource(if (state.member) R.string.pro_you_have_pro else R.string.pro_your_subscription),
             modifier = Modifier.semantics { heading() },
             style = MaterialTheme.typography.titleLargeEmphasized,
         )
         if (state.member) {
             Text(
-                "${CallsLeft.PRO_MONTHLY} AI calls a month. Everything else in Split Vibe stays free.",
+                pluralStringResource(R.plurals.pro_member_calls, CallsLeft.PRO_MONTHLY, CallsLeft.PRO_MONTHLY),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         state.currentPlan?.let { plan ->
-            Text("${nameOf(plan.period)} plan, ${priceText(plan)}", style = MaterialTheme.typography.amountMedium)
+            Text(
+                stringResource(R.string.pro_member_plan, nameOf(plan.period).resolve(), priceText(plan).resolve()),
+                style = MaterialTheme.typography.amountMedium,
+            )
         }
-        membership?.let { renewalText(it) }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        membership?.let { renewalText(it) }?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyMedium) }
     }
     if (membership?.billingIssue == true) {
-        SvMessageCard(text = BILLING_ISSUE, isError = true, action = "Open Google Play", onAction = onManage)
+        SvMessageCard(
+            text = stringResource(R.string.pro_billing_issue),
+            isError = true,
+            action = stringResource(R.string.pro_open_google_play),
+            onAction = onManage,
+        )
     }
 }
 
@@ -183,7 +194,14 @@ private fun Offer(state: ProUiState, actions: ProActions) {
     val loadError = state.loadError
     val switchTarget = state.switchTarget
     when {
-        !state.signedIn -> SvMessageCard(text = if (state.signInExpired) SIGN_IN_AGAIN else SIGN_IN_FIRST, isError = false)
+        !state.signedIn -> SvMessageCard(
+            text = if (state.signInExpired) {
+                stringResource(R.string.pro_sign_in_again)
+            } else {
+                pluralStringResource(R.plurals.pro_sign_in_first, CallsLeft.FREE_MONTHLY, CallsLeft.FREE_MONTHLY)
+            },
+            isError = false,
+        )
 
         state.loading -> Row(
             modifier = announced,
@@ -191,17 +209,22 @@ private fun Offer(state: ProUiState, actions: ProActions) {
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             SvLoadingIndicator(modifier = Modifier.size(40.dp))
-            Text("Loading the plans…", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.pro_loading), style = MaterialTheme.typography.bodyMedium)
         }
 
-        loadError != null -> SvMessageCard(text = loadError, isError = true, action = "Try again", onAction = actions.onRetry)
+        loadError != null -> SvMessageCard(
+            text = loadError.resolve(),
+            isError = true,
+            action = stringResource(R.string.common_try_again),
+            onAction = actions.onRetry,
+        )
 
         // Neither a plan to buy nor a switch, while Split Vibe's server could not count them.
-        !state.onSale -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
+        !state.onSale -> SvMessageCard(text = NOTHING_ON_SALE.resolve(), isError = false)
 
         state.subscribed -> if (switchTarget != null) SwitchCard(switchTarget, enabled = state.working == null, onSwitch = actions.onSwitch)
 
-        state.plans.isEmpty() -> SvMessageCard(text = NOTHING_ON_SALE, isError = false)
+        state.plans.isEmpty() -> SvMessageCard(text = NOTHING_ON_SALE.resolve(), isError = false)
 
         else -> SvCard(modifier = Modifier.fillMaxWidth()) {
             Column(
@@ -228,10 +251,11 @@ private fun Offer(state: ProUiState, actions: ProActions) {
  */
 @Composable
 private fun PlanRow(plan: ProPlan, selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
-    val price = priceText(plan)
-    val offer = offerText(plan)
+    val name = nameOf(plan.period).resolve()
+    val price = priceText(plan).resolve()
+    val offer = offerText(plan)?.resolve()
     ListItem(
-        headlineContent = { Text(nameOf(plan.period), style = MaterialTheme.typography.titleMedium) },
+        headlineContent = { Text(name, style = MaterialTheme.typography.titleMedium) },
         supportingContent = {
             Column {
                 Text(price, style = MaterialTheme.typography.amountMedium)
@@ -242,7 +266,7 @@ private fun PlanRow(plan: ProPlan, selected: Boolean, enabled: Boolean, onSelect
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier
             .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
-            .semantics { contentDescription = listOfNotNull(nameOf(plan.period), price, offer).joinToString(", ") }
+            .semantics { contentDescription = listOfNotNull(name, price, offer).joinToString(", ") }
             .padding(horizontal = SvSpacing.sm),
     )
 }
@@ -250,14 +274,22 @@ private fun PlanRow(plan: ProPlan, selected: Boolean, enabled: Boolean, onSelect
 /** The other plan, which a Pro member can switch to at once. */
 @Composable
 private fun SwitchCard(target: ProPlan, enabled: Boolean, onSwitch: (ProPlan) -> Unit) {
-    val name = nameOf(target.period).lowercase()
+    val name = nameInSentence(target.period).resolve()
     SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Text("Switch to the $name plan", modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
-            Text(priceText(target), style = MaterialTheme.typography.amountMedium)
-            offerText(target)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            Text(SWITCH_TERMS, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(onClick = { onSwitch(target) }, enabled = enabled) { Text("Switch to $name") }
+            Text(
+                stringResource(R.string.pro_switch_title, name),
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(priceText(target).resolve(), style = MaterialTheme.typography.amountMedium)
+            offerText(target)?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall) }
+            Text(
+                stringResource(R.string.pro_switch_terms),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = { onSwitch(target) }, enabled = enabled) { Text(stringResource(R.string.pro_switch_button, name)) }
         }
     }
 }
@@ -266,15 +298,21 @@ private fun SwitchCard(target: ProPlan, enabled: Boolean, onSwitch: (ProPlan) ->
 @Composable
 private fun Terms(state: ProUiState, actions: ProActions, onManage: () -> Unit, cannotOpen: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-        Text(RENEWAL_TERMS, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stringResource(R.string.pro_renewal_terms),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         // A flow row: with large text the second button moves to its own line instead of wrapping its label.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            OutlinedButton(onClick = onManage) { Text("Manage subscriptions in Google Play") }
-            if (state.signedIn) TextButton(onClick = actions.onRestore, enabled = state.working == null) { Text("Restore purchases") }
+            OutlinedButton(onClick = onManage) { Text(stringResource(R.string.pro_manage)) }
+            if (state.signedIn) {
+                TextButton(onClick = actions.onRestore, enabled = state.working == null) { Text(stringResource(R.string.pro_restore)) }
+            }
         }
         if (cannotOpen) {
             Text(
-                "Google Play could not be opened on this phone. Its Payments and subscriptions page manages Pro.",
+                stringResource(R.string.pro_cannot_open_play),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -297,7 +335,13 @@ private fun BottomPart(state: ProUiState, actions: ProActions) {
     if (main == MainAction.NONE && message == null) return
     SvBottomBar {
         message?.let {
-            SvMessageCard(text = it.text, isError = it.isError, action = "OK", onAction = actions.onDismissMessage, modifier = announced)
+            SvMessageCard(
+                text = it.text.resolve(),
+                isError = it.isError,
+                action = stringResource(R.string.common_ok),
+                onAction = actions.onDismissMessage,
+                modifier = announced,
+            )
             if (main != MainAction.NONE) Spacer(Modifier.height(SvSpacing.md))
         }
         when (main) {
@@ -307,12 +351,14 @@ private fun BottomPart(state: ProUiState, actions: ProActions) {
                 horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
             ) {
                 SvLoadingIndicator(modifier = Modifier.size(40.dp))
-                Text(workingText(state.working), style = MaterialTheme.typography.bodyMedium)
+                workingText(state.working)?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
             }
 
-            MainAction.SIGN_IN -> SvPrimaryButton("Sign in with Google", onClick = actions.onSignIn)
+            MainAction.SIGN_IN -> SvPrimaryButton(stringResource(R.string.common_sign_in_with_google), onClick = actions.onSignIn)
 
-            MainAction.BUY -> if (chosen != null) SvPrimaryButton("Subscribe for ${priceText(chosen)}", onClick = actions.onBuy)
+            MainAction.BUY -> if (chosen != null) {
+                SvPrimaryButton(stringResource(R.string.pro_subscribe, priceText(chosen).resolve()), onClick = actions.onBuy)
+            }
 
             MainAction.NONE -> Unit
         }
@@ -321,11 +367,11 @@ private fun BottomPart(state: ProUiState, actions: ProActions) {
 
 private enum class MainAction { WORKING, SIGN_IN, BUY, NONE }
 
-private fun workingText(work: ProWork?): String = when (work) {
-    ProWork.SIGNING_IN -> "Signing in…"
-    ProWork.BUYING, ProWork.SWITCHING -> "Waiting for Google Play…"
-    ProWork.RESTORING -> "Restoring your purchases…"
-    null -> ""
+private fun workingText(work: ProWork?): Int? = when (work) {
+    ProWork.SIGNING_IN -> R.string.pro_signing_in
+    ProWork.BUYING, ProWork.SWITCHING -> R.string.pro_waiting_for_play
+    ProWork.RESTORING -> R.string.pro_restoring
+    null -> null
 }
 
 /** Opens [url], in Google Play when it is installed; false when no app on the phone opens it. */
@@ -338,14 +384,3 @@ private fun open(context: Context, url: String): Boolean = try {
 
 /** Read out by TalkBack when it appears or changes: the outcome of what the person just did. */
 private val announced = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
-
-private const val NOT_SOLD = "Pro is not available in this build of the app. Everything else works as it does."
-private const val EVERYTHING_ELSE_FREE = "Everything else stays free: typing bills in by hand, groups, insights, exports and " +
-    "recurring bills. Split Vibe works without a subscription."
-private val SIGN_IN_FIRST = "Sign in with Google to buy Pro, so that it stays with your account. Signing in alone gives you " +
-    "${CallsLeft.FREE_MONTHLY} AI calls a month, free."
-private const val SIGN_IN_AGAIN = "Your sign-in has run out. Sign in with Google again to buy or manage Pro."
-private const val RENEWAL_TERMS = "A plan renews automatically at the end of each month or year, at its price shown here, until " +
-    "you cancel it. You can cancel any time in Google Play, and Pro then lasts until the end of the period you paid for."
-private const val SWITCH_TERMS = "The new plan starts now, and Google Play charges its price from your next renewal."
-private const val BILLING_ISSUE = "Google Play could not take your last payment. Update your payment method in Google Play to keep Pro."

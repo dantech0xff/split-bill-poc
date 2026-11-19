@@ -19,8 +19,10 @@ import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.SplitEdit
 import com.dantech.splitvibe.domain.SplitMode
 import com.dantech.splitvibe.domain.SplitPlan
+import com.dantech.splitvibe.english
 import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
+import com.dantech.splitvibe.llm.text
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -128,7 +130,7 @@ class SplitAssistantTest {
                 "Changing a split takes 0.2 of a call, and 0.1 of your 3 free calls are left.",
             ),
             Case(refusal(401, """{"error":"session"}"""), Kind.SIGN_IN_EXPIRED, "Sign in again"),
-            Case(refusal(503, """{"error":"ai_off"}"""), Kind.AI_OFF, SplitAssistant.SWITCHED_OFF),
+            Case(refusal(503, """{"error":"ai_off"}"""), Kind.AI_OFF, SplitAssistant.SWITCHED_OFF.english()),
             Case(refusal(426, """{"error":"update_required"}"""), Kind.UPDATE_REQUIRED, "keep changing splits"),
             Case(
                 refusal(429, """{"error":"rate_limited"}""").setHeader("Retry-After", "120"),
@@ -162,7 +164,7 @@ class SplitAssistantTest {
             server.enqueue(case.reply)
             val failure = failureOf { assistant.revise("Lan không uống bia", bill, plan, "Dana") }
             assertEquals(case.toString(), case.kind, failure.kind)
-            assertTrue("${failure.message} should say \"${case.says}\"", failure.message.orEmpty().contains(case.says))
+            assertTrue("${failure.text.english()} should say \"${case.says}\"", failure.text.english().contains(case.says))
         }
     }
 
@@ -275,7 +277,7 @@ class SplitAssistantTest {
         val failure = failureOf { noProxy.revise("Lan không uống bia", bill, plan, "Dana") }
 
         assertEquals(Kind.AI_OFF, failure.kind)
-        assertEquals(SplitAssistant.NOT_SET_UP, failure.message)
+        assertEquals(SplitAssistant.NOT_SET_UP, failure.text)
         assertEquals(0, server.requestCount)
     }
 

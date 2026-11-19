@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.stringResource
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
@@ -50,7 +52,7 @@ import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.scan.DocumentScanner
-import com.dantech.splitvibe.ui.paywall.GET_PRO
+import com.dantech.splitvibe.text.resolve
 import kotlinx.coroutines.launch
 
 /**
@@ -119,15 +121,15 @@ fun NewSplitContent(
                 minLines = 2,
             )
 
-            aiStatus.notice?.let { SvMessageCard(text = it, isError = false) }
+            aiStatus.notice?.let { SvMessageCard(text = it.resolve(), isError = false) }
             // An error that only repeats the notice above says nothing new.
             state.error?.takeIf { it != aiStatus.notice }?.let { error ->
                 SvMessageCard(
-                    text = error,
+                    text = error.resolve(),
                     isError = true,
                     action = when {
-                        state.errorOpensPro -> GET_PRO
-                        state.errorOpensSettings -> "Open settings"
+                        state.errorOpensPro -> stringResource(R.string.common_get_pro)
+                        state.errorOpensSettings -> stringResource(R.string.common_open_settings)
                         else -> null
                     },
                     onAction = if (state.errorOpensPro) onOpenPro else onOpenSettings,

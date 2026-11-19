@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.llm
 
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Plan
@@ -8,6 +9,10 @@ import com.dantech.splitvibe.data.proxy.ModelReply
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
+import com.dantech.splitvibe.text.UiText
+import com.dantech.splitvibe.text.plural
+import com.dantech.splitvibe.text.sentences
+import com.dantech.splitvibe.text.text
 import java.io.IOException
 import java.util.UUID
 import kotlinx.serialization.json.JsonObject
@@ -19,26 +24,43 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 class ModelCallWords(
     /** This build has no address for the AI proxy. */
-    val notSetUp: String,
+    val notSetUp: UiText,
     /** The proxy said AI is switched off. */
-    val switchedOff: String,
+    val switchedOff: UiText,
     /** This version of the app is too old for the route. */
-    val updateRequired: String,
+    val updateRequired: UiText,
     /** Too many calls came from this network or person just now; a hint on when to try again follows it. */
-    val tooMany: String,
+    val tooMany: UiText,
     /** The request ran as often as the proxy lets one request run. */
-    val failedTries: String,
+    val failedTries: UiText,
     /** The model declined. */
-    val refused: String,
+    val refused: UiText,
     /** The model's answer was cut off at the most it may write. */
-    val tooLong: String,
+    val tooLong: UiText,
     /** The model did not answer in time. */
-    val tooSlow: String,
+    val tooSlow: UiText,
     /** The proxy did not take the request as it was. */
-    val notTaken: String,
+    val notTaken: UiText,
     /** What one call of this kind takes, such as "Reading a bill takes a whole call"; what is left follows it. */
-    val cost: String,
+    val cost: UiText,
 )
+
+/**
+ * What a failed call to the model tells the person. Each [BillAnalyzerException] the app throws has
+ * it as its cause, as the domain's exception carries only a message for developers; it keeps what
+ * failed, such as the proxy's refusal, as its own cause.
+ */
+class ModelCallFailure(val text: UiText, cause: Throwable? = null) : Exception(cause)
+
+/** A failure of [kind] that tells the person [text]; [cause] is what failed, if something did. */
+fun modelCallFailure(kind: Kind, text: UiText, cause: Throwable? = null): BillAnalyzerException =
+    BillAnalyzerException(kind, "The call to the model failed: $kind", ModelCallFailure(text, cause))
+
+/** What to tell the person about this failure: the app's words for it, or the message `:core:domain` gave it, which is in English. */
+val BillAnalyzerException.text: UiText get() = (cause as? ModelCallFailure)?.text ?: UiText.Raw(message.orEmpty())
+
+/** What failed behind this failure, such as the proxy's refusal. */
+private val BillAnalyzerException.failure: Throwable? get() = (cause as? ModelCallFailure)?.cause ?: cause
 
 /**
  * One of the AI proxy's routes that ask the model, as the app calls it: it sends the request with
@@ -71,7 +93,7 @@ class ProxyModelCall(
      * [read] for an answer it cannot use, which keeps the request id for the next try.
      */
     suspend fun <T> ask(content: () -> JsonObject, read: (JsonObject) -> T): T {
-        if (!api.isSetUp) throw BillAnalyzerException(Kind.AI_OFF, words.notSetUp)
+        if (!api.isSetUp) throw modelCallFailure(Kind.AI_OFF, words.notSetUp)
         val asked = content()
         val requestId = unfinished?.takeIf { it.first == asked }?.second ?: UUID.randomUUID().toString()
         // Kept from before the request goes out, so that a request cancelled while it waits keeps its id too.
@@ -89,9 +111,9 @@ class ProxyModelCall(
             if (e.code != ProxyApi.SESSION_REFUSED && (e.status == 200 || e.status in 400..499)) account.onAiEnabled(true)
             throw failureOf(e)
         } catch (e: AnswerTimeoutException) {
-            throw BillAnalyzerException(Kind.TIMEOUT, words.tooSlow, e)
+            throw modelCallFailure(Kind.TIMEOUT, words.tooSlow, e)
         } catch (e: IOException) {
-            throw BillAnalyzerException(Kind.NETWORK, NO_CONNECTION, e)
+            throw modelCallFailure(Kind.NETWORK, text(R.string.server_unreachable), e)
         }
         reply.callsLeft?.let(account::onCallsLeft)
         account.onAiEnabled(true)
@@ -99,41 +121,41 @@ class ProxyModelCall(
     }
 
     private fun failureOf(e: ProxyException): BillAnalyzerException = when (e.code) {
-        "quota_exhausted" -> BillAnalyzerException(Kind.QUOTA_EXHAUSTED, quotaMessage(e.callsLeft), e)
+        "quota_exhausted" -> modelCallFailure(Kind.QUOTA_EXHAUSTED, quotaMessage(e.callsLeft), e)
 
         ProxyApi.SESSION_REFUSED -> {
             account.expireSession()
-            BillAnalyzerException(Kind.SIGN_IN_EXPIRED, "Your sign-in has run out. Sign in again in Settings to use your monthly calls.", e)
+            modelCallFailure(Kind.SIGN_IN_EXPIRED, text(R.string.model_sign_in_expired), e)
         }
 
         "ai_off" -> {
             account.onAiEnabled(false)
-            BillAnalyzerException(Kind.AI_OFF, words.switchedOff, e)
+            modelCallFailure(Kind.AI_OFF, words.switchedOff, e)
         }
 
-        "update_required" -> BillAnalyzerException(Kind.UPDATE_REQUIRED, words.updateRequired, e)
+        "update_required" -> modelCallFailure(Kind.UPDATE_REQUIRED, words.updateRequired, e)
 
-        "rate_limited", "spend_limited" -> BillAnalyzerException(Kind.RATE_LIMITED, "${words.tooMany} ${waitHint(e.retryAfterSeconds)}", e)
+        "rate_limited", "spend_limited" -> modelCallFailure(Kind.RATE_LIMITED, sentences(words.tooMany, waitHint(e.retryAfterSeconds)), e)
 
         // The next try is a new request, which can run at once.
-        RETRY_LIMIT -> BillAnalyzerException(Kind.SERVICE_ERROR, words.failedTries, e)
+        RETRY_LIMIT -> modelCallFailure(Kind.SERVICE_ERROR, words.failedTries, e)
 
-        "busy" -> BillAnalyzerException(Kind.BUSY, "The AI is busy right now. ${waitHint(e.retryAfterSeconds)}", e)
+        "busy" -> modelCallFailure(Kind.BUSY, sentences(text(R.string.model_busy), waitHint(e.retryAfterSeconds)), e)
 
-        "refused" -> BillAnalyzerException(Kind.REFUSED, words.refused, e)
+        "refused" -> modelCallFailure(Kind.REFUSED, words.refused, e)
 
-        "too_long" -> BillAnalyzerException(Kind.BAD_RESPONSE, words.tooLong, e)
+        "too_long" -> modelCallFailure(Kind.BAD_RESPONSE, words.tooLong, e)
 
-        "bad_response" -> BillAnalyzerException(Kind.BAD_RESPONSE, UNREADABLE_ANSWER, e)
+        "bad_response" -> modelCallFailure(Kind.BAD_RESPONSE, UNREADABLE_ANSWER, e)
 
-        "timeout" -> BillAnalyzerException(Kind.TIMEOUT, words.tooSlow, e)
+        "timeout" -> modelCallFailure(Kind.TIMEOUT, words.tooSlow, e)
 
-        "install" -> BillAnalyzerException(Kind.BAD_REQUEST, words.notTaken, e)
+        "install" -> modelCallFailure(Kind.BAD_REQUEST, words.notTaken, e)
 
         else -> if (isNotTaken(e)) {
-            BillAnalyzerException(Kind.BAD_REQUEST, words.notTaken, e)
+            modelCallFailure(Kind.BAD_REQUEST, words.notTaken, e)
         } else {
-            BillAnalyzerException(Kind.SERVICE_ERROR, "Split Vibe's server had a problem. Try again in a moment.", e)
+            modelCallFailure(Kind.SERVICE_ERROR, text(R.string.server_problem), e)
         }
     }
 
@@ -145,18 +167,21 @@ class ProxyModelCall(
      * read takes a whole one, so a part left over from changes is not enough for it. Then where more
      * calls come from, as [moreCalls] says.
      */
-    private fun quotaMessage(callsLeft: CallsLeft?): String {
+    private fun quotaMessage(callsLeft: CallsLeft?): UiText {
         val more = moreCalls(callsLeft?.plan)
-        if (callsLeft == null) return "You have used your free calls.$more"
+        if (callsLeft == null) return sentences(text(R.string.model_quota_used), more)
         val limit = CallsLeft.text(callsLeft.limit)
+        // The words follow the number of calls the allowance holds.
+        val count = callsLeft.limit.toInt()
         val left = callsLeft.remaining.takeIf { it.signum() > 0 }?.let(CallsLeft::text)
         val date = callsLeft.comesBackOn
-        return when {
-            date != null && left == null -> "You have used this month's $limit calls. They come back on $date.$more"
-            date != null -> "${words.cost}, and $left of this month's $limit calls are left. They come back on $date.$more"
-            left == null -> "You have used your $limit free calls.$more"
-            else -> "${words.cost}, and $left of your $limit free calls are left.$more"
+        val said = when {
+            left == null && date != null -> plural(R.plurals.model_quota_used_month, count, limit, date)
+            left == null -> plural(R.plurals.model_quota_used_free, count, limit)
+            date != null -> plural(R.plurals.model_quota_left_month, count, words.cost, left, limit, date)
+            else -> plural(R.plurals.model_quota_left_free, count, words.cost, left, limit)
         }
+        return sentences(said, more)
     }
 
     /**
@@ -165,23 +190,26 @@ class ProxyModelCall(
      * signed in what signing in gives; a Pro member only learns when the calls come back. A build
      * that does not sell Pro tells only an install's trial to sign in.
      */
-    private fun moreCalls(plan: Plan?): String = when {
+    private fun moreCalls(plan: Plan?): UiText? = when {
         sellsPro -> when (plan) {
-            Plan.PRO -> ""
-            Plan.FREE -> " Get Pro for ${CallsLeft.PRO_MONTHLY} calls a month."
-            Plan.TRIAL, null -> " Sign in with Google for ${CallsLeft.FREE_MONTHLY} calls a month, or get Pro for ${CallsLeft.PRO_MONTHLY}."
+            Plan.PRO -> null
+
+            Plan.FREE -> plural(R.plurals.model_more_pro, CallsLeft.PRO_MONTHLY)
+
+            Plan.TRIAL, null -> {
+                plural(R.plurals.model_more_sign_in_or_pro, CallsLeft.FREE_MONTHLY, CallsLeft.FREE_MONTHLY, CallsLeft.PRO_MONTHLY)
+            }
         }
 
-        canSignIn && (plan == null || plan == Plan.TRIAL) -> " Sign in with Google in Settings to get more each month."
+        canSignIn && (plan == null || plan == Plan.TRIAL) -> text(R.string.model_more_sign_in)
 
-        else -> ""
+        else -> null
     }
 
     companion object {
         /** What to say about an answer that came but could not be used. */
-        const val UNREADABLE_ANSWER = "The AI's answer could not be read. Please try again."
+        val UNREADABLE_ANSWER: UiText = text(R.string.model_unreadable_answer)
 
-        private const val NO_CONNECTION = "Could not reach Split Vibe's server. Check the internet connection and try again."
         private const val REQUEST_ID = "requestId"
         private const val RETRY_LIMIT = "retry_limit"
         private const val INPUT = "input"
@@ -192,13 +220,13 @@ class ProxyModelCall(
  * When to try again after the proxy limited a request, from its `Retry-After` in [seconds], such as
  * "Try again in about 40 minutes."; without one, later.
  */
-internal fun waitHint(seconds: Long?): String {
-    if (seconds == null) return "Try again later."
-    val minutes = (seconds + 59) / 60
+internal fun waitHint(seconds: Long?): UiText {
+    if (seconds == null) return text(R.string.wait_later)
+    val minutes = ((seconds + 59) / 60).toInt()
     return when {
-        minutes <= 1 -> "Try again in a minute."
-        minutes < 120 -> "Try again in about $minutes minutes."
-        else -> "Try again in about ${(minutes + 59) / 60} hours."
+        minutes <= 1 -> text(R.string.wait_a_minute)
+        minutes < 120 -> plural(R.plurals.wait_minutes, minutes)
+        else -> plural(R.plurals.wait_hours, (minutes + 59) / 60)
     }
 }
 
@@ -216,4 +244,4 @@ fun BillAnalyzerException.signInHelps(canSignIn: Boolean, signedIn: Boolean, sel
  * and the proxy does not count them as Pro's already.
  */
 fun BillAnalyzerException.proHelps(sellsPro: Boolean): Boolean =
-    sellsPro && kind == Kind.QUOTA_EXHAUSTED && (cause as? ProxyException)?.callsLeft?.plan != Plan.PRO
+    sellsPro && kind == Kind.QUOTA_EXHAUSTED && (failure as? ProxyException)?.callsLeft?.plan != Plan.PRO

@@ -9,6 +9,7 @@ import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.inEnglish
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.Dispatcher
@@ -83,7 +84,7 @@ class SettingsViewModelTest {
         viewModel.deleteAccount(context)
         awaitOnMain { !viewModel.ui.value.working }
 
-        assertEquals("Your account was deleted.", viewModel.ui.value.message)
+        assertEquals("Your account was deleted.", viewModel.ui.value.message.inEnglish())
         assertFalse(viewModel.ui.value.isError)
         assertNull(proxy.account.account.value.session)
     }
@@ -97,7 +98,7 @@ class SettingsViewModelTest {
         viewModel.deleteAccount(context)
         awaitOnMain { !viewModel.ui.value.working }
 
-        assertTrue(viewModel.ui.value.message.orEmpty().contains("server had a problem"))
+        assertTrue(viewModel.ui.value.message.inEnglish().orEmpty().contains("server had a problem"))
         assertTrue(viewModel.ui.value.isError)
         assertEquals("signed-session", proxy.account.account.value.session?.token)
     }
@@ -112,7 +113,7 @@ class SettingsViewModelTest {
         awaitOnMain { !viewModel.ui.value.working }
 
         val said = "That was tried too many times just now, so nothing was changed. Try again in about 40 minutes."
-        assertEquals(said, viewModel.ui.value.message)
+        assertEquals(said, viewModel.ui.value.message.inEnglish())
         assertTrue(viewModel.ui.value.isError)
         assertEquals("signed-session", proxy.account.account.value.session?.token)
     }
