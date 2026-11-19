@@ -227,8 +227,9 @@ on it, how it is split and who paid. It links the privacy policy (`LegalLinks`).
 - Agreeing lets the call the person asked for go ahead. A bill read can be typed in by hand instead,
   which keeps its photos as the bill's; a change can be turned down, which keeps the split as it is.
   Back closes the screen without an answer. Nothing else in the app waits for the consent.
-- The answer is kept in the app's settings on the phone (`AppSettings.aiAllowed`, on disk at once)
-  and never leaves it; Android's backup is off. Deleting the phone's data with the account keeps it.
+- The answer is kept in the app's settings on the phone (`AppSettings.aiAllowed`, on disk at once),
+  and the app sends it nowhere: no request carries it and nothing syncs it. Deleting the phone's data
+  with the account keeps it.
 - Settings shows the consent once it is given, and takes it back there. From then on no call goes to
   the AI until the person agrees again, on the consent screen, which shows at the next AI action.
 - `AiConsentFlowTest` checks that no call reaches the proxy before the person agrees, and none after

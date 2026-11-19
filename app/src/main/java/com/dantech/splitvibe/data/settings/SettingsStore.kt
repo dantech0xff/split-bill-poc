@@ -23,7 +23,7 @@ data class AppSettings(
     /**
      * The user agreed, on the consent screen, that Split Vibe sends the text of their bills and the
      * changes they ask for to Anthropic's AI. It is asked before the first call to the AI, and again
-     * after Settings took it back. It is kept on this phone only.
+     * after Settings took it back. It is kept with the other settings, and the app sends it nowhere.
      */
     val aiAllowed: Boolean = false,
 )
