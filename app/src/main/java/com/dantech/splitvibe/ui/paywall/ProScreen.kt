@@ -318,6 +318,7 @@ private fun Terms(state: ProUiState, actions: ProActions, legalLinks: LegalLinks
         if (cannotOpen) {
             Text(
                 stringResource(R.string.pro_cannot_open_play),
+                modifier = announced,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )

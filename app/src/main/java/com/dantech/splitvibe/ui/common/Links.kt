@@ -17,6 +17,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.core.net.toUri
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
@@ -50,8 +53,10 @@ fun LegalLinksRow(links: LegalLinks, modifier: Modifier = Modifier) {
             }
         }
         if (cannotOpen) {
+            // Read out by TalkBack as it appears, since nothing else happens after the tap.
             Text(
                 stringResource(R.string.legal_cannot_open),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
