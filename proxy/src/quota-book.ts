@@ -140,7 +140,7 @@ export class QuotaBook extends DurableObject {
     const book = await this.currentBook(now, terms.allowance);
     const requests = await this.liveRequests(now);
     // A call held for an install moves on the time its object is kept until.
-    const held = allowance.kind === "trial" ? { [LAST_HELD]: now } : {};
+    const held: Record<string, number> = allowance.kind === "trial" ? { [LAST_HELD]: now } : {};
     const known = requests.get(requestId);
     if (known) {
       if (known.digest !== digest) {
@@ -170,7 +170,9 @@ export class QuotaBook extends DurableObject {
       allowance.kind === "trial" && book.hundredths === 0 && requests.size === 0 && (await this.ctx.storage.get(FIRST_CALL)) === undefined;
     const entry: RequestEntry = { heldAt: now, runs: 1, active: 1, committedAt: null, digest, weight: cost };
     requests.set(requestId, entry);
-    await this.ctx.storage.put({ [REQUEST + requestId]: entry, ...held, ...(first ? { [FIRST_CALL]: true } : {}) });
+    const writes: Record<string, RequestEntry | number | boolean> = { [REQUEST + requestId]: entry, ...held };
+    if (first) writes[FIRST_CALL] = true;
+    await this.ctx.storage.put(writes);
     await this.arm(now);
     const usage = usageOf(book, requests, terms, now);
     return first ? { ok: true, usage, first } : { ok: true, usage };
