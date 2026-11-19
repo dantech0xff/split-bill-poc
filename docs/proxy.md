@@ -8,7 +8,9 @@ service may spend in a day, and keeps nothing of the bill. It also hands the app
 day's exchange rates, keeps what signed-in people share (groups, their bills and settlements, and
 payment requests), sends their push notifications, and serves the web pages of shared links, where
 people without the app claim the items they had on a bill, or see a payment request or an invite.
-Which accounts are on Pro, the subscription sold through Google Play, it reads from RevenueCat.
+Which accounts are on Pro, the subscription sold through Google Play, it reads from RevenueCat. It
+serves the privacy policy, the terms of use and a page where someone deletes their account by
+signing in with Google, and counts what happens, never who, in Workers Analytics Engine.
 
 ```mermaid
 flowchart LR
@@ -26,6 +28,7 @@ flowchart LR
     rooms -->|changes| browser
     worker -->|reads plans,<br/>deletes customers| revenuecat[RevenueCat]
     revenuecat -->|webhook events| worker
+    worker -->|counts, never who| metrics[Workers Analytics Engine]
 ```
 
 ## What it does
@@ -37,18 +40,20 @@ flowchart LR
 | `POST /v1/session` | the app, after "Sign in with Google" | `{session, expiresAt, usage, purchaser}`: a session the proxy signs, for 30 days, and the id the app gives RevenueCat |
 | `GET /v1/usage` | Settings | `{usage, aiEnabled}`: the calls left and whether AI is on; with `purchaser` too for a signed-in caller |
 | `POST /v1/plan` | the Pro screen, and the app once a purchase or a restore is done | `{purchaser, usage, aiEnabled}` once the proxy has read the account's plan from RevenueCat, [below](#pro-subscriptions) |
-| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its call and spend counters, and its part in the shared data, are gone |
+| `DELETE /v1/account` | Settings, "Delete account" | 204 once the account's customer at RevenueCat, its spend counter and its part in the shared data are gone, and its calls but those of the month, which stay until the month ends, [below](#deleting-an-account) |
+| `POST /v1/account/delete-with-google` | the page `/delete-account`, after "Sign in with Google" | 204 once the account of the ID token is deleted, as `DELETE /v1/account` deletes one, [below](#deleting-an-account) |
 | `POST /v1/subscription-events` | RevenueCat's webhook | `{"ok":true}` once the plans the event is about are read again, [below](#pro-subscriptions) |
 | `GET /v1/fx-rates` | the app, to convert between currencies | `{base, source, fetchedAt, rates}`: how much of each currency one euro buys, each rate with its day |
 | `/v1/groups…`, `/v1/invites…`, `/v1/requests…`, `/v1/request-links…`, `/v1/devices…` | the app, signed in | the shared data, [below](#shared-data-groups-payment-requests-and-push) |
 | `/v1/shares…` | the app, signed in; a browser with the link | bill links and their claims, [below](#bill-links-and-the-web-pages) |
 | `POST /v1/request-links/view`, `POST /v1/invites/preview` | a browser with the link | what the web page of a payment request or an invite shows |
 | `GET /.well-known/assetlinks.json`, `GET /s/`, `GET /r/`, `GET /g/`, `GET /assets/…` | Android, a browser | App Links, and the web app for a link opened without the app |
+| `GET /privacy`, `GET /terms`, `GET /delete-account` | a browser, the app's links | the privacy policy, the terms of use and the page to delete an account, [below](#the-pages) |
 
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
-its version with `X-SplitVibe-Version`; the exchange rates, the shared data and the links need
-neither. A signed-in app adds `Authorization: Bearer <session>`, which is all the shared data
-needs. RevenueCat's webhook carries none of them: its own `Authorization` value lets it in. The body of a bill read is exactly
+its version with `X-SplitVibe-Version`; the exchange rates, the shared data, the links, the pages
+and the deletion with Google need neither. A signed-in app adds `Authorization: Bearer <session>`,
+which is all the shared data needs. RevenueCat's webhook carries none of them: its own `Authorization` value lets it in. The body of a bill read is exactly
 [`sample_bill_request.json`](../app/src/sharedTest/resources/fixtures/sample_bill_request.json) in
 shape; the app's and the proxy's tests both use that file. A bill photographed in several pages is
 still one `ocrDocument`: `<bill_ocr pages="N">` holds one `<page n="…" rows="…">` per photo, in
@@ -327,7 +332,10 @@ the cron always asks. Only when there has never been a snapshot does a failed fe
 Durable Objects hold counters: calls used per install or per account, in hundredths of a
 call, request ids for a day with what each one takes, requests and spend per address. A Google
 account's `QuotaBook` also keeps its plan as RevenueCat last gave it, `proUntil` and `checkedAt`,
-and when its id first went out as a purchaser; both go when the account is deleted. One more
+and when its id first went out as a purchaser; both go when the account is deleted, with
+everything else it holds but the calls of the current month, which stay until the month ends, as
+[Deleting an account](#deleting-an-account) says. An install's `QuotaBook` also keeps when it
+first had a call held, so that the first call of an install is [counted](#counters) once. One more
 holds the latest exchange rates, which are public. Objects are named by salted hashes, never by an
 IP address or a Google id. A request id is kept with a salted hash of what it asked, so that it
 cannot be reused for another bill or another edit. Nothing of a bill read or of an edit, an
@@ -383,6 +391,55 @@ and the user agent, but no header values, no IP address and no body. They do sho
 URL, so no path holds anything secret: paths hold ids only, and link tokens travel in a link's
 fragment, in request bodies, and in the subprotocols of a live connection. Those CPU times tell
 whether the free plan's limit is enough.
+
+### Counters
+
+The proxy counts what happens, never who, in the Workers Analytics Engine dataset
+`split_vibe_events`, bound as `METRICS` in `wrangler.jsonc`
+([`proxy/src/metrics.ts`](../proxy/src/metrics.ts)). Each data point holds the event as its index
+and as `blob1`, its outcome as `blob2`, and four numbers: `double1` the cost in microdollars of a
+call the model answered, `double2` and `double3` its input and output tokens, and `double4` the
+time taken in milliseconds; a number a point does not carry is 0. No point holds an account, an
+install id, an IP address, any other id, a token or anything of a bill. Without the binding
+nothing is counted and everything else works the same; a point the binding refuses fails nothing,
+and the Worker logs `metric_not_written` with the error's name.
+
+| Event | Counted when | Outcome | Numbers |
+|---|---|---|---|
+| `bill_analysis`, `split_revision` | a bill read or an edit of a split ends, however it ends | `ok`, or the code of the error line or refusal that ended it, such as `quota_exhausted`, `ai_off` or `upstream` | cost, tokens and time; cost and tokens only once the model answered |
+| `install_first_call` | the call that an install not signed in had held first, once per install | the outcome of that call | none |
+| `sign_in` | `POST /v1/session` answers | `ok`, `input`, `id_token` or `sign_in_off` | none |
+| `share_created` | a bill link is made | `ok` | none |
+| `share_claim` | a claim lands on a bill link | `new`, or `changed` for a claim the link had | none |
+| `request_created`, `request_reported_paid`, `request_confirmed_paid` | a payment request is made, reported paid or confirmed paid; each happens once per request | `ok` | none |
+| `plan_refresh` | `POST /v1/plan` answers a signed-in account | `ok`, `not_configured`, `rate_limited` or `subscription_unavailable` | none |
+| `subscription_event` | RevenueCat's webhook answers | what its log line says came of the event, such as `ok`, `test`, `no_account` or `webhook_auth`; never the event's type | time |
+| `daily_run` | the daily cron ends | `ok`, or `failed` when one of its parts failed | time |
+
+An install's `QuotaBook` marks its first call when it holds it, so a first call that gets no
+answer is still the one counted. Analytics Engine keeps data points for three months, and samples
+them when there are many: the event is the index, the key it samples by, so a busy event never
+crowds out a rare one, and a count is the sum of the points' `_sample_interval`.
+
+`npm run metrics` in `proxy/` prints the daily counts of the last 7 days, today included, or of as
+many as it is given, from 1 to 90: for each day in UTC, each event and outcome, how many there
+were and what the calls of the model among them cost. It reads them through Analytics Engine's
+SQL API, `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql`,
+with the account's id and an API token with the permission Account › Account Analytics › Read,
+from the environment, and prints neither. Read the token without echoing it, so that it stays
+out of the shell's history:
+
+```bash
+export CLOUDFLARE_ACCOUNT_ID=<the account id, from the Cloudflare dashboard>
+read -rsp "API token: " CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+```
+
+```bash
+npm run metrics -- 30
+```
+
+Wrangler takes `CLOUDFLARE_API_TOKEN` too, so run `unset CLOUDFLARE_API_TOKEN` before using
+Wrangler in the same shell, or it signs in with this token, which can deploy nothing.
 
 ## Shared data: groups, payment requests and push
 
@@ -671,30 +728,46 @@ browser. None of these needs a session or an install id.
 
 ### Deleting an account
 
-Each account may ask for its deletion 5 times an hour (`accountDeletionsPerHour`), counted before
-RevenueCat is asked; past that, `DELETE /v1/account` is 429 `rate_limited` with `Retry-After`, and
-nothing is deleted. It first has RevenueCat delete the account's customer, with its purchase
-history, when `REVENUECAT_SECRET_KEY` is set. RevenueCat answering 200, or 404 for a customer it
-does not have, counts as done; any other answer, or none within 10 seconds, is 502
-`subscription_unavailable`, and nothing else is deleted, so that the app can try again. RevenueCat
-deletes the customer some time after it answers. Deleting it does not cancel the subscription on
-Google Play, which renews until the person cancels it in Play; the app warns them before it
-deletes the account. Next the proxy takes the account out of the shared data, in one batch,
-without changing anyone's balance: amounts and settlements stay as they are. Last it deletes the
-account's `QuotaBook`, with its plan and the record of its purchaser, and its spend counter, so a
-later webhook event about the account asks RevenueCat nothing.
+Two routes delete an account, through the same code, so they delete it alike: `DELETE /v1/account`,
+with the account's session, from the app's Settings; and `POST /v1/account/delete-with-google` with
+`{"idToken": …}`, from the page [`/delete-account`](#the-pages), where someone who no longer has
+the app signs in with Google. Play asks for such a page, and the proxy holds no email address that
+a request by email could name an account by. The second route checks the ID token exactly as
+`POST /v1/session` does, with the same errors: 400 `input` for a body without a token, 401
+`id_token` for one Google did not sign for `GOOGLE_CLIENT_ID` or that has run out, and 503
+`sign_in_off` while sign-in is off or Google's keys cannot be had. It never issues a session, and
+needs neither an install id nor a version.
 
+Each account may ask for its deletion 5 times an hour (`accountDeletionsPerHour`), by either route,
+counted before RevenueCat is asked; past that, the answer is 429 `rate_limited` with `Retry-After`,
+and nothing is deleted. The proxy first has RevenueCat delete the account's customer, with its
+purchase history, when `REVENUECAT_SECRET_KEY` is set. RevenueCat answering 200, or 404 for a
+customer it does not have, counts as done; any other answer, or none within 10 seconds, is 502
+`subscription_unavailable`, and nothing else is deleted, so that the app or the page can try again.
+RevenueCat deletes the customer some time after it answers. Deleting it does not cancel the
+subscription on Google Play, which renews until the person cancels it in Play; the app and the page
+say so before they delete the account. Next the proxy takes the account out of the shared data, in
+one batch, without changing anyone's balance: amounts and settlements stay as they are. Last it
+forgets the account's `QuotaBook` and deletes its spend counter.
+
+- The `QuotaBook` keeps the count of the calendar month the account was deleted in, and nothing
+  else: its plan, the record of its purchaser and the request ids it remembers go, so a later
+  webhook event about the account asks RevenueCat nothing. The count holds the month and the
+  calls used, under the account's salted hash, so that deleting the account and signing in again
+  starts no new allowance: a sign-in in the same month sees the calls used, on the free plan. When
+  the month ends, the object wakes and deletes the count. A call still held when the account is
+  deleted runs on, and is charged to that count once the model answers.
 - Its members become placeholders named "Former member", keeping their ids; each group logs
   `member_left`. A group where nobody else has an account is deleted, as when its last account
   leaves.
 - A group it owns passes to the member with an account who joined first, and its bills pass to
   the group's owner.
-- Its claims and devices are deleted, and its hourly counters but two: those of `POST /v1/plan`
-  and of deleting the account. Those two outlive the deletion until the daily run forgets them
-  once their hour is over, and hold nothing of the account but its salted hash, so that deleting
-  the account again and again starts neither over, and cannot have RevenueCat asked without end.
-- Its bill links are deleted, with their claims. Pages that have one open hear nothing more, and
-  learn it at their next request.
+- Its claims and devices are deleted. Its hourly counters stay, holding nothing of the account but
+  its salted hash, until the daily run forgets them once their hour is over, as it forgets every
+  one. So neither deleting the account again and again nor a session that outlives the deletion
+  starts a limit over, and RevenueCat cannot be asked without end.
+- Its bill links are deleted, with their claims, so their links stop working at once. Pages that
+  have one open hear nothing more, and learn it at their next request.
 - On the requests it made, the payment method of each one not yet confirmed becomes `{}`, and on
   all of them, confirmed ones included, `payment` for the web page is emptied and `creditorName`
   becomes "Former member". The account is then taken off every
@@ -968,27 +1041,52 @@ The live connection:
     `._%+-`, an `@`, then two or more labels of letters, digits and `-` joined by dots. The page
     takes the same addresses and no others, so that nothing in one changes what its `mailto:` link
     does.
-- The page's headers, with `<host>` the host the page was asked at:
+- The link pages' headers, with `<host>` the host the page was asked at:
   - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
   - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`
   - `cache-control: no-store`
-- `GET /assets/<name>` serves the page's scripts and styles with `cache-control: public,
+- `GET /privacy` and `GET /terms` answer the privacy policy and the terms of use, which
+  `npm run build` in `web/` renders from [`docs/privacy-policy.md`](privacy-policy.md) and
+  [`docs/terms.md`](terms.md) into static pages, so the Worker parses no Markdown. They run no
+  script and load nothing but the link pages' stylesheet. Their headers are those of the link
+  pages, with the policy `default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri
+  'none'; form-action 'none'; frame-ancestors 'none'`.
+- `GET /delete-account` answers the page where someone deletes their account by signing in with
+  Google, which the web app's script draws ([web.md](web.md)). The Worker fills its
+  `<meta name="sv-google-client-id">` with `GOOGLE_CLIENT_ID` while sign-in works, that is with
+  `SESSION_SIGNING_KEY` set too, and leaves it empty otherwise; a value that is not shaped as a
+  client ID (letters, digits, `.`, `_` and `-`, then `.apps.googleusercontent.com`) leaves it empty
+  too, and is logged. With the tag empty, the page says that deleting on the web is not available
+  yet, and how to delete in the app. Its headers are those of the link pages, but for:
+  - `content-security-policy: default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`:
+    the origins Google's guide asks for Google Identity Services, its library, its stylesheet, the
+    iframe of its button and its endpoints, and no more. No other page may load it.
+  - `referrer-policy: strict-origin-when-cross-origin`, which Google recommends: Google Identity
+    Services tells the page's origin from the referrer, and refuses its button without it. A
+    request to another origin carries the origin alone, and the page's address holds nothing
+    else.
+- These three answer GET at their paths as written only: `/privacy/` or `/terms.html` is 404.
+- `GET /assets/<name>` serves the pages' scripts and styles with `cache-control: public,
   max-age=31536000, immutable` and `x-content-type-options: nosniff`; any other name is 404.
 - The web app is built from [`web/`](../web) and put into the Worker's bundle, as the module
   `proxy/src/web-assets.generated.ts` that
   [`proxy/scripts/embed-web.mjs`](../proxy/scripts/embed-web.mjs) writes from what `npm run build`
-  in `web/` leaves in `web/dist`: `index.html`, and the `.js` and `.css` files of its `assets/`.
-  Git ignores the module. `npm run build:web` in `proxy/` builds `web/` and writes the module; the
-  proxy's typecheck, tests and `npm run dev` write it too, from `web/dist` as it is, or as a
-  placeholder page while `web/` is not built. With `REQUIRE_WEB=1` in its environment, or
-  `--require`, the script stops instead of writing the placeholder, as `npm run bundle` asks for a
-  deploy (see [Deploy it](#deploy-it)). Writing it stops on a page the Worker could not serve
-  whole, by the checks of [`web/scripts/page-checks.mjs`](../web/scripts/page-checks.mjs), which
-  `npm run build` in `web/` makes too: a script or a style that is not under `/assets/`, a
-  reference with a scheme or to another origin, an inline script or style, a `style` attribute or
-  an inline event handler, which the page's policy would block, or a page without the meta tags
-  above; and on any other kind of file in `assets/`. Workers Static Assets are not used, since the
-  Worker is deployed through the Cloudflare API.
+  in `web/` leaves in `web/dist`: `index.html`, `delete-account.html`, `privacy.html` and
+  `terms.html`, and the `.js` and `.css` files of its `assets/`. Git ignores the module.
+  `npm run build:web` in `proxy/` builds `web/` and writes the module; the proxy's typecheck, tests
+  and `npm run dev` write it too, from `web/dist` as it is, with a placeholder for each page it
+  lacks, as while `web/` is not built. With `REQUIRE_WEB=1` in its environment, or `--require`, the
+  script stops instead of writing a placeholder, as `npm run bundle` asks for a deploy (see
+  [Deploy it](#deploy-it)). The build of `web/` stops when `docs/privacy-policy.md` or
+  `docs/terms.md` is missing, saying which, and so does `npm run bundle`. Writing the module stops
+  on a page the Worker could not serve whole, by the checks of
+  [`web/scripts/page-checks.mjs`](../web/scripts/page-checks.mjs), which `npm run build` in `web/`
+  makes too: a script or a style that is not under `/assets/`, a reference with a scheme or to
+  another origin, but for the links of a legal page, an inline script or style, a `style`
+  attribute or an inline event handler, which the page's policy would block, a script or an image
+  on a legal page, or a page without the meta tags above; and on any other kind of file in
+  `assets/`. Workers Static Assets are not used, since the Worker is deployed through the
+  Cloudflare API.
 - `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
   app where it is installed, and the page elsewhere.
 
@@ -1029,8 +1127,9 @@ once, and again after a new migration:
 npx wrangler d1 migrations apply split-vibe --local
 ```
 
-The pages of `/s/`, `/r/` and `/g/` are the web app built from `web/`; until it is built, they are
-a placeholder. To see the real pages, install the web app's packages once and build it:
+The pages of `/s/`, `/r/`, `/g/`, `/delete-account`, `/privacy` and `/terms` are the web app built
+from `web/`; until it is built, they are placeholders. To see the real pages, install the web app's
+packages once and build it:
 
 ```bash
 npm ci --prefix ../web
@@ -1054,7 +1153,9 @@ adb reverse tcp:8787 tcp:8787
 ```
 
 To sign in from a debug build, also put the web client ID (see below) into `GOOGLE_CLIENT_ID` in
-`wrangler.jsonc` and into `local.properties`.
+`wrangler.jsonc` and into `local.properties`. The page `http://localhost:8787/delete-account` signs
+in with Google only once `http://localhost` and `http://localhost:8787` are both among the web
+client's Authorized JavaScript origins, as Google's guide asks for testing on a computer.
 
 ### Tests
 
@@ -1079,10 +1180,18 @@ creates a customer on a read as RevenueCat does, and can hold an answer back unt
 overtaken it. Live connections are opened as a browser opens them. A claim and a lock
 are raced by landing one just before the other's batch, both ways round, and a claim is removed just
 before the batch of a settlement that matches it. The tests of the pages read nothing of what the
-page says, so they hold for the web app and for the placeholder alike. `npm test` then has Node
-check, with stand-ins for the evaluation's runner and for Wrangler, that the runner leaves nothing
-running however it ends. Both commands first write the module of the web app, from `web/dist` as it
-is. GitHub Actions runs both for every pull request, after building `web/` once it has a lock file.
+page says, so they hold for the web app and for the placeholders alike. The tests of deleting an
+account walk the matrix of what the proxy holds about it, one row of it per test, through both
+routes: devices; the calls of the month, which a new sign-in sees; the plan and the record of the
+purchaser; the customer at RevenueCat, deleted first; the spend counter; the hourly counters,
+until the daily cleanup; groups and their bills, where the balances of the members who stay must
+not move; payment requests not confirmed; and bill links with their claims. The counters go to a
+dataset the tests keep, which checks each event, its outcome and its numbers, that no point holds
+an id, and that a missing or failing binding changes no answer. `npm test` then has Node check,
+with stand-ins for the evaluation's runner and for Wrangler, that the runner leaves nothing running
+however it ends, and, with a stand-in for the SQL API, what `npm run metrics` asks and prints.
+Both commands first write the module of the web app, from `web/dist` as it is. GitHub Actions runs
+both for every pull request, after building `web/` once it has a lock file.
 
 ## Deploy it
 
@@ -1092,7 +1201,11 @@ These steps need the owner's accounts.
    *Web application*: its client ID is the app's web client ID. Create one of type *Android* for
    each key that signs the app, with the package name and the key's SHA-1: the debug key for
    `com.dantech.splitvibe.dev`, and for `com.dantech.splitvibe` the upload key (for release builds
-   installed by hand) and the Play app signing key (for the app as Play delivers it).
+   installed by hand) and the Play app signing key (for the app as Play delivers it). Once the
+   Worker has its address, add `https://<the proxy's host>` to the *Authorized JavaScript origins*
+   of the web client, so that the page `/delete-account` can sign in with Google: the scheme and
+   the host only, without a path. Until then Google refuses the page's button; see
+   [web.md](web.md#deleting-an-account-on-the-web).
 2. **Cloudflare.** From `proxy/`, sign in with `npx wrangler login`. Put the web client ID into
    `GOOGLE_CLIENT_ID` in `wrangler.jsonc`; it is public. Set the three secrets, each of which asks
    for its value without echoing it:
@@ -1177,8 +1290,18 @@ These steps need the owner's accounts.
    count. RevenueCat's test event then answers 200; 401 means the two values differ. The rest of
    the setup in Play Console and RevenueCat is in [pro-subscription.md](pro-subscription.md).
 
-6. Deploy. Build the web app first, from `proxy/`, so that the bundle holds it: without it, the
-   bundle serves the placeholder page, or does not build when the module was never written.
+6. **Counters.** `wrangler.jsonc` binds the Workers Analytics Engine dataset `split_vibe_events`
+   as `METRICS`, and the deploy sets the binding with the others; nothing needs making, as the
+   dataset is made at its first write. Analytics Engine is not billed yet; the free plan includes
+   100,000 data points written and 10,000 read queries a day. To read the counts with
+   `npm run metrics` ([Counters](#counters)), make an API token in the dashboard, under My Profile,
+   API Tokens, a custom token with the one permission Account › Account Analytics › Read for the
+   account, and keep it where the owner's other secrets are kept: never in the repository.
+
+7. Deploy. Build the web app first, from `proxy/`, so that the bundle holds it: without it, the
+   bundle serves placeholder pages, or does not build when the module was never written. The build
+   of the web app needs [`docs/privacy-policy.md`](privacy-policy.md) and [`docs/terms.md`](terms.md),
+   which `/privacy` and `/terms` are made from.
 
    ```bash
    npm ci --prefix ../web
@@ -1193,8 +1316,9 @@ These steps need the owner's accounts.
    ```
 
    A deploy through the Cloudflare API instead uploads the bundle that `npm run bundle` writes, with
-   the bindings, variables, migrations and cron of `wrangler.jsonc`. It builds the web app, embeds
-   it with `REQUIRE_WEB=1`, so that it stops rather than bundle the placeholder page, and has
+   the bindings, variables, migrations and cron of `wrangler.jsonc`, the binding `METRICS` among
+   them. It builds the web app, embeds it with `REQUIRE_WEB=1`, so that it stops rather than bundle
+   a placeholder page, and has
    Wrangler bundle `src/index.ts` as `wrangler deploy` would, into the directory it is given (or
    `BUNDLE_DIR`), with `--dry-run`, which deploys nothing:
 
@@ -1239,7 +1363,13 @@ These steps need the owner's accounts.
    rollout lasts. `--durable-objects-code-update-mode immediate`, as above, moves every object to
    the new code at once.
 
-7. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
+   **The first deploy of the kept count and the counters**: a `QuotaBook` still on the code from
+   before them, for up to about five minutes, deletes everything of an account deleted in that
+   window, the month's count too, so that account may sign in again to a fresh allowance, and it
+   marks no first call of an install, so those go uncounted. Deploy with
+   `--durable-objects-code-update-mode immediate`, as above, to leave no such window.
+
+8. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
    release build. A release build refuses an address that is not https, and every build stops at
    a value with a placeholder such as `<your-subdomain>` still in it.
 

@@ -10,10 +10,10 @@ export const FORMER_MEMBER = "Former member";
  * - a group where nobody else has an account is deleted, as when its last account leaves;
  * - a group it owns passes to the member with an account who joined first, and its bills pass to
  *   the group's owner;
- * - its claims and devices are deleted. Its hourly windows stay until the daily run forgets them
- *   once their hour is over, as it forgets every window: they hold nothing of the account but its
- *   salted hash, and they keep deleting the account again and again, and what a session that
- *   outlives the deletion does, from starting any limit over;
+ * - its claims and devices are deleted. Its hourly windows stay, holding nothing of the account but
+ *   its salted hash, until the daily run forgets them once their hour is over, as it forgets every
+ *   window, so that neither deleting the account again and again nor a session that outlives the
+ *   deletion starts a limit over;
  * - the requests it made keep their amounts for the debtor, but the payment method of each one
  *   not yet confirmed becomes `{}`, the payment for the web page of every one, confirmed or not,
  *   is emptied, so that its link no longer shows how the account was paid, and the creditor's
