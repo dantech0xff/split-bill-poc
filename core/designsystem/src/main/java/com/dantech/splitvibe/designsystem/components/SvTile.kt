@@ -266,26 +266,33 @@ private val SvTileKind.ground: SvGround
         SvTileKind.Ink -> if (LocalDarkTheme.current) SvGround.Card else SvGround.Bar
     }
 
-private fun icon(name: String, build: ImageVector.Builder.() -> Unit): ImageVector = ImageVector.Builder(
-    name = "SvCategoryIcons.$name",
-    defaultWidth = ICON_SIZE,
-    defaultHeight = ICON_SIZE,
-    viewportWidth = VIEWPORT,
-    viewportHeight = VIEWPORT,
-).apply(build).build()
+/**
+ * An icon 24dp square on a viewport of 24 units, as the approved designs draw their icons. [group]
+ * is the object that holds it, which goes into its name.
+ */
+internal fun icon(name: String, group: String = "SvCategoryIcons", build: ImageVector.Builder.() -> Unit): ImageVector =
+    ImageVector.Builder(
+        name = "$group.$name",
+        defaultWidth = ICON_SIZE,
+        defaultHeight = ICON_SIZE,
+        viewportWidth = VIEWPORT,
+        viewportHeight = VIEWPORT,
+    ).apply(build).build()
 
-private fun lineIcon(name: String, pathData: String): ImageVector = icon(name) {
-    addPath(
-        pathData = addPathNodes(pathData),
-        stroke = IconInk,
-        strokeLineWidth = LINE_WIDTH,
-        strokeLineCap = StrokeCap.Round,
-        strokeLineJoin = StrokeJoin.Round,
-    )
-}
+/** An [icon] drawn in lines [lineWidth] units wide, with round ends and corners. */
+internal fun lineIcon(name: String, pathData: String, group: String = "SvCategoryIcons", lineWidth: Float = LINE_WIDTH): ImageVector =
+    icon(name, group) {
+        addPath(
+            pathData = addPathNodes(pathData),
+            stroke = IconInk,
+            strokeLineWidth = lineWidth,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }
 
 /** A circle of radius [r] around ([cx], [cy]) as path data: two half circles. */
-private fun circle(cx: Float, cy: Float, r: Float): String = "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0z"
+internal fun circle(cx: Float, cy: Float, r: Float): String = "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0z"
 
 /** Any opaque colour: an icon takes its colour from the tint it is drawn with. */
 private val IconInk = SolidColor(Color.Black)

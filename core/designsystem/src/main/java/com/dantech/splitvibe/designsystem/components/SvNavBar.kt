@@ -49,6 +49,33 @@ import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.designsystem.tokens.elevation
 
 /**
+ * The icons of the navigation bar as the approved designs draw them: 24dp, in lines with round ends,
+ * and the plus of the button in the middle, drawn larger in thicker lines.
+ */
+object SvNavIcons {
+    /** A house. */
+    val Home: ImageVector = lineIcon("Home", "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z", NAV_ICONS)
+
+    /** Two people. */
+    val Groups: ImageVector = lineIcon(
+        "Groups",
+        circle(9f, 8f, 3.5f) + "M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" + circle(17.5f, 9f, 2.5f) + "M17 14.2c2.7.3 4.5 2.3 4.5 5.3",
+        NAV_ICONS,
+    )
+
+    /** Two arrows going opposite ways: money asked for and money owed. */
+    val Requests: ImageVector = lineIcon("Requests", "M4 8h13l-3.5-3.5M20 16H7l3.5 3.5", NAV_ICONS)
+
+    /** Three bars of a chart. */
+    val Insights: ImageVector = lineIcon("Insights", "M5 20V10M12 20V4M19 20v-7", NAV_ICONS, lineWidth = 2.4f)
+
+    /** A plus, for the button in the middle that starts a split. */
+    val Split: ImageVector = lineIcon("Split", "M12 5v14M5 12h14", NAV_ICONS, lineWidth = 2.6f)
+}
+
+private const val NAV_ICONS = "SvNavIcons"
+
+/**
  * One destination of an [SvNavBar]: its [label], its [icon], and [count], how many things wait for
  * the user there, shown on the icon when it is more than 0.
  */

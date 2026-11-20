@@ -1,12 +1,15 @@
 package com.dantech.splitvibe.e2e
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -26,7 +29,8 @@ import org.koin.core.context.GlobalContext
 
 /*
  * What a person does on the way through a split, shared by the journeys. Every element is found by
- * the English text the person sees on it, or by what it is, such as a text field or a list.
+ * the English text the person sees on it, by what a screen reader says for a button that shows no
+ * text, or by what it is, such as a tab, a text field or a list.
  */
 
 /** How long work off the main thread may take, such as reading the bill's text or an answer of the proxy. */
@@ -44,6 +48,13 @@ fun ComposeTestRule.awaitNoNode(matcher: SemanticsMatcher) = waitUntil(TIMEOUT_M
 
 /** The text field labelled [label]. */
 fun ComposeTestRule.field(label: String): SemanticsNodeInteraction = onNode(hasSetTextAction() and hasText(label))
+
+/**
+ * The tab of the navigation bar called [label], also with the count it may carry, as in "Requests, 2".
+ * The screen a tab opens has the same name as its title, which is no tab.
+ */
+fun tab(label: String): SemanticsMatcher =
+    SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab) and hasContentDescription(label, substring = true)
 
 /**
  * Taps the element through its click action rather than a touch at its place on the screen. Once

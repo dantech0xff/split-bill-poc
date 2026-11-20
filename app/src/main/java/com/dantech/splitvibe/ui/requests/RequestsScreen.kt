@@ -19,14 +19,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -87,10 +84,12 @@ class RequestActions(
     val onRefresh: () -> Unit,
     val onOpenSettings: () -> Unit,
     val onDismissMessage: () -> Unit,
-    val onBack: () -> Unit,
 )
 
-/** The requests sent to the user, to pay, and those the user sent, to confirm. */
+/**
+ * The requests sent to the user, to pay, and those the user sent, to confirm. It is one of the main
+ * screens, with the navigation bar the app passes as [bottomBar] and no back button.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RequestsScreen(
@@ -100,17 +99,13 @@ fun RequestsScreen(
     actions: RequestActions,
     /** Who asked, by request id, as their group knows them; see [RequestsViewModel.creditorNames]. */
     creditorNames: Map<String, String> = emptyMap(),
+    bottomBar: @Composable () -> Unit = {},
 ) {
     var paying by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.requests_title)) },
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
                 actions = {
                     if (signedIn) {
                         SvOverflowMenu(
@@ -121,8 +116,10 @@ fun RequestsScreen(
                 },
             )
         },
+        bottomBar = bottomBar,
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // The list ends above the navigation bar, so no request, nor its buttons, ever passes under it half hidden.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!signedIn) {
                 item {
                     SvMessageCard(

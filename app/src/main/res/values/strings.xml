@@ -887,10 +887,12 @@
     <string name="home_intro_title">Split a bill with AI</string>
     <string name="home_intro_text">Scan the bill and say how to split it. The bill is read on this phone, worked out by Claude, and you choose who pays what.</string>
 
-    <!-- Recurring bills -->
-    <string name="recurring_title">Recurring bills</string>
+    <!-- The navigation bar of the main screens; its other tabs are named by groups_title, requests_title and home_insights -->
+    <string name="nav_home">Home</string>
 
-    <!-- The list of bills -->
+    <!-- The list of bills, and its tabs -->
+    <string name="history_all_bills">All bills</string>
+    <string name="history_recurring">Recurring</string>
     <string name="history_search">Search by place, item or person</string>
     <string name="history_none">No bills yet. Every bill you split is kept here.</string>
     <string name="history_no_match">No bill matches “%1$s”.</string>

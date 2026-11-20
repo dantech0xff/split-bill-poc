@@ -84,7 +84,7 @@ class PseudoLocaleGalleryTest {
 
     @Test
     fun `home with bills in en-XA`() = shot("50-home-en-xa") {
-        HomeScreen(bills = BILLS, onSplitBill = {}, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {})
+        HomeScreen(bills = BILLS, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {})
     }
 
     @Test

@@ -51,6 +51,8 @@ import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.recurring.RecurringActions
+import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
@@ -391,10 +393,12 @@ class ScreenGalleryTest {
             CompositionLocalProvider(LocalRippleConfiguration provides null) {
                 SplitVibeTheme {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(bills = bills, onSplitBill = {}, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {})
+                        Screen.HOME -> HomeScreen(bills = bills, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {}, bottomBar = {
+                            AppNavBar(selected = HomeKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {})
+                        })
 
                         Screen.HISTORY -> HistoryScreen(listings = bills, query = "", onQueryChanged = {
-                        }, onOpen = {}, onDelete = {}, onBack = {})
+                        }, onOpen = {}, onDelete = {}, onBack = {}, recurring = emptyList(), recurringActions = NO_RECURRING_ACTIONS)
 
                         Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
@@ -520,6 +524,7 @@ private val SIGNED_IN = SIGNED_OUT.copy(
 )
 
 private val NO_ACTIONS = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = {}, onOpenPro = {})
+private val NO_RECURRING_ACTIONS = RecurringActions(onPause = {}, onResume = {}, onDelete = {})
 
 /** What the proxy answers to [ASSISTANT_INSTRUCTION] on the sample bill: the water, a tip and who paid, as three edits. */
 private fun revisionAnswer(): MockResponse {

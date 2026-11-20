@@ -2,6 +2,7 @@ package com.dantech.splitvibe.e2e
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,7 +30,7 @@ class ManualEntryJourneyTest {
     fun aBillTypedInByHandIsSplitEquallyWithoutTheModel() {
         val currency = appCurrency()
 
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.typeBillByHand(where = "Corner Cafe", item = "Lunch", amount = "90")
         compose.onNodeWithText("Corner Cafe").assertIsDisplayed()
         compose.addPerson("Minh")

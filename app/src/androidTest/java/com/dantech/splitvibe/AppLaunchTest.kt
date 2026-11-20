@@ -42,13 +42,13 @@ class AppLaunchTest {
         compose.onNodeWithText("Settings").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").performClick()
 
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
     }
 
     @Test
     fun openScreensComeBackAfterTheActivityIsRecreated() {
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
 
         compose.activityRule.scenario.recreate()

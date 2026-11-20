@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -37,7 +38,7 @@ class SampleBillJourneyTest {
 
     @Test
     fun theSampleBillIsReadThroughTheProxyAndSplitBetweenThreePeople() {
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
         compose.awaitNode(hasText("Read and split the bill") and isEnabled())
         compose.field("How should it be split?").performScrollTo().performTextReplacement(INSTRUCTION)

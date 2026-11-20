@@ -26,7 +26,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -88,6 +86,7 @@ import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvMeter
 import com.dantech.splitvibe.designsystem.components.SvNavBar
+import com.dantech.splitvibe.designsystem.components.SvNavIcons
 import com.dantech.splitvibe.designsystem.components.SvNavItem
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
@@ -504,15 +503,15 @@ private fun NavBarSample() {
     var tab by remember { mutableIntStateOf(0) }
     SvNavBar(
         items = listOf(
-            SvNavItem("Home", Icons.Default.Home),
-            SvNavItem("Groups", Icons.Default.Person),
-            SvNavItem("Requests", Icons.Default.Notifications, count = 2),
-            SvNavItem("Insights", Icons.AutoMirrored.Filled.List),
+            SvNavItem("Home", SvNavIcons.Home),
+            SvNavItem("Groups", SvNavIcons.Groups),
+            SvNavItem("Requests", SvNavIcons.Requests, count = 2),
+            SvNavItem("Insights", SvNavIcons.Insights),
         ),
         selected = tab,
         onSelect = { tab = it },
         centerLabel = "Split a bill",
-        centerIcon = Icons.Default.Add,
+        centerIcon = SvNavIcons.Split,
         onCenterClick = {},
     )
 }

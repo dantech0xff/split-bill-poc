@@ -29,6 +29,7 @@ import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.paywall.ProActions
 import com.dantech.splitvibe.ui.paywall.ProScreen
 import com.dantech.splitvibe.ui.paywall.ProUiState
+import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
@@ -151,8 +152,19 @@ class NumbersInTextsTest {
                     onAllowSpeechService = {},
                 )
             },
-            { HomeScreen(bills = bills, onSplitBill = {}, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {}) },
-            { HistoryScreen(listings = bills, query = "", onQueryChanged = {}, onOpen = {}, onDelete = {}, onBack = {}) },
+            { HomeScreen(bills = bills, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {}) },
+            {
+                HistoryScreen(
+                    listings = bills,
+                    query = "",
+                    onQueryChanged = {},
+                    onOpen = {},
+                    onDelete = {},
+                    onBack = {},
+                    recurring = emptyList(),
+                    recurringActions = RecurringActions(onPause = {}, onResume = {}, onDelete = {}),
+                )
+            },
         )
         var screen by mutableIntStateOf(0)
         compose.setContent { SplitVibeTheme { screens[screen]() } }

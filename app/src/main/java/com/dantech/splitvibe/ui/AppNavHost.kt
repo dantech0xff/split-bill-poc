@@ -18,7 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -67,11 +70,11 @@ import com.dantech.splitvibe.ui.paywall.ProActions
 import com.dantech.splitvibe.ui.paywall.ProScreen
 import com.dantech.splitvibe.ui.paywall.ProViewModel
 import com.dantech.splitvibe.ui.recurring.RecurringActions
-import com.dantech.splitvibe.ui.recurring.RecurringScreen
 import com.dantech.splitvibe.ui.recurring.RecurringViewModel
 import com.dantech.splitvibe.ui.requests.RequestActions
 import com.dantech.splitvibe.ui.requests.RequestLinkScreen
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
+import com.dantech.splitvibe.ui.requests.RequestOverviewViewModel
 import com.dantech.splitvibe.ui.requests.RequestsScreen
 import com.dantech.splitvibe.ui.requests.RequestsViewModel
 import com.dantech.splitvibe.ui.settings.AccountActions
@@ -94,6 +97,7 @@ data object SplitKey : NavKey
 @Serializable
 data object SettingsKey : NavKey
 
+/** The list of bills, with its two tabs: every bill, and the recurring bills. */
 @Serializable
 data object HistoryKey : NavKey
 
@@ -125,14 +129,11 @@ data class RequestLinkKey(val token: String) : NavKey
 @Serializable
 data object InsightsKey : NavKey
 
-@Serializable
-data object RecurringKey : NavKey
-
 /** Pro: its plans, buying it, and managing it once bought. */
 @Serializable
 data object ProKey : NavKey
 
-/** The floating button on the home screen grows into the split screen; both carry this name. */
+/** The button in the middle of the navigation bar grows into the split screen; both carry this name. */
 const val SPLIT_SURFACE = "split"
 
 /**
@@ -148,6 +149,8 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val splitViewModel: SplitBillViewModel = koinViewModel()
     // Scoped to the activity too, so a bill made to recur from the list of bills is stored whatever is opened next.
     val recurringViewModel: RecurringViewModel = koinViewModel()
+    // And so is what the payment requests add up to, which the navigation bar counts on every main screen.
+    val requestOverview: RequestOverviewViewModel = koinViewModel()
     val askForNotices = rememberNoticeAsk()
     val settingsStore: SettingsStore = koinInject()
     val accountStore: AccountStore = koinInject()
@@ -157,6 +160,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val settings by settingsStore.settings.collectAsStateWithLifecycle()
     val account by accountStore.account.collectAsStateWithLifecycle()
     val bills by remember(billRepository) { billRepository.listings() }.collectAsStateWithLifecycle(emptyList())
+    val requestTotals by requestOverview.totals.collectAsStateWithLifecycle()
     // The privacy policy and the terms of use on the proxy's address; none in a build without one.
     val legalLinks = remember { LegalLinks.of(BuildConfig.AI_PROXY_URL) }
 
@@ -181,6 +185,24 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     }
     // Asked once someone is signed in, as that is when notices can come; saying no changes nothing else.
     NoticePermission(signedIn = account.session != null)
+    // The account the open screens were opened for. A sign-in that ran out still holds its place,
+    // until the person signs in again or signs out.
+    val accountHolder = remember(account) { accountHolderOf(account) }
+    CloseScreensWhenTheAccountLeaves(holder = accountHolder, backStack = backStack)
+
+    // The navigation bar of a main screen, which stands on [tab]. The button in the middle starts a
+    // split above that screen, so back from the split returns to it.
+    val navBar: @Composable (tab: NavKey) -> Unit = { tab ->
+        AppNavBar(
+            selected = tab,
+            requests = requestTotals,
+            onSelect = backStack::choose,
+            onSplitBill = {
+                splitViewModel.startNewSplit()
+                backStack.open(SplitKey)
+            },
+        )
+    }
 
     // One timing for the fade between screens and for a surface that grows into the next screen,
     // so both stay together when a back swipe scrubs through them.
@@ -190,6 +212,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     SharedTransitionLayout {
         NavDisplay(
             backStack = backStack,
+            onBack = backStack::goBack,
             sharedTransitionScope = this,
             transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
             popTransitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },
@@ -202,21 +225,16 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                 rememberViewModelStoreNavEntryDecorator(),
             ),
             entryProvider = entryProvider {
-                entry<HomeKey> {
+                entry<HomeKey> { key ->
                     Screen {
+                        val recurring by recurringViewModel.rows.collectAsStateWithLifecycle()
                         HomeScreen(
                             bills = bills,
-                            onSplitBill = {
-                                splitViewModel.startNewSplit()
-                                backStack.open(SplitKey)
-                            },
                             onOpenBill = openBill,
                             onSeeAllBills = { backStack.open(HistoryKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
-                            onOpenGroups = { backStack.open(GroupsKey) },
-                            onOpenRequests = { backStack.open(RequestsKey) },
-                            onOpenInsights = { backStack.open(InsightsKey) },
-                            onOpenRecurring = { backStack.open(RecurringKey) },
+                            hasRecurringBills = !recurring.isNullOrEmpty(),
+                            bottomBar = { navBar(key) },
                         )
                     }
                 }
@@ -227,7 +245,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             aiStatus = account.ai,
                             newCameraTarget = imageLoader::newCameraTarget,
                             scanIntent = scanner::startIntent,
-                            // Back to the list of bills when the bill was opened from there, else home.
+                            // Back to the screen the split was opened from: the list of bills, or a main screen.
                             onExit = { backStack.remove(SplitKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onOpenPro = { backStack.open(ProKey) },
@@ -280,6 +298,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         val historyViewModel: HistoryViewModel = koinViewModel()
                         val listings by historyViewModel.listings.collectAsStateWithLifecycle()
                         val query by historyViewModel.query.collectAsStateWithLifecycle()
+                        val recurring by recurringViewModel.rows.collectAsStateWithLifecycle()
                         HistoryScreen(
                             listings = listings,
                             query = query,
@@ -287,16 +306,24 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpen = openBill,
                             onDelete = historyViewModel::delete,
                             onBack = { backStack.remove(HistoryKey) },
+                            recurring = recurring,
+                            recurringActions = remember(recurringViewModel) {
+                                RecurringActions(
+                                    onPause = recurringViewModel::pause,
+                                    onResume = recurringViewModel::resume,
+                                    onDelete = recurringViewModel::delete,
+                                )
+                            },
+                            // The screen then shows the bill on its Recurring tab, without opening another screen.
                             onRepeat = { id, name, schedule, firstDraft ->
                                 recurringViewModel.repeat(id, name, schedule, firstDraft)
                                 // Each draft comes with a notice, which needs leave on Android 13 and later.
                                 askForNotices()
-                                backStack.open(RecurringKey)
                             },
                         )
                     }
                 }
-                entry<InsightsKey> {
+                entry<InsightsKey> { key ->
                     Screen {
                         val insightsViewModel: InsightsViewModel = koinViewModel()
                         val insights by insightsViewModel.state.collectAsStateWithLifecycle()
@@ -313,25 +340,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                     onShared = insightsViewModel::shared,
                                     onPickerMissing = insightsViewModel::pickerMissing,
                                     onDismissMessage = insightsViewModel::dismissMessage,
-                                    onBack = { backStack.remove(InsightsKey) },
                                 )
                             },
-                        )
-                    }
-                }
-                entry<RecurringKey> {
-                    Screen {
-                        val rows by recurringViewModel.rows.collectAsStateWithLifecycle()
-                        RecurringScreen(
-                            rows = rows,
-                            actions = remember(recurringViewModel) {
-                                RecurringActions(
-                                    onPause = recurringViewModel::pause,
-                                    onResume = recurringViewModel::resume,
-                                    onDelete = recurringViewModel::delete,
-                                    onBack = { backStack.remove(RecurringKey) },
-                                )
-                            },
+                            bottomBar = { navBar(key) },
                         )
                     }
                 }
@@ -391,7 +402,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         )
                     }
                 }
-                entry<GroupsKey> {
+                entry<GroupsKey> { key ->
                     Screen {
                         val groupsViewModel: GroupsViewModel = koinViewModel()
                         val groups by groupsViewModel.groups.collectAsStateWithLifecycle()
@@ -414,7 +425,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             onOpen = { id -> backStack.open(GroupKey(id)) },
                             onOpenSettings = { backStack.open(SettingsKey) },
                             onDismissMessage = groupsViewModel::dismissMessage,
-                            onBack = { backStack.remove(GroupsKey) },
+                            bottomBar = { navBar(key) },
                         )
                     }
                 }
@@ -477,7 +488,7 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                         )
                     }
                 }
-                entry<RequestsKey> {
+                entry<RequestsKey> { key ->
                     Screen {
                         val requestsViewModel: RequestsViewModel = koinViewModel()
                         val requests by requestsViewModel.requests.collectAsStateWithLifecycle()
@@ -501,9 +512,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                                     onRefresh = requestsViewModel::refresh,
                                     onOpenSettings = { backStack.open(SettingsKey) },
                                     onDismissMessage = requestsViewModel::dismissMessage,
-                                    onBack = { backStack.remove(RequestsKey) },
                                 )
                             },
+                            bottomBar = { navBar(key) },
                         )
                     }
                 }
@@ -553,6 +564,22 @@ private fun SharedTransitionScope.Screen(content: @Composable () -> Unit) {
 /** Opens [key] unless it is already the screen on top, so a double tap does not open it twice. */
 private fun NavBackStack<NavKey>.open(key: NavKey) {
     if (lastOrNull() != key) add(key)
+}
+
+/**
+ * Once the account leaves, by signing out, by being deleted, or by another account signing in in its
+ * place, closes the screens that were opened for it, as [stackAfterAccountLeft] says. [holder] is who
+ * holds the account's place now, as [accountHolderOf] gives it. Who held it last is kept with the
+ * open screens, so an account that left while the activity was being made again, or before the app
+ * came back after the system ended it, still closes them.
+ */
+@Composable
+private fun CloseScreensWhenTheAccountLeaves(holder: String?, backStack: NavBackStack<NavKey>) {
+    var lastHolder by rememberSaveable { mutableStateOf(holder) }
+    LaunchedEffect(holder) {
+        if (accountLeft(lastHolder, holder)) backStack.showOnly(stackAfterAccountLeft(backStack))
+        lastHolder = holder
+    }
 }
 
 /**

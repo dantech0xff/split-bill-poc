@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -84,7 +85,7 @@ class SplitFlowOnDeviceTest {
 
     @Test
     fun theSampleBillIsSplitAndTheRequestsAreSent() {
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitNode(hasText("Read and split the bill") and isEnabled())
         compose.onNodeWithText("Read and split the bill").performClick()

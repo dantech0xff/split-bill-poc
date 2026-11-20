@@ -12,13 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,7 +46,10 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.ProxyWork
 
-/** The user's groups, such as housemates or a trip, each with balances across its bills. */
+/**
+ * The user's groups, such as housemates or a trip, each with balances across its bills. It is one of
+ * the main screens, with the navigation bar the app passes as [bottomBar] and no back button.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
@@ -62,25 +62,18 @@ fun GroupsScreen(
     onOpen: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onDismissMessage: () -> Unit,
-    onBack: () -> Unit,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.groups_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
-            )
-        },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.groups_title)) }) },
+        bottomBar = bottomBar,
         floatingActionButton = {
             if (signedIn) SvPrimaryFab(text = stringResource(R.string.groups_new), icon = Icons.Default.Add, onClick = { creating = true })
         },
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // The list ends above the navigation bar, so no row ever passes under it half hidden.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!signedIn) {
                 item {
                     SvMessageCard(

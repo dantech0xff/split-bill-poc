@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 
 /**
  * What a screen needs to take part in a transition where one surface grows into another.
@@ -17,6 +19,13 @@ import androidx.compose.ui.Modifier
 class SvSharedTransition(val scope: SharedTransitionScope, val visibility: AnimatedVisibilityScope)
 
 val LocalSvSharedTransition = compositionLocalOf<SvSharedTransition?> { null }
+
+/**
+ * The name of the surface an element shares with the screen that follows, as [sharedSurface] gives
+ * it. Tests read it to find the surface on both screens while they change, which shows that the
+ * surface really grows from one into the other; a screen reader never sees it.
+ */
+val SvSharedSurfaceName = SemanticsPropertyKey<String>("SvSharedSurfaceName")
 
 /**
  * Marks a surface that turns into the surface with the same [key] on the screen that follows: the
@@ -28,20 +37,23 @@ val LocalSvSharedTransition = compositionLocalOf<SvSharedTransition?> { null }
  * size instead of being blown up with the surface.
  *
  * A screen shown on its own, as in a preview or a test of that one screen, has nothing to grow
- * from, and this does nothing.
+ * from, and this does nothing. Within the screens of the app, the surface also carries its [key] as
+ * its [SvSharedSurfaceName].
  */
 @Composable
 fun Modifier.sharedSurface(key: String, resize: Boolean = false): Modifier {
     val transition = LocalSvSharedTransition.current ?: return this
     return with(transition.scope) {
-        this@sharedSurface.sharedBounds(
-            sharedContentState = rememberSharedContentState(key),
-            animatedVisibilityScope = transition.visibility,
-            enter = fadeIn(SvMotion.screenChange()),
-            exit = fadeOut(SvMotion.screenChange()),
-            boundsTransform = BoundsTransform { _, _ -> SvMotion.screenChange() },
-            resizeMode = if (resize) ResizeMode.RemeasureToBounds else ResizeMode.scaleToBounds(),
-        )
+        this@sharedSurface
+            .semantics { this[SvSharedSurfaceName] = key }
+            .sharedBounds(
+                sharedContentState = rememberSharedContentState(key),
+                animatedVisibilityScope = transition.visibility,
+                enter = fadeIn(SvMotion.screenChange()),
+                exit = fadeOut(SvMotion.screenChange()),
+                boundsTransform = BoundsTransform { _, _ -> SvMotion.screenChange() },
+                resizeMode = if (resize) ResizeMode.RemeasureToBounds else ResizeMode.scaleToBounds(),
+            )
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -72,7 +73,7 @@ class PaymentRequestJourneyTest {
         val currency = appCurrency()
         val owed = currency.format(currency.toMinor(BigDecimal(45)))
 
-        compose.onNodeWithText("Split a bill").performClick()
+        compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.typeBillByHand(where = "Pho 24", item = "Pho bo", amount = "90")
         compose.addPerson("Minh")
         compose.onNodeWithText("Request $owed from 1 person").tap()
@@ -110,8 +111,10 @@ class PaymentRequestJourneyTest {
         // The list of requests, as the proxy gives it, shows the request as the user's own, with Minh
         // on it.
         compose.onNodeWithText("Done").tap()
-        compose.onNodeWithText("Requests").tap()
-        compose.waitUntil(TIMEOUT_MS) { fake.proxy.callsTo("GET", "/v1/requests").isNotEmpty() }
+        // The app fetched the list once already, as it opened signed in, before the request was made.
+        val listedBefore = fake.proxy.callsTo("GET", "/v1/requests").size
+        compose.onNode(tab("Requests")).tap()
+        compose.waitUntil(TIMEOUT_MS) { fake.proxy.callsTo("GET", "/v1/requests").size > listedBefore }
         compose.awaitNode(hasText("Not paid yet"))
         compose.onNodeWithText("You asked for").assertIsDisplayed()
         compose.onNodeWithText("Minh · Pho 24").assertIsDisplayed()

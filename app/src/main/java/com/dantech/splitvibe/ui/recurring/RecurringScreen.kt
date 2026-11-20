@@ -2,28 +2,17 @@ package com.dantech.splitvibe.ui.recurring
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
@@ -47,79 +36,59 @@ import com.dantech.splitvibe.text.text
 import java.time.LocalDate
 import java.time.format.TextStyle
 
-/** What the screen of recurring bills can ask for. */
-class RecurringActions(
-    val onPause: (String) -> Unit,
-    val onResume: (String) -> Unit,
-    val onDelete: (String) -> Unit,
-    val onBack: () -> Unit,
-)
+/** What the recurring bills on the Recurring tab of the list of bills can ask for. */
+class RecurringActions(val onPause: (String) -> Unit, val onResume: (String) -> Unit, val onDelete: (String) -> Unit)
 
 /**
- * The recurring bills, such as the rent: each with when it comes back and the day of its next
- * draft, to pause, resume or delete. On each of those days a draft of the bill is made for the
- * user to check and finish.
+ * The recurring bills, such as the rent, as items of the list of bills on its Recurring tab: each
+ * with when it comes back and the day of its next draft, to pause, resume or delete. On each of those
+ * days a draft of the bill is made for the user to check and finish. [onDelete] asks to delete one,
+ * which [DeleteRecurringBillDialog] then confirms.
  */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun RecurringScreen(rows: List<RecurringRow>?, actions: RecurringActions) {
-    var deleting by rememberSaveable { mutableStateOf<String?>(null) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.recurring_title)) },
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
+internal fun LazyListScope.recurringBills(rows: List<RecurringRow>?, actions: RecurringActions, onDelete: (String) -> Unit) {
+    when {
+        rows == null -> item(key = "recurring-loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
+
+        rows.isEmpty() -> item(key = "recurring-empty") {
+            SvEmptyState(
+                icon = Icons.Default.DateRange,
+                text = stringResource(R.string.recurring_none),
+                modifier = rowMotion(),
             )
-        },
-    ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            when {
-                rows == null -> item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
+        }
 
-                rows.isEmpty() -> item(key = "empty") {
-                    SvEmptyState(
-                        icon = Icons.Default.DateRange,
-                        text = stringResource(R.string.recurring_none),
-                        modifier = rowMotion(),
-                    )
-                }
-
-                else -> {
-                    item(key = "intro") {
-                        Text(
-                            stringResource(R.string.recurring_intro),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
-                        )
-                    }
-                    itemsIndexed(rows, key = { _, row -> row.bill.id }) { index, row ->
-                        RecurringBillRow(row, SvRowPosition.of(index, rows.size), actions, onDelete = { deleting = row.bill.id })
-                    }
-                }
+        else -> {
+            item(key = "recurring-intro") {
+                Text(
+                    stringResource(R.string.recurring_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                )
+            }
+            itemsIndexed(rows, key = { _, row -> "recurring-${row.bill.id}" }) { index, row ->
+                RecurringBillRow(row, SvRowPosition.of(index, rows.size), actions, onDelete = { onDelete(row.bill.id) })
             }
         }
     }
+}
 
-    deleting?.let { id ->
-        val name = rows?.firstOrNull { it.bill.id == id }?.bill?.name ?: stringResource(R.string.recurring_this_bill)
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            title = { Text(stringResource(R.string.history_delete_title, name)) },
-            text = { Text(stringResource(R.string.recurring_delete_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    actions.onDelete(id)
-                    deleting = null
-                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
-        )
-    }
+/** Asks whether to delete the recurring bill [id], one of [rows], and deletes it with [onDelete] when the user says so. */
+@Composable
+internal fun DeleteRecurringBillDialog(id: String, rows: List<RecurringRow>?, onDelete: (String) -> Unit, onDismiss: () -> Unit) {
+    val name = rows?.firstOrNull { it.bill.id == id }?.bill?.name ?: stringResource(R.string.recurring_this_bill)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.history_delete_title, name)) },
+        text = { Text(stringResource(R.string.recurring_delete_text)) },
+        confirmButton = {
+            TextButton(onClick = {
+                onDelete(id)
+                onDismiss()
+            }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 @Composable

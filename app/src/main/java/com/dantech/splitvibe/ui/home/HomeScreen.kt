@@ -1,27 +1,16 @@
 package com.dantech.splitvibe.ui.home
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,36 +20,34 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
-import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
-import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.history.BillListingRow
 
-/** The app's home: the way into a new split, the bills split last, and the ways to what the bills add up to. */
+/**
+ * The app's home: the bills split last, with the way to all of them. A new split starts from the
+ * navigation bar, which the app passes as [bottomBar].
+ */
 @Composable
 fun HomeScreen(
     /** The bills kept on the phone, newest first; the first few are shown. */
     bills: List<BillListing>,
-    onSplitBill: () -> Unit,
     onOpenBill: (String) -> Unit,
     onSeeAllBills: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenGroups: () -> Unit = {},
-    onOpenRequests: () -> Unit = {},
-    onOpenInsights: () -> Unit = {},
-    onOpenRecurring: () -> Unit = {},
+    /**
+     * Whether the phone keeps a recurring bill, which stays when the bills it came from are deleted.
+     * The list of bills then still opens, as recurring bills are one of its tabs.
+     */
+    hasRecurringBills: Boolean = false,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -73,40 +60,12 @@ fun HomeScreen(
                 },
             )
         },
-        floatingActionButton = {
-            SvPrimaryFab(
-                text = stringResource(R.string.home_split_a_bill),
-                icon = Icons.Default.Add,
-                onClick = onSplitBill,
-                modifier = Modifier.sharedSurface(SPLIT_SURFACE, resize = true),
-            )
-        },
+        bottomBar = bottomBar,
     ) { padding ->
-        val direction = LocalLayoutDirection.current
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = padding.calculateStartPadding(direction),
-                top = padding.calculateTopPadding(),
-                end = padding.calculateEndPadding(direction),
-                // Room below the last bill, so the floating button never covers it.
-                bottom = padding.calculateBottomPadding() + FAB_CLEARANCE,
-            ),
-        ) {
+        // The list ends above the navigation bar, so no row ever passes under it half hidden.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 IntroCard(modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm))
-            }
-            item {
-                FlowRow(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(SvSpacing.xs),
-                ) {
-                    PlaceButton(stringResource(R.string.groups_title), Icons.Default.Person, onOpenGroups)
-                    PlaceButton(stringResource(R.string.requests_title), Icons.AutoMirrored.Filled.List, onOpenRequests)
-                    PlaceButton(stringResource(R.string.home_insights), Icons.Default.ShoppingCart, onOpenInsights)
-                    PlaceButton(stringResource(R.string.recurring_title), Icons.Default.DateRange, onOpenRecurring)
-                }
             }
             item {
                 Row(
@@ -118,7 +77,9 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    if (bills.isNotEmpty()) TextButton(onClick = onSeeAllBills) { Text(stringResource(R.string.home_see_all)) }
+                    if (bills.isNotEmpty() || hasRecurringBills) {
+                        TextButton(onClick = onSeeAllBills) { Text(stringResource(R.string.home_see_all)) }
+                    }
                 }
             }
             val recent = bills.take(RECENT_BILLS)
@@ -131,16 +92,6 @@ fun HomeScreen(
                 BillListingRow(listing = listing, position = SvRowPosition.of(index, recent.size), onOpen = { onOpenBill(listing.id) })
             }
         }
-    }
-}
-
-/** A button to another part of the app, with its icon. */
-@Composable
-private fun PlaceButton(text: String, icon: ImageVector, onClick: () -> Unit) {
-    FilledTonalButton(onClick = onClick) {
-        Icon(icon, contentDescription = null)
-        Spacer(Modifier.width(SvSpacing.sm))
-        Text(text)
     }
 }
 
@@ -164,8 +115,6 @@ private fun IntroCard(modifier: Modifier = Modifier) {
         )
     }
 }
-
-private val FAB_CLEARANCE = 88.dp
 
 /** How many of the latest bills the home screen shows; the rest are a tap away. */
 private const val RECENT_BILLS = 3

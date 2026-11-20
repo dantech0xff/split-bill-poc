@@ -31,7 +31,7 @@ import com.dantech.splitvibe.ui.insights.InsightsScreen
 import com.dantech.splitvibe.ui.insights.insightsOf
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.recurring.RecurringRow
-import com.dantech.splitvibe.ui.recurring.RecurringScreen
+import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.time.LocalDate
@@ -76,11 +76,11 @@ class SpendingGalleryTest {
     fun `the export in the dark theme`() = shot("41-export-dark", open = "Export these bills") { Insights() }
 
     @Test
-    fun `the recurring bills, one of them paused`() = shot("42-recurring") { Recurring() }
+    fun `the recurring bills, one of them paused`() = shot("42-recurring", open = RECURRING) { Recurring() }
 
     @Test
     @Config(sdk = [34], qualifiers = TALL_AT_NIGHT)
-    fun `the recurring bills in the dark theme`() = shot("42-recurring-dark") { Recurring() }
+    fun `the recurring bills in the dark theme`() = shot("42-recurring-dark", open = RECURRING) { Recurring() }
 
     @Test
     fun `a finished bill made to recur from the list of bills`() = shot("43-repeat-bill", menu = RENT_MENU, open = REPEAT) { History() }
@@ -115,10 +115,11 @@ class SpendingGalleryTest {
             onShared = {},
             onPickerMissing = {},
             onDismissMessage = {},
-            onBack = {},
         ),
+        bottomBar = { AppNavBar(selected = InsightsKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {}) },
     )
 
+    /** The list of bills on its Recurring tab, which [shot] opens. */
     @Composable
     private fun Recurring() {
         val rent = SpendingFixtures.year.first { it.id == "b2" }
@@ -130,18 +131,20 @@ class SpendingGalleryTest {
             val recurring = RecurringBill(name, name, RecurrenceSchedule(frequency, day), bill.bill, bill.plan, paused, 0, today)
             return RecurringRow(recurring, next = day, due = false)
         }
-        RecurringScreen(
-            rows = listOf(
+        Bills(
+            recurring = listOf(
                 row("Rent", Frequency.MONTHLY, "2026-12-31", rent),
                 row("Internet", Frequency.MONTHLY, "2026-12-05", internet),
                 row("Cleaning", Frequency.WEEKLY, "2026-11-17", cleaning, paused = true),
             ),
-            actions = RecurringActions(onPause = {}, onResume = {}, onDelete = {}, onBack = {}),
         )
     }
 
     @Composable
-    private fun History() = HistoryScreen(
+    private fun History() = Bills(recurring = emptyList())
+
+    @Composable
+    private fun Bills(recurring: List<RecurringRow>) = HistoryScreen(
         listings = SpendingFixtures.year.take(LISTED).map { saved ->
             BillListing(
                 id = saved.id,
@@ -161,6 +164,8 @@ class SpendingGalleryTest {
         onOpen = {},
         onDelete = {},
         onBack = {},
+        recurring = recurring,
+        recurringActions = RecurringActions(onPause = {}, onResume = {}, onDelete = {}),
         onRepeat = { _, _, _, _ -> },
         today = today,
     )
@@ -191,12 +196,13 @@ class SpendingGalleryTest {
         const val LISTED = 7
         const val RENT_MENU = "More for Rent"
         const val REPEAT = "Repeat this bill"
+        const val RECURRING = "Recurring"
     }
 }
 
 private const val TALL = "w412dp-h1200dp-xhdpi"
 private const val TALL_AT_NIGHT = "w412dp-h1200dp-night-xhdpi"
 
-/** Tall enough to show every breakdown of the insights at once, above the bottom bar. */
-private const val WHOLE_PAGE = "w412dp-h2000dp-xhdpi"
-private const val WHOLE_PAGE_AT_NIGHT = "w412dp-h2000dp-night-xhdpi"
+/** Tall enough to show every breakdown of the insights at once, above the bar of the export and the navigation bar. */
+private const val WHOLE_PAGE = "w412dp-h2300dp-xhdpi"
+private const val WHOLE_PAGE_AT_NIGHT = "w412dp-h2300dp-night-xhdpi"

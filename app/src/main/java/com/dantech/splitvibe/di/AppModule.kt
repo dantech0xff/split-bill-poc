@@ -42,6 +42,7 @@ import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.paywall.ProViewModel
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
 import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
+import com.dantech.splitvibe.ui.requests.RequestOverviewViewModel
 import com.dantech.splitvibe.ui.requests.RequestsViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
 import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
@@ -166,6 +167,7 @@ val appModule = module {
         )
     }
     viewModel { RequestsViewModel(repository = get(), groups = get(), account = get<AccountStore>().account) }
+    viewModel { RequestOverviewViewModel(repository = get(), account = get<AccountStore>().account) }
     viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel {
         RequestMoneyViewModel(

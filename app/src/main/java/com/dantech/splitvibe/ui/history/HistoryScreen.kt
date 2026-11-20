@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.ImeAction
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -48,15 +49,24 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
 import com.dantech.splitvibe.text.dateText
 import com.dantech.splitvibe.text.labelRes
+import com.dantech.splitvibe.ui.recurring.DeleteRecurringBillDialog
+import com.dantech.splitvibe.ui.recurring.RecurringActions
+import com.dantech.splitvibe.ui.recurring.RecurringRow
 import com.dantech.splitvibe.ui.recurring.RepeatBillSheet
+import com.dantech.splitvibe.ui.recurring.recurringBills
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** The two tabs of the list of bills. */
+private enum class BillsTab { ALL, RECURRING }
+
 /**
- * Every bill kept on the phone, newest first, to search, open again or delete, and a finished bill
- * to repeat every week or month with [onRepeat]. [today] is the first day a repeated bill can
- * come back on.
+ * The list of bills, in two tabs. "All bills" has every bill kept on the phone, newest first, to
+ * search, open again or delete, and a finished bill to repeat every week or month with [onRepeat],
+ * which then shows the bill on the other tab. "Recurring" has the [recurring] bills, which
+ * [recurringActions] pause, resume and delete. [today] is the first day a repeated bill can come
+ * back on.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,10 +77,16 @@ fun HistoryScreen(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
+    recurring: List<RecurringRow>?,
+    recurringActions: RecurringActions,
     onRepeat: ((billId: String, name: String, schedule: RecurrenceSchedule, firstDraft: LocalDate) -> Unit)? = null,
     today: LocalDate = LocalDate.now(),
 ) {
+    // The open tab is part of the screen, so it is still open after a rotation, and when the
+    // system brings the app back after it ended it.
+    var tab by rememberSaveable { mutableStateOf(BillsTab.ALL) }
     var deleting by rememberSaveable { mutableStateOf<String?>(null) }
+    var deletingRecurring by rememberSaveable { mutableStateOf<String?>(null) }
     var repeating by rememberSaveable { mutableStateOf<String?>(null) }
     // Kept here as typed, so the field never waits for the search to answer.
     var typed by rememberSaveable { mutableStateOf(query) }
@@ -87,49 +103,60 @@ fun HistoryScreen(
             )
         },
     ) { padding ->
+        // One list for both tabs, in which the choice of tab stays one and the same item, so a screen
+        // reader and the keyboard keep their place on it when the tab changes.
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            item(key = "search") {
-                OutlinedTextField(
-                    value = typed,
-                    onValueChange = {
-                        typed = it
-                        onQueryChanged(it)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
-                    placeholder = { Text(stringResource(R.string.history_search)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                )
-            }
-            when {
-                listings == null -> item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
-
-                listings.isEmpty() -> item(key = "empty") {
-                    SvEmptyState(
-                        icon = Icons.AutoMirrored.Filled.List,
-                        text = if (typed.isBlank()) {
-                            stringResource(R.string.history_none)
-                        } else {
-                            stringResource(R.string.history_no_match, typed.trim())
+            // Searching finds bills only, so the Recurring tab has no field to search with.
+            if (tab == BillsTab.ALL) {
+                item(key = "search") {
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = {
+                            typed = it
+                            onQueryChanged(it)
                         },
-                        modifier = rowMotion(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                        placeholder = { Text(stringResource(R.string.history_search)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     )
+                }
+            }
+            item(key = "tabs") { BillsTabs(selected = tab, onSelect = { tab = it }) }
+            when (tab) {
+                BillsTab.ALL -> when {
+                    listings == null -> item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
+
+                    listings.isEmpty() -> item(key = "empty") {
+                        SvEmptyState(
+                            icon = Icons.AutoMirrored.Filled.List,
+                            text = if (typed.isBlank()) {
+                                stringResource(R.string.history_none)
+                            } else {
+                                stringResource(R.string.history_no_match, typed.trim())
+                            },
+                            modifier = rowMotion(),
+                        )
+                    }
+
+                    else -> itemsIndexed(listings, key = { _, listing -> listing.id }) { index, listing ->
+                        // Only a finished split is worth repeating.
+                        val repeatable = onRepeat != null && listing.status == BillStatus.FINAL.name
+                        BillListingRow(
+                            listing = listing,
+                            position = SvRowPosition.of(index, listings.size),
+                            onOpen = { onOpen(listing.id) },
+                            onDelete = { deleting = listing.id },
+                            onRepeat = if (repeatable) ({ repeating = listing.id }) else null,
+                            modifier = rowMotion(),
+                        )
+                    }
                 }
 
-                else -> itemsIndexed(listings, key = { _, listing -> listing.id }) { index, listing ->
-                    BillListingRow(
-                        listing = listing,
-                        position = SvRowPosition.of(index, listings.size),
-                        onOpen = { onOpen(listing.id) },
-                        onDelete = { deleting = listing.id },
-                        // Only a finished split is worth repeating.
-                        onRepeat = if (onRepeat != null && listing.status == BillStatus.FINAL.name) ({ repeating = listing.id }) else null,
-                        modifier = rowMotion(),
-                    )
-                }
+                BillsTab.RECURRING -> recurringBills(rows = recurring, actions = recurringActions, onDelete = { deletingRecurring = it })
             }
         }
     }
@@ -144,10 +171,16 @@ fun HistoryScreen(
                 onRepeat = { name, schedule, firstDraft ->
                     repeating = null
                     onRepeat(id, name, schedule, firstDraft)
+                    // The bill now recurs, which the other tab shows, on this same screen.
+                    tab = BillsTab.RECURRING
                 },
                 onDismiss = { repeating = null },
             )
         }
+    }
+
+    deletingRecurring?.let { id ->
+        DeleteRecurringBillDialog(id = id, rows = recurring, onDelete = recurringActions.onDelete, onDismiss = { deletingRecurring = null })
     }
 
     deleting?.let { id ->
@@ -165,6 +198,17 @@ fun HistoryScreen(
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+}
+
+/** The choice between the two tabs of the list of bills, read by a screen reader as a choice of one. */
+@Composable
+private fun BillsTabs(selected: BillsTab, onSelect: (BillsTab) -> Unit) {
+    SvChoiceGroup(
+        options = listOf(stringResource(R.string.history_all_bills), stringResource(R.string.history_recurring)),
+        selected = selected.ordinal,
+        onSelect = { onSelect(BillsTab.entries[it]) },
+        modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+    )
 }
 
 /**

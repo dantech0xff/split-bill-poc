@@ -12,11 +12,12 @@ internal val targetAppId: String
     }
 
 /**
- * The first steps of a split: open the split screen, pick the bundled sample bill, go back home.
- * Reading the bill needs the model, so this stops before that step.
+ * The first steps of a split: open the split screen from the round button in the middle of the
+ * navigation bar, which shows no text and is found by what it says to a screen reader, pick the
+ * bundled sample bill, go back home. Reading the bill needs the model, so this stops before that step.
  */
 internal fun MacrobenchmarkScope.startASplit() {
-    device.wait(Until.findObject(By.text("Split a bill")), TIMEOUT_MS).click()
+    device.wait(Until.findObject(By.desc("Split a bill")), TIMEOUT_MS).click()
     device.wait(Until.findObject(By.text("Use the sample bill")), TIMEOUT_MS).click()
     device.wait(Until.hasObject(By.desc("Bill photo")), TIMEOUT_MS)
     device.pressBack()

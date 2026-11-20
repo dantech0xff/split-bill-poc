@@ -10,21 +10,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -78,17 +78,18 @@ class InsightsActions(
     val onShared: () -> Unit,
     val onPickerMissing: () -> Unit,
     val onDismissMessage: () -> Unit,
-    val onBack: () -> Unit,
 )
 
 /**
  * What the user's finished bills add up to in their local currency, for the period they choose:
  * all together, by month, by category, by person and by group, with notes on what the totals
- * leave out. The bills of the period can be exported as files.
+ * leave out. The bills of the period can be exported as files. It is one of the main screens, with
+ * the navigation bar the app passes as [bottomBar] and no back button. The bar of the export stands
+ * on the navigation bar, which keeps clear of the system's navigation bar for both.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: InsightsActions) {
+fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: InsightsActions, bottomBar: @Composable () -> Unit = {}) {
     var exporting by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
@@ -108,25 +109,22 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.home_insights)) },
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
-            )
-        },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.home_insights)) }) },
         bottomBar = {
-            if (!state?.bills.isNullOrEmpty()) {
-                SvBottomBar {
-                    SvPrimaryButton(
-                        stringResource(R.string.insights_export_bills),
-                        onClick = { exporting = true },
-                        enabled = !export.working,
-                    )
+            // The bar of the export stands on the navigation bar, so neither covers the other. The
+            // navigation bar keeps clear of the system's navigation bar below them both, as it does on
+            // every main screen, so that it stays in one place when one of them gives way to another.
+            Column {
+                if (!state?.bills.isNullOrEmpty()) {
+                    SvBottomBar(modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars)) {
+                        SvPrimaryButton(
+                            stringResource(R.string.insights_export_bills),
+                            onClick = { exporting = true },
+                            enabled = !export.working,
+                        )
+                    }
                 }
+                bottomBar()
             }
         },
     ) { padding ->
