@@ -111,9 +111,6 @@ data class SplitResultState(
     /** The model's one-line summary of what it read. */
     val summary: String get() = saved.summary
 
-    /** The exact text that was sent to the model, shown for transparency. */
-    val ocrDocument: String get() = saved.ocrDocument
-
     /** [minor] of the bill's currency in the user's, formatted, such as "₫2,535,000"; null without a rate. */
     fun converted(minor: Long): String? {
         val rate = exchangeRate ?: return null

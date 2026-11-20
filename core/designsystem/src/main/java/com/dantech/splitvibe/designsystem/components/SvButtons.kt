@@ -5,15 +5,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -52,21 +57,75 @@ fun SvQuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
  */
 @Composable
 fun SvSmallAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: ImageVector? = null) {
+    val (container, content) = smallActionColors()
+    val colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content)
+    PillButton(text = text, onClick = onClick, modifier = modifier, enabled = enabled, icon = icon, colors = colors, height = SMALL_HEIGHT)
+}
+
+/**
+ * The small action as a round button that shows only its [icon], such as asking for the change
+ * typed in a field, in the colours of [SvSmallAction]. [label] is what a screen reader says for it.
+ * It is drawn 40dp across, in a space a finger can hit; one that cannot be used yet takes the quiet
+ * colour of what it sits on.
+ */
+@Composable
+fun SvSmallAction(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val ground = LocalSvGround.current
+    val (container, content) = smallActionColors()
+    FilledIconButton(
+        onClick = onClick,
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .size(SMALL_ICON_ACTION_SIZE),
+        enabled = enabled,
+        shape = CircleShape,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = container,
+            contentColor = content,
+            disabledContainerColor = ground.quiet,
+            disabledContentColor = ground.onQuiet.copy(alpha = DISABLED_CONTENT_ALPHA),
+        ),
+    ) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(SMALL_ICON_SIZE))
+    }
+}
+
+/**
+ * An action beside a field that its [icon] says, such as removing the line the field belongs to: a
+ * quiet square as tall as the box of a field, so that it lines up with the box at the bottom of a
+ * row of fields. With [destructive] the icon is in the colour of errors. [label] is what a screen
+ * reader says for it.
+ */
+@Composable
+fun SvFieldButton(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, destructive: Boolean = false) {
+    val ground = LocalSvGround.current
+    FilledIconButton(
+        onClick = onClick,
+        modifier = modifier.size(FIELD_BUTTON_SIZE),
+        shape = MaterialTheme.shapes.medium,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = ground.quiet,
+            contentColor = if (destructive) MaterialTheme.colorScheme.error else ground.onQuiet,
+        ),
+    ) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(FIELD_BUTTON_ICON_SIZE))
+    }
+}
+
+/**
+ * The colours of a small action where it sits. An ink pill would not show where the ground is dark
+ * itself, in the dark theme, on the floating bar and on a violet block, so there the pill turns lime
+ * and its text ink. A lime pill would not show on a lime block, so there it stays ink in both themes.
+ */
+@Composable
+private fun smallActionColors(): Pair<Color, Color> {
     val palette = SvTheme.palette
-    // An ink pill would not show where the ground is dark itself, in the dark theme, on the floating
-    // bar and on a violet block, so there the pill turns lime and its text ink. A lime pill would not
-    // show on a lime block, so there it stays ink in both themes.
     val lime = when (LocalSvGround.current) {
         SvGround.Page, SvGround.Card -> LocalDarkTheme.current
         SvGround.Bar, SvGround.Brand -> true
         SvGround.Accent -> false
     }
-    val colors = if (lime) {
-        ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent)
-    } else {
-        ButtonDefaults.buttonColors(containerColor = palette.onAccent, contentColor = palette.accent)
-    }
-    PillButton(text = text, onClick = onClick, modifier = modifier, enabled = enabled, icon = icon, colors = colors, height = SMALL_HEIGHT)
+    return if (lime) palette.accent to palette.onAccent else palette.onAccent to palette.accent
 }
 
 /**
@@ -135,6 +194,12 @@ private val QUIET_HEIGHT = TOUCH_TARGET
 /** Drawn smaller than a finger needs; Material keeps its touch target at 48dp around it. */
 private val SMALL_HEIGHT = 44.dp
 private val ICON_SIZE = 18.dp
+private val SMALL_ICON_ACTION_SIZE = 40.dp
+private val SMALL_ICON_SIZE = 20.dp
+
+/** As tall as the box of a field of one line. */
+private val FIELD_BUTTON_SIZE = 52.dp
+private val FIELD_BUTTON_ICON_SIZE = 20.dp
 private val PILL_PADDING = PaddingValues(horizontal = 20.dp, vertical = SvSpacing.sm)
 
 /** As Material dims the content of a control that cannot be used. */

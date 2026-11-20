@@ -5,7 +5,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -75,7 +79,11 @@ fun SvChoiceGroup(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
  * scrolls sideways instead, which suits a screen where the choice should take little height; the
  * row then shows the chosen pill whole when it first appears and whenever the choice changes. The
  * chosen pill is dark on the light page and light on the dark one. A screen reader reads each
- * option as a radio button.
+ * option as a radio button. [leading] draws a decoration before the label of the option at the index
+ * it is given, such as the icon of a category; the label says it all.
+ *
+ * [contentPadding] lies inside a row that scrolls, so that the row can run to the edges of the
+ * screen while its first and last pills line up with the content around it.
  */
 @Composable
 fun SvChoiceChips(
@@ -84,6 +92,8 @@ fun SvChoiceChips(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     singleRow: Boolean = false,
+    leading: (@Composable (index: Int) -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val chip = @Composable { index: Int, placement: Modifier ->
         val chosen = index == selected
@@ -96,7 +106,17 @@ fun SvChoiceChips(
             color = colors.container,
             contentColor = colors.content,
         ) {
-            ChoiceLabel(options[index], colors.style, modifier = Modifier.padding(horizontal = SvSpacing.sm))
+            if (leading == null) {
+                ChoiceLabel(options[index], colors.style, modifier = Modifier.padding(horizontal = SvSpacing.sm))
+            } else {
+                Row(
+                    modifier = Modifier.padding(start = LEADING_START, end = SvSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    leading(index)
+                    ChoiceLabel(options[index], colors.style, modifier = Modifier.padding(start = SvSpacing.xs))
+                }
+            }
         }
     }
     if (singleRow) {
@@ -104,11 +124,17 @@ fun SvChoiceChips(
         // Where each chip lies along the row, counted from the start of the row.
         val spans = remember { mutableStateMapOf<Int, IntRange>() }
         val direction = LocalLayoutDirection.current
-        ShowWhole(scroll, spans[selected])
+        val density = LocalDensity.current
+        // A chip lies inside the padding, which scrolls with the chips. The chosen one shows whole with
+        // as much room on either side as the padding leaves the first and the last chip.
+        val before = with(density) { contentPadding.calculateStartPadding(direction).roundToPx() }
+        val after = with(density) { contentPadding.calculateEndPadding(direction).roundToPx() }
+        ShowWhole(scroll, spans[selected]?.let { span -> span.first until span.last + 1 + before + after })
         Row(
             modifier = modifier
                 .selectableGroup()
-                .horizontalScroll(scroll),
+                .horizontalScroll(scroll)
+                .padding(contentPadding),
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
         ) {
             options.indices.forEach { index ->
@@ -122,7 +148,9 @@ fun SvChoiceChips(
         }
     } else {
         FlowRow(
-            modifier = modifier.selectableGroup(),
+            modifier = modifier
+                .selectableGroup()
+                .padding(contentPadding),
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
         ) {
@@ -195,3 +223,6 @@ private fun choiceColors(chosen: Boolean): ChoiceColors {
 }
 
 private val CHOICE_HEIGHT = 44.dp
+
+/** Less room before a decoration than before a label, as the approved design leaves. */
+private val LEADING_START = 9.dp

@@ -6,13 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Screens take their look from the design system and decide none of it themselves. That keeps the
- * app consistent, and a change in the Material library then has to be handled in one module only.
+ * Screens take their look from the design system and decide none of it themselves, their type
+ * included. That keeps the app consistent, and a change in the Material library then has to be
+ * handled in one module only.
  */
 class DesignSystemBoundaryTest {
 
     @Test
-    fun `screens leave theme, colour, shadow and motion to the design system`() {
+    fun `screens leave theme, colour, type, shadow and motion to the design system`() {
         val files = SOURCE_DIRECTORIES.flatMap { directory -> File(directory).walkTopDown().filter { it.extension == "kt" }.toList() }
         // A wrong working directory would otherwise make the test pass without looking at anything.
         assertTrue("Only ${files.size} source files found in $SOURCE_DIRECTORIES", files.size >= MIN_SOURCE_FILES)
@@ -53,6 +54,9 @@ class DesignSystemBoundaryTest {
             "Crossfade(targetState = step) {" to "an animation of its own",
             "val scale = remember { Animatable(0f) }" to "an animation of its own",
             "delay(300)" to "a delay of its own",
+            "fontFamily = FontFamily.Monospace," to "a font family of its own",
+            "Text(code, style = style.copy(fontFamily = mono))" to "a font family of its own",
+            "val mono = FontFamily(Font(R.font.mono))" to "a font family of its own",
         )
         forbiddenSamples.forEach { (line, what) -> assertEquals(line, listOf(what), violationsIn(line, "SomeScreen.kt")) }
 
@@ -66,6 +70,7 @@ class DesignSystemBoundaryTest {
             "transitionSpec = { fadeIn(fade) togetherWith fadeOut(fade) },",
             "val fade = SvMotion.screenChange<Float>()",
             "DropdownMenuItem(text = { Text(option.label) }, onClick = {})",
+            "Text(name, style = MaterialTheme.typography.bodyMediumEmphasized)",
         )
         allowedSamples.forEach { line -> assertEquals(line, emptyList<String>(), violationsIn(line, "SomeScreen.kt")) }
 
@@ -109,6 +114,8 @@ private val FORBIDDEN = listOf(
     ),
     // A live connection waits between attempts and pings to stay open: the network's timing, not motion's.
     Rule("a delay of its own", Regex("""\bdelay\s*\("""), allowedIn = setOf("ShareRepository.kt")),
+    // The two families of the app's type come with its styles; a screen picks a style, never a family.
+    Rule("a font family of its own", Regex("""\bFontFamily\b|\bfontFamily\s*=""")),
 )
 
 /** The app's screens, and the catalog that shows the components in debug builds. */

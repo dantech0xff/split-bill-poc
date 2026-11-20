@@ -328,7 +328,6 @@
     <string name="common_bill">Bill</string>
     <string name="split_edit_bill">Edit bill</string>
     <string name="common_undo">Undo</string>
-    <string name="split_who_is_on_the_bill">Who is on the bill?</string>
     <string name="split_who_hint">Tap You to share the bill or not, and anyone else to rename or remove them.</string>
     <string name="split_you_share">You share the bill</string>
     <string name="split_you_do_not_share">You do not share the bill</string>
@@ -345,8 +344,6 @@
     <!-- Beside the user in the list of what each person pays, when they paid the whole bill -->
     <string name="split_paid_the_bill">Paid the bill</string>
     <string name="split_paid_by">Paid by</string>
-    <string name="split_hide_sent">Hide what was sent to Claude</string>
-    <string name="split_show_sent">Show what was sent to Claude</string>
 
     <!-- The result of a split, continued -->
     <string name="split_bill_total">Bill total</string>
@@ -531,6 +528,8 @@
     <string name="editor_total">Total</string>
     <string name="editor_this_item">this item</string>
     <string name="editor_remove">Remove %1$s</string>
+    <!-- What a tap does on a closed row of an item or a charge in the editor: it opens the row to change it -->
+    <string name="editor_change">Change %1$s</string>
     <string name="editor_quantity">Qty</string>
     <string name="editor_price_each">Price each</string>
     <string name="editor_amount">Amount</string>

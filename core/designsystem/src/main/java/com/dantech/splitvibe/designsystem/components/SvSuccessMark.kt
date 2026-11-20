@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.tokens.SvTheme
@@ -68,6 +69,29 @@ fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The mark of what the AI does, such as beside what it understood of a bill or above the question
+ * whether it may be used: the spark of [SvActionIcons.Spark] in ink on a lime circle, [size] across.
+ * It stands still, and it is decorative: say in text what it marks.
+ */
+@Composable
+fun SvAiMark(modifier: Modifier = Modifier, size: Dp = AI_MARK_SIZE) {
+    val palette = SvTheme.palette
+    Box(
+        modifier = modifier
+            .size(size)
+            .background(palette.accent, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(SvActionIcons.Spark, contentDescription = null, modifier = Modifier.size(size * AI_ICON_SCALE), tint = palette.onAccent)
+    }
+}
+
 private val SIZE = 72.dp
 private val ICON_SIZE = 36.dp
 private const val START_SCALE = 0.4f
+
+private val AI_MARK_SIZE = 28.dp
+
+/** The spark at the size the approved designs draw it in its circle: 16dp in 28dp. */
+private const val AI_ICON_SCALE = 0.57f

@@ -96,7 +96,7 @@ class SplitErrorsTest {
         compose.setContent {
             SplitVibeTheme {
                 if (inAssistant) {
-                    AssistantCard(
+                    AssistantSection(
                         state = AssistantUiState(error = USED_UP, errorOpensPro = true),
                         actions = assistantActions(onOpenPro = { opened++ }),
                     )

@@ -3,23 +3,30 @@ package com.dantech.splitvibe.designsystem.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.motion.keepSizeDuringTransition
+import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
@@ -30,10 +37,14 @@ import com.dantech.splitvibe.designsystem.tokens.elevation
  * The main action of a screen as a large pill across the full width: violet on the page, lime in
  * [SvBottomBar]. It is fully round, so it can turn into a round surface such as [SvSuccessMark];
  * its label then keeps its size and is cut off by the shrinking edge instead of wrapping onto more
- * lines.
+ * lines. [icon] is decorative and stands before the label, lime on violet and in the colour of the
+ * label elsewhere.
  */
 @Composable
-fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: ImageVector? = null) {
+    val ground = LocalSvGround.current
+    // Only the violet pill of the light page takes the accent; lime would not show on a lime pill.
+    val violet = (ground == SvGround.Page || ground == SvGround.Card) && !LocalDarkTheme.current
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -43,6 +54,15 @@ fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         shape = SvShapes.pill,
         colors = mainActionColors(),
     ) {
+        if (icon != null) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(MAIN_ICON_SIZE),
+                tint = if (enabled && violet) SvTheme.palette.accent else LocalContentColor.current,
+            )
+            Spacer(Modifier.width(MAIN_ICON_GAP))
+        }
         Text(
             text,
             modifier = Modifier.keepSizeDuringTransition(),
@@ -114,6 +134,8 @@ private const val QUIET_LABEL_ALPHA = 0.7f
 
 /** How tall the main action of a screen is, and every other button on the floating bar. */
 internal val MAIN_ACTION_HEIGHT = 56.dp
+private val MAIN_ICON_SIZE = 22.dp
+private val MAIN_ICON_GAP = 10.dp
 
 /** The space between the edge of the floating bar and what is in it. */
 private val BAR_PADDING = 8.dp

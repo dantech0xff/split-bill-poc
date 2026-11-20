@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.MainActivity
 import java.math.BigDecimal
@@ -14,8 +15,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Types a bill in by hand, from the home screen, and splits it three ways. Nothing of the bill
- * goes to the model: the fake proxy hears of no bill read and no change of a split.
+ * Types a bill in by hand, from the home screen, and splits it three ways, then two ways once the
+ * user takes themselves off it. Nothing of the bill goes to the model: the fake proxy hears of no
+ * bill read and no change of a split.
  */
 @RunWith(AndroidJUnit4::class)
 class ManualEntryJourneyTest {
@@ -42,6 +44,17 @@ class ManualEntryJourneyTest {
         compose.assertShare("Lan", third)
         // The user paid, so the other two are asked for their shares.
         compose.onNodeWithText("Request ${currency.format(currency.toMinor(BigDecimal(60)))} from 2 people").assertIsDisplayed()
+
+        // The user's own row takes them off the bill they paid, so Minh and Lan pay half each, and back.
+        compose.list().performScrollToNode(myRow)
+        compose.onNode(myRow).tap()
+        val half = currency.format(currency.toMinor(BigDecimal(45)))
+        compose.assertShare("Minh", half)
+        compose.assertShare("Lan", half)
+        compose.onNodeWithText("Request ${currency.format(currency.toMinor(BigDecimal(90)))} from 2 people").assertIsDisplayed()
+        compose.list().performScrollToNode(myRow)
+        compose.onNode(myRow).tap()
+        compose.assertShare("You", third)
 
         val modelCalls = fake.proxy.received.filter { it.path == "/v1/bill-analysis" || it.path == "/v1/split-revision" }
         assertEquals("Calls to the model: ${modelCalls.map { "${it.method} ${it.path}" }}", 0, modelCalls.size)

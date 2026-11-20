@@ -1,16 +1,28 @@
 package com.dantech.splitvibe
 
 import android.os.Build
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.Dp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
@@ -23,6 +35,7 @@ import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -101,9 +114,53 @@ class SplitFlowOnDeviceTest {
         compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
+    /**
+     * Types a person's part into their row of the split as a finger does, with the keyboard open: the
+     * field being typed into stays in view above the bar at the bottom, and the bar above the keyboard.
+     * The last row is the one nearest the bar.
+     */
+    @Test
+    fun aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard() {
+        compose.onNodeWithContentDescription("Split a bill").performClick()
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitNode(hasText("Read and split the bill") and isEnabled())
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitNode(hasText("Agree") and hasClickAction())
+        compose.onNode(hasText("Agree") and hasClickAction()).performClick()
+        awaitNode(hasText("Bill total"))
+
+        val list = compose.onNode(hasScrollToIndexAction())
+        list.performScrollToNode(hasText("By percent"))
+        // Through its action: the chip may lie partly beyond the edge of its row, which scrolls sideways.
+        compose.onNodeWithText("By percent").performSemanticsAction(SemanticsActions.OnClick)
+        val part = hasSetTextAction() and hasText("Percent for Lan")
+        list.performScrollToNode(part)
+        // A tap, as a finger gives it, puts the cursor in the field and opens the keyboard.
+        compose.onNode(part).performClick()
+        compose.onNode(part).performTextReplacement("50")
+        compose.waitForIdle()
+
+        val field = compose.onNode(part).assertIsDisplayed().getBoundsInRoot()
+        // Lan's 50% leaves the split over 100%, so its main action cannot be used yet.
+        val bar = compose.onNodeWithText("Finish the split").onParent().getBoundsInRoot()
+        assertTrue("The field ends at ${field.bottom}, under the top of the bar at ${bar.top}", field.bottom <= bar.top)
+        val keyboard = keyboardTop()
+        assertTrue("The bar ends at ${bar.bottom}, under the top of the keyboard at $keyboard", bar.bottom <= keyboard)
+    }
+
     /** Waits for work that runs off the main thread: loading the photo, reading its text. */
     private fun awaitNode(matcher: SemanticsMatcher) = compose.waitUntil(TIMEOUT_MS) {
         compose.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    /** Where the keyboard starts on the screen, or the bottom of the screen while it shows none, as an emulator may not. */
+    private fun keyboardTop(): Dp {
+        var keyboard = 0
+        compose.activityRule.scenario.onActivity { activity ->
+            keyboard = ViewCompat.getRootWindowInsets(activity.window.decorView)?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+        }
+        val screen = compose.onRoot().getBoundsInRoot()
+        return screen.bottom - with(compose.density) { keyboard.toDp() }
     }
 }
 

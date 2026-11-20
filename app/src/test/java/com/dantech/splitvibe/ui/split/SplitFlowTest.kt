@@ -7,9 +7,14 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Looper
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,6 +23,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextReplacement
@@ -89,8 +95,8 @@ class SplitFlowTest {
     fun `sample bill is read, split between people and requested`() {
         val viewModel = showSplitScreen()
 
-        // Step 1: photo and instruction.
-        compose.onNodeWithText("Use the sample bill").performClick()
+        // Step 1: photo and instruction. The test's screen is small, so the ways to add a bill lie below the photo's tray.
+        compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         assertNull(viewModel.state.value.error)
         compose.onNodeWithText(context.getString(R.string.split_default_instruction)).performTextReplacement(INSTRUCTION)
@@ -109,14 +115,28 @@ class SplitFlowTest {
         assertEquals(listOf(ME_ID, "p1", "p2"), result.plan.participantIds)
         assertEquals(listOf("Minh", "Lan"), result.plan.participants.drop(1).map { it.name })
         assertEquals(mapOf("i6" to Division.Equally(among = setOf("p1"))), result.plan.setup.items)
-        compose.onNodeWithText(vnd.format(902_664)).assertIsDisplayed()
+        // The total at the top, which the line below the shares repeats once it is in view.
+        compose.onAllNodesWithText(vnd.format(902_664)).onFirst().assertIsDisplayed()
 
-        val list = compose.onNode(hasScrollAction())
+        // The lazy list: the row of the ways to split scrolls too, sideways.
+        val list = compose.onNode(hasScrollToIndexAction())
         list.performScrollToNode(hasText("Adds up to the bill total"))
-        for (share in listOf(250_993L, 400_680L, 250_991L)) {
-            list.performScrollToNode(hasText(vnd.format(share)))
-            compose.onNodeWithText(vnd.format(share)).assertIsDisplayed()
+        for ((name, share) in listOf("You" to 250_993L, "Minh" to 400_680L, "Lan" to 250_991L)) {
+            // Each person's row says who they are and what they pay.
+            val row = hasText(name) and hasText(vnd.format(share))
+            list.performScrollToNode(row)
+            compose.onNode(row).assertIsDisplayed()
         }
+
+        // The user's own row switches whether they share the bill, and back.
+        val me = hasText("You") and isToggleable()
+        list.performScrollToNode(me)
+        compose.onNode(me).assertIsOn().performSemanticsAction(SemanticsActions.OnClick)
+        awaitState { ME_ID !in checkNotNull(viewModel.state.value.result).plan.sharingIds }
+        compose.onNode(me).assertIsOff().assert(hasStateDescription("You do not share the bill"))
+        compose.onNode(me).performSemanticsAction(SemanticsActions.OnClick)
+        awaitState { ME_ID in checkNotNull(viewModel.state.value.result).plan.sharingIds }
+        compose.onNode(me).assertIsOn().assert(hasStateDescription("You share the bill"))
 
         // The user changes who shares an item: Lan did not have any of the water.
         list.performScrollToNode(hasText("Nước suối"))
@@ -136,7 +156,7 @@ class SplitFlowTest {
 
         // Step 4: Minh gets a message of his own through the share sheet, with his share in it.
         val minh = shares.shares.single { it.personId == "p1" }
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Send"))
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Send"))
         compose.onAllNodesWithText("Send").onFirst().performClick()
         awaitState { shadowOf(context as Application).peekNextStartedActivity() != null }
         val chooser = checkNotNull(shadowOf(context as Application).nextStartedActivity)
@@ -156,7 +176,7 @@ class SplitFlowTest {
     @Test
     fun `back from the result shows the photo step again, with the photo kept`() {
         val viewModel = showSplitScreen()
-        compose.onNodeWithText("Use the sample bill").performClick()
+        compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
@@ -203,5 +223,8 @@ class SplitFlowTest {
     private companion object {
         const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
         const val TIMEOUT_MS = 30_000L
+
+        /** A switch that says its state in words, such as whether the user shares the bill. */
+        fun hasStateDescription(state: String) = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, state)
     }
 }

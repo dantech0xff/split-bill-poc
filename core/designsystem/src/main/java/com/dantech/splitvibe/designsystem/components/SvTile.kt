@@ -295,7 +295,7 @@ internal fun lineIcon(name: String, pathData: String, group: String = "SvCategor
 internal fun circle(cx: Float, cy: Float, r: Float): String = "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0z"
 
 /** Any opaque colour: an icon takes its colour from the tint it is drawn with. */
-private val IconInk = SolidColor(Color.Black)
+internal val IconInk = SolidColor(Color.Black)
 private val ICON_SIZE = 24.dp
 private const val VIEWPORT = 24f
 private const val LINE_WIDTH = 2f

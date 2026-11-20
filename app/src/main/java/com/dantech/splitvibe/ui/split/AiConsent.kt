@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -15,10 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.dantech.splitvibe.R
-import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvAiMark
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
@@ -45,7 +47,11 @@ internal fun AiConsentDialog(
     }
 }
 
-/** What the consent screen shows: what goes to the AI and where, the privacy policy, and the two answers. */
+/**
+ * What the consent screen shows: the mark of the AI, what goes to the AI and where, the privacy
+ * policy, and the two answers. The answers stand at the end of the screen, below the text that
+ * scrolls when large text makes it taller than the screen, so they are always in view.
+ */
 @Composable
 internal fun AiConsentScreen(
     declineLabel: String,
@@ -55,36 +61,35 @@ internal fun AiConsentScreen(
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
-        Column {
-            // Scrolls when large text makes it taller than the screen; the answers stay in view below.
+        Column(modifier = Modifier.safeDrawingPadding()) {
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(SvSpacing.lg),
+                    .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xl, bottom = SvSpacing.lg),
                 verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
             ) {
+                SvAiMark(size = MARK_SIZE)
                 Text(
                     stringResource(R.string.ai_consent_title),
                     modifier = Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium,
                 )
-                Text(stringResource(R.string.ai_consent_where), style = MaterialTheme.typography.bodyLarge)
-                Text(stringResource(R.string.ai_consent_bill_read), style = MaterialTheme.typography.bodyLarge)
-                Text(stringResource(R.string.ai_consent_split_edit), style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    stringResource(R.string.ai_consent_choice),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(stringResource(R.string.ai_consent_where), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.ai_consent_bill_read), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.ai_consent_split_edit), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.ai_consent_choice), style = MaterialTheme.typography.bodyMedium)
                 legalLinks?.let { PrivacyPolicyLink(it) }
             }
-            SvBottomBar {
-                Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                    SvPrimaryButton(stringResource(R.string.ai_consent_agree), onClick = onAgree)
-                    SvQuietButton(declineLabel, onClick = onDecline, modifier = Modifier.fillMaxWidth())
-                }
+            Column(
+                modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm, bottom = SvSpacing.xl),
+                verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+            ) {
+                SvPrimaryButton(stringResource(R.string.ai_consent_agree), onClick = onAgree)
+                SvQuietButton(declineLabel, onClick = onDecline, modifier = Modifier.fillMaxWidth())
             }
         }
     }
 }
+
+private val MARK_SIZE = 48.dp

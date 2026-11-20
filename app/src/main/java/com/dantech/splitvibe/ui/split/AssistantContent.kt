@@ -6,30 +6,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -47,15 +39,22 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.CallsLeft
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvAiMark
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvCheckbox
+import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvSmallAction
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
-import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
-import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.llm.SplitRevisionRequest
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 
@@ -80,92 +79,94 @@ class AssistantActions(
 )
 
 /**
- * The field where the user types or says how to change the split, with what the AI made of the
- * last thing sent when it is not a list of changes: a question back, an error, or nothing to change.
+ * Where the user types or says how to change the split: the field under its title, with what the AI
+ * made of the last thing sent when it is not a list of changes, such as a question back, an error, or
+ * nothing to change.
  */
 @Composable
-internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, modifier: Modifier = Modifier) {
+internal fun AssistantSection(state: AssistantUiState, actions: AssistantActions, modifier: Modifier = Modifier) {
     val voice = state.voice
     val answering = state.question != null
-    SvCard(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-            state.notice?.let { SvMessageCard(text = it.resolve(), isError = false) }
-            state.question?.let { question ->
-                // Read out as it arrives: the answer goes into the field below.
-                SvMessageCard(
-                    text = question,
-                    isError = false,
-                    action = stringResource(R.string.assistant_ask_something_else),
-                    onAction = actions.onForgetQuestion,
-                    modifier = announced,
-                )
-            }
-
-            OutlinedTextField(
-                value = state.text,
-                onValueChange = actions.onTextChange,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !state.working && !voice.listening,
-                label = { Text(stringResource(if (answering) R.string.assistant_your_answer else R.string.assistant_change_the_split)) },
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (voice.available) {
-                            IconButton(onClick = actions.onMic, enabled = !state.working) {
-                                Icon(
-                                    MIC,
-                                    contentDescription = stringResource(
-                                        if (voice.listening) R.string.assistant_stop_listening else R.string.assistant_say_the_change,
-                                    ),
-                                    tint = if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                                )
-                            }
-                        }
-                        IconButton(onClick = actions.onSend, enabled = state.canSend) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.assistant_ask_the_ai))
-                        }
-                    }
-                },
-                supportingText = {
-                    Text(
-                        when {
-                            voice.listening -> stringResource(R.string.assistant_listening)
-                            voice.note != null -> voice.note.resolve()
-                            answering -> stringResource(R.string.assistant_answer_hint)
-                            else -> stringResource(R.string.assistant_hint, CallsLeft.text(CallsLeft.REVISION))
-                        },
-                    )
-                },
-                maxLines = 4,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { if (state.canSend) actions.onSend() }),
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+        state.notice?.let { SvMessageCard(text = it.resolve(), isError = false) }
+        state.question?.let { question ->
+            // Read out as it arrives: the answer goes into the field below.
+            SvMessageCard(
+                text = question,
+                isError = false,
+                action = stringResource(R.string.assistant_ask_something_else),
+                onAction = actions.onForgetQuestion,
+                modifier = announced,
             )
-
-            if (state.working) {
-                SvWorkingRow(
-                    status = stringResource(R.string.assistant_working),
-                    cancelLabel = stringResource(R.string.common_cancel),
-                    onCancel = actions.onCancel,
-                )
-            }
-            state.error?.let { error ->
-                SvMessageCard(
-                    text = error.resolve(),
-                    isError = true,
-                    action = when {
-                        state.errorOpensPro -> stringResource(R.string.common_get_pro)
-                        state.errorOpensSettings -> stringResource(R.string.common_open_settings)
-                        else -> stringResource(R.string.common_ok)
-                    },
-                    onAction = when {
-                        state.errorOpensPro -> actions.onOpenPro
-                        state.errorOpensSettings -> actions.onOpenSettings
-                        else -> actions.onDismissError
-                    },
-                    modifier = announced,
-                )
-            }
-            state.note?.let { Text(it.resolve(), modifier = announced, style = MaterialTheme.typography.bodyMedium) }
         }
+
+        SvTextField(
+            value = state.text,
+            onValueChange = actions.onTextChange,
+            label = stringResource(if (answering) R.string.assistant_your_answer else R.string.assistant_change_the_split),
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !state.working && !voice.listening,
+            supportingText = when {
+                voice.listening -> stringResource(R.string.assistant_listening)
+                voice.note != null -> voice.note.resolve()
+                answering -> stringResource(R.string.assistant_answer_hint)
+                else -> stringResource(R.string.assistant_hint, CallsLeft.text(CallsLeft.REVISION))
+            },
+            placeholder = if (answering) null else stringResource(R.string.assistant_tell_the_ai),
+            trailing = {
+                if (voice.available) {
+                    IconButton(onClick = actions.onMic, enabled = !state.working) {
+                        Icon(
+                            MIC,
+                            contentDescription = stringResource(
+                                if (voice.listening) R.string.assistant_stop_listening else R.string.assistant_say_the_change,
+                            ),
+                            tint = if (voice.listening) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        )
+                    }
+                }
+                SvSmallAction(
+                    icon = SvActionIcons.Ask,
+                    label = stringResource(R.string.assistant_ask_the_ai),
+                    onClick = actions.onSend,
+                    enabled = state.canSend,
+                )
+            },
+            singleLine = false,
+            minLines = 1,
+            maxLines = ANSWER_LINES,
+            // A character of the instruction can take two in the field; the view model keeps what the AI may be sent.
+            maxLength = SplitRevisionRequest.MAX_INSTRUCTION_CODE_POINTS * 2,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { if (state.canSend) actions.onSend() }),
+            titleLabel = true,
+        )
+
+        if (state.working) {
+            SvWorkingRow(
+                status = stringResource(R.string.assistant_working),
+                cancelLabel = stringResource(R.string.common_cancel),
+                onCancel = actions.onCancel,
+            )
+        }
+        state.error?.let { error ->
+            SvMessageCard(
+                text = error.resolve(),
+                isError = true,
+                action = when {
+                    state.errorOpensPro -> stringResource(R.string.common_get_pro)
+                    state.errorOpensSettings -> stringResource(R.string.common_open_settings)
+                    else -> stringResource(R.string.common_ok)
+                },
+                onAction = when {
+                    state.errorOpensPro -> actions.onOpenPro
+                    state.errorOpensSettings -> actions.onOpenSettings
+                    else -> actions.onDismissError
+                },
+                modifier = announced,
+            )
+        }
+        state.note?.let { Text(it.resolve(), modifier = announced, style = MaterialTheme.typography.bodyMedium) }
     }
 }
 
@@ -176,47 +177,50 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
  */
 @Composable
 internal fun ProposalCard(proposal: ProposalUi, actions: AssistantActions, modifier: Modifier = Modifier) {
-    SvCard(modifier = modifier.fillMaxWidth(), elevation = SvElevation.Level2) {
-        Column(modifier = Modifier.padding(vertical = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Column(modifier = Modifier.padding(horizontal = SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                Text(
-                    stringResource(R.string.assistant_proposed_changes),
-                    modifier = announced,
-                    style = MaterialTheme.typography.titleMedium,
-                )
+    SvCard(modifier = modifier.fillMaxWidth(), outlined = true) {
+        Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                    SvAiMark()
+                    Text(
+                        stringResource(R.string.assistant_proposed_changes),
+                        modifier = announced,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                }
                 Text(
                     stringResource(R.string.assistant_you_asked, proposal.instruction),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (proposal.explanation.isNotBlank()) Text(proposal.explanation, style = MaterialTheme.typography.bodyMedium)
+                if (proposal.explanation.isNotBlank()) Text(proposal.explanation, style = MaterialTheme.typography.bodyMediumEmphasized)
             }
 
-            proposal.edits.forEach { edit -> EditRow(edit, onToggle = { actions.onToggleEdit(edit.index) }) }
-            if (proposal.unreadable > 0) {
-                Note(plural(R.plurals.assistant_unreadable, proposal.unreadable).resolve())
+            Column {
+                proposal.edits.forEach { edit -> EditRow(edit, onToggle = { actions.onToggleEdit(edit.index) }) }
+                if (proposal.unreadable > 0) {
+                    Note(plural(R.plurals.assistant_unreadable, proposal.unreadable).resolve())
+                }
             }
 
             // A proposal that could not be worked out has no amounts to show.
             if (proposal.shares.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.split_each_person_pays),
-                    modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.lg, top = SvSpacing.sm),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+                Column {
+                    Text(stringResource(R.string.split_each_person_pays), style = MaterialTheme.typography.bodySmallEmphasized)
+                    proposal.shares.forEach { ShareChangeRow(it, proposal.currency) }
+                }
             }
-            proposal.shares.forEach { ShareChangeRow(it, proposal.currency) }
             proposal.problems.forEach { problem -> Note(stringResource(R.string.assistant_after_changes, problem), isError = true) }
             proposal.outcome.note?.let { Note(stringResource(it), isError = proposal.outcome.isError) }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = SvSpacing.lg),
-                horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm, Alignment.End),
-            ) {
-                TextButton(onClick = actions.onDiscard) { Text(stringResource(R.string.assistant_discard)) }
-                FilledTonalButton(onClick = actions.onApply, enabled = proposal.canApply) { Text(stringResource(R.string.assistant_apply)) }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                SvQuietButton(stringResource(R.string.assistant_discard), onClick = actions.onDiscard, modifier = Modifier.weight(1f))
+                SvPrimaryButton(
+                    stringResource(R.string.assistant_apply),
+                    onClick = actions.onApply,
+                    modifier = Modifier.weight(1f),
+                    enabled = proposal.canApply,
+                )
             }
         }
     }
@@ -238,16 +242,13 @@ internal fun AssistantVoicePrompts(voice: VoiceUi, actions: AssistantActions) {
     }
 
     if (voice.askingNetwork) {
-        AlertDialog(
-            onDismissRequest = { actions.onNetworkVoice(false) },
-            title = { Text(stringResource(R.string.assistant_speech_service_title)) },
-            text = {
-                Text(stringResource(R.string.assistant_speech_service_text))
-            },
-            confirmButton = { TextButton(onClick = { actions.onNetworkVoice(true) }) { Text(stringResource(R.string.assistant_use_it)) } },
-            dismissButton = {
-                TextButton(onClick = { actions.onNetworkVoice(false) }) { Text(stringResource(R.string.assistant_type_instead)) }
-            },
+        SvDialog(
+            title = stringResource(R.string.assistant_speech_service_title),
+            text = stringResource(R.string.assistant_speech_service_text),
+            confirmLabel = stringResource(R.string.assistant_use_it),
+            onConfirm = { actions.onNetworkVoice(true) },
+            dismissLabel = stringResource(R.string.assistant_type_instead),
+            onDismiss = { actions.onNetworkVoice(false) },
         )
     }
 }
@@ -265,16 +266,15 @@ private fun EditRow(edit: ProposedEdit, onToggle: () -> Unit) {
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .toggleable(value = edit.kept, role = Role.Checkbox, onValueChange = { onToggle() })
-            .semantics { contentDescription = label }
-            .padding(horizontal = SvSpacing.sm),
+            .semantics { contentDescription = label },
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
     ) {
-        Checkbox(checked = edit.kept, onCheckedChange = null)
-        Spacer(Modifier.width(SvSpacing.sm))
+        SvCheckbox(checked = edit.kept, onCheckedChange = null)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 edit.text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = if (edit.kept) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 textDecoration = if (edit.kept) null else TextDecoration.LineThrough,
             )
@@ -305,20 +305,18 @@ private fun ShareChangeRow(change: ShareChange, currency: BillCurrency) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.xs)
+            .heightIn(min = SHARE_ROW_HEIGHT)
             .clearAndSetSemantics { contentDescription = said },
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
     ) {
-        SvAvatar(name)
-        Spacer(Modifier.width(SvSpacing.md))
-        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Text(before ?: NONE, style = MaterialTheme.typography.amountSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SvAvatar(name, size = SHARE_AVATAR_SIZE)
+        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+        Text(before ?: NONE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Icon(
             Icons.AutoMirrored.Filled.ArrowForward,
             contentDescription = null,
-            modifier = Modifier
-                .padding(horizontal = SvSpacing.xs)
-                .size(16.dp),
+            modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
@@ -333,7 +331,6 @@ private fun ShareChangeRow(change: ShareChange, currency: BillCurrency) {
 private fun Note(text: String, isError: Boolean = false) {
     Text(
         text,
-        modifier = Modifier.padding(horizontal = SvSpacing.lg),
         style = MaterialTheme.typography.bodySmall,
         color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -344,6 +341,12 @@ private val announced = Modifier.semantics(mergeDescendants = true) { liveRegion
 
 /** Shown in place of an amount a person does not have on one side of the change. */
 private const val NONE = "—"
+
+/** How many lines the field of a change grows to before it scrolls. */
+private const val ANSWER_LINES = 4
+
+private val SHARE_ROW_HEIGHT = 44.dp
+private val SHARE_AVATAR_SIZE = 32.dp
 
 /** The microphone of Material's icons, which the small set of icons the app ships does not hold. */
 private val MIC = materialIcon(name = "Filled.Mic") {

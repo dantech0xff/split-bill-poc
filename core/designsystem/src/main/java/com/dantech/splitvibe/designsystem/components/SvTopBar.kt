@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -40,6 +41,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.tokens.SvPalette
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.SvTheme
 
@@ -139,25 +141,42 @@ private fun BrandMark() {
         modifier = Modifier
             .size(MARK_SIZE)
             .background(palette.brand, MaterialTheme.shapes.small)
-            .drawBehind {
-                // The two halves as the approved designs draw them, in a 24 by 24 grid in the middle of the tile.
-                val unit = MARK_ICON_SIZE.toPx() / MARK_GRID
-                val inset = (size.width - MARK_ICON_SIZE.toPx()) / 2
-                fun half(color: Color, centreX: Float, centreY: Float, startAngle: Float) {
-                    val radius = MARK_RADIUS * unit
-                    drawArc(
-                        color = color,
-                        startAngle = startAngle,
-                        sweepAngle = HALF_TURN,
-                        useCenter = true,
-                        topLeft = Offset(inset + centreX * unit - radius, inset + centreY * unit - radius),
-                        size = Size(radius * 2, radius * 2),
-                    )
-                }
-                half(palette.onBrand, centreX = 11f, centreY = 11.5f, startAngle = QUARTER_TURN)
-                half(palette.accent, centreX = 13f, centreY = 12.5f, startAngle = -QUARTER_TURN)
-            },
+            .drawBehind { drawBrandHalves(palette, iconSize = MARK_ICON_SIZE.toPx()) },
     )
+}
+
+/**
+ * The app's mark without its tile, [size] across: a circle split in two, white and lime, for a violet
+ * ground, such as the stub of a ticket that says the split was made with the app. Decorative.
+ */
+@Composable
+fun SvBrandMark(modifier: Modifier = Modifier, size: Dp = BRAND_MARK_SIZE) {
+    val palette = SvTheme.palette
+    Box(
+        modifier = modifier
+            .size(size)
+            // The mark fills the box, which is as wide as it is tall.
+            .drawBehind { drawBrandHalves(palette, iconSize = this.size.width) },
+    )
+}
+
+/** The two halves of the mark as the approved designs draw them, in a 24 by 24 grid [iconSize] across in the middle. */
+private fun DrawScope.drawBrandHalves(palette: SvPalette, iconSize: Float) {
+    val unit = iconSize / MARK_GRID
+    val inset = (size.width - iconSize) / 2
+    fun half(color: Color, centreX: Float, centreY: Float, startAngle: Float) {
+        val radius = MARK_RADIUS * unit
+        drawArc(
+            color = color,
+            startAngle = startAngle,
+            sweepAngle = HALF_TURN,
+            useCenter = true,
+            topLeft = Offset(inset + centreX * unit - radius, inset + centreY * unit - radius),
+            size = Size(radius * 2, radius * 2),
+        )
+    }
+    half(palette.onBrand, centreX = 11f, centreY = 11.5f, startAngle = QUARTER_TURN)
+    half(palette.accent, centreX = 13f, centreY = 12.5f, startAngle = -QUARTER_TURN)
 }
 
 /** The outline of a person: a head and shoulders. */
@@ -242,6 +261,7 @@ private val BAR_MIN_HEIGHT = 64.dp
 
 private val MARK_SIZE = 36.dp
 private val MARK_ICON_SIZE = 24.dp
+private val BRAND_MARK_SIZE = 20.dp
 private val MARK_GAP = 10.dp
 private const val MARK_GRID = 24f
 private const val MARK_RADIUS = 9f

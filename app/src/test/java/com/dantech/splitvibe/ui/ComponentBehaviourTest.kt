@@ -44,12 +44,14 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -78,6 +80,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.components.SV_TEXT_FIELD_MAX_LENGTH
 import com.dantech.splitvibe.designsystem.components.SvAccountButton
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvActionTile
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
@@ -90,6 +94,9 @@ import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvFabMenu
 import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
+import com.dantech.splitvibe.designsystem.components.SvFieldButton
+import com.dantech.splitvibe.designsystem.components.SvFieldRow
+import com.dantech.splitvibe.designsystem.components.SvFieldWidth
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
@@ -883,6 +890,93 @@ class ComponentBehaviourTest {
     }
 
     @Test
+    fun `a row that switches reads as one switch with its state in words, and the part beside it is a field of its own`() {
+        var sharing by mutableStateOf(true)
+        var part = ""
+        compose.setContent {
+            SplitVibeTheme {
+                SvListRow(
+                    position = SvRowPosition.Single,
+                    label = "You, ₫225,666",
+                    checked = sharing,
+                    onCheckedChange = { sharing = it },
+                    stateDescription = if (sharing) "You share the bill" else "You do not share the bill",
+                    trailing = { SvTextField("25", { part = it }, label = "Percent for You", suffix = "%") },
+                    trailingWidth = NUMBER_WIDTH,
+                ) { Text("You") }
+            }
+        }
+        val row = compose.onNodeWithContentDescription("You, ₫225,666")
+        row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch)).assertIsOn()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "You share the bill"))
+
+        // The field is not part of the row's tap, and typing in it switches nothing.
+        val field = compose.onNode(hasSetTextAction() and hasText("Percent for You"))
+        field.assert(!hasAnyAncestor(hasContentDescription("You, ₫225,666")))
+        field.performTextReplacement("50")
+        assertEquals("50", part)
+        assertTrue(sharing)
+
+        row.performClick()
+        assertFalse(sharing)
+        row.assertIsOff().assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "You do not share the bill"))
+    }
+
+    @Test
+    // Whether a number fits depends on how wide its text really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `fields stand side by side while their numbers fit, their boxes lined up at the bottom`() {
+        showQuantityPriceAndAmount()
+
+        val (quantity, price, amount) = listOf("Qty", "Price each", "Amount").map { fieldBounds(it) }
+        assertTrue("The price is not beside the quantity", price.left >= quantity.right && price.top < quantity.bottom)
+        assertTrue("The amount is not beside the price", amount.left >= price.right && amount.top < price.bottom)
+        assertEquals("The boxes do not end at one height", quantity.bottom.value, price.bottom.value, BOUNDS_SLACK)
+        assertEquals("The boxes do not end at one height", price.bottom.value, amount.bottom.value, BOUNDS_SLACK)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `with text at twice the size, fields too narrow for their numbers go one above the other across the row`() {
+        RuntimeEnvironment.setFontScale(2f)
+        showQuantityPriceAndAmount()
+
+        val (quantity, price, amount) = listOf("Qty", "Price each", "Amount").map { fieldBounds(it) }
+        assertTrue("The price is not below the quantity", price.top >= quantity.bottom)
+        assertTrue("The amount is not below the price", amount.top >= price.bottom)
+        val width = { field: DpRect -> (field.right - field.left).value }
+        assertEquals("The fields do not take the whole row", width(quantity), width(amount), BOUNDS_SLACK)
+        assertEquals(FIELD_ROW_WIDTH.value, width(price), BOUNDS_SLACK)
+    }
+
+    @Test
+    fun `an action that shows only an icon says its label and leaves room for a finger`() {
+        val tapped = mutableListOf<String>()
+        compose.setContent {
+            SplitVibeTheme {
+                Row {
+                    SvSmallAction(SvActionIcons.Ask, label = "Ask the AI", onClick = { tapped += "ask" })
+                    SvFieldButton(SvActionIcons.Bin, label = "Remove Bia", onClick = { tapped += "remove" }, destructive = true)
+                    SvActionTile("Take photo", SvActionIcons.Camera, onClick = { tapped += "photo" })
+                    SvActionTile("Choose photos", SvActionIcons.Photos, onClick = { tapped += "never" }, enabled = false)
+                }
+            }
+        }
+
+        for ((matcher, name) in listOf(hasContentDescription("Ask the AI") to "ask", hasContentDescription("Remove Bia") to "remove")) {
+            val node = compose.onNode(matcher).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            assertRoomForAFinger(node, name)
+            node.performClick()
+        }
+        compose.onNode(hasText("Take photo")).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).performClick()
+        compose.onNode(hasText("Choose photos")).assertIsNotEnabled().performClick()
+
+        assertEquals(listOf("ask", "remove", "photo"), tapped)
+    }
+
+    @Test
     // The colours are read off the drawn picture.
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun `a notice stands out from what it lies on, on the page and on a card`() {
@@ -924,6 +1018,22 @@ class ComponentBehaviourTest {
         compose.runOnIdle { assertNotNull("The field started no input", view.onCreateInputConnection(info)) }
         return info
     }
+
+    /** Shows an item's quantity, price each and amount in a row of fields as wide as an open row of the bill editor. */
+    private fun showQuantityPriceAndAmount() = compose.setContent {
+        SplitVibeTheme {
+            SvFieldRow(
+                widths = listOf(SvFieldWidth.Fixed(80.dp), SvFieldWidth.Share(1f), SvFieldWidth.Share(1f)),
+                modifier = Modifier.width(FIELD_ROW_WIDTH),
+            ) {
+                SvTextField("1", {}, label = "Qty")
+                SvTextField("165000", {}, label = "Price each")
+                SvTextField("165000", {}, label = "Amount")
+            }
+        }
+    }
+
+    private fun fieldBounds(label: String): DpRect = compose.onNode(hasSetTextAction() and hasText(label)).getBoundsInRoot()
 
     /** Fails unless the chip of [option] lies whole within the row of chips around it. */
     private fun assertShownWhole(option: String) {
@@ -1007,6 +1117,13 @@ private fun layoutOf(node: SemanticsNodeInteraction): TextLayoutResult {
 }
 
 private fun TextLayoutResult.firstLineHeight(): Float = getLineBottom(0) - getLineTop(0)
+
+/** As wide as the fields of an open row of the bill editor on a phone 412dp wide. */
+private val FIELD_ROW_WIDTH = 332.dp
+private val NUMBER_WIDTH = 148.dp
+
+/** How far two edges may differ and still count as one, for rounding to whole pixels. */
+private const val BOUNDS_SLACK = 1f
 
 private const val ROWS = 40
 private const val LAST_ROW = "Row ${ROWS - 1}"

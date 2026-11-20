@@ -3,6 +3,8 @@ package com.dantech.splitvibe.ui.split
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -92,12 +94,15 @@ class BillLifecycleTest {
 
         compose.onNodeWithText("Type it in by hand").performClick()
         compose.onNode(hasText("Where") and hasSetTextAction()).performTextInput("Bún chả Hương Liên")
-        repeat(3) { compose.onNodeWithText("Add an item").performClick() }
         val items = listOf("Bún chả" to "60000", "Nem cua bể" to "40000", "Trà đá" to "20000")
-        items.forEachIndexed { index, (name, amount) ->
-            compose.onAllNodes(hasText("Item") and hasSetTextAction())[index].performTextInput(name)
-            compose.onAllNodes(hasText("Amount") and hasSetTextAction())[index].performTextInput(amount)
+        items.forEach { (name, amount) ->
+            // The item just added opens itself, and is the one row open: its fields are the only ones.
+            compose.onNodeWithText("Add an item").performClick()
+            compose.onNode(hasText("Item") and hasSetTextAction()).performTextInput(name)
+            compose.onNode(hasText("Amount") and hasSetTextAction()).performTextInput(amount)
         }
+        // The items typed before are closed rows of what they hold.
+        compose.onNode(hasText("Bún chả") and hasClickAction()).assertIsDisplayed()
         compose.onNodeWithText("Left empty, the total is what the lines add up to: ${vnd.format(120_000)}.").assertIsDisplayed()
         compose.onNode(hasText("Done") and hasClickAction()).performClick()
 
@@ -115,6 +120,41 @@ class BillLifecycleTest {
         assertEquals(items.map { it.first }, saved.bill.items.map { it.name })
         assertEquals(listOf(60_000L, 60_000L), saved.shares.map { it.totalMinor })
         assertTrue("no photo is needed", saved.pages.isEmpty())
+    }
+
+    @Test
+    fun `the row open in the editor stays the same item when an item above it is taken away`() {
+        val viewModel = testSplitViewModel(context, storage, TestProxy(server, context).account.account, recordedMlKitOutput, NeverAsked)
+        viewModel.startManualEntry()
+        for ((name, amount) in listOf("Bún chả" to 60_000L, "Nem cua bể" to 40_000L, "Trà đá" to 20_000L)) {
+            viewModel.editBill { BillEditor.withItemAdded(it, name, amountMinor = amount) }
+        }
+        compose.setContent {
+            SplitVibeTheme {
+                SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
+                    Uri.EMPTY
+                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
+            }
+        }
+        val itemField = hasText("Item") and hasSetTextAction()
+        compose.onAllNodes(itemField).assertCountEquals(0)
+
+        // The second row open, then the first item taken away, as when the bill changes elsewhere.
+        compose.onNode(hasText("Nem cua bể") and hasClickAction()).performClick()
+        compose.onNode(itemField).assert(hasText("Nem cua bể"))
+        val first = checkNotNull(viewModel.state.value.result).bill.items.first().id
+        viewModel.editBill { BillEditor.withoutItem(it, first) }
+        compose.waitForIdle()
+
+        // The same item stays open, now in the first row, and no other row opened.
+        compose.onAllNodes(itemField).assertCountEquals(1)
+        compose.onNode(itemField).assert(hasText("Nem cua bể"))
+        compose.onNode(hasText("Trà đá") and hasClickAction()).assertIsDisplayed()
+
+        // Opening another row closes this one.
+        compose.onNode(hasText("Trà đá") and hasClickAction()).performClick()
+        compose.onAllNodes(itemField).assertCountEquals(1)
+        compose.onNode(itemField).assert(hasText("Trà đá"))
     }
 
     @Test

@@ -1,7 +1,11 @@
 package com.dantech.splitvibe.ui
 
+import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import android.os.Looper
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -12,6 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
@@ -21,6 +27,8 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
@@ -29,6 +37,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.core.content.FileProvider
+import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
@@ -64,6 +74,7 @@ import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.dantech.splitvibe.ui.split.SplitScreen
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.math.BigDecimal
@@ -73,13 +84,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
@@ -104,7 +116,24 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = PHONE)
 class ScreenGalleryTest {
 
-    @get:Rule
+    /**
+     * What the screens use from outside them, closed only once the screens are gone: the compose rule
+     * inside this one removes the screens first. Closed any earlier, a list of bills still on screen
+     * would query the closed database when a save lands late. The file provider starts and ends each
+     * test without the folders of another test.
+     */
+    @get:Rule(order = 0)
+    val outsideTheScreens = object : ExternalResource() {
+        override fun before() = forgetSharedFolders()
+
+        override fun after() {
+            server.shutdown()
+            storage.close()
+            forgetSharedFolders()
+        }
+    }
+
+    @get:Rule(order = 1)
     val compose = createComposeRule()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
@@ -153,12 +182,6 @@ class ScreenGalleryTest {
         server.start()
         // A phone that turns speech into text by itself, as most new phones do, so the result screen offers the mic.
         TestVoice.recognizeOnDevice()
-    }
-
-    @After
-    fun tearDown() {
-        server.shutdown()
-        storage.close()
     }
 
     @Test
@@ -226,6 +249,46 @@ class ScreenGalleryTest {
         shot("10-requests-sent")
     }
 
+    /**
+     * The narrow fields of the flow with text at twice its size: a person's percentage beside their name,
+     * the amounts of who paid, and the quantity, price and amount of an item, none of them cut off.
+     */
+    @Test
+    fun `the parts and the fields of the bill with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        suffix = "-large-text"
+        val viewModel = start(answerDelaySeconds = 0)
+        show(Screen.SPLIT)
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+
+        val list = compose.onNode(hasScrollToIndexAction())
+        splitByPercent(list)
+        // The first person's row, with the field below the name, up under the top bar.
+        list.performScrollToNode(hasSetTextAction() and hasText("Percent for You"))
+        val field = compose.onNode(hasSetTextAction() and hasText("Percent for You")).fetchSemanticsNode().boundsInRoot.top
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, field - PART_TOP_PX) }
+        shot("18-split-by-percent")
+
+        list.performScrollToNode(hasText("You paid", substring = true))
+        compose.onNode(hasText("You paid", substring = true) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithText("Several people").performClick()
+        shot("19-who-paid")
+        compose.onNodeWithText("One person").performClick()
+        compose.onNodeWithText("Done").performClick()
+
+        editTheFirstItem()
+        // The open item up under the top bar, with its three fields of numbers below its name.
+        val editor = compose.onNode(hasScrollToIndexAction())
+        editor.performScrollToNode(hasSetTextAction() and hasText("Item"))
+        val item = compose.onNode(hasSetTextAction() and hasText("Item")).fetchSemanticsNode().boundsInRoot.top
+        editor.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, item - PART_TOP_PX) }
+        shot("20-edit-bill")
+    }
+
     /** The four main screens on a phone set to Vietnam, whose amounts are written "902.664 ₫": the texts stay English. */
     @Test
     @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
@@ -245,7 +308,8 @@ class ScreenGalleryTest {
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
-        compose.onNodeWithText(VIETNAMESE_TOTAL).assertExists()
+        // The total of the bill, and the line below the shares that they add up to it.
+        compose.onAllNodesWithText(VIETNAMESE_TOTAL).onFirst().assertExists()
         shot("05-result-top")
 
         compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
@@ -324,7 +388,7 @@ class ScreenGalleryTest {
         assertNull(viewModel.state.value.error)
         shot("05-result-top")
 
-        // The lazy list only: the text shown under "what was sent" scrolls sideways and would match a plain scroll matcher.
+        // The lazy list only: the row of the ways to split scrolls sideways and would match a plain scroll matcher.
         val list = compose.onNode(hasScrollToIndexAction())
         list.performScrollToNode(hasText("Adds up to the bill total"))
         // The shares and their total clear of the bottom bar.
@@ -342,21 +406,14 @@ class ScreenGalleryTest {
 
         // Bring the beers into view with a few rows above them, as the picture shows them, then tap the row.
         list.performScrollToNode(hasText(BEERS))
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -HALF_PAGE_PX / 2) }
+        val beers = compose.onNodeWithText(BEERS).fetchSemanticsNode().boundsInRoot.top
+        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, beers - BEERS_TOP_PX) }
         compose.onNodeWithText(BEERS).performClick()
         shot("08-item-split")
         compose.onNodeWithText("Done").performClick()
 
-        list.performScrollToNode(hasText("Show what was sent to Claude"))
-        compose.onNodeWithText("Show what was sent to Claude").performClick()
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, PAGE_PX) }
-        shot("09-sent-to-claude")
-        compose.onNodeWithText("Hide what was sent to Claude").performClick()
-
-        // Divided by percent, each person's part can be typed in.
-        list.performScrollToNode(hasText("By percent"))
-        compose.onNodeWithText("By percent").performClick()
-        list.performScrollToNode(hasText("100% of 100%"))
+        // Divided by percent, each person's part can be typed in, beside their name.
+        splitByPercent(list)
         shot("18-split-by-percent")
 
         // Opened through its click action, which does not depend on where the row lies on the screen.
@@ -368,7 +425,7 @@ class ScreenGalleryTest {
         compose.onNodeWithText("One person").performClick()
         compose.onNodeWithText("Done").performClick()
 
-        compose.onNodeWithContentDescription("Edit bill").performClick()
+        editTheFirstItem()
         shot("20-edit-bill")
         compose.onNode(hasText("Done") and hasClickAction()).performClick()
         // Back on the split before the clock is stopped below.
@@ -388,6 +445,22 @@ class ScreenGalleryTest {
         val requests = compose.onNode(hasScrollToIndexAction()).getBoundsInRoot()
         assertTrue("The requests run on to ${requests.bottom}, under the top of the bottom bar at ${bar.top}", requests.bottom <= bar.top)
 
+        // The picture that goes to the group chat, as the app writes it to share: the whole ticket,
+        // its notches and corners on the colour of the page.
+        compose.onNodeWithText("Share the split as a picture").performClick()
+        // The share sheet opens once the picture is written whole.
+        awaitState { lastStarted()?.action == Intent.ACTION_CHOOSER }
+        val sent = checkNotNull(IntentCompat.getParcelableExtra(checkNotNull(lastStarted()), Intent.EXTRA_INTENT, Intent::class.java))
+        val shared = checkNotNull(IntentCompat.getParcelableExtra(sent, Intent.EXTRA_STREAM, Uri::class.java)) {
+            "The split went to the share sheet without its picture"
+        }
+        // The provider's folder of shared pictures is the folder of that name in the cache.
+        val file = File(context.cacheDir, shared.pathSegments.joinToString("/"))
+        val picture = checkNotNull(BitmapFactory.decodeFile(file.path)) { "The shared picture could not be read" }
+        // The ticket's top corner is round: the picture shows the page there, not a hole that a chat fills with black.
+        assertEquals("A round corner of the ticket is a hole in the picture", 255, Color.alpha(picture.getPixel(0, 0)))
+        picture.captureRoboImage(File(SCREENSHOTS, "33-shared-picture$suffix.png"))
+
         // The finished split is the first bill in the list.
         awaitState { runBlocking { storage.bills.get(checkNotNull(viewModel.state.value.result).saved.id) }?.status == BillStatus.FINAL }
         show(Screen.HISTORY)
@@ -404,7 +477,10 @@ class ScreenGalleryTest {
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
 
-        compose.onNode(hasText("Change the split") and hasSetTextAction()).performTextInput(ASSISTANT_INSTRUCTION)
+        // The field below what each person pays, up under the top bar.
+        val field = hasText("Change the split") and hasSetTextAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(field)
+        compose.onNode(field).performTextInput(ASSISTANT_INSTRUCTION)
         shot("30-assistant")
 
         server.enqueue(revisionAnswer())
@@ -420,6 +496,36 @@ class ScreenGalleryTest {
         val title = compose.onNodeWithText("Proposed changes").fetchSemanticsNode().boundsInRoot.top
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, title - PROPOSAL_TOP_PX) }
         shot("31-assistant-proposal")
+    }
+
+    /** Divides the bill on screen by percent, from the row of the ways to split, which scrolls sideways. */
+    private fun splitByPercent(list: SemanticsNodeInteraction) {
+        list.performScrollToNode(hasText("By percent"))
+        // Through its action: the chip may lie partly beyond the edge of its row.
+        compose.onNodeWithText("By percent").performSemanticsAction(SemanticsActions.OnClick)
+        list.performScrollToNode(hasText("100% of 100%"))
+    }
+
+    /** Opens the editor of the bill on screen, with the row of its first item open, as the approved design shows it. */
+    private fun editTheFirstItem() {
+        compose.onNodeWithContentDescription("Edit bill").performClick()
+        val firstItem = hasText(FIRST_ITEM) and hasClickAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(firstItem)
+        compose.onNode(firstItem).performClick()
+        compose.onNode(hasSetTextAction() and hasText("Item")).assertExists()
+    }
+
+    /** What the app last asked Android to open, such as the share sheet, or null before it asked. */
+    private fun lastStarted(): Intent? = shadowOf(ApplicationProvider.getApplicationContext<Application>()).peekNextStartedActivity()
+
+    /**
+     * Makes the file provider look up its folders again. It keeps them in a static field for as long as
+     * the process runs, while Robolectric gives every test folders of its own: after one test shared a
+     * file, the files of the next test to share one would lie outside every folder the provider knows.
+     */
+    private fun forgetSharedFolders() {
+        val folders = FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }.get(null) as MutableMap<*, *>
+        synchronized(folders) { folders.clear() }
     }
 
     private fun speechServiceSettings() {
@@ -473,6 +579,10 @@ class ScreenGalleryTest {
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
         shot("13-result-whole-page")
+        // The picture is as tall as the window, so a page grown longer than the window would lose its
+        // end without a word: its list must have nothing left to scroll to.
+        val list = compose.onNode(hasScrollToIndexAction()).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        assertFalse("The result page runs on below the bottom of the picture", list.value() < list.maxValue())
     }
 
     private fun start(answerDelaySeconds: Long): SplitBillViewModel {
@@ -620,15 +730,20 @@ private const val PHONE_IN_VIETNAM = "vi-rVN-w412dp-h915dp-xhdpi"
 private const val VIETNAMESE_TOTAL = "902.664\u00A0₫"
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
-private const val TALL = "w412dp-h1900dp-xhdpi"
-private const val TALL_AT_NIGHT = "w412dp-h1900dp-night-xhdpi"
+private const val TALL = "w412dp-h2080dp-xhdpi"
+private const val TALL_AT_NIGHT = "w412dp-h2080dp-night-xhdpi"
 private const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
 private const val ASSISTANT_INSTRUCTION = "Lan didn't have any water. Add a 5% tip, and Minh paid"
 private const val BEERS = "Bia Saigon Special"
+private const val FIRST_ITEM = "Ốc hương rang muối"
 
-// Scroll distances at xhdpi (2 px per dp).
-private const val PAGE_PX = 1150f
-private const val HALF_PAGE_PX = 540f
+// Places on the screen at xhdpi (2 px per dp).
+
+/** Where the row of the beers ends up: halfway down the screen, with the items above it in view. */
+private const val BEERS_TOP_PX = 1000f
+
+/** Where a person's field for their part ends up with large text: below the top bar, with the person's name above it in view. */
+private const val PART_TOP_PX = 520f
 
 /** Where the title of the proposed changes ends up: below the top bar, with the top of its card in view. */
 private const val PROPOSAL_TOP_PX = 220f

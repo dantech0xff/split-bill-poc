@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.ui.split
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,11 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,8 +24,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.dantech.splitvibe.R
@@ -35,9 +33,12 @@ import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
+import com.dantech.splitvibe.designsystem.components.SvInset
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillItem
@@ -79,7 +80,7 @@ internal fun AddPersonSheet(
         supportingText = stringResource(R.string.split_add_someone_hint),
         onDismiss = onDismiss,
         actions = {
-            OutlinedButton(onClick = onPickContact) { Text(stringResource(R.string.split_from_contacts)) }
+            SvQuietButton(stringResource(R.string.split_from_contacts), onClick = onPickContact, modifier = Modifier.weight(1f))
             SvPrimaryButton(
                 text = stringResource(R.string.common_add),
                 onClick = add,
@@ -88,38 +89,41 @@ internal fun AddPersonSheet(
             )
         },
     ) {
-        OutlinedTextField(
+        SvTextField(
             value = name,
-            onValueChange = { name = it.take(MAX_TEXT_CHARS) },
+            onValueChange = { name = it },
+            label = stringResource(R.string.common_name),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SvSpacing.xl),
-            label = { Text(stringResource(R.string.common_name)) },
-            singleLine = true,
+                .padding(horizontal = SvSpacing.screen),
+            maxLength = MAX_TEXT_CHARS,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { add() }),
         )
         if (contactsMissing) ErrorText(stringResource(R.string.split_no_contacts))
-        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f, fill = false),
+            contentPadding = PaddingValues(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+        ) {
             items(suggestions, key = { it.id }) { person ->
-                ListItem(
-                    headlineContent = { Text(person.name) },
-                    leadingContent = { SvAvatar(person.name) },
-                    trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { onAdd(person.name, person.id) }) { Text(stringResource(R.string.common_add)) }
-                            IconButton(onClick = { onForget(person) }) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.split_stop_suggesting, person.name),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.padding(horizontal = SvSpacing.sm),
-                )
+                Suggestion(person = person, onAdd = { onAdd(person.name, person.id) }, onForget = { onForget(person) })
+            }
+        }
+    }
+}
+
+/** Someone split with before whose name matches what was typed: added with a tap, or no longer suggested. */
+@Composable
+private fun Suggestion(person: Person, onAdd: () -> Unit, onForget: () -> Unit) {
+    // One element for a screen reader, which reads the name, with the two buttons in it.
+    SvInset(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+            SvAvatar(person.name)
+            Text(person.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+            SvQuietButton(stringResource(R.string.common_add), onClick = onAdd)
+            IconButton(onClick = onForget) {
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.split_stop_suggesting, person.name))
             }
         }
     }
@@ -144,14 +148,14 @@ internal fun PersonSheet(person: SheetPerson, onRename: (String) -> Unit, onRemo
             )
         },
     ) {
-        OutlinedTextField(
+        SvTextField(
             value = name,
-            onValueChange = { name = it.take(MAX_TEXT_CHARS) },
+            onValueChange = { name = it },
+            label = stringResource(R.string.common_name),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SvSpacing.xl),
-            label = { Text(stringResource(R.string.common_name)) },
-            singleLine = true,
+                .padding(horizontal = SvSpacing.screen),
+            maxLength = MAX_TEXT_CHARS,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onRename(name) }),
         )
@@ -208,7 +212,7 @@ internal fun ItemSplitSheet(
         supportingText = stringResource(R.string.split_item_sheet_hint, currency.format(item.amountMinor)),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = { startOver(mode, everyone) }) { Text(stringResource(R.string.split_everyone)) }
+            SvQuietButton(stringResource(R.string.split_everyone), onClick = { startOver(mode, everyone) }, modifier = Modifier.weight(1f))
             SvPrimaryButton(
                 text = stringResource(R.string.common_done),
                 onClick = { onConfirm(result) },
@@ -221,7 +225,7 @@ internal fun ItemSplitSheet(
             options = ITEM_MODES.map { stringResource(it.second) },
             selected = ITEM_MODES.indexOfFirst { it.first == mode },
             onSelect = { index -> ITEM_MODES[index].first.takeIf { it != mode }?.let { startOver(it, inNow()) } },
-            modifier = Modifier.padding(horizontal = SvSpacing.xl),
+            modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.sm),
         )
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
             items(people, key = { it.id }) { person ->
@@ -248,6 +252,7 @@ internal fun ItemSplitSheet(
                         given = given,
                         amountMinor = item.amountMinor,
                         currency = currency,
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
                     )
 
                     sharing.isEmpty() -> ErrorText(stringResource(R.string.split_tick_someone))
@@ -304,7 +309,7 @@ internal fun PaymentsSheet(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SvSpacing.xl),
+                .padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.sm),
         )
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
             items(people, key = { it.id }) { person ->
@@ -322,7 +327,13 @@ internal fun PaymentsSheet(
             }
             if (several) {
                 item(key = "given") {
-                    DivisionTotalRow(mode = SplitMode.BY_AMOUNT, given = given, amountMinor = totalMinor, currency = currency)
+                    DivisionTotalRow(
+                        mode = SplitMode.BY_AMOUNT,
+                        given = given,
+                        amountMinor = totalMinor,
+                        currency = currency,
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
+                    )
                 }
             }
         }
@@ -348,7 +359,7 @@ internal fun ExchangeRateSheet(
         supportingText = stringResource(R.string.split_exchange_rate_hint, from, to),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onUseDayRate) { Text(stringResource(R.string.split_use_day_rate)) }
+            SvQuietButton(stringResource(R.string.split_use_day_rate), onClick = onUseDayRate, modifier = Modifier.weight(1f))
             SvPrimaryButton(
                 text = stringResource(R.string.common_save),
                 onClick = { typed?.let(onSave) },
@@ -365,7 +376,7 @@ internal fun ExchangeRateSheet(
             onValue = { typed = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = SvSpacing.xl),
+                .padding(horizontal = SvSpacing.screen),
             suffix = to,
             allowEmpty = true,
             onEmpty = { typed = null },
@@ -377,7 +388,7 @@ internal fun ExchangeRateSheet(
 private fun ErrorText(text: String) {
     Text(
         text,
-        modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm),
+        modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.error,
     )

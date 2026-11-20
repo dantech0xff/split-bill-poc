@@ -36,11 +36,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
@@ -70,7 +74,11 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * [leadingIcon] is a decorative icon at its start, such as a magnifier in a search field. [trailing]
  * holds buttons at its end, such as sending what was typed; give each button a label. With [isError]
  * the field shows that what was typed cannot be used, and [supportingText] below it says why, or
- * what to type. With [singleLine] off the field grows with the text, from [minLines] lines.
+ * what to type. With [singleLine] off the field grows with the text, from [minLines] lines up to
+ * [maxLines], and scrolls beyond them.
+ *
+ * With [titleLabel] the label is as large as the title of a section, for the one field a part of a
+ * screen is about, such as how a new split should be split.
  *
  * A screen reader reads the label, the placeholder and the supporting text with the field, so a test
  * can find the field by its label.
@@ -91,11 +99,14 @@ fun SvTextField(
     trailing: (@Composable RowScope.() -> Unit)? = null,
     singleLine: Boolean = true,
     minLines: Int = if (singleLine) 1 else MULTI_LINE_MIN_LINES,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     maxLength: Int = SV_TEXT_FIELD_MAX_LENGTH,
     keyboardOptions: KeyboardOptions = if (singleLine) SingleLineKeyboard else MultiLineKeyboard,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    titleLabel: Boolean = false,
 ) {
     require(maxLength > 0) { "maxLength must be at least 1, was $maxLength" }
+    require(singleLine || maxLines >= minLines) { "maxLines ($maxLines) must be at least minLines ($minLines)" }
     val colors = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val interactionSource = remember { MutableInteractionSource() }
@@ -122,15 +133,19 @@ fun SvTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         singleLine = singleLine,
-        maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+        maxLines = if (singleLine) 1 else maxLines,
         minLines = minLines,
         interactionSource = interactionSource,
         cursorBrush = SolidColor(if (isError) colors.error else colors.primary),
         // The label and the supporting text lie inside the field, so that they are read with it and a
         // tap on the label puts the cursor in the field.
         decorationBox = { innerTextField ->
-            Column(verticalArrangement = Arrangement.spacedBy(LABEL_GAP)) {
-                Text(label, style = typography.smallLabel, color = if (isError && enabled) colors.error else textColor)
+            Column(verticalArrangement = Arrangement.spacedBy(if (titleLabel) TITLE_LABEL_GAP else LABEL_GAP)) {
+                Text(
+                    label,
+                    style = if (titleLabel) typography.titleLarge else typography.smallLabel,
+                    color = if (isError && enabled) colors.error else textColor,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -189,6 +204,106 @@ fun SvTextField(
             }
         },
     )
+}
+
+/** The width an [SvFieldRow] gives one of its children while it lays them side by side. */
+sealed interface SvFieldWidth {
+    /** A width of its own, such as that of a quantity or of a person's part beside their name. */
+    data class Fixed(val width: Dp) : SvFieldWidth
+
+    /**
+     * A share of what the fixed widths leave, in proportion to [weight], such as a price beside an
+     * amount. With [mustFit] off the child is no field and takes whatever share it gets, such as a
+     * name beside a field, which goes on to more lines instead.
+     */
+    data class Share(val weight: Float, val mustFit: Boolean = true) : SvFieldWidth {
+        init {
+            require(weight > 0f) { "A share must have a weight above 0, was $weight" }
+        }
+    }
+}
+
+/**
+ * Fields side by side, such as the quantity, the price and the amount of an item, while what each
+ * field holds fits the width it is given there, and one above the other across the whole width when
+ * one does not, as with text at twice its size: a number in a narrow field is then never cut off.
+ * [widths] gives each child of [content], in order, its width side by side. The children line up by
+ * [alignment], at the bottom unless told otherwise, so that the boxes of fields line up below labels
+ * of any length, with [gap] between them, side by side and one above the other. What a field holds
+ * decides, so the row may change between the two while a number is typed in.
+ */
+@Composable
+fun SvFieldRow(
+    widths: List<SvFieldWidth>,
+    modifier: Modifier = Modifier,
+    alignment: Alignment.Vertical = Alignment.Bottom,
+    gap: Dp = SvSpacing.sm,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        require(measurables.size == widths.size) { "${widths.size} widths for ${measurables.size} children" }
+        if (measurables.isEmpty()) return@Layout layout(constraints.minWidth, constraints.minHeight) {}
+        val space = gap.roundToPx()
+        val gaps = space * (measurables.size - 1).coerceAtLeast(0)
+        val width = if (constraints.hasBoundedWidth) {
+            constraints.maxWidth
+        } else {
+            measurables.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } + gaps
+        }
+        val slots = slotsOf(widths, room = width - gaps)
+        val sideBySide = slots.all { it >= 0 } &&
+            measurables.indices.all { index ->
+                val share = widths[index] as? SvFieldWidth.Share
+                share?.mustFit == false || measurables[index].maxIntrinsicWidth(Constraints.Infinity) <= slots[index]
+            }
+        if (sideBySide) {
+            val placeables = measurables.mapIndexed { index, measurable ->
+                measurable.measure(Constraints(minWidth = slots[index], maxWidth = slots[index], maxHeight = constraints.maxHeight))
+            }
+            val height = placeables.maxOf { it.height }.coerceIn(constraints.minHeight, constraints.maxHeight)
+            layout(width, height) {
+                var x = 0
+                placeables.forEachIndexed { index, placeable ->
+                    placeable.placeRelative(x, alignment.align(placeable.height, height))
+                    x += slots[index] + space
+                }
+            }
+        } else {
+            val placeables = measurables.map { it.measure(Constraints.fixedWidth(width)) }
+            val height = (placeables.sumOf { it.height } + gaps).coerceIn(constraints.minHeight, constraints.maxHeight)
+            layout(width, height) {
+                var y = 0
+                placeables.forEach { placeable ->
+                    placeable.placeRelative(0, y)
+                    y += placeable.height + space
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The width of each child side by side, in pixels, out of [room]: the fixed ones first, then the
+ * shares of what they leave, the last share taking what rounding left over. A width below 0 says
+ * that the fixed widths alone do not fit.
+ */
+private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int): List<Int> {
+    val fixed = widths.sumOf { (it as? SvFieldWidth.Fixed)?.width?.roundToPx() ?: 0 }
+    val left = room - fixed
+    val weights = widths.sumOf { ((it as? SvFieldWidth.Share)?.weight ?: 0f).toDouble() }
+    val lastShare = widths.indexOfLast { it is SvFieldWidth.Share }
+    var given = 0
+    return widths.mapIndexed { index, width ->
+        when (width) {
+            is SvFieldWidth.Fixed -> width.width.roundToPx()
+
+            is SvFieldWidth.Share -> {
+                val share = if (index == lastShare) left - given else (left * width.weight / weights).toInt()
+                given += share
+                share
+            }
+        }
+    }.let { slots -> if (left < 0) slots.map { -1 } else slots }
 }
 
 /**
@@ -309,6 +424,7 @@ private val FIELD_LINE_HEIGHT = 26.sp
 /** Centres a line of [FIELD_LINE_HEIGHT] in a field of [FIELD_HEIGHT]. */
 private val TEXT_PADDING = 13.dp
 private val LABEL_GAP = 6.dp
+private val TITLE_LABEL_GAP = SvSpacing.sm
 private val PREFIX_GAP = 2.dp
 private val ICON_SIZE = 24.dp
 private val OUTLINE_WIDTH = 1.5.dp

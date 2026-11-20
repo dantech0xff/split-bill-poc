@@ -1,7 +1,11 @@
 package com.dantech.splitvibe.designsystem.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.contentColorFor
@@ -13,9 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
 import com.dantech.splitvibe.designsystem.tokens.ShadowColor
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.designsystem.tokens.elevation
 import com.dantech.splitvibe.designsystem.tokens.surface
@@ -25,7 +31,9 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * the dark theme. Its content is laid out in a column.
  *
  * Pass [color] for a card that carries meaning through colour, such as the accent container.
- * Without it the card takes the surface colour of its level.
+ * Without it the card takes the surface colour of its level. With [outlined] the card has an outline
+ * in the colour of text, for the one card that waits for the user's answer, such as the changes the
+ * AI proposes.
  */
 @Composable
 fun SvCard(
@@ -33,14 +41,40 @@ fun SvCard(
     elevation: SvElevation = SvElevation.Level1,
     shape: Shape = MaterialTheme.shapes.large,
     color: Color = elevation.surface,
+    outlined: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // The surface of a level is a ground for ordinary text. Material would look its colour up among
     // the roles, and in the dark palette one level has the colour of the role for quieter text.
     val contentColor = if (color == elevation.surface) MaterialTheme.colorScheme.onSurface else contentColorFor(color)
-    Surface(modifier = modifier.elevation(elevation, shape), shape = shape, color = color, contentColor = contentColor) {
+    Surface(
+        modifier = modifier.elevation(elevation, shape),
+        shape = shape,
+        color = color,
+        contentColor = contentColor,
+        border = if (outlined) BorderStroke(OUTLINE_WIDTH, MaterialTheme.colorScheme.onSurface) else null,
+    ) {
         CompositionLocalProvider(LocalSvGround provides SvGround.Card) {
             Column(content = content)
+        }
+    }
+}
+
+/**
+ * A panel set into a card or a sheet in the colour of the page, such as someone a sheet suggests, or
+ * the item of a bill opened to change it: it stands apart from the rest of the card without a line
+ * around it. What is in it lies on the colours of the page, so a field or a quiet button in it is
+ * white in the light theme. Its content is laid out in a column.
+ */
+@Composable
+fun SvInset(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium)
+            .padding(SvSpacing.md),
+    ) {
+        CompositionLocalProvider(LocalSvGround provides SvGround.Page, LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+            content()
         }
     }
 }
@@ -57,7 +91,8 @@ internal enum class SvGround { Page, Card, Bar, Brand, Accent }
 /**
  * Set by the surfaces of the design system: [SvCard], the rows of a group, a notice, a sheet and a
  * dialog set [SvGround.Card]; [SvBottomBar] and [SvNavBar] set [SvGround.Bar]; [SvHero], [SvTile]
- * and [SvTicket] set the ground of their own colour. Everything else lies on the page.
+ * and [SvTicket] set the ground of their own colour; [SvInset] sets the page again inside a card.
+ * Everything else lies on the page.
  */
 internal val LocalSvGround = staticCompositionLocalOf { SvGround.Page }
 
@@ -129,6 +164,9 @@ internal val SvGround.onActive: Color
         SvGround.Bar, SvGround.Brand -> SvTheme.palette.onAccent
         SvGround.Accent -> SvTheme.palette.accent
     }
+
+/** The outline of a card that waits for an answer, as on the approved designs. */
+private val OUTLINE_WIDTH = 2.dp
 
 /** How much of the bar's text colour lightens a quiet control on the bar, as on the approved designs. */
 private const val BAR_QUIET_ALPHA = 0.11f

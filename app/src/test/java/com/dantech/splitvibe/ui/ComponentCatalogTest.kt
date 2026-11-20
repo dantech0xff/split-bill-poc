@@ -26,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the
 // floating button. The pictures are drawn at 1x: one this tall at 2x does not fit in the memory of the test.
-@Config(sdk = [34], qualifiers = "w412dp-h9400dp-mdpi")
+@Config(sdk = [34], qualifiers = "w412dp-h11400dp-mdpi")
 class ComponentCatalogTest {
 
     @get:Rule
@@ -38,9 +38,13 @@ class ComponentCatalogTest {
     @Test
     fun `every component in the dark theme`() = capture("catalog-dark", darkTheme = true)
 
-    /** Text at twice its size must still fit in every component, Vietnamese marks and all. */
+    /**
+     * Text at twice its size must still fit in every component, Vietnamese marks and all. The catalog
+     * is then so tall that this picture is drawn at 0.75x: the renderer leaves out the labels of
+     * buttons that lie beyond the 16,384 pixels a surface it draws into can have.
+     */
     @Test
-    @Config(qualifiers = "w412dp-h15000dp-mdpi")
+    @Config(qualifiers = "w412dp-h19000dp-ldpi")
     fun `every component with text at twice the size`() {
         RuntimeEnvironment.setFontScale(2f)
         capture("catalog-large-text", darkTheme = false)

@@ -5,9 +5,6 @@ import android.content.IntentSender
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -17,6 +14,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.AiStatus
+import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.motion.SvSteps
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.text.resolve
@@ -201,10 +199,12 @@ fun SplitScreen(
     }
 
     state.notice?.let { notice ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissNotice,
-            confirmButton = { TextButton(onClick = viewModel::dismissNotice) { Text(stringResource(R.string.common_ok)) } },
-            text = { Text(notice.resolve()) },
+        SvDialog(
+            title = null,
+            text = notice.resolve(),
+            confirmLabel = stringResource(R.string.common_ok),
+            onConfirm = viewModel::dismissNotice,
+            onDismiss = viewModel::dismissNotice,
         )
     }
 }

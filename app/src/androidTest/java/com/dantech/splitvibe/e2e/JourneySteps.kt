@@ -7,13 +7,13 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -85,15 +85,18 @@ fun ComposeTestRule.answerTheAiConsent(button: String) {
 
 /**
  * In the editor of a bill typed in by hand: [where], one [item] of [amount], in the currency the app
- * works in, and on to the split, where only the user is on the bill.
+ * works in, and on to the split, where only the user is on the bill. The item added opens itself, the
+ * one row of the editor open, so its fields are the only ones of their names.
  */
 fun ComposeTestRule.fillInTheBill(where: String, item: String, amount: String) {
     awaitNode(hasText("Edit bill"))
     field("Where").performTextInput(where)
     list().performScrollToNode(hasText("Add an item"))
     onNodeWithText("Add an item").tap()
+    awaitNode(hasSetTextAction() and hasText("Item"))
     list().performScrollToNode(hasSetTextAction() and hasText("Item"))
     field("Item").performTextInput(item)
+    list().performScrollToNode(hasSetTextAction() and hasText("Amount"))
     field("Amount").performTextInput(amount)
     onNodeWithText("Done").tap()
     awaitNode(hasText("Bill total"))
@@ -112,12 +115,15 @@ fun ComposeTestRule.addPerson(name: String) {
     awaitNoNode(hasSetTextAction() and hasText("Name"))
 }
 
-/** On the split: "Each person pays" shows [amount] in the row of [name]. */
+/** On the split: "Each person pays" shows [amount] in the row of [name], which is one element with all it says. */
 fun ComposeTestRule.assertShare(name: String, amount: String) {
-    val share = hasText(amount) and hasAnySibling(hasText(name))
+    val share = hasText(name) and hasText(amount)
     list().performScrollToNode(share)
     onNode(share).assertIsDisplayed()
 }
+
+/** On the split: the user's own row, which switches whether they share the bill. */
+val myRow: SemanticsMatcher = hasText("You") and isToggleable()
 
 /** The currency the app works in, from its settings, which a bill typed in by hand is in. */
 fun appCurrency(): BillCurrency {

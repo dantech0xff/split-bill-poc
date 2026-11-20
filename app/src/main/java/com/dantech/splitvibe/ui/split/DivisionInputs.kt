@@ -1,12 +1,12 @@
 package com.dantech.splitvibe.ui.split
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.Icon
@@ -17,8 +17,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvFieldRow
+import com.dantech.splitvibe.designsystem.components.SvFieldWidth
+import com.dantech.splitvibe.designsystem.components.SvTallyLine
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Division
@@ -74,12 +79,20 @@ internal fun targetOf(mode: SplitMode, amountMinor: Long): Long? = when (mode) {
 /**
  * One person's part in a division, to change: a share count to step up and down, or a percentage or
  * an amount to type. [mode] says which; amounts are in [currency]. Nothing is shown for the ways of
- * dividing that have no value per person.
+ * dividing that have no value per person. It takes the width it is given, [NUMBER_FIELD_WIDTH] beside
+ * a name.
  */
 @Composable
-internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, currency: BillCurrency, onValue: (Long) -> Unit) {
+internal fun DivisionValueInput(
+    name: String,
+    mode: SplitMode,
+    value: Long,
+    currency: BillCurrency,
+    onValue: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (mode) {
-        SplitMode.BY_SHARES -> ShareStepper(name = name, value = value, onValue = onValue)
+        SplitMode.BY_SHARES -> ShareStepper(name = name, value = value, onValue = onValue, modifier = modifier)
 
         SplitMode.BY_PERCENT -> NumberField(
             label = stringResource(R.string.split_percent_for, name),
@@ -87,7 +100,7 @@ internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, curr
             suffix = stringResource(R.string.split_percent_sign),
             parse = ::parsePercent,
             onValue = onValue,
-            modifier = Modifier.width(NUMBER_FIELD_WIDTH),
+            modifier = modifier.fillMaxWidth(),
         )
 
         SplitMode.BY_AMOUNT -> NumberField(
@@ -96,45 +109,57 @@ internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, curr
             suffix = currency.code.ifEmpty { null },
             parse = currency::parse,
             onValue = onValue,
-            modifier = Modifier.width(NUMBER_FIELD_WIDTH),
+            modifier = modifier.fillMaxWidth(),
         )
 
         SplitMode.EQUAL, SplitMode.BY_ITEM -> Unit
     }
 }
 
-/** A person's colour and name with their part in a division beside it, as a sheet lists everyone. */
+/**
+ * A person's colour and name with their part in a division beside it, as a sheet lists everyone. With
+ * large text, a part too wide to stand beside the name goes below it, across the row, so that no
+ * number is cut off.
+ */
 @Composable
 internal fun DivisionValueRow(name: String, mode: SplitMode, value: Long, currency: BillCurrency, onValue: (Long) -> Unit) {
-    Row(
+    SvFieldRow(
+        widths = PERSON_AND_PART,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
+        alignment = Alignment.CenterVertically,
     ) {
-        SvAvatar(name)
-        Spacer(Modifier.width(SvSpacing.md))
-        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Row(modifier = Modifier.heightIn(min = PERSON_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
+            SvAvatar(name)
+            Spacer(Modifier.width(SvSpacing.md))
+            Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+        }
         DivisionValueInput(name = name, mode = mode, value = value, currency = currency, onValue = onValue)
     }
 }
 
+/** A name, which takes what room is left, and a person's part beside it, as wide as a number field. */
+internal val PERSON_AND_PART = listOf(SvFieldWidth.Share(1f, mustFit = false), SvFieldWidth.Fixed(NUMBER_FIELD_WIDTH))
+
 @Composable
-private fun ShareStepper(name: String, value: Long, onValue: (Long) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun ShareStepper(name: String, value: Long, onValue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    // At the end of the width it is given, where a field for a part would end.
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { onValue((value - 1).coerceAtLeast(0)) }, enabled = value > 0) {
             Icon(MINUS, contentDescription = stringResource(R.string.split_share_less, name))
         }
         Text(value.toString(), style = MaterialTheme.typography.titleMedium)
         IconButton(onClick = { onValue(value + 1) }) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.split_share_more, name))
+            Icon(SvActionIcons.Plus, contentDescription = stringResource(R.string.split_share_more, name))
         }
     }
 }
 
 /**
  * What has been given out so far against what has to be, such as "95% of 100%" or the amount still
- * to give out, in the error colour while the two differ.
+ * to give out, with a tick once the two are the same and in the error colour while they differ. The
+ * caller places it, as the line below a list of people.
  */
 @Composable
 internal fun DivisionTotalRow(mode: SplitMode, given: Long, amountMinor: Long, currency: BillCurrency, modifier: Modifier = Modifier) {
@@ -156,13 +181,11 @@ internal fun DivisionTotalRow(mode: SplitMode, given: Long, amountMinor: Long, c
         SplitMode.EQUAL, SplitMode.BY_ITEM -> return
     }
     val balanced = if (target == null) given > 0 else given == target
-    Text(
-        text,
-        modifier = modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm),
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (balanced) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-    )
+    SvTallyLine(text = text, balanced = balanced, modifier = modifier)
 }
+
+/** As tall as a person's row in a sheet, so a row with a part to type is no shorter than one without. */
+private val PERSON_ROW_HEIGHT = 56.dp
 
 /** The minus of Material's icons, which the small set of icons the app ships does not hold. */
 private val MINUS = materialIcon(name = "Filled.Remove") {

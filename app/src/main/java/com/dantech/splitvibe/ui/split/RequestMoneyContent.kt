@@ -3,13 +3,16 @@ package com.dantech.splitvibe.ui.split
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.res.Resources
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,16 +20,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,25 +35,32 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
-import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvBrandMark
+import com.dantech.splitvibe.designsystem.components.SvDialog
+import com.dantech.splitvibe.designsystem.components.SvHeroAmount
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvSmallAction
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
+import com.dantech.splitvibe.designsystem.components.SvTextAction
+import com.dantech.splitvibe.designsystem.components.SvTextField
+import com.dantech.splitvibe.designsystem.components.SvTicket
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
-import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.designsystem.tokens.amountLarge
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
+import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.share.QrCodes
 import com.dantech.splitvibe.share.ShareCardRenderer
 import com.dantech.splitvibe.share.ShareCardState
@@ -73,7 +76,7 @@ import kotlinx.coroutines.withContext
 /**
  * Last step of a split: each person who owes something gets a request of their own through the
  * share sheet, with the amount, what it is for and how to pay it, as a link, a QR code or details.
- * A card with the whole split can go to the group chat as an image.
+ * A ticket with the whole split can go to the group chat as an image.
  */
 @Composable
 fun RequestMoneyContent(
@@ -117,31 +120,35 @@ fun RequestMoneyContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.xl),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xl, bottom = SvSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     // The request button of the step before turns into this mark.
                     SvSuccessMark(Icons.Default.Check, modifier = Modifier.sharedSurface(SEND_SURFACE, resize = true))
-                    Spacer(Modifier.height(SvSpacing.lg))
-                    Text(stringResource(R.string.requests_ask_for_money), style = MaterialTheme.typography.headlineSmallEmphasized)
-                    Spacer(Modifier.height(SvSpacing.sm))
+                    Text(
+                        stringResource(R.string.requests_ask_for_money),
+                        modifier = Modifier.padding(top = SvSpacing.sm),
+                        style = MaterialTheme.typography.displaySmall,
+                    )
                     Text(
                         stringResource(R.string.requests_ask_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
                     )
                 }
             }
             item {
-                SummaryCard(result = result, state = card, modifier = Modifier.padding(horizontal = SvSpacing.lg))
-                OutlinedButton(
-                    onClick = { scope.launch { shareSummary(context, resources, card, result) } },
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                Column(
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null)
-                    Spacer(Modifier.width(SvSpacing.sm))
-                    Text(stringResource(R.string.requests_share_picture))
+                    SummaryTicket(result = result, state = card)
+                    SvQuietButton(
+                        stringResource(R.string.requests_share_picture),
+                        onClick = { scope.launch { shareSummary(context, resources, card, result) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        icon = SvActionIcons.Share,
+                    )
                 }
             }
             item {
@@ -150,24 +157,25 @@ fun RequestMoneyContent(
                     hasChoice = (methods?.size ?: 0) > 1,
                     onChoose = { choosingMethod = true },
                     onOpenPaymentMethods = onOpenPaymentMethods,
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
                 )
             }
             if (viewModel.signedIn) {
                 item {
-                    OutlinedTextField(
+                    SvTextField(
                         value = name,
-                        onValueChange = { name = it.take(NAME_LENGTH) },
-                        label = { Text(stringResource(R.string.requests_your_name)) },
-                        supportingText = { Text(stringResource(R.string.requests_your_name_hint)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        onValueChange = { name = it },
+                        label = stringResource(R.string.requests_your_name),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                            .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+                        supportingText = stringResource(R.string.requests_your_name_hint),
+                        maxLength = NAME_LENGTH,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     )
                 }
             }
+            item { Spacer(Modifier.height(SvSpacing.sm)) }
             itemsIndexed(requests, key = { _, request -> request.participant.id }) { index, request ->
                 PersonRow(
                     result = result,
@@ -177,6 +185,7 @@ fun RequestMoneyContent(
                     onShare = { share(request) },
                 )
             }
+            item { Spacer(Modifier.height(SvSpacing.lg)) }
         }
     }
 
@@ -193,42 +202,62 @@ fun RequestMoneyContent(
     }
 
     message?.let {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissMessage,
-            confirmButton = { TextButton(onClick = viewModel::dismissMessage) { Text(stringResource(R.string.common_ok)) } },
-            text = { Text(it.resolve()) },
+        SvDialog(
+            title = null,
+            text = it.resolve(),
+            confirmLabel = stringResource(R.string.common_ok),
+            onConfirm = viewModel::dismissMessage,
+            onDismiss = viewModel::dismissMessage,
         )
     }
 }
 
-/** The whole split on one card, drawn by the app's own components, which is also the picture that is shared. */
+/**
+ * The whole split on a ticket, drawn by the app's own components, which is also the picture that is
+ * shared: the bill and its day, its total, what each person pays, and that it was split with the app.
+ */
 @Composable
-private fun SummaryCard(result: SplitResultState, state: ShareCardState, modifier: Modifier = Modifier) {
+private fun SummaryTicket(result: SplitResultState, state: ShareCardState, modifier: Modifier = Modifier) {
     val bill = result.bill
-    SvCard(modifier = modifier.fillMaxWidth().shareCard(state), elevation = SvElevation.Level2) {
-        Column(modifier = Modifier.padding(SvSpacing.xl), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Text(
-                listOfNotNull(
-                    bill.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_the_bill),
-                    bill.date,
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(bill.format(bill.totalMinor), style = MaterialTheme.typography.amountLarge)
-            result.split.shares.forEach { share ->
-                val name = result.nameOf(share.personId).resolve()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SvAvatar(name)
-                    Spacer(Modifier.width(SvSpacing.md))
-                    Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text(bill.format(share.totalMinor), style = MaterialTheme.typography.amountMedium)
+    val title = listOfNotNull(bill.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_the_bill), billDayText(bill.date))
+        .joinToString(" · ")
+    val parts = bill.currency.formatParts(bill.totalMinor)
+    // The picture holds the ticket on the colour of the page, so that its notches and round corners show
+    // that colour wherever it is sent, rather than a hole that some chats fill with black.
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .shareCard(state)
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        SvTicket(
+            stub = {
+                Row(
+                    modifier = Modifier.heightIn(min = STUB_HEIGHT),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                ) {
+                    SvBrandMark()
+                    Text(stringResource(R.string.requests_split_with), style = MaterialTheme.typography.bodySmallEmphasized)
+                }
+            },
+        ) {
+            Text(title, style = MaterialTheme.typography.bodySmallEmphasized)
+            SvHeroAmount(prefix = parts.prefix, number = parts.number, suffix = parts.suffix, spokenText = bill.format(bill.totalMinor))
+            Column(modifier = Modifier.padding(top = SvSpacing.sm)) {
+                result.split.shares.forEach { share ->
+                    val name = result.nameOf(share.personId).resolve()
+                    Row(
+                        modifier = Modifier.heightIn(min = SHARE_ROW_HEIGHT),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(SHARE_GAP),
+                    ) {
+                        SvAvatar(name, size = SHARE_AVATAR_SIZE)
+                        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+                        Text(bill.format(share.totalMinor), style = MaterialTheme.typography.amountSmall)
+                    }
                 }
             }
-            Text(
-                stringResource(R.string.requests_split_with),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -256,9 +285,10 @@ private fun MethodPart(
             Text(stringResource(R.string.requests_paid_back_by, method.method.title), style = MaterialTheme.typography.titleSmall)
             Text(method.method.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        TextButton(onClick = if (hasChoice) onChoose else onOpenPaymentMethods) {
-            Text(stringResource(if (hasChoice) R.string.requests_change_method else R.string.requests_add_another))
-        }
+        SvTextAction(
+            stringResource(if (hasChoice) R.string.requests_change_method else R.string.requests_add_another),
+            onClick = if (hasChoice) onChoose else onOpenPaymentMethods,
+        )
     }
 }
 
@@ -266,10 +296,10 @@ private fun MethodPart(
 private fun PersonRow(result: SplitResultState, request: PersonRequest, position: SvRowPosition, shared: Boolean, onShare: () -> Unit) {
     val name = result.nameOf(request.participant.id).resolve()
     SvListRow(position = position) {
-        SvAvatar(name)
+        SvAvatar(name, size = PERSON_AVATAR_SIZE)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge)
+            Text(name, style = MaterialTheme.typography.bodyMediumEmphasized)
             Text(result.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
             result.converted(request.amountMinor)?.let {
                 Text(
@@ -280,11 +310,11 @@ private fun PersonRow(result: SplitResultState, request: PersonRequest, position
             }
         }
         Spacer(Modifier.width(SvSpacing.md))
-        FilledTonalButton(onClick = onShare) {
-            Icon(if (shared) Icons.Default.Check else Icons.Default.Share, contentDescription = null)
-            Spacer(Modifier.width(SvSpacing.xs))
-            Text(stringResource(if (shared) R.string.requests_send_again else R.string.requests_send))
-        }
+        SvSmallAction(
+            stringResource(if (shared) R.string.requests_send_again else R.string.requests_send),
+            onClick = onShare,
+            icon = if (shared) Icons.Default.Check else SvActionIcons.Send,
+        )
     }
 }
 
@@ -293,7 +323,7 @@ private fun MethodSheet(methods: List<SavedPaymentMethod>, chosen: String?, onCh
     SvBottomSheet(
         title = stringResource(R.string.requests_get_paid_by),
         onDismiss = onDismiss,
-        actions = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        actions = { SvQuietButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f)) },
     ) {
         Column {
             methods.forEach { saved ->
@@ -334,3 +364,9 @@ private fun Context.open(intent: android.content.Intent): Boolean = try {
 }
 
 private const val NAME_LENGTH = 60
+
+private val STUB_HEIGHT = 28.dp
+private val SHARE_ROW_HEIGHT = 40.dp
+private val SHARE_GAP = 10.dp
+private val SHARE_AVATAR_SIZE = 28.dp
+private val PERSON_AVATAR_SIZE = 44.dp

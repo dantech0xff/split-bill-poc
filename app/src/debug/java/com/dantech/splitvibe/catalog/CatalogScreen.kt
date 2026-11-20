@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -26,7 +27,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
@@ -60,12 +60,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAccountButton
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvActionTile
+import com.dantech.splitvibe.designsystem.components.SvAiMark
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
+import com.dantech.splitvibe.designsystem.components.SvBillPhotoPlaceholder
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
+import com.dantech.splitvibe.designsystem.components.SvBrandMark
 import com.dantech.splitvibe.designsystem.components.SvBrandTopBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChartBar
@@ -76,11 +81,15 @@ import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvFabMenu
 import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
+import com.dantech.splitvibe.designsystem.components.SvFieldButton
+import com.dantech.splitvibe.designsystem.components.SvFieldRow
+import com.dantech.splitvibe.designsystem.components.SvFieldWidth
 import com.dantech.splitvibe.designsystem.components.SvFloatingToolbar
 import com.dantech.splitvibe.designsystem.components.SvHero
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
 import com.dantech.splitvibe.designsystem.components.SvHeroKind
 import com.dantech.splitvibe.designsystem.components.SvIconTile
+import com.dantech.splitvibe.designsystem.components.SvInset
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -90,6 +99,7 @@ import com.dantech.splitvibe.designsystem.components.SvMeter
 import com.dantech.splitvibe.designsystem.components.SvNavBar
 import com.dantech.splitvibe.designsystem.components.SvNavIcons
 import com.dantech.splitvibe.designsystem.components.SvNavItem
+import com.dantech.splitvibe.designsystem.components.SvOpenListRow
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvPersonChip
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
@@ -107,6 +117,7 @@ import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.components.SvSwitch
 import com.dantech.splitvibe.designsystem.components.SvTag
 import com.dantech.splitvibe.designsystem.components.SvTagKind
+import com.dantech.splitvibe.designsystem.components.SvTallyLine
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvTicket
@@ -234,6 +245,22 @@ fun CatalogScreen() {
             }
 
             item {
+                // The card that waits for an answer, such as the changes the AI proposes.
+                SvCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+                    outlined = true,
+                ) {
+                    Text(
+                        "Outlined, waiting for an answer",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(SvSpacing.lg),
+                    )
+                }
+            }
+
+            item {
                 SvSectionHeader(
                     "Grouped rows",
                     hint = "SvListRow, with SvAvatar and an amount, under an SvSectionHeader with an action.",
@@ -263,6 +290,14 @@ fun CatalogScreen() {
             }
 
             item {
+                SvSectionHeader(
+                    "Rows that switch, take a part and open",
+                    hint = "SvListRow that switches with a part beside it, SvOpenListRow with SvFieldRow, SvTallyLine and SvInset.",
+                )
+                PartRowSamples()
+            }
+
+            item {
                 SvSectionHeader("Messages", hint = "SvMessageCard on the page, and on a card, where it turns grey.")
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen),
@@ -277,21 +312,31 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Working and done")
+                SvSectionHeader("Working and done", hint = "SvWorkingRow, SvLoadingIndicator, SvSuccessMark, SvAiMark and SvPrimaryButton.")
                 Column(modifier = Modifier.padding(horizontal = SvSpacing.screen)) {
                     SvWorkingRow(status = "SvWorkingRow: reading the bill…", cancelLabel = "Cancel", onCancel = {})
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvLoadingIndicator(modifier = Modifier.size(40.dp))
                         Spacer(Modifier.width(SvSpacing.lg))
                         SvSuccessMark(Icons.Default.Check)
+                        Spacer(Modifier.width(SvSpacing.lg))
+                        SvAiMark(size = 48.dp)
+                        Spacer(Modifier.width(SvSpacing.sm))
+                        SvAiMark()
                     }
                     Spacer(Modifier.height(SvSpacing.md))
-                    SvPrimaryButton("SvPrimaryButton, disabled", onClick = {}, enabled = false)
+                    SvPrimaryButton("SvPrimaryButton with an icon", onClick = {}, icon = SvActionIcons.Spark)
+                    Spacer(Modifier.height(SvSpacing.sm))
+                    SvPrimaryButton("SvPrimaryButton, disabled", onClick = {}, enabled = false, icon = SvActionIcons.Spark)
                 }
             }
 
             item {
-                SvSectionHeader("Buttons", hint = "SvQuietButton on the page and on a card, SvSmallAction and SvTextAction.")
+                SvSectionHeader(
+                    "Buttons",
+                    hint = "SvQuietButton on the page and on a card, SvSmallAction with a label and with an icon only, SvTextAction " +
+                        "and SvFieldButton.",
+                )
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
@@ -310,8 +355,14 @@ fun CatalogScreen() {
                         ) {
                             Text("On a card", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             SvQuietButton("Take back", onClick = {})
-                            SvSmallAction("Send", onClick = {}, icon = Icons.AutoMirrored.Filled.Send)
+                            SvSmallAction("Send", onClick = {}, icon = SvActionIcons.Send)
                         }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                        SvSmallAction(SvActionIcons.Ask, label = "Ask for the change", onClick = {})
+                        SvSmallAction(SvActionIcons.Ask, label = "Ask for the change", onClick = {}, enabled = false)
+                        SvFieldButton(SvActionIcons.Bin, label = "Remove the item", onClick = {}, destructive = true)
+                        SvFieldButton(SvActionIcons.Pencil, label = "Change the item", onClick = {})
                     }
                 }
             }
@@ -320,7 +371,8 @@ fun CatalogScreen() {
                 SvSectionHeader(
                     "Fields",
                     hint = "SvTextField with the marks of Vietnamese capitals, a placeholder, a suffix, a prefix, an icon, " +
-                        "a button at its end, an error, a field that is off and one of more lines.",
+                        "buttons at its end, labels as large as a title, an error, a field that is off and one of more lines, " +
+                        "and SvFieldRow, whose fields go one above the other when their numbers do not fit side by side.",
                 )
                 FieldSamples()
             }
@@ -344,6 +396,27 @@ fun CatalogScreen() {
                     )
                 }
                 SvBottomBar { SvWorkingRow(status = "Reading your bill…", cancelLabel = "Cancel", onCancel = {}) }
+            }
+
+            item {
+                SvSectionHeader(
+                    "Adding a bill",
+                    hint = "SvBillPhotoPlaceholder before a photo, and SvActionTile for each way to add one, the usual one prominent.",
+                )
+                Column(
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
+                ) {
+                    SvBillPhotoPlaceholder(
+                        title = "Add the bill",
+                        text = "Scan it or take a photo. The text is read on this phone; the photo itself is never uploaded.",
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SvActionTile("Scan the bill", SvActionIcons.Scan, onClick = {}, modifier = Modifier.weight(1f), prominent = true)
+                        SvActionTile("Take photo", SvActionIcons.Camera, onClick = {}, modifier = Modifier.weight(1f))
+                        SvActionTile("Choose photos", SvActionIcons.Photos, onClick = {}, modifier = Modifier.weight(1f), enabled = false)
+                    }
+                }
             }
 
             item {
@@ -412,9 +485,24 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Choices", hint = "SvChoiceGroup, SvChoiceChips, SvSplitButton and SvOverflowMenu.")
+                SvSectionHeader(
+                    "Choices",
+                    hint = "SvChoiceChips in one row across the screen, SvChoiceGroup, SvChoiceChips, with icons too, SvSplitButton " +
+                        "and SvOverflowMenu.",
+                )
                 var mode by remember { mutableIntStateOf(0) }
                 var way by remember { mutableIntStateOf(1) }
+                // Across the whole width with padding inside, as a row that scrolls runs to the edges of the screen.
+                SvChoiceChips(
+                    options = listOf("Equally", "By item", "By shares", "By percent", "By amount"),
+                    selected = way,
+                    onSelect = { way = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = SvSpacing.md),
+                    singleRow = true,
+                    contentPadding = PaddingValues(horizontal = SvSpacing.screen),
+                )
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
@@ -430,6 +518,16 @@ fun CatalogScreen() {
                         selected = way,
                         onSelect = { way = it },
                         singleRow = true,
+                    )
+                    var category by remember { mutableIntStateOf(SAMPLE_CATEGORIES.lastIndex) }
+                    SvChoiceChips(
+                        options = SAMPLE_CATEGORIES.map { it.label },
+                        selected = category,
+                        onSelect = { category = it },
+                        leading = { index ->
+                            val style = SAMPLE_CATEGORIES[index].style
+                            SvIconTile(style.icon, style.color, size = 26.dp)
+                        },
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvSplitButton(
@@ -450,7 +548,7 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Ticket", hint = "SvTicket, the frame of the card that shows a whole split.")
+                SvSectionHeader("Ticket", hint = "SvTicket, the frame of the card that shows a whole split, with SvBrandMark on its stub.")
                 TicketSample()
             }
 
@@ -592,6 +690,69 @@ private fun HeroSamples() {
 }
 
 @Composable
+private fun PartRowSamples() {
+    var sharing by remember { mutableStateOf(true) }
+    var part by remember { mutableStateOf("25") }
+    var name by remember { mutableStateOf("Ốc hương rang muối") }
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        SvListRow(
+            position = SvRowPosition.First,
+            label = "You, ${sampleMoney(225_666)}",
+            checked = sharing,
+            onCheckedChange = { sharing = it },
+            stateDescription = if (sharing) "You share the bill" else "You do not share the bill",
+            trailing = { SvTextField(part, { part = it }, label = "Percent for You", suffix = "%") },
+            trailingWidth = 148.dp,
+        ) {
+            SvAvatar("You", size = 44.dp)
+            Spacer(Modifier.width(SvSpacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("You", style = MaterialTheme.typography.bodyLargeEmphasized)
+                Text("Pays ${sampleMoney(225_666)}", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        SvOpenListRow(position = SvRowPosition.Middle) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                SvTextField(name, { name = it }, label = "Item", modifier = Modifier.weight(1f))
+                SvFieldButton(SvActionIcons.Bin, label = "Remove $name", onClick = {}, destructive = true)
+            }
+        }
+        SvListRow(
+            position = SvRowPosition.Last,
+            label = "Nghêu hấp sả, ${sampleMoney(
+                95_000,
+            )}",
+            onClickLabel = "Change Nghêu hấp sả",
+            onClick = {
+            },
+        ) {
+            Text("Nghêu hấp sả", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+            Text(sampleMoney(95_000), style = MaterialTheme.typography.amountSmall)
+        }
+        Column(
+            modifier = Modifier.padding(horizontal = SvSpacing.screen + SvSpacing.sm, vertical = SvSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.xs),
+        ) {
+            SvTallyLine("Adds up to the bill total", balanced = true, amount = sampleMoney(902_664))
+            SvTallyLine("${sampleMoney(5_000)} of ${sampleMoney(902_664)} still to give out", balanced = false)
+        }
+        SvCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SvSpacing.screen),
+        ) {
+            SvInset(modifier = Modifier.padding(SvSpacing.lg)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                    SvAvatar(SAMPLE_PEOPLE[0])
+                    Text(SAMPLE_PEOPLE[0], modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+                    SvQuietButton("Add", onClick = {})
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun TileSamples() {
     Column(modifier = Modifier.padding(horizontal = SvSpacing.screen), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
@@ -661,6 +822,9 @@ private fun FieldSamples() {
     var handle by remember { mutableStateOf("minhtran") }
     var search by remember { mutableStateOf("") }
     var change by remember { mutableStateOf("") }
+    var how by remember { mutableStateOf("Split with Minh and Lan. Minh had the beers.") }
+    var quantity by remember { mutableStateOf("2") }
+    var price by remember { mutableStateOf("165000") }
     var details by remember { mutableStateOf("Vietcombank\nAccount 0123 4567 89") }
     Column(modifier = Modifier.padding(horizontal = SvSpacing.screen), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         SvTextField(
@@ -703,9 +867,31 @@ private fun FieldSamples() {
             modifier = Modifier.fillMaxWidth(),
             placeholder = "Tell the AI what to change",
             trailing = {
-                IconButton(onClick = {}) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Ask for the change") }
+                IconButton(onClick = {}) { Icon(Icons.Default.Person, contentDescription = "Say the change") }
+                SvSmallAction(SvActionIcons.Ask, label = "Ask for the change", onClick = {}, enabled = change.isNotBlank())
             },
+            singleLine = false,
+            minLines = 1,
+            maxLines = 4,
+            titleLabel = true,
         )
+        SvTextField(
+            how,
+            { how = it },
+            label = "How should it be split?",
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = "For example: Split with Minh and Lan. Minh had the beers.",
+            singleLine = false,
+            minLines = 2,
+            maxLength = 1_000,
+            titleLabel = true,
+        )
+        // Side by side while the numbers fit, one above the other when they do not, as with large text.
+        SvFieldRow(widths = listOf(SvFieldWidth.Fixed(80.dp), SvFieldWidth.Share(1f), SvFieldWidth.Share(1f))) {
+            SvTextField(quantity, { quantity = it }, label = "Qty")
+            SvTextField(price, { price = it }, label = "Price each", suffix = "VND")
+            SvTextField(price, { price = it }, label = "Amount")
+        }
         SvTextField(
             "VNX",
             {},
@@ -812,7 +998,7 @@ private fun TicketSample() {
         modifier = Modifier.padding(horizontal = SvSpacing.screen),
         stub = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                SvBrandMark()
                 Text("Split with Split Vibe", style = MaterialTheme.typography.bodySmallEmphasized)
             }
         },
@@ -895,6 +1081,9 @@ private fun Swatch(name: String, color: Color, onColor: Color) {
 private fun sampleMoney(minor: Long): String = "₫%,d".format(minor)
 
 private val SAMPLE_PEOPLE = listOf("Trần Quang Minh", "Lê Thị Lan", "Emma Wilson")
+
+/** A few categories, as chips with their icons, the way the bill editor shows them all. */
+private val SAMPLE_CATEGORIES = listOf(BillCategory.FOOD_AND_DRINK, BillCategory.GROCERIES, BillCategory.TRANSPORT, BillCategory.OTHER)
 
 private val SAMPLE_MONTHS = listOf("D", "J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N")
 private val SAMPLE_SPENDING = listOf(800_000f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 9_762_024f, 11_749_409f)

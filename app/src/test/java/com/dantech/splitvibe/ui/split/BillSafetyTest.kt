@@ -3,12 +3,19 @@ package com.dantech.splitvibe.ui.split
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.DpRect
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -41,6 +48,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -120,16 +128,41 @@ class BillSafetyTest {
         val problems = checkNotNull(viewModel.state.value.result).problems
         assertEquals(listOf(problems.first(), problems.first()), problems)
 
-        compose.setContent {
-            SplitVibeTheme {
-                SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
-                    Uri.EMPTY
-                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
-            }
-        }
-        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Paid by"))
+        showSplitScreen(viewModel)
+        // The bar holds the main action, which cannot be used while the split has problems.
+        val bar = compose.onNodeWithText("Finish the split").onParent().getBoundsInRoot()
+        assertListEndsAbove(bar, lastRow = hasText("You paid", substring = true) and hasClickAction())
 
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(problems.first()))
         compose.onAllNodesWithText(problems.first()).assertCountEquals(2)
+    }
+
+    @Test
+    fun `nothing in the editor scrolls under its bottom bar`() {
+        val viewModel = manualViewModel()
+        viewModel.startManualEntry()
+        repeat(EDITOR_ITEMS) { index -> viewModel.editBill { BillEditor.withItemAdded(it, "Món $index", amountMinor = 10_000) } }
+        showSplitScreen(viewModel)
+
+        val bar = compose.onNode(hasText("Done") and hasClickAction()).onParent().getBoundsInRoot()
+        assertListEndsAbove(bar, lastRow = hasText("Total printed on the bill") and hasSetTextAction())
+    }
+
+    @Test
+    fun `a bill read by the AI and opened again from the list is still the bill its photos were read as`() {
+        val viewModel = readSampleBill()
+        val read = savedOnScreen(viewModel)
+        awaitOnMain { runBlocking { storage.bills.get(read.id) } != null }
+
+        // Another split, then the bill opened from the list of bills, and its photos read again.
+        viewModel.startNewSplit()
+        viewModel.open(read.id)
+        awaitOnMain { viewModel.state.value.result?.saved?.id == read.id }
+        viewModel.backToInput()
+        readAgain(viewModel)
+
+        assertEquals("the same photos are still the same bill", read.id, savedOnScreen(viewModel).id)
+        awaitOnMain { countBills() == 1 }
     }
 
     @Test
@@ -226,6 +259,28 @@ class BillSafetyTest {
         assertNotEquals(read.pages, handle.get<List<String>>("pages"))
     }
 
+    private fun showSplitScreen(viewModel: SplitBillViewModel) = compose.setContent {
+        SplitVibeTheme {
+            SplitScreen(viewModel, AiStatus.AVAILABLE, newCameraTarget = {
+                Uri.EMPTY
+            }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
+        }
+    }
+
+    /**
+     * Fails unless the list on screen ends above [bar], the bar at the bottom of the screen. Its own
+     * frame has to end there: padding inside the frame would only lift its last row above the bar,
+     * while every other row still scrolled under it. [lastRow], scrolled to, must show above the bar too.
+     */
+    private fun assertListEndsAbove(bar: DpRect, lastRow: SemanticsMatcher) {
+        val list = compose.onNode(hasScrollToIndexAction())
+        val frame = list.getBoundsInRoot()
+        assertTrue("The list runs on to ${frame.bottom}, under the top of the bar at ${bar.top}", frame.bottom <= bar.top)
+        list.performScrollToNode(lastRow)
+        val last = compose.onNode(lastRow).getBoundsInRoot()
+        assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
+    }
+
     /** The sample bill read with the recorded answer, split between me, Minh and Lan. */
     private fun readSampleBill(handle: SavedStateHandle = SavedStateHandle(), saveDelayMs: Long = 0): SplitBillViewModel {
         val proxy = TestProxy(server, context)
@@ -255,6 +310,11 @@ class BillSafetyTest {
     private fun savedOnScreen(viewModel: SplitBillViewModel) = checkNotNull(viewModel.state.value.result).saved
 
     private fun countBills(): Int = runBlocking { storage.bills.listings().first().size }
+
+    private companion object {
+        /** More items than the screen holds, so that the editor's list scrolls. */
+        const val EDITOR_ITEMS = 16
+    }
 
     private fun manualViewModel(
         fx: FxRepository = storage.noRates,

@@ -8,7 +8,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
@@ -129,7 +132,10 @@ class PseudoLocaleGalleryTest {
         }
     }
 
-    /** The narrowest fields of the app: an item's quantity, price each and amount side by side, whose labels end in "…" when long. */
+    /**
+     * The narrowest fields of the app: an item's quantity, price each and amount side by side in its
+     * open row, with the longer labels of the pseudolocale.
+     */
     @Test
     @Config(sdk = [34], qualifiers = PSEUDO_TALL)
     fun `the bill editor in en-XA`() {
@@ -144,7 +150,8 @@ class PseudoLocaleGalleryTest {
         assertNull(viewModel.state.value.error)
         viewModel.startEditing()
 
-        shot("54-edit-bill-en-xa") {
+        // The names of the items are the bill's own, which the pseudolocale leaves as they are.
+        shot("54-edit-bill-en-xa", then = { compose.onNode(hasText("Ốc hương rang muối") and hasClickAction()).performClick() }) {
             SplitScreen(
                 viewModel = viewModel,
                 aiStatus = AiStatus.AVAILABLE,
@@ -199,13 +206,15 @@ class PseudoLocaleGalleryTest {
         )
     }
 
-    private fun shot(name: String, content: @Composable () -> Unit) {
+    /** Draws [content], does [then] on it, such as opening a row, and compares the screen with the reference image [name]. */
+    private fun shot(name: String, then: () -> Unit = {}, content: @Composable () -> Unit) {
         compose.setContent {
             SplitVibeTheme {
                 // Rippling is left out, so the pictures do not depend on where a test last touched.
                 CompositionLocalProvider(LocalRippleConfiguration provides null) { content() }
             }
         }
+        then()
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
         captureScreenRoboImage(File("src/test/screenshots/$name.png"))
