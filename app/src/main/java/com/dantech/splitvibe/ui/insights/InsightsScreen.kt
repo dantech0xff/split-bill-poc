@@ -130,7 +130,8 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
             }
         },
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item(key = "period") {
                 SvChoiceGroup(
                     options = InsightsPeriod.entries.map { stringResource(it.label) },

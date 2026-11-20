@@ -183,7 +183,8 @@ fun ResultContent(
     ) { padding ->
         // Every row has a key of its own and moves with rowMotion, so when the split changes, a row
         // that comes or goes fades and the rows below it slide to their new places.
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item(key = "total") {
                 TotalCard(
                     result = result,

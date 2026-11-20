@@ -111,7 +111,8 @@ fun RequestMoneyContent(
     }
 
     Scaffold(bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } }) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 Column(
                     modifier = Modifier
