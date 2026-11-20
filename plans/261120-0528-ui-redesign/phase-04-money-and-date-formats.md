@@ -59,8 +59,8 @@ Ngày:
 | Dài | "13 November" | "November 13" | "November 13" |
 | Dài, có năm | "13 November 2026" | "November 13, 2026" | "2026 November 13" |
 
-- Ngày ngắn bỏ năm khi ngày thuộc năm hiện tại; ngày của năm khác dùng dạng có năm, để một hóa đơn của năm trước không bị đọc nhầm. Đây cũng là mặc định của người lập plan.
-- Chủ sản phẩm đã chốt hai hàng đầu và hai ô đầu của hàng "Dài". Bốn ô còn lại do người lập plan điền theo cùng quy tắc, để `ui/paywall/ProTexts.kt:59` và lớp năm trước có mẫu; chủ sản phẩm đổi được.
+- Ngày ngắn bỏ năm khi ngày thuộc năm hiện tại; ngày của năm khác dùng dạng có năm, để một hóa đơn của năm trước không bị đọc nhầm. Đây cũng là mặc định của người lập plan. Hàm viết ngày ngắn nhận ngày hôm nay làm tham số, và các bài kiểm thử cùng bài chụp ảnh ghim ngày đó, để kết quả không đổi khi sang năm mới.
+- Chủ sản phẩm đã chốt nguyên tắc (thứ tự theo vùng, tên tháng tiếng Anh) và dạng ngắn "13 Nov". Các ô còn lại của bảng do người lập plan điền theo nguyên tắc đó, để `ui/paywall/ProTexts.kt:59` và lớp năm trước có mẫu; chủ sản phẩm đổi được.
 
 Ô nhập:
 - Ô nhập hiện dấu thập phân của vùng và không nhóm chữ số.
@@ -70,7 +70,7 @@ Không đổi:
 - Tệp CSV, vốn đã theo vùng (`export/Exporter.kt:48`, `CsvExport.kt:22-23`).
 - Số gửi lên máy chủ, vẫn là đơn vị nhỏ nhất và mã tiền tệ (`proxy/src/input.ts:189-211`, `proxy/src/requests.ts:125-141`), và văn bản thông báo đẩy của máy chủ (`proxy/src/push.ts:15-25`).
 - Số tiền nằm trong mã QR và liên kết thanh toán: `PaymentRequestBuilder` viết chúng không qua `format`, và chúng phải giống hệt nhau ở mọi vùng.
-- Chữ ngày in trên hóa đơn đã quét, mà màn kết quả hiện nguyên văn (`ui/split/ResultContent.kt:518`); giai đoạn 5 dựng lại khối đó theo bảng.
+- Chữ ngày in trên hóa đơn đã quét, khi app không đọc được nó thành một ngày: màn kết quả vẫn hiện nguyên văn như hôm nay (`ui/split/ResultContent.kt:518`). Khi đọc được, giai đoạn 5 hiện nó theo dạng có năm của bảng trên.
 - Ngày của tỉ giá, đang được viết nguyên dạng "2026-11-14" như dữ liệu nhận về.
 
 Đổi theo vì dùng chung hàm:

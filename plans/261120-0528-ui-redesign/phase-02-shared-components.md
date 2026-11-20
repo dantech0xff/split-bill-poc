@@ -11,7 +11,7 @@ dependencies: [1]
 
 ## Overview
 
-Các thành phần `Sv…` hiện có mang hình dáng mới, và các thành phần mà bản thiết kế cần thêm, kể cả thanh điều hướng và hộp thoại, được dựng trong `:core:designsystem`. Màn hình vẫn không tự đặt màu, bóng hay chuyển động nào. Trong mã của app, giai đoạn này chỉ chuyển `ui/common/InputFields.kt` sang thành phần mới; các chỗ màn hình gọi thẳng Material do giai đoạn sở hữu gói đó chuyển (5, 6, 7).
+Các thành phần `Sv…` hiện có mang hình dáng mới, và các thành phần mà bản thiết kế cần thêm, kể cả thanh điều hướng và hộp thoại, được dựng trong `:core:designsystem`. Màn hình vẫn không tự đặt màu, bóng hay chuyển động nào. Trong mã của app, giai đoạn này chỉ chuyển `ui/common/InputFields.kt` và một nút trong thanh ở `ui/split/AiConsent.kt:82` sang thành phần mới; các chỗ màn hình gọi thẳng Material khác do giai đoạn sở hữu gói đó chuyển (5, 6, 7).
 
 ## Context
 
@@ -93,6 +93,7 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 - Create trong cùng thư mục: `SvNavBar.kt`, `SvHero.kt`, `SvTile.kt`, `SvButtons.kt`, `SvFields.kt`, `SvDialog.kt`, `SvMeter.kt`, `SvBarChart.kt`, `SvTicket.kt`.
 - Modify: `app/src/main/java/com/dantech/splitvibe/ui/common/InputFields.kt` để `InputField` và `NumberField` dùng `SvTextField`.
 - Modify: `app/src/main/java/com/dantech/splitvibe/ui/home/HomeScreen.kt`, chỉ ở chỗ gọi `SvLargeTopBar`.
+- Modify: `app/src/main/java/com/dantech/splitvibe/ui/split/AiConsent.kt`, chỉ ở nút `OutlinedButton` trong thanh (`:82`), chuyển sang `SvQuietButton`.
 - Create: `app/src/main/java/com/dantech/splitvibe/ui/common/CategoryStyle.kt`, để các giai đoạn 5 và 7 cùng dùng.
 - Modify: `app/src/debug/java/com/dantech/splitvibe/catalog/CatalogScreen.kt` (thêm mọi thành phần mới; chỗ gọi `SvLargeTopBar`).
 - Modify: `app/src/test/java/com/dantech/splitvibe/ui/ComponentBehaviourTest.kt`, `ComponentCatalogTest.kt`.
@@ -104,7 +105,7 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 3. Dựng các thành phần mới theo bảng thứ hai, kể cả `SvDialog`. Mỗi cái kèm chú thích khi nào dùng và một mục trong trang mẫu.
 4. `SvNavBar`: mỗi mục có vai `Tab`, nhãn và trạng thái chọn đọc được; số đếm gộp vào nhãn; nút giữa nhận mô tả từ nơi gọi; quy tắc chữ lớn; báo chiều cao đo được.
 5. `SvHeroAmount`: ba phần và câu đọc; tự co từ 56 xuống 20 sp, rồi xuống dòng thứ hai; không cắt chữ.
-6. `SvTextField` với đủ tham số ở mục Requirements; chuyển `ui/common/InputFields.kt` sang nó. Không đụng chỗ gọi Material nào khác trong màn hình.
+6. `SvTextField` với đủ tham số ở mục Requirements; chuyển `ui/common/InputFields.kt` sang nó. Chuyển nút `OutlinedButton` trong thanh ở `ui/split/AiConsent.kt:82` sang `SvQuietButton`. Không đụng chỗ gọi Material nào khác trong màn hình.
 7. Tạo `ui/common/CategoryStyle.kt`.
 8. Viết kiểm thử hành vi trong `ComponentBehaviourTest`: vai và trạng thái của `SvNavBar`, kể cả khi thanh chỉ còn biểu tượng; câu đọc của `SvHeroAmount`; `SvMeter` và `SvBarChart` có mô tả chữ; ô chọn và công tắc đổi trạng thái; nút chia đôi vẫn mở menu; hai nút của `SvDialog`; tùy chọn bàn phím và `maxLength` của `SvTextField`; phép kiểm thanh che nội dung cho `SvBottomBar` và `SvNavBar`.
 9. Thêm ảnh `catalog-large-text` vào `ComponentCatalogTest`. Chạy cổng kiểm thử của plan với `-Pscreenshots=compare`, đọc `catalog-light_actual.png`, `catalog-dark_actual.png` và `catalog-large-text_actual.png` trong `app/build/outputs/roborazzi/`, sửa chỗ chữ bị cắt, rồi gửi ba ảnh cho chủ sản phẩm.
@@ -116,7 +117,7 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 - [ ] Thành phần mới, kể cả `SvDialog`, và mục trong trang mẫu
 - [ ] `SvNavBar` với vai, số đếm, quy tắc chữ lớn và chiều cao đo được
 - [ ] `SvHeroAmount` ba phần, tự co và xuống dòng
-- [ ] `SvTextField`; `InputFields.kt` chuyển sang nó
+- [ ] `SvTextField`; `InputFields.kt` chuyển sang nó; nút trong thanh ở `AiConsent.kt:82` thành `SvQuietButton`
 - [ ] `CategoryStyle.kt`
 - [ ] Kiểm thử hành vi, bàn phím, `maxLength` và thanh che nội dung
 - [ ] Ảnh `catalog-large-text`; ba ảnh trang mẫu gửi chủ sản phẩm

@@ -95,8 +95,8 @@ Kiểm thử:
 1. Viết `ui/TabNavigation.kt` và `TabNavigationTest` trước: chọn Home, chọn tab khác từ `[HomeKey]` và từ `[HomeKey, tab]`, chọn lại tab đang đứng, và ngăn xếp sau khi tài khoản rời đi.
 2. Viết `RequestTotals` và `RequestTotalsTest`: cộng theo tiền tệ; bỏ yêu cầu đã xác nhận; khoản mình nợ bỏ yêu cầu đã báo trả; số đang chờ mình; `null` khác danh sách rỗng; chưa đăng nhập. Thêm bộ giữ theo Activity và tạo nó trong `AppNavHost`.
 3. Thêm `AppNavBar`. Cho bốn màn gốc ô `bottomBar`, bỏ nút lùi riêng của chúng, và truyền thanh từ `entry<HomeKey>`, `entry<GroupsKey>`, `entry<RequestsKey>` và `entry<InsightsKey>`. Sửa ba chỗ kiểm thử đang truyền `onBack`.
-4. Trang chủ: bỏ nút nổi, bốn nút dẫn và `PlaceButton`; giữ nút tài khoản với mô tả "Settings"; chuyển `SPLIT_SURFACE` sang nút giữa của thanh. Sửa bốn nơi gọi `HomeScreen`.
-5. Gộp Bills và Recurring thành một màn hai thẻ, cho "Repeat" đổi thẻ tại chỗ, bỏ `RecurringKey` và `entry<RecurringKey>`. Sửa các nơi dựng hai màn này.
+4. Trang chủ: bỏ nút nổi, bốn nút dẫn và `PlaceButton`; giữ nút tài khoản với mô tả "Settings"; chuyển `SPLIT_SURFACE` sang nút giữa của thanh. Sửa bốn nơi gọi `HomeScreen`. Trang chủ nhận thêm từ `RecurringViewModel` việc máy có hóa đơn định kỳ hay không, và hiện "See all" khi có hóa đơn hoặc có hóa đơn định kỳ, thay cho điều kiện chỉ nhìn hóa đơn ở `HomeScreen.kt:128`; `AppStartupTest` có một trường hợp máy chỉ còn hóa đơn định kỳ.
+5. Gộp Bills và Recurring thành một màn hai thẻ, cho "Repeat" đổi thẻ tại chỗ, bỏ `RecurringKey` và `entry<RecurringKey>`. Sửa các nơi dựng hai màn này. `BackNavigationTest` khẳng định rằng bấm "Repeat" ở thẻ All bills đưa sang thẻ Recurring trên cùng một màn, và một lần lùi đưa về màn trước.
 6. Thêm quy tắc đổi tài khoản vào `AppNavHost`. Không đổi `LaunchedEffect(link)`.
 7. Cho `sharedSurface` đánh dấu phần tử của nó, rồi đổi mười hai chỗ tìm chữ "Split a bill" sang tìm theo mô tả, và chỗ tìm mục Requests sang vai `Tab` cùng nhãn.
 8. Mở rộng `BackNavigationTest` và `AppStartupTest` theo phần Kiểm thử, kể cả phép kiểm lùi cho từng loại liên kết và bài đổi tài khoản.

@@ -40,7 +40,7 @@ Giai đoạn này chỉ bắt đầu khi chủ sản phẩm đã duyệt các b�
 - Mã QR vẫn đen trên trắng ở cả hai giao diện, không bo góc, giữ vùng trắng bốn ô quanh mã.
 - Vùng chạm tối thiểu 48 px; viền tiêu điểm thấy rõ; chữ đạt tương phản 4,5:1; thanh đang tải đứng yên khi người dùng tắt chuyển động.
 - Chính sách bảo mật nội dung chỉ thêm `font-src 'self'` vào ba chính sách. Không thêm máy chủ ngoài nào, không nới `style-src`, không có kiểu dáng viết trên phần tử.
-- Phông được phục vụ từ chính Worker, dạng WOFF2, chỉ gồm chữ Latin và tiếng Việt, với `font-display: swap` để chữ hiện ngay bằng phông hệ thống trong lúc phông tải. Dùng nhiều nhất ba tệp: Bricolage Grotesque 800, Be Vietnam Pro 400 và 600.
+- Phông được phục vụ từ chính Worker, dạng WOFF2, chỉ gồm chữ Latin và tiếng Việt, với `font-display: swap` để chữ hiện ngay bằng phông hệ thống trong lúc phông tải. Dùng nhiều nhất ba tệp: Bricolage Grotesque 800, Be Vietnam Pro 400 và 600. Tệp 800 cắt từ bản 14pt (`BricolageGrotesque-ExtraBold.ttf`); bản 96pt không dùng trên web. Khi cắt bớt chữ, các mục tên mang dòng bản quyền và giấy phép trong tệp phông được giữ nguyên, và hai tệp `OFL.txt` nằm cạnh ba tệp phông trong `web/src/fonts/`.
 - Lần tải đầu của HTML, mã và kiểu dáng vẫn không quá 150 KB nén. Ba tệp phông có trần riêng là 120 KB nén tổng cộng, và `npm run size` in ra, kiểm cả hai con số.
 - Số tiền và ngày theo vùng của trình duyệt (`navigator.languages`), cùng quy tắc với app: dấu phân cách, vị trí ký hiệu và thứ tự ngày tháng theo vùng; chữ số luôn là 0 đến 9; ký hiệu tiền tệ và tên tháng theo tiếng Anh của trang. Danh sách tên người vẫn nối bằng chữ tiếng Anh.
 - Các đường dẫn không phải là trang (`/`, `/s` không có gạch chéo cuối) vẫn trả lời như hôm nay.
@@ -102,4 +102,4 @@ Giai đoạn này chỉ bắt đầu khi chủ sản phẩm đã duyệt các b�
 
 ## Rollback
 
-Hoàn lại các commit của giai đoạn khi giai đoạn 10 chưa bắt đầu; sau đó sửa bằng commit mới. Trang web đang chạy không đổi cho tới khi Worker được triển khai lại trong một lần phát hành.
+Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 10 chưa bắt đầu; sau đó lỗi được sửa bằng commit mới. Trang web đang chạy không đổi cho tới khi Worker được triển khai lại trong một lần phát hành.

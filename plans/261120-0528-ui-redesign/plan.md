@@ -60,7 +60,7 @@ Mặc định do người lập plan đặt, chủ sản phẩm đổi được:
 - Điều hướng dùng một ngăn xếp duy nhất như hôm nay. Thanh dưới chỉ hiện ở bốn màn gốc; bấm một tab thay màn gốc đang đứng, và lùi từ một màn gốc khác Home đưa về Home. Vì thanh không hiện ở màn con, không có lịch sử riêng của tab nào để giữ, và vị trí cuộn của một màn gốc không được nhớ khi sang tab khác.
 - Trang chủ và số đếm trên tab Requests cần danh sách yêu cầu trả tiền mới. App tải lại danh sách đó khi mở và ngay sau khi đăng nhập, tức thêm một lời gọi tới máy chủ cho mỗi lần mở app khi đã đăng nhập.
 - Trang chủ hiện "See all" khi máy có hóa đơn hoặc có hóa đơn định kỳ, để màn Bills và thẻ Recurring luôn mở được sau khi nút "Recurring bills" rời trang chủ.
-- Các dạng ngày mà chủ sản phẩm chưa chốt do người lập plan điền ở giai đoạn 4: dạng dài có năm, các dạng của vùng viết năm trước, và việc ngày ngắn mang thêm năm khi ngày không thuộc năm hiện tại.
+- Bảng dạng ngày ở giai đoạn 4 do người lập plan điền từ nguyên tắc mà chủ sản phẩm đã chốt (thứ tự theo vùng, tên tháng tiếng Anh, dạng ngắn "13 Nov"). Phần người lập plan thêm gồm các dạng có năm, các dạng dài, các dạng của vùng viết năm trước, và việc ngày ngắn mang thêm năm khi ngày không thuộc năm hiện tại.
 - Dòng "Amount: …" trong chi tiết cách trả tiền do máy của người gửi soạn, nên mang kiểu số của vùng người gửi, kể cả khi hiện trên trang web của người nhận.
 - Các trạng thái của trang chủ và màn nhóm chưa có bảng (chỉ mình đang nợ, số dư bằng 0, số dư chưa rõ) theo mặc định ghi ở giai đoạn 5 và 6.
 - Đóng gói bảy tệp phông tĩnh và hai tệp giấy phép. Không thêm màn hay hàng "Font licences": giấy phép OFL chỉ đòi văn bản giấy phép đi kèm phông.
@@ -93,13 +93,15 @@ Kèm theo là bước "No Anthropic code in the packages" của `ci.yml`, và c�
 - Không commit gì dưới `app/src/test/screenshots/` trước giai đoạn 8. Cuối mỗi giai đoạn, `git status --porcelain app/src/test/screenshots` phải rỗng.
 - Từ giai đoạn 8 trở đi, kiểm thử chạy ở chế độ so mặc định như CI.
 - `device-tests.yml` tự chạy khi nhánh được đẩy lên với thay đổi của app. Cuối mỗi giai đoạn có đổi màn hình, kết quả của lượt chạy trên commit cuối được đọc và ghi lại.
-- Mỗi giai đoạn kết thúc bằng: cổng trên qua, một lượt review độc lập, sửa các phát hiện, và ảnh màn hình thật gửi chủ sản phẩm so với bảng.
+- Mỗi giai đoạn kết thúc bằng: cổng trên qua, một lượt review độc lập, sửa các phát hiện, và ảnh màn hình thật gửi chủ sản phẩm so với bảng. Quy tắc này áp cho cả mười giai đoạn, kể cả khi tệp giai đoạn không nhắc lại từng việc. Mọi phép thử tay mà một giai đoạn nêu được làm và ghi kết quả vào báo cáo cuối giai đoạn đó.
+- Giai đoạn nào cần ảnh của một trạng thái để chủ sản phẩm duyệt thì thêm bài chụp cho trạng thái đó ngay trong giai đoạn. Giai đoạn 8 ghi lại những gì đã có và chỉ thêm cái còn thiếu.
+- Giai đoạn 9 chạy các lệnh của web và proxy, và cả cổng Gradle vì nó sửa `WebTokensTest.kt`.
 
 ### Thứ tự và tệp dùng chung
 
 Các giai đoạn chạy lần lượt từ 1 đến 10. Giai đoạn 9 (web) không đụng mã của app, nên có thể chạy song song với 5 đến 8 nếu chủ sản phẩm muốn rút ngắn; mặc định vẫn là lần lượt.
 
-Vì chạy lần lượt, các tệp nhiều giai đoạn cùng sửa không có tranh chấp. Chúng vẫn được nêu tên để không ai bỏ sót: `app/src/main/res/values/strings.xml`, `ui/AppNavHost.kt`, và các tệp kiểm thử `ui/ScreenGalleryTest.kt`, `ui/PseudoLocaleGalleryTest.kt`, `text/NumbersInTextsTest.kt`, `e2e/JourneySteps.kt`, `e2e/PaymentRequestJourneyTest.kt`. Giai đoạn nào đổi chữ ký của một màn thì sửa luôn mọi nơi gọi màn đó, kể cả trong các tệp này. Các giai đoạn nhắc tới chỗ trong `AppNavHost.kt` bằng tên mục (`entry<HomeKey>`), không bằng số dòng, vì giai đoạn 3 viết lại tệp này.
+Vì chạy lần lượt, các tệp nhiều giai đoạn cùng sửa không có tranh chấp. Chúng vẫn được nêu tên để không ai bỏ sót: `app/src/main/res/values/strings.xml`, `ui/AppNavHost.kt`, và các tệp kiểm thử `ui/ScreenGalleryTest.kt`, `ui/PseudoLocaleGalleryTest.kt`, `text/NumbersInTextsTest.kt`, `e2e/JourneySteps.kt`, `e2e/PaymentRequestJourneyTest.kt`. Giai đoạn nào đổi chữ ký của một màn thì sửa luôn mọi nơi gọi màn đó, kể cả trong các tệp này. Hàng `BillListingRow` trong `ui/history/HistoryScreen.kt` vẽ cả danh sách hóa đơn gần đây của trang chủ lẫn màn Bills: giai đoạn 5 đổi hình dáng hàng theo bảng `Main`, giai đoạn 7 dùng lại hàng đó. Các giai đoạn nhắc tới chỗ trong `AppNavHost.kt` bằng tên mục (`entry<HomeKey>`), không bằng số dòng, vì giai đoạn 3 viết lại tệp này.
 
 ### Hoàn lại
 
@@ -184,7 +186,10 @@ Chủ sản phẩm chọn "Áp dụng cả 15 điểm". Bốn điểm được �
 | 15 | `moneyOut` đo được 4,499:1; thanh nổi tối không có viền; `NumbersInTextsTest` bị sót; khoảng cách "THB 187.00" chưa quyết; nguồn thiết kế chỉ nằm trên canvas; mục hoàn lại nói quá | Medium | Accept (modified): viền thanh giữ màu `#3A3A42` đã duyệt và không áp 3:1; khoảng cách của mã tiền tệ theo vùng của máy | Phase 1, 4, 5, 7, plan.md |
 
 ### Whole-Plan Consistency Sweep
-- Files reread: xem mục cùng tên ở cuối Validation Log, làm một lần sau cả hai lượt sửa.
+- Files reread: `plan.md` và mười tệp giai đoạn, đọc trọn sau lượt sửa song song: `phase-01-colors-type-shapes.md`, `phase-02-shared-components.md`, `phase-03-navigation-bottom-bar.md`, `phase-04-money-and-date-formats.md`, `phase-05-home-and-split-flow.md`, `phase-06-groups-requests-bill-links.md`, `phase-07-bills-insights-settings-pro.md`, `phase-08-tests-screenshots-profile.md`, `phase-09-web-pages.md`, `phase-10-docs-store-finish.md`.
+- Decision deltas checked: 15
+- Reconciled stale references: 5 trong lượt rà, sửa ở 8 chỗ của `phase-02-shared-components.md`, `phase-05-home-and-split-flow.md` và `phase-09-web-pages.md`; sau lượt rà sửa thêm 12 chỗ ở `plan.md` và các giai đoạn 1, 3, 4, 7, 9 để đóng các mâu thuẫn và khoảng trống mà lượt rà nêu.
+- Unresolved contradictions: 0. Lượt rà nêu bốn mâu thuẫn và cả bốn đã được đóng: mã băm của phông chỉ nằm trong tệp danh sách và tài liệu trỏ tới đó; bảng dạng ngày do người lập plan điền từ nguyên tắc chủ sản phẩm đã chốt; phông của web có trần riêng 120 KB; chữ ngày trên hóa đơn được viết lại khi đọc được và giữ nguyên văn khi không.
 
 ## Validation Log
 
@@ -263,12 +268,12 @@ Bốn điều chưa kiểm được, mỗi điều là bước đầu tiên củ
 1. [UNVERIFIED] Robolectric nạp được phông từ `res/font` (giai đoạn 1).
 2. [UNVERIFIED] Mã băm của bảy tệp phông khớp khi tải trên một máy sạch của GitHub (giai đoạn 1).
 3. [UNVERIFIED] Thứ tự ngày, tháng, năm mà Android trả về cho từng vùng ở API 26 khớp với bản Java dùng trong kiểm thử (giai đoạn 4).
-4. [UNVERIFIED] Tệp phông cho web vừa trong ngân sách 150 KB của lần tải đầu (giai đoạn 9).
+4. [UNVERIFIED] Ba tệp phông cho web vừa trong trần 120 KB nén dành riêng cho phông (giai đoạn 9).
 
 ### Whole-Plan Consistency Sweep
-- Files reread: (điền sau lượt rà cuối)
-- Decision deltas checked: (điền sau lượt rà cuối)
-- Reconciled stale references: (điền sau lượt rà cuối)
-- Unresolved contradictions: (điền sau lượt rà cuối)
+- Files reread: `plan.md` và mười tệp giai đoạn, đọc trọn sau lượt sửa song song: `phase-01-colors-type-shapes.md`, `phase-02-shared-components.md`, `phase-03-navigation-bottom-bar.md`, `phase-04-money-and-date-formats.md`, `phase-05-home-and-split-flow.md`, `phase-06-groups-requests-bill-links.md`, `phase-07-bills-insights-settings-pro.md`, `phase-08-tests-screenshots-profile.md`, `phase-09-web-pages.md`, `phase-10-docs-store-finish.md`.
+- Decision deltas checked: 15
+- Reconciled stale references: 5 trong lượt rà, sửa ở 8 chỗ của `phase-02-shared-components.md`, `phase-05-home-and-split-flow.md` và `phase-09-web-pages.md`; sau lượt rà sửa thêm 12 chỗ ở `plan.md` và các giai đoạn 1, 3, 4, 7, 9 để đóng các mâu thuẫn và khoảng trống mà lượt rà nêu.
+- Unresolved contradictions: 0. Lượt rà nêu bốn mâu thuẫn và cả bốn đã được đóng: mã băm của phông chỉ nằm trong tệp danh sách và tài liệu trỏ tới đó; bảng dạng ngày do người lập plan điền từ nguyên tắc chủ sản phẩm đã chốt; phông của web có trần riêng 120 KB; chữ ngày trên hóa đơn được viết lại khi đọc được và giữ nguyên văn khi không.
 
 <!-- slug: ui-redesign -->

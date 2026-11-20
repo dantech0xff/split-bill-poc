@@ -94,7 +94,7 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 - Lượt `device-tests.yml` trên commit cuối của giai đoạn qua trên máy ảo API 34; kết quả được đọc và ghi lại.
 - Trong `app/src/main` và `app/src/debug` không còn lời gọi thẳng nào tới sáu thành phần bị cấm.
 - Lặp lại một hóa đơn từ thẻ "All bills" đổi sang thẻ "Recurring" với hóa đơn mới; một lần lùi đưa về màn trước, và hóa đơn đó còn sau khi rời rồi quay lại màn.
-- Tổng của biểu đồ theo tháng bằng tổng của khối đầu trang với cùng kỳ.
+- Tổng của biểu đồ theo tháng bằng tổng của khối đầu trang với cùng kỳ, và `InsightsViewModelTest` có một phép khẳng định cho điều đó.
 - `git status --porcelain app/src/test/screenshots` rỗng; ảnh gửi chủ sản phẩm lấy từ `app/build/outputs/roborazzi/*_actual.png`.
 
 ## Risk Assessment

@@ -34,7 +34,7 @@ Trang chủ mới hiện tiền bạn bè đang nợ, tiền mình đang nợ, c
 - Bảng `HomeEmpty` có một nút nhìn thấy được mang chữ "Split a bill", còn nút giữa của thanh điều hướng chỉ mang mô tả "Split a bill" từ giai đoạn 3. Mười hai chỗ trong kiểm thử và hành trình ghi hồ sơ khởi động tìm nút giữa bằng mô tả, nên nút mời không được mang cùng mô tả đó.
 - Kiểm thử và hành trình còn bám vào các nhãn "Use the sample bill", "Read and split the bill", "New split", "Recent bills", "Ask for the money", "Done", "Type it in by hand", "Add someone", "Bill total", "Paid by", "Add an item", "Where", "Item", "Amount" và mô tả "Bill photo". Giữ nguyên các nhãn này.
 - Hai tên phần tử dùng chung `SPLIT_SURFACE` và `SEND_SURFACE` (`SplitScreen.kt:31`, `:134`, `ResultContent.kt:744`, `RequestMoneyContent.kt:123`) giữ nguyên, nếu không hiệu ứng nở mất mà không báo lỗi.
-- Các ô nhập ở đây dùng nhiều hơn những gì giai đoạn 2 kể ra cho `SvTextField` (hậu tố, tiền tố, nhiều dòng, biểu tượng đầu ô): ô chỉ dẫn của màn thêm hóa đơn có lúc bị tắt; ô của trợ lý có hai nút ở cuối ô và hành động gửi của bàn phím.
+- Các ô nhập ở đây dùng cả những phần giai đoạn 2 đã kể ra cho `SvTextField` ngoài hậu tố, tiền tố, nhiều dòng và biểu tượng đầu ô: ô chỉ dẫn của màn thêm hóa đơn có lúc bị tắt; ô của trợ lý có hai nút ở cuối ô và hành động gửi của bàn phím.
 
 ## Requirements
 
@@ -50,12 +50,12 @@ Trang chủ:
 - Ô tháng này dẫn sang Insights. Ô nhóm hiện nhóm vừa được làm mới hoặc thay đổi gần nhất trên máy này, kèm số dư của mình với nhãn "You get back" hoặc "You owe". Số dư bằng 0 dùng chữ "settled up" đang có; ô không hiện khi bộ nhớ đệm không có nhóm nào hoặc số dư là `null`.
 - Nguồn của ô nhóm là một truy vấn mới của `ProxyCacheDao`, lọc các khóa nhóm và xếp theo `savedAt`. Lược đồ cơ sở dữ liệu không đổi, và không con trỏ nào được giữ ngoài `ProxyCache`, nên đăng xuất làm ô trống theo.
 - Sau khi đăng xuất hoặc xóa tài khoản, khối chính, ô nhóm và số đếm trên tab Requests không còn gì của tài khoản cũ.
-- "Recent bills" giữ ba hóa đơn và "See all"; mỗi hàng có ô danh mục theo `CategoryStyle`. Ngày trên hàng là dạng ngắn của giai đoạn 4 khi ngày của hóa đơn đọc được, và là chữ của hóa đơn khi không đọc được. Đường vào màn Bills khi máy không còn hóa đơn nào theo câu trả lời mà chủ sản phẩm đã cho ở giai đoạn 3.
+- "Recent bills" giữ ba hóa đơn và "See all"; mỗi hàng có ô danh mục theo `CategoryStyle`. Ngày trên hàng là dạng ngắn của giai đoạn 4 khi ngày của hóa đơn đọc được, và là chữ của hóa đơn khi không đọc được. Trang chủ hiện "See all" khi máy có hóa đơn hoặc có hóa đơn định kỳ, để màn Bills và thẻ Recurring luôn mở được; đây là mặc định của plan đã nêu ở giai đoạn 3, chủ sản phẩm đổi được.
 - Nút tài khoản giữ mô tả "Settings" (`AppStartupTest.kt:40`, `:49`, `:71` và `AppLaunchTest.kt:41` tìm nó như vậy).
 - Hai trạng thái chưa có bảng, chưa đăng nhập và chưa tải xong yêu cầu, dựng từ thành phần của bảng `Main` và `HomeEmpty`; ảnh thật của chúng được gửi chủ sản phẩm duyệt.
 
 Luồng chia hóa đơn:
-- Màn thêm hóa đơn, màn đang đọc và màn xin đồng ý theo các bảng. Nội dung màn xin đồng ý không đổi một chữ. Theo bảng `Consent`, hai câu trả lời đứng cuối màn và không nằm trong thanh: "Agree" là `SvPrimaryButton`, câu còn lại là `SvQuietButton` thay cho `OutlinedButton` gọi thẳng trong `SvBottomBar` hôm nay (`ui/split/AiConsent.kt:82`), thứ mà giai đoạn 2 đã nêu là không đủ tương phản trên thanh. Hai nút vẫn nằm ngoài phần cuộn như hôm nay, để luôn trong tầm nhìn ở chữ lớn.
+- Màn thêm hóa đơn, màn đang đọc và màn xin đồng ý theo các bảng. Nội dung màn xin đồng ý không đổi một chữ. Theo bảng `Consent`, hai câu trả lời đứng cuối màn và không nằm trong thanh: "Agree" là `SvPrimaryButton`, câu còn lại là `SvQuietButton` thay cho `OutlinedButton` gọi thẳng trong `SvBottomBar` hôm nay (`ui/split/AiConsent.kt:82`), thứ mà giai đoạn 2 đã chuyển trước vì không đủ tương phản trên thanh. Hai nút vẫn nằm ngoài phần cuộn như hôm nay, để luôn trong tầm nhìn ở chữ lớn.
 - Màn kết quả theo thứ tự: tổng tiền, thẻ "What Split Vibe understood", lời nhắc, "Each person pays" gộp với người, ô "Change the split", kiểu chia thành một hàng cuộn ngang, món, phụ phí, "Paid by", thanh nổi với nút yêu cầu. Ngày dưới tổng tiền là dạng có năm của giai đoạn 4 khi đọc được.
 - Gỡ phần xem chữ đã gửi cho AI: các dòng `ResultContent.kt:373-393`, biến `showOcrText` (`:140`), hai chuỗi `split_show_sent` và `split_hide_sent`. Cái giá về minh bạch đã được chủ sản phẩm chấp nhận và ghi ở quyết định 3 của plan.
 - Trình sửa hóa đơn: món và phụ phí là hàng, mỗi lúc một hàng mở để sửa. Hàng đang mở được giữ bằng id của món hoặc phụ phí trong `rememberSaveable`, và hàng vừa thêm tự mở. Phần "Total" giữ nguyên hành vi.

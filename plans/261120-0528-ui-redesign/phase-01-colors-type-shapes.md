@@ -97,7 +97,7 @@ Nguồn gốc của chín tệp, tải ngày 20/11/2026 theo commit ghim:
 
 - URL tải có dạng `https://raw.githubusercontent.com/<kho>/<commit đầy đủ>/<đường dẫn>`. Không bao giờ tải theo tên nhánh.
 - Các mã băm trên được tính từ tệp tải qua proxy của môi trường lập plan, nên phải được đối chiếu trên một máy sạch của GitHub. Việc đó là một bước thêm vào workflow sẵn có `.github/workflows/checksums.yml` (chạy tay được, và tự chạy khi chính tệp này đổi): tải chín tệp theo URL có commit rồi so với danh sách.
-- Danh sách mã băm được commit cạnh module, ở `core/designsystem/font-checksums.sha256`. Một bài JUnit thuần trong `:core:designsystem` băm chín tài nguyên và so với danh sách đó. Bảng nguồn gốc này được chép vào `docs/design-system.md` ở giai đoạn 10.
+- Danh sách mã băm được commit cạnh module, ở `core/designsystem/font-checksums.sha256`. Một bài JUnit thuần trong `:core:designsystem` băm chín tài nguyên và so với danh sách đó. Giai đoạn 10 ghi nguồn gốc (kho, commit, đường dẫn) vào `docs/design-system.md` và trỏ tới tệp danh sách này cho mã băm, không chép lại từng mã băm.
 - App không có màn, hàng hay chuỗi giấy phép phông nào. Hai văn bản OFL đi kèm phông dưới dạng tài nguyên `res/raw`, và đó là điều giấy phép đòi.
 - Tổng cỡ thô của bảy tệp phông là 896744 byte. Mức tăng thật của gói được đo và ghi lại.
 
