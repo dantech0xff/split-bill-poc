@@ -16,16 +16,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
+import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.elevation
 
 /**
- * The one main action of a screen, floating above the content. A screen has at most one.
- * The icon is decorative; [text] says what the button does.
+ * The one main action of a screen, floating above the content: a violet pill with an icon. A
+ * screen has at most one. The icon is decorative; [text] says what the button does.
  */
 @Composable
 fun SvPrimaryFab(text: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = FloatingActionButtonDefaults.extendedFabShape
+    val shape = SvShapes.pill
     // While the button grows into another screen it is measured again at every size, and its
     // shadow would have to be blurred again at every size. So it rests flat while it moves, and
     // its shadow fades back in once it is in place, which only changes the shadow's opacity.
@@ -48,6 +49,6 @@ fun SvPrimaryFab(text: String, icon: ImageVector, onClick: () -> Unit, modifier:
         // readers and expects the icon to carry the label instead.
         Icon(icon, contentDescription = null)
         Spacer(Modifier.width(SvSpacing.sm))
-        Text(text)
+        Text(text, style = MaterialTheme.typography.titleMediumEmphasized)
     }
 }

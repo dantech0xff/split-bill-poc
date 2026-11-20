@@ -22,9 +22,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 
 /**
- * Marks that something has just succeeded: a round badge in the accent colour with [icon] on it.
+ * Marks that something has just succeeded: a round lime badge with [icon] on it in ink.
  * The first time it is shown the icon pops in and the phone gives one short confirming vibration.
  * Because the badge is round, a fully round button can turn into it through `Modifier.sharedSurface`.
  * It is decorative: say what succeeded in text beside it.
@@ -37,6 +38,7 @@ fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
     val scale = remember { Animatable(if (celebrated || reduced) 1f else START_SCALE) }
     val pop = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
     val haptics = LocalHapticFeedback.current
+    val palette = SvTheme.palette
 
     LaunchedEffect(Unit) {
         if (!celebrated) {
@@ -49,7 +51,7 @@ fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(SIZE)
-            .background(MaterialTheme.colorScheme.primary, CircleShape),
+            .background(palette.accent, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -61,11 +63,11 @@ fun SvSuccessMark(icon: ImageVector, modifier: Modifier = Modifier) {
                     scaleX = scale.value
                     scaleY = scale.value
                 },
-            tint = MaterialTheme.colorScheme.onPrimary,
+            tint = palette.onAccent,
         )
     }
 }
 
-private val SIZE = 64.dp
+private val SIZE = 72.dp
 private val ICON_SIZE = 36.dp
 private const val START_SCALE = 0.4f

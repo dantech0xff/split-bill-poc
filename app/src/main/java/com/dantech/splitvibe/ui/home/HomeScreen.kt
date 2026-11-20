@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,12 +28,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -52,7 +49,6 @@ import com.dantech.splitvibe.ui.SPLIT_SURFACE
 import com.dantech.splitvibe.ui.history.BillListingRow
 
 /** The app's home: the way into a new split, the bills split last, and the ways to what the bills add up to. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     /** The bills kept on the phone, newest first; the first few are shown. */
@@ -66,13 +62,10 @@ fun HomeScreen(
     onOpenInsights: () -> Unit = {},
     onOpenRecurring: () -> Unit = {},
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             SvLargeTopBar(
                 title = stringResource(R.string.app_name),
-                scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))

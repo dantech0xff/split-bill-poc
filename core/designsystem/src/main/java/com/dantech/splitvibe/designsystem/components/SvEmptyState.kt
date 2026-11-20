@@ -17,29 +17,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.surface
 
 /**
- * Takes the place of something that is not there yet, such as the people of a split before anyone
- * was added: a soft round [icon] and a short [text] that says what would fill the place. The icon
- * is decorative.
+ * Takes the place of something that is not there yet, such as the bills before the first one was
+ * split: a card with a soft round [icon] and a short [text] that says what would fill the place.
+ * The icon is decorative.
  */
 @Composable
 fun SvEmptyState(icon: ImageVector, text: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = SvSpacing.xl, vertical = SvSpacing.lg),
+            .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm)
+            .background(SvElevation.Level1.surface, MaterialTheme.shapes.large)
+            .padding(SvSpacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
     ) {
         Box(
             modifier = Modifier
                 .size(BADGE_SIZE)
-                .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                .background(SvGround.Card.quiet, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
         }
         Text(
             text,

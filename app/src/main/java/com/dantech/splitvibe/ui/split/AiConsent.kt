@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +20,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.ui.common.LegalLinks
 import com.dantech.splitvibe.ui.common.PrivacyPolicyLink
@@ -82,7 +82,7 @@ internal fun AiConsentScreen(
             SvBottomBar {
                 Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                     SvPrimaryButton(stringResource(R.string.ai_consent_agree), onClick = onAgree)
-                    OutlinedButton(onClick = onDecline, modifier = Modifier.fillMaxWidth()) { Text(declineLabel) }
+                    SvQuietButton(declineLabel, onClick = onDecline, modifier = Modifier.fillMaxWidth())
                 }
             }
         }

@@ -4,19 +4,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.surface
 
 /** Where a row sits in its group, which decides which of its corners are round. */
 enum class SvRowPosition {
@@ -38,9 +43,9 @@ enum class SvRowPosition {
 }
 
 /**
- * One row of a group. The rows of a group sit close together on a tinted surface and only the
- * outer corners of the group are fully round, so the group reads as one block without any
- * divider lines. Each row can still be a separate item of a lazy list.
+ * One row of a group. The rows of a group follow each other without a gap or a line between them
+ * and together form one card, white in the light theme, with round corners only at the outside
+ * of the group. Each row can still be a separate item of a lazy list.
  */
 @Composable
 fun SvListRow(position: SvRowPosition, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) =
@@ -75,19 +80,40 @@ fun SvListRow(
 private fun GroupRow(position: SvRowPosition, modifier: Modifier, action: Modifier, content: @Composable RowScope.() -> Unit) {
     val outer = SvShapes.groupOuterCorner
     val inner = SvShapes.groupInnerCorner
-    val top = if (position == SvRowPosition.Single || position == SvRowPosition.First) outer else inner
-    val bottom = if (position == SvRowPosition.Single || position == SvRowPosition.Last) outer else inner
+    val first = position == SvRowPosition.Single || position == SvRowPosition.First
+    val last = position == SvRowPosition.Single || position == SvRowPosition.Last
+    val top = if (first) outer else inner
+    val bottom = if (last) outer else inner
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = SvSpacing.lg, vertical = 1.dp),
+            .padding(horizontal = SvSpacing.screen),
         shape = RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = SvElevation.Level1.surface,
     ) {
-        Row(
-            modifier = action.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content,
-        )
+        CompositionLocalProvider(LocalSvGround provides SvGround.Card) {
+            // The card keeps a margin around its rows, and a pressed row lights up as a rounded
+            // shape inside that margin, so the rows of the card never touch its edge.
+            Row(
+                modifier = Modifier
+                    .padding(
+                        start = CARD_MARGIN,
+                        end = CARD_MARGIN,
+                        top = if (first) CARD_MARGIN else 0.dp,
+                        bottom = if (last) CARD_MARGIN else 0.dp,
+                    )
+                    .clip(MaterialTheme.shapes.medium)
+                    .then(action)
+                    .heightIn(min = ROW_MIN_HEIGHT)
+                    .padding(horizontal = SvSpacing.sm, vertical = SvSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content,
+            )
+        }
     }
 }
+
+/** The margin of the card around its rows. */
+private val CARD_MARGIN = SvSpacing.sm
+
+private val ROW_MIN_HEIGHT = 56.dp

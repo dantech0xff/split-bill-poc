@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,20 +21,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,11 +44,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
@@ -70,10 +70,14 @@ import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvSmallAction
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
+import com.dantech.splitvibe.designsystem.components.SvTextAction
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.motion.SvAmount
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
@@ -85,13 +89,11 @@ import com.dantech.splitvibe.designsystem.tokens.elevation
 import com.dantech.splitvibe.designsystem.tokens.surface
 
 /** Every design system component with sample content, in the order of docs/design-system.md. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CatalogScreen() {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { SvLargeTopBar(title = "Components", scrollBehavior = scrollBehavior) },
+        topBar = { SvLargeTopBar(title = "Components") },
         bottomBar = {
             SvBottomBar { SvPrimaryButton("SvPrimaryButton in SvBottomBar", onClick = {}) }
         },
@@ -101,7 +103,7 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader("Colour", hint = "The roles a screen may use.")
                 FlowRow(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
@@ -119,7 +121,7 @@ fun CatalogScreen() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = SvSpacing.lg),
+                        .padding(horizontal = SvSpacing.screen),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom,
                 ) {
@@ -129,12 +131,28 @@ fun CatalogScreen() {
                 }
             }
 
+            item {
+                SvSectionHeader("Top bars", hint = "SvLargeTopBar of a main screen, SvTopBar of a screen opened from another.")
+                SvLargeTopBar(
+                    title = "Requests",
+                    windowInsets = WindowInsets(0),
+                    actions = { SvOverflowMenu(label = "More for the requests", options = listOf(SvMenuOption("Refresh") {})) },
+                )
+                SvTopBar(
+                    title = "Edit bill",
+                    backLabel = "Back",
+                    onBack = {},
+                    windowInsets = WindowInsets(0),
+                    action = { IconButton(onClick = {}) { Icon(Icons.Default.Edit, contentDescription = "Edit the bill") } },
+                )
+            }
+
             item { SvSectionHeader("Elevation", hint = "SvCard at each level.") }
             items(SvElevation.entries) { level ->
                 SvCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                        .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
                     elevation = level,
                 ) {
                     Text(level.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(SvSpacing.lg))
@@ -166,7 +184,7 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader("Messages")
                 Column(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     SvMessageCard(text = "A notice, with one action.", isError = false, action = "Act on it")
@@ -176,7 +194,7 @@ fun CatalogScreen() {
 
             item {
                 SvSectionHeader("Working and done")
-                Column(modifier = Modifier.padding(horizontal = SvSpacing.lg)) {
+                Column(modifier = Modifier.padding(horizontal = SvSpacing.screen)) {
                     SvWorkingRow(status = "SvWorkingRow: reading the bill…", cancelLabel = "Cancel", onCancel = {})
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvLoadingIndicator(modifier = Modifier.size(40.dp))
@@ -186,6 +204,43 @@ fun CatalogScreen() {
                     Spacer(Modifier.height(SvSpacing.md))
                     SvPrimaryButton("SvPrimaryButton, disabled", onClick = {}, enabled = false)
                 }
+            }
+
+            item {
+                SvSectionHeader("Buttons", hint = "SvQuietButton on the page and on a card, SvSmallAction and SvTextAction.")
+                Column(
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
+                    verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                ) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                        SvQuietButton("SvQuietButton", onClick = {}, icon = Icons.Default.Share)
+                        SvTextAction("SvTextAction", onClick = {})
+                    }
+                    SvCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(SvSpacing.lg),
+                            horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("On a card", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            SvQuietButton("Take back", onClick = {})
+                            SvSmallAction("Send", onClick = {}, icon = Icons.AutoMirrored.Filled.Send)
+                        }
+                    }
+                }
+            }
+
+            item {
+                SvSectionHeader("Bottom bar", hint = "What SvBottomBar holds takes the bar's colours: SvSplitButton, SvWorkingRow.")
+                SvBottomBar {
+                    SvSplitButton(
+                        text = "Request ₫651,671 from 2 people",
+                        onClick = {},
+                        moreLabel = "Other ways to share the split",
+                        options = listOf(SvMenuOption("Finish without asking") {}),
+                    )
+                }
+                SvBottomBar { SvWorkingRow(status = "Reading your bill…", cancelLabel = "Cancel", onCancel = {}) }
             }
 
             item {
@@ -200,16 +255,32 @@ fun CatalogScreen() {
                         },
                     ).asImageBitmap()
                 }
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    SvBillPhoto(photo = sample, contentDescription = "Sample bill", scanning = true, modifier = Modifier.height(160.dp))
-                }
+                SvBillPhoto(
+                    photo = sample,
+                    contentDescription = "Sample bill",
+                    scanning = true,
+                    modifier = Modifier
+                        .padding(horizontal = SvSpacing.screen)
+                        .height(200.dp),
+                )
             }
 
             item {
-                SvSectionHeader("People", hint = "SvPersonChip, switched on, off, opened and added, SvPersonPickRow and SvPersonChoiceRow.")
+                SvSectionHeader(
+                    "People",
+                    hint = "SvAvatarStack, SvPersonChip switched on, off, opened and added, SvPersonPickRow and SvPersonChoiceRow.",
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.lg),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SvAvatarStack(names = SAMPLE_PEOPLE)
+                    SvAvatarStack(names = SAMPLE_PEOPLE, size = 22.dp)
+                }
                 var meIncluded by remember { mutableStateOf(true) }
                 FlowRow(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     SvPersonChip(name = "Me", selected = meIncluded, onClick = { meIncluded = !meIncluded })
@@ -242,7 +313,7 @@ fun CatalogScreen() {
                 var mode by remember { mutableIntStateOf(0) }
                 var way by remember { mutableIntStateOf(1) }
                 Column(
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg),
+                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
                 ) {
                     SvChoiceGroup(options = listOf("Equally", "By item", "By amount"), selected = mode, onSelect = { mode = it })
@@ -251,12 +322,19 @@ fun CatalogScreen() {
                         selected = way,
                         onSelect = { way = it },
                     )
+                    SvChoiceChips(
+                        options = listOf("Equally", "By item", "By shares", "By percent", "By amount"),
+                        selected = way,
+                        onSelect = { way = it },
+                        singleRow = true,
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SvSplitButton(
                             text = "Request all",
                             onClick = {},
                             moreLabel = "More ways to request",
                             options = listOf(SvMenuOption("Request one by one") {}, SvMenuOption("Copy the amounts") {}),
+                            modifier = Modifier.weight(1f),
                         )
                         SvOverflowMenu(label = "More for this bill", options = listOf(SvMenuOption("Remove") {}))
                     }
@@ -269,7 +347,7 @@ fun CatalogScreen() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = SvSpacing.lg),
+                        .padding(horizontal = SvSpacing.screen),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom,
                 ) {
