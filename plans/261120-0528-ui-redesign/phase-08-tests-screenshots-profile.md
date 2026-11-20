@@ -34,6 +34,8 @@ Toàn bộ giao diện mới được kiểm một lượt cuối. Ảnh tham ch
 
 ## Requirements
 
+- Bài `SplitFlowOnDeviceTest.aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard` (gõ vào ô trong hàng khi bàn phím mở) bị bỏ qua ở mọi lượt trên máy ảo hiện nay: máy ảo Android 14, 11 và 16 dùng ảnh hệ thống ATD, vốn không có bàn phím nào, còn ảnh mặc định của Android 8.0, có bàn phím, chỉ chạy gói `e2e`. Giai đoạn này cho bài đó chạy được ở ít nhất một bản, ví dụ chuyển nó vào gói `e2e` để lượt chạy tay ở Android 8.0 chạy nó, và ghi lại kết quả.
+<!-- Updated: Thực hiện giai đoạn 5 - bài gõ khi bàn phím mở bị bỏ qua vì ảnh ATD không có bàn phím -->
 - Toàn bộ ảnh tham chiếu được ghi lại một lần, trong giai đoạn này, bằng `-Pscreenshots=record`; sau lượt đó một sửa đổi chỉ ghi lại những ảnh mà nó làm đổi. Từ đây kiểm thử chạy ở chế độ so mặc định như CI và không còn dùng `-Pscreenshots=compare`.
 - Mỗi màn hình của app có ảnh sáng, và các màn đang có bản tối tiếp tục có bản tối. Bốn màn chính (trang chủ, màn thêm hóa đơn, màn kết quả, màn đòi tiền) và màn xin đồng ý có ảnh chữ cỡ 200%. Sáu ảnh ngôn ngữ giả `en-XA` vẫn còn. Trang mẫu thành phần có ảnh sáng, tối và cỡ chữ 200% (`catalog-large-text`, bài chụp có từ giai đoạn 2).
 - Các trạng thái sau có ảnh, và trạng thái nào chưa có bài chụp thì được thêm ở đây: trang chủ lần đầu (bảng `HomeEmpty`), trang chủ khi chưa đăng nhập, màn hóa đơn với thẻ "Recurring" đang mở, hộp thoại xóa tài khoản (bảng `DeleteAccount`), và bốn màn chính trên máy đặt vùng Việt Nam (`vi-VN`). Không có ảnh màn giấy phép phông, vì app không có màn đó.

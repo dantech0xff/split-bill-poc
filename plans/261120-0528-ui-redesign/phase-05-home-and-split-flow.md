@@ -1,6 +1,6 @@
 ---
 title: "Phase 5: Trang chủ và luồng chia hóa đơn"
-status: in-progress
+status: completed
 phase: 5
 priority: P1
 effort: "6d"
@@ -139,7 +139,7 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 - [x] Phép kiểm thanh che trong `BillSafetyTest`; bài gõ với bàn phím mở trên máy
 - [x] Các bài kiểm thử còn lại của luồng
 - [x] Bốn ảnh cỡ chữ 200% được xem
-- [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
+- [x] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -166,3 +166,32 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 6 chưa bắt đầu; sau đó lỗi của giai đoạn này được sửa bằng commit mới, vì các giai đoạn sau đã dựng trên nó. `ocrDocument` và mọi dữ liệu lưu không đổi dạng, và truy vấn mới của `ProxyCacheDao` không đổi lược đồ, nên hóa đơn cũ vẫn mở được ở cả hai phía.
+
+## Kết quả thực hiện
+
+Làm ngày 20/11/2026, trong các commit `d3e0f2f` (trang chủ và chữ), `8593533` (luồng chia hóa đơn), `72b4158` (sửa theo review trang chủ), `39fa632` (sửa theo review luồng chia) và `25ff1ef` (bài kiểm trên máy với bàn phím).
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare` trên `39fa632`: 626 bài kiểm thử đơn vị của `:app`, cùng các bài của `:core:domain` và `:core:designsystem`, ktlint, lint, các gói, bản dựng kiểm thử trên máy và kiểm tra gói phát hành. `git status --porcelain app/src/test/screenshots` rỗng.
+- Hóa đơn mẫu chia đúng các số của bảng `Result`: tổng 902.664, phần của You 250.993, Minh 400.680, Lan 250.991, và "Request ₫651,671 from 2 people".
+- Kết quả trên máy:
+  - Trên `39fa632`, lượt `device-tests.yml` 44833380303 (Android 14 và hồ sơ khởi động) và 44833380060 (Android 8.0, 11 và 16) đều qua.
+  - Trên `1fe99b2`, hành trình nhập tay hỏng hai lần liền trên Android 8.0: sau "Add an item", hàng mới nằm dưới phần nhìn thấy vì bàn phím vẫn mở, nên danh sách không dựng ô "Item" của nó. `39fa632` cho trình sửa đưa hàng vừa thêm vào tầm nhìn rồi đặt con trỏ vào ô đầu, và cho hành trình cuộn tới ô trước khi chờ.
+  - Bài gõ khi bàn phím mở bị bỏ qua trên Android 14, kể cả sau `25ff1ef`: ảnh hệ thống ATD của máy ảo không có bàn phím. Việc cho bài này chạy được đã ghi vào giai đoạn 8.
+  - Vài lần việc Android 11 hay 16 hỏng ngay khi dựng vì máy của GitHub không tải được plugin Kotlin Compose hay KSP; chạy lại thì qua.
+- Đã sửa sau hai lượt review độc lập ([trang chủ](./reports/review-phase-05-home.md), [luồng chia](./reports/review-phase-05-split-flow.md)); mỗi bài kiểm mới hay được sửa đều được cho chạy hỏng một lần:
+  - Ô nhóm của tài khoản cũ không còn hiện, dù chỉ một khung hình, khi quay lại trang chủ sau khi đăng xuất hay khi một tài khoản khác đăng nhập.
+  - Người gửi yêu cầu trong nhóm được gọi bằng tên mà nhóm biết, như màn Requests, không bằng tên gõ trên yêu cầu.
+  - Danh sách nhóm bỏ trạng thái của nhóm không còn trong danh sách, nhưng chỉ những trạng thái lưu trước lúc danh sách được hỏi.
+  - Nhãn dài của ô nhập không còn đẩy ô xuống dưới tên ở cỡ chữ thường.
+  - Hàng của trình sửa vừa mở bằng một lần chạm hay một lần thêm thì nhận tiêu điểm, nên TalkBack và bàn phím ở lại với hàng đó.
+  - Thẻ đề xuất của AI nằm ngay sau tổng tiền như bảng `ResultProposal`, và danh sách cuộn tới thẻ khi đề xuất về.
+  - Các nút của trang chủ, trạng thái chưa đọc xong hóa đơn và khung hình đầu sau khi đổi tài khoản đều có bài kiểm.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn:
+  - Tiêu đề trang chủ là thành phần mới `SvBrandTopBar` với nút tài khoản `SvAccountButton`, mô tả vẫn là "Settings". Dòng "You owe … to …" là `SvLinkButton`; nút mời chia hóa đơn đầu tiên là `SvPrimaryButton` gọn, cao 52 dp.
+  - Khi chỉ mình nợ, cả khối chính là một nút dẫn sang tab Requests. Khi có nhiều tiền tệ, tiền tệ của máy đứng đầu, rồi tới tiền tệ của yêu cầu mới nhất; các tiền tệ khác thành nhãn nhỏ, không quy đổi. Số dư bằng 0 của nhóm viết "Settled up".
+  - Trên màn kết quả, "Paid the bill" chỉ hiện khi một người trả cả hóa đơn; tên cửa hàng ở thanh trên một dòng, cỡ của bảng `Result`. Màn đòi tiền có nút lùi tròn, đọc là "Back".
+  - Ở cỡ chữ 200%, hàng có tên mà chữ dài nhất không vừa thì xếp ô xuống dưới tên.
+- Còn mở:
+  - Nhãn của nút yêu cầu xuống hai dòng khi có nhiều người, như "Request ₫676,998 from 3 people"; không chữ nào bị cắt.
+  - Hai trạng thái chưa có bảng của trang chủ, chưa đăng nhập và yêu cầu chưa tải xong, trông như khi không có yêu cầu, đúng như plan định; ảnh đã gửi chủ sản phẩm.
+  - Số tiền chưa có dạng đọc riêng cho trình đọc màn hình, như "651,671 dong"; hôm nay trình đọc đọc đúng chữ hiện trên màn.
