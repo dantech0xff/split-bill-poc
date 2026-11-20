@@ -36,6 +36,8 @@ Màn Bills với hai thẻ, bảng lặp lại hóa đơn, thống kê, bảng x
 ## Requirements
 
 - `Bills`: thanh trên có nút lùi; ô tìm; hai thẻ "All bills" và "Recurring" có từ giai đoạn 3; hàng hóa đơn có ô danh mục theo `CategoryStyle`, ngày ngắn của giai đoạn 4, người, số tiền, nhãn "Draft" và menu. Thẻ "Recurring" hiện câu giải thích và các hóa đơn định kỳ như bảng `Recurring`.
+- Hai thẻ "All bills" và "Recurring" được trình đọc màn hình đọc là thẻ (vai `Tab`, đang chọn hay không), như các mục của thanh điều hướng. Ở giai đoạn 3 chúng là một `SvChoiceGroup`, đọc là nút chọn một. Thẻ vẫn nằm trong cùng một danh sách với khóa cố định, để tiêu điểm của trình đọc và bàn phím ở lại thẻ vừa chọn.
+<!-- Updated: Review giai đoạn 3 - hai thẻ của màn Bills đọc là nút chọn một thay vì thẻ -->
 - Bảng lặp lại hóa đơn theo `SheetRepeat`; lặp lại một hóa đơn vẫn đổi sang thẻ "Recurring" ngay tại chỗ, không mở thêm màn nào.
 - `Insights`: màn gốc của tab; lựa chọn kỳ; khối tổng; hai lời nhắc dạng thẻ trắng; biểu đồ cột cho các tháng trong kỳ, có mô tả bằng chữ; danh mục, người và nhóm có thanh tỉ lệ.
 - Nút "Export these bills" là một nút nằm ngay trong nội dung, ở cuối danh sách như bảng `Insights`, không còn là `SvBottomBar`. Sau khi cuộn tới, đáy của nút nằm trên đỉnh thanh điều hướng.

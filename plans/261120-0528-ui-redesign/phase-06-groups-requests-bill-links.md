@@ -31,7 +31,8 @@ Các màn nhóm, yêu cầu trả tiền, cách nhận tiền và liên kết h�
 - Ô nhập trong bảng thêm cách nhận tiền tắt tự sửa chính tả và cắt chữ ở giới hạn độ dài (`PaymentMethodSheet.kt:237-252`). Số tài khoản, IBAN và mã UPI đi qua ô này; mất một trong hai thứ thì bàn phím học các số đó, hoặc máy chủ từ chối chuỗi quá dài. Ô này còn dùng tiền tố và kiểu nhiều dòng, là hai thứ giai đoạn 2 đã cho `SvTextField`. Tắt tự sửa không ngăn bàn phím gợi ý hay học chữ; ô số tài khoản, IBAN và mã UPI dùng `KeyboardType.Password`, vốn là thứ bàn phím coi là nhạy cảm và không học, trong khi chữ vẫn hiện vì `SvTextField` không che chữ. Ô chi tiết nhiều dòng truyền giới hạn 500 ký tự của nó, vì mặc định của `SvTextField` là 80.
 <!-- Updated: Review giai đoạn 2 - kiểu bàn phím cho số tài khoản và giới hạn của ô nhiều dòng -->
 - `GroupsGalleryTest` chờ nhãn "Payment code for VietQR" trước khi chụp (`GroupsGalleryTest.kt:119`); mã QR vẫn phải có nhãn đó.
-- Danh sách của hai màn gốc `Groups` và `Requests` có lề đáy lấy từ chiều cao đo được của thanh điều hướng, đặt ở giai đoạn 3. Dựng lại danh sách không được làm mất lề đó.
+- Ở hai màn gốc `Groups` và `Requests`, thanh điều hướng nằm trong ô `bottomBar` của `Scaffold` và danh sách nhận phần đệm của `Scaffold` làm `Modifier.padding`, không làm `contentPadding`, như giai đoạn 3 đã dựng: danh sách kết thúc phía trên thanh. Dựng lại danh sách không được đổi điều đó; phép kiểm thanh che nội dung ở `GroupsGalleryTest` canh việc này.
+<!-- Updated: Thực hiện giai đoạn 3 - danh sách kết thúc phía trên thanh, không còn lề lấy từ chiều cao đo được -->
 
 ## Requirements
 
