@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +58,7 @@ import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvTicket
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.motion.sharedSurface
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
@@ -76,7 +78,8 @@ import kotlinx.coroutines.withContext
 /**
  * Last step of a split: each person who owes something gets a request of their own through the
  * share sheet, with the amount, what it is for and how to pay it, as a link, a QR code or details.
- * A ticket with the whole split can go to the group chat as an image.
+ * A ticket with the whole split can go to the group chat as an image. The round button at the top
+ * does what Back does on this step, [onBack].
  */
 @Composable
 fun RequestMoneyContent(
@@ -85,6 +88,7 @@ fun RequestMoneyContent(
     viewModel: RequestMoneyViewModel,
     onOpenPaymentMethods: () -> Unit,
     onDone: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     // Read here, where a change of configuration reaches it, for the texts that go to the share sheet.
@@ -113,14 +117,20 @@ fun RequestMoneyContent(
         }
     }
 
-    Scaffold(bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } }) { padding ->
+    Scaffold(
+        // The name on the requests is typed in, so the page ends above the keyboard.
+        modifier = Modifier.imePadding(),
+        // The step's title stands at the top of the page, below the button that leads back.
+        topBar = { SvTopBar(title = null, backLabel = stringResource(R.string.common_back), onBack = onBack) },
+        bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } },
+    ) { padding ->
         // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
             item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xl, bottom = SvSpacing.sm),
+                        .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xs, bottom = SvSpacing.sm),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     // The request button of the step before turns into this mark.

@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -121,7 +122,13 @@ private fun Suggestion(person: Person, onAdd: () -> Unit, onForget: () -> Unit) 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             SvAvatar(person.name)
             Text(person.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
-            SvQuietButton(stringResource(R.string.common_add), onClick = onAdd)
+            // Read with the name, so that several suggestions and the sheet's own button do not all read as "Add".
+            val addLabel = stringResource(R.string.split_add_named, person.name)
+            SvQuietButton(
+                stringResource(R.string.common_add),
+                onClick = onAdd,
+                modifier = Modifier.semantics { contentDescription = addLabel },
+            )
             IconButton(onClick = onForget) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(R.string.split_stop_suggesting, person.name))
             }

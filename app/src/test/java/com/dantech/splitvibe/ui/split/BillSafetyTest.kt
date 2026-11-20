@@ -4,8 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
@@ -130,7 +130,7 @@ class BillSafetyTest {
 
         showSplitScreen(viewModel)
         // The bar holds the main action, which cannot be used while the split has problems.
-        val bar = compose.onNodeWithText("Finish the split").onParent().getBoundsInRoot()
+        val bar = compose.onNodeWithText("Finish the split").onParent().unclippedBounds()
         assertListEndsAbove(bar, lastRow = hasText("You paid", substring = true) and hasClickAction())
 
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(problems.first()))
@@ -144,7 +144,7 @@ class BillSafetyTest {
         repeat(EDITOR_ITEMS) { index -> viewModel.editBill { BillEditor.withItemAdded(it, "Món $index", amountMinor = 10_000) } }
         showSplitScreen(viewModel)
 
-        val bar = compose.onNode(hasText("Done") and hasClickAction()).onParent().getBoundsInRoot()
+        val bar = compose.onNode(hasText("Done") and hasClickAction()).onParent().unclippedBounds()
         assertListEndsAbove(bar, lastRow = hasText("Total printed on the bill") and hasSetTextAction())
     }
 
@@ -274,11 +274,25 @@ class BillSafetyTest {
      */
     private fun assertListEndsAbove(bar: DpRect, lastRow: SemanticsMatcher) {
         val list = compose.onNode(hasScrollToIndexAction())
-        val frame = list.getBoundsInRoot()
+        val frame = list.unclippedBounds()
         assertTrue("The list runs on to ${frame.bottom}, under the top of the bar at ${bar.top}", frame.bottom <= bar.top)
         list.performScrollToNode(lastRow)
-        val last = compose.onNode(lastRow).getBoundsInRoot()
+        // Where the row is as a whole: bounds cut to the list it scrolls in would never reach below the list.
+        val last = compose.onNode(lastRow).unclippedBounds()
         assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
+    }
+
+    /** Where this node lies on the screen as large as it is, not cut to what clips it, such as the list it scrolls in. */
+    private fun SemanticsNodeInteraction.unclippedBounds(): DpRect {
+        val node = fetchSemanticsNode()
+        return with(compose.density) {
+            DpRect(
+                left = node.positionInRoot.x.toDp(),
+                top = node.positionInRoot.y.toDp(),
+                right = (node.positionInRoot.x + node.size.width).toDp(),
+                bottom = (node.positionInRoot.y + node.size.height).toDp(),
+            )
+        }
     }
 
     /** The sample bill read with the recorded answer, split between me, Minh and Lan. */

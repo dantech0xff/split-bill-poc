@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +40,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.tokens.SvPalette
@@ -187,18 +189,24 @@ private val AccountIcon: ImageVector = lineIcon("Account", circle(12f, 8f, 4f) +
  * screen reader, the [title], and at the end an optional [action], one more thing to do with what
  * the screen shows, such as editing the bill. Pass an icon button or an `SvOverflowMenu` as the
  * action; the bar sets it on a round surface like the back button. The title wraps onto more lines
- * rather than being cut off.
+ * rather than being cut off. Without a title the bar holds the back button alone, for a screen whose
+ * title stands at the top of what it shows, such as the step that asks for the money.
+ *
+ * With [oneLineTitle] the title is smaller and keeps to one line, ending in an ellipsis when it is
+ * longer, for a name the app did not choose and that can be long, such as a shop's name read from a
+ * receipt. A screen reader still reads it whole.
  *
  * It stays in place while the content scrolls under it, and keeps clear of the status bar by
  * [windowInsets]; pass `WindowInsets(0)` where something around it already does.
  */
 @Composable
 fun SvTopBar(
-    title: String,
+    title: String?,
     backLabel: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     windowInsets: WindowInsets = TopBarInsets,
+    oneLineTitle: Boolean = false,
     action: (@Composable () -> Unit)? = null,
 ) {
     val ground = LocalSvGround.current
@@ -214,13 +222,19 @@ fun SvTopBar(
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = backLabel)
         }
-        Text(
-            title,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium,
-        )
+        if (title == null) {
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(
+                title,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { heading() },
+                style = if (oneLineTitle) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium,
+                overflow = if (oneLineTitle) TextOverflow.Ellipsis else TextOverflow.Clip,
+                maxLines = if (oneLineTitle) 1 else Int.MAX_VALUE,
+            )
+        }
         if (action != null) {
             // The action brings its own touch target; the round surface is drawn behind it.
             Box(contentAlignment = Alignment.Center) {

@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -205,8 +208,11 @@ private fun PhotoSection(
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
-            val tile = Modifier.weight(1f)
+        // The tiles are as tall as the tallest one, whose label may take two lines on a narrow phone.
+        Row(modifier = Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+            val tile = Modifier
+                .weight(1f)
+                .fillMaxHeight()
             // The scanner stays offered after it failed once: it may only have been getting ready.
             if (activity != null) {
                 SvActionTile(

@@ -347,6 +347,11 @@
 
     <!-- The result of a split, continued -->
     <string name="split_bill_total">Bill total</string>
+    <!-- Beside the date under the bill total: how many people are on the bill -->
+    <plurals name="split_people_count">
+        <item quantity="one">%d person</item>
+        <item quantity="other">%d people</item>
+    </plurals>
     <!-- The title of the card that says what the AI read on the bill and how it split it -->
     <string name="split_what_was_understood">What Split Vibe understood</string>
     <string name="split_about">About %1$s</string>
@@ -403,6 +408,8 @@
     <string name="common_name">Name</string>
     <string name="split_no_contacts">No contacts app is available on this phone. Type the name instead.</string>
     <string name="split_stop_suggesting">Stop suggesting %1$s</string>
+    <!-- What a screen reader says of the button that adds someone suggested to the bill, such as "Add Bao Tran" -->
+    <string name="split_add_named">Add %1$s</string>
     <string name="split_remove_from_bill">Remove from the bill</string>
     <string name="split_item_sheet_hint">%1$s. Choose who had it and how they divide it.</string>
     <string name="common_done">Done</string>

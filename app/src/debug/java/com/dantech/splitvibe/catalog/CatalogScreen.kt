@@ -202,7 +202,7 @@ fun CatalogScreen() {
                 SvSectionHeader(
                     "Top bars",
                     hint = "SvBrandTopBar of the home with SvAccountButton, with a name and without one, SvLargeTopBar of a main " +
-                        "screen, SvTopBar of a screen opened from another.",
+                        "screen, SvTopBar of a screen opened from another: with a title that wraps, one kept to one line, and none.",
                 )
                 SvBrandTopBar(
                     name = "Split Vibe",
@@ -226,6 +226,16 @@ fun CatalogScreen() {
                     windowInsets = WindowInsets(0),
                     action = { IconButton(onClick = {}) { Icon(Icons.Default.Edit, contentDescription = "Edit the bill") } },
                 )
+                // A shop's name read from a receipt, kept to one line; and the bar of a screen whose title is in its content.
+                SvTopBar(
+                    title = "QUÁN ỐC BA MIỀN, 12 NGUYỄN TRÃI, QUẬN 1",
+                    backLabel = "Back",
+                    onBack = {},
+                    windowInsets = WindowInsets(0),
+                    oneLineTitle = true,
+                    action = { IconButton(onClick = {}) { Icon(Icons.Default.Edit, contentDescription = "Edit the bill") } },
+                )
+                SvTopBar(title = null, backLabel = "Back", onBack = {}, windowInsets = WindowInsets(0))
             }
 
             item {

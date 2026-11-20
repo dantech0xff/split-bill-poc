@@ -116,26 +116,38 @@ internal fun DivisionValueInput(
     }
 }
 
+/** Whether a way of dividing gives each person a value of their own to set: a share count, a percentage or an amount. */
+internal val SplitMode.hasValuePerPerson: Boolean
+    get() = this == SplitMode.BY_SHARES || this == SplitMode.BY_PERCENT || this == SplitMode.BY_AMOUNT
+
 /**
  * A person's colour and name with their part in a division beside it, as a sheet lists everyone. With
  * large text, a part too wide to stand beside the name goes below it, across the row, so that no
- * number is cut off.
+ * number is cut off. A way of dividing without a value per person ([hasValuePerPerson]) has no part
+ * to show, and the row then holds the name alone.
  */
 @Composable
 internal fun DivisionValueRow(name: String, mode: SplitMode, value: Long, currency: BillCurrency, onValue: (Long) -> Unit) {
-    SvFieldRow(
-        widths = PERSON_AND_PART,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
-        alignment = Alignment.CenterVertically,
-    ) {
-        Row(modifier = Modifier.heightIn(min = PERSON_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
-            SvAvatar(name)
-            Spacer(Modifier.width(SvSpacing.md))
-            Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
-        }
+    val row = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs)
+    if (!mode.hasValuePerPerson) {
+        PersonName(name, modifier = row)
+        return
+    }
+    SvFieldRow(widths = PERSON_AND_PART, modifier = row, alignment = Alignment.CenterVertically) {
+        PersonName(name)
         DivisionValueInput(name = name, mode = mode, value = value, currency = currency, onValue = onValue)
+    }
+}
+
+/** A person's colour and name, as tall as a row with a part beside it. */
+@Composable
+private fun PersonName(name: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.heightIn(min = PERSON_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
+        SvAvatar(name)
+        Spacer(Modifier.width(SvSpacing.md))
+        Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
     }
 }
 

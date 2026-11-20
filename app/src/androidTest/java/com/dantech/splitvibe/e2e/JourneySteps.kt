@@ -67,6 +67,17 @@ fun SemanticsNodeInteraction.tap(): SemanticsNodeInteraction = performSemanticsA
 fun ComposeTestRule.list(): SemanticsNodeInteraction = onNode(hasScrollToIndexAction())
 
 /**
+ * Waits until the list holds the text field labelled [label], scrolled to it. A row that has just
+ * opened may lie below what the list shows, as with the keyboard open, where the list does not make
+ * its fields until it is scrolled there.
+ */
+fun ComposeTestRule.scrollToField(label: String): SemanticsNodeInteraction {
+    val field = hasSetTextAction() and hasText(label)
+    waitUntil(TIMEOUT_MS) { runCatching { list().performScrollToNode(field) }.isSuccess }
+    return onNode(field)
+}
+
+/**
  * On the first step of a new split: types in a bill from [where] with one [item] of [amount], in
  * the currency the app works in, and goes on to the split, where only the user is on the bill.
  */
@@ -93,11 +104,8 @@ fun ComposeTestRule.fillInTheBill(where: String, item: String, amount: String) {
     field("Where").performTextInput(where)
     list().performScrollToNode(hasText("Add an item"))
     onNodeWithText("Add an item").tap()
-    awaitNode(hasSetTextAction() and hasText("Item"))
-    list().performScrollToNode(hasSetTextAction() and hasText("Item"))
-    field("Item").performTextInput(item)
-    list().performScrollToNode(hasSetTextAction() and hasText("Amount"))
-    field("Amount").performTextInput(amount)
+    scrollToField("Item").performTextInput(item)
+    scrollToField("Amount").performTextInput(amount)
     onNodeWithText("Done").tap()
     awaitNode(hasText("Bill total"))
 }

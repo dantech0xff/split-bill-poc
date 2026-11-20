@@ -36,7 +36,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.LayoutModifier
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
@@ -143,6 +149,7 @@ fun SvTextField(
             Column(verticalArrangement = Arrangement.spacedBy(if (titleLabel) TITLE_LABEL_GAP else LABEL_GAP)) {
                 Text(
                     label,
+                    modifier = Modifier.then(TakesTheFieldsWidth),
                     style = if (titleLabel) typography.titleLarge else typography.smallLabel,
                     color = if (isError && enabled) colors.error else textColor,
                 )
@@ -197,6 +204,7 @@ fun SvTextField(
                 if (supportingText != null) {
                     Text(
                         supportingText,
+                        modifier = Modifier.then(TakesTheFieldsWidth),
                         style = typography.bodySmall,
                         color = if (isError && enabled) colors.error else quietColor,
                     )
@@ -206,6 +214,24 @@ fun SvTextField(
     )
 }
 
+/**
+ * For the text above and below the box of a field, its label and its supporting text: the text takes
+ * the width the field is given and goes on to more lines in it, and asks for no width of its own. Only
+ * the box, with what is typed and what stands beside it, then says how wide the field would like to
+ * be, as when an [SvFieldRow] decides whether fields fit side by side, so a long label never pushes a
+ * field off its row.
+ */
+private object TakesTheFieldsWidth : LayoutModifier {
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+        val placeable = measurable.measure(constraints)
+        return layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+    }
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurable: IntrinsicMeasurable, height: Int): Int = 0
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurable: IntrinsicMeasurable, height: Int): Int = 0
+}
+
 /** The width an [SvFieldRow] gives one of its children while it lays them side by side. */
 sealed interface SvFieldWidth {
     /** A width of its own, such as that of a quantity or of a person's part beside their name. */
@@ -213,8 +239,9 @@ sealed interface SvFieldWidth {
 
     /**
      * A share of what the fixed widths leave, in proportion to [weight], such as a price beside an
-     * amount. With [mustFit] off the child is no field and takes whatever share it gets, such as a
-     * name beside a field, which goes on to more lines instead.
+     * amount. With [mustFit] off the child is no field and takes the share it gets, such as a name
+     * beside a field, which goes on to more lines instead, as long as its longest word or number fits:
+     * one that would be broken in two puts the children one above the other.
      */
     data class Share(val weight: Float, val mustFit: Boolean = true) : SvFieldWidth {
         init {
@@ -229,8 +256,11 @@ sealed interface SvFieldWidth {
  * one does not, as with text at twice its size: a number in a narrow field is then never cut off.
  * [widths] gives each child of [content], in order, its width side by side. The children line up by
  * [alignment], at the bottom unless told otherwise, so that the boxes of fields line up below labels
- * of any length, with [gap] between them, side by side and one above the other. What a field holds
- * decides, so the row may change between the two while a number is typed in.
+ * of any length, with [gap] between them, side by side and one above the other. What is typed in a
+ * field and what stands beside it, such as a currency, decide; a label longer than its field goes on
+ * to more lines instead. So the row may change between the two while a number is typed in, but not
+ * for a long name in a label. What is no field, such as a name, goes on to more lines beside the
+ * fields, between words: a word or number of it too wide for its share decides as a field does.
  */
 @Composable
 fun SvFieldRow(
@@ -253,8 +283,14 @@ fun SvFieldRow(
         val slots = slotsOf(widths, room = width - gaps)
         val sideBySide = slots.all { it >= 0 } &&
             measurables.indices.all { index ->
-                val share = widths[index] as? SvFieldWidth.Share
-                share?.mustFit == false || measurables[index].maxIntrinsicWidth(Constraints.Infinity) <= slots[index]
+                // A field must hold all it shows on one line; what is no field may go on to more lines, but
+                // only between words, so its longest word or number must fit.
+                val needs = if ((widths[index] as? SvFieldWidth.Share)?.mustFit == false) {
+                    measurables[index].minIntrinsicWidth(Constraints.Infinity)
+                } else {
+                    measurables[index].maxIntrinsicWidth(Constraints.Infinity)
+                }
+                needs <= slots[index]
             }
         if (sideBySide) {
             val placeables = measurables.mapIndexed { index, measurable ->

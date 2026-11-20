@@ -16,7 +16,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -25,6 +27,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -33,10 +36,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
@@ -57,6 +64,7 @@ import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
@@ -264,19 +272,28 @@ class ScreenGalleryTest {
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
+        // The shop's name keeps to one line of the top bar, however large the text.
+        val shop = checkNotNull(checkNotNull(viewModel.state.value.result).bill.merchant)
+        val title = compose.onNode(hasText(shop) and isHeading(), useUnmergedTree = true)
+        assertEquals("The shop's name takes more than one line", 1, layoutOf(title).lineCount)
 
         val list = compose.onNode(hasScrollToIndexAction())
         splitByPercent(list)
         // The first person's row, with the field below the name, up under the top bar.
-        list.performScrollToNode(hasSetTextAction() and hasText("Percent for You"))
-        val field = compose.onNode(hasSetTextAction() and hasText("Percent for You")).fetchSemanticsNode().boundsInRoot.top
+        val percent = hasSetTextAction() and hasText("Percent for You")
+        list.performScrollToNode(percent)
+        val field = compose.onNode(percent).fetchSemanticsNode().boundsInRoot.top
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, field - PART_TOP_PX) }
         shot("18-split-by-percent")
+        assertSpansItsRow(compose.onNode(percent).fetchSemanticsNode())
 
         list.performScrollToNode(hasText("You paid", substring = true))
         compose.onNode(hasText("You paid", substring = true) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         compose.onNodeWithText("Several people").performClick()
         shot("19-who-paid")
+        // The user paid the whole bill, a number too wide to stand beside the name at this size. The others'
+        // 0 fits there, and so stays beside their names, as a part that fits does.
+        assertSpansItsRow(compose.onNode(hasSetTextAction() and hasText("Amount for You")).fetchSemanticsNode())
         compose.onNodeWithText("One person").performClick()
         compose.onNodeWithText("Done").performClick()
 
@@ -492,12 +509,33 @@ class ScreenGalleryTest {
         // The user keeps two of the three changes.
         val paid = hasContentDescription("Minh paid the whole bill") and isToggleable()
         compose.onNode(paid).performSemanticsAction(SemanticsActions.OnClick)
-        // The proposed changes up under the top bar, so they show whole above the bottom bar.
-        val list = compose.onNode(hasScrollToIndexAction())
-        list.performScrollToNode(hasText("Proposed changes"))
-        val title = compose.onNodeWithText("Proposed changes").fetchSemanticsNode().boundsInRoot.top
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, title - PROPOSAL_TOP_PX) }
+        // The top of the page, as the approved design draws it: the total, then the proposed changes below it.
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
         shot("31-assistant-proposal")
+    }
+
+    /**
+     * Fails unless the field [node] reaches across its row, as a part too wide for its place beside a
+     * name does, rather than standing beside the name at the width of a part. On each side lie the
+     * screen's margin and, in a list of rows, the row's inset and that of the part, so that is how far
+     * from the edges of the screen it may start and end.
+     */
+    private fun assertSpansItsRow(node: SemanticsNode) {
+        val label = node.config.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text
+        // A sheet is a window of its own, as wide as the screen.
+        val screenRight = context.resources.configuration.screenWidthDp.dp
+        val inset = SvSpacing.screen + SvSpacing.sm * 2
+        val field =
+            with(compose.density) { node.boundsInRoot.let { DpRect(it.left.toDp(), it.top.toDp(), it.right.toDp(), it.bottom.toDp()) } }
+        assertTrue("\"$label\" starts at ${field.left}, not across its row", field.left <= inset + SPAN_SLACK)
+        assertTrue("\"$label\" ends at ${field.right}, not across its row", field.right >= screenRight - inset - SPAN_SLACK)
+    }
+
+    /** How the text of [node] is laid out: its lines as drawn. */
+    private fun layoutOf(node: SemanticsNodeInteraction): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        return results.single()
     }
 
     /** Divides the bill on screen by percent, from the row of the ways to split, which scrolls sideways. */
@@ -760,8 +798,8 @@ private const val BEERS_TOP_PX = 1000f
 /** Where a person's field for their part ends up with large text: below the top bar, with the person's name above it in view. */
 private const val PART_TOP_PX = 520f
 
-/** Where the title of the proposed changes ends up: below the top bar, with the top of its card in view. */
-private const val PROPOSAL_TOP_PX = 220f
+/** How far a field's edge may be from where its row ends, for the rounding of positions to pixels. */
+private val SPAN_SLACK = 1.dp
 
 /** Where the line under the shares ends up: well above the bottom bar. */
 private const val SHARES_TOTAL_BOTTOM_PX = 1500f

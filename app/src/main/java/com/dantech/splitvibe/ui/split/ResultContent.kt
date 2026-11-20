@@ -19,20 +19,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -61,6 +65,7 @@ import com.dantech.splitvibe.designsystem.components.SvTagKind
 import com.dantech.splitvibe.designsystem.components.SvTallyLine
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTopBar
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.motion.SvAmount
 import com.dantech.splitvibe.designsystem.motion.rememberSvEntryState
 import com.dantech.splitvibe.designsystem.motion.rowMotion
@@ -146,6 +151,8 @@ fun ResultContent(
     val sharing = plan.sharingIds
     val entry = rememberSvEntryState()
     val differenceLabel = stringResource(R.string.split_difference)
+    val list = rememberLazyListState()
+    BringProposalIntoView(assistant.proposal, list)
 
     Scaffold(
         // The assistant's field is typed into, so the page ends above the keyboard.
@@ -155,6 +162,8 @@ fun ResultContent(
                 title = bill.merchant ?: stringResource(R.string.common_bill),
                 backLabel = stringResource(R.string.common_back),
                 onBack = actions.onBack,
+                // A shop's name read from a receipt can be long, and the approved design keeps it to one line.
+                oneLineTitle = true,
                 action = {
                     IconButton(onClick = actions.onEditBill) {
                         Icon(SvActionIcons.Pencil, contentDescription = stringResource(R.string.split_edit_bill))
@@ -175,7 +184,7 @@ fun ResultContent(
         // Every row has a key of its own and moves with rowMotion, so when the split changes, a row
         // that comes or goes fades and the rows below it slide to their new places.
         // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding)) {
             item(key = "total") {
                 TotalHero(
                     result = result,
@@ -184,6 +193,28 @@ fun ResultContent(
                         .padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm)
                         .staggeredEntry(entry, index = 0),
                 )
+            }
+            // What the AI proposes stands right below the total, above what each person pays, as the
+            // approved design has it; what an applied change did takes its place there.
+            assistant.proposal?.let { proposal ->
+                item(key = "proposal") {
+                    ProposalCard(
+                        proposal = proposal,
+                        actions = assistantActions,
+                        modifier = rowMotion().padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
+                    )
+                }
+            }
+            assistant.applied?.let { applied ->
+                item(key = "applied") {
+                    SvMessageCard(
+                        text = applied.resolve(),
+                        isError = false,
+                        action = stringResource(R.string.common_undo),
+                        onAction = assistantActions.onUndo,
+                        modifier = rowMotion().padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
+                    )
+                }
             }
             if (result.summary.isNotBlank()) {
                 item(key = "understood") {
@@ -247,7 +278,7 @@ fun ResultContent(
                     )
                 }
             }
-            if (mode == SplitMode.BY_SHARES || mode == SplitMode.BY_PERCENT || mode == SplitMode.BY_AMOUNT) {
+            if (mode.hasValuePerPerson) {
                 item(key = "given") {
                     val division = plan.setup.whole
                     val given = sharing.sumOf { division?.valueOf(it) ?: 0L }
@@ -291,27 +322,6 @@ fun ResultContent(
                         bottom = SvSpacing.xs,
                     ),
                 )
-            }
-            // What the AI made of a change shows where the user asked for it, in view of the field.
-            assistant.applied?.let { applied ->
-                item(key = "applied") {
-                    SvMessageCard(
-                        text = applied.resolve(),
-                        isError = false,
-                        action = stringResource(R.string.common_undo),
-                        onAction = assistantActions.onUndo,
-                        modifier = rowMotion().padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs),
-                    )
-                }
-            }
-            assistant.proposal?.let { proposal ->
-                item(key = "proposal") {
-                    ProposalCard(
-                        proposal = proposal,
-                        actions = assistantActions,
-                        modifier = rowMotion().padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
-                    )
-                }
             }
 
             item(key = "mode") {
@@ -506,7 +516,12 @@ private fun TotalHero(result: SplitResultState, onChangeRate: () -> Unit, modifi
             SvHeroAmount(prefix = parts.prefix, number = parts.number, suffix = parts.suffix, spokenText = bill.format(bill.totalMinor))
         },
     ) {
-        billDayText(bill.date)?.let { day -> SvTag(day) }
+        // The day of the bill and how many people are on it, side by side as the approved design has them.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+            billDayText(bill.date)?.let { day -> SvTag(day) }
+            val people = result.plan.participants.size
+            SvTag(plural(R.plurals.split_people_count, people).resolve())
+        }
         if (result.needsRate) {
             val converted = result.converted(bill.totalMinor)
             val rate = result.exchangeRate
@@ -520,6 +535,33 @@ private fun TotalHero(result: SplitResultState, onChangeRate: () -> Unit, modifi
         }
     }
 }
+
+/**
+ * Brings [proposal] into view in [list] when one comes in, so that the person who asked for it in the
+ * field further down sees it: at once with animations off, otherwise with the list's own scroll. The
+ * field lets go of the focus, and the keyboard closes, since a field with the focus keeps itself in
+ * view and would take the list back down. What the person ticks or unticks in the proposal moves
+ * nothing, and nor does turning the phone.
+ */
+@Composable
+private fun BringProposalIntoView(proposal: ProposalUi?, list: LazyListState) {
+    val reducedMotion = LocalReducedMotion.current
+    val focus = LocalFocusManager.current
+    // What the AI answered, without what the person kept or dropped of it since.
+    val answer = proposal?.let { listOf(it.instruction, it.explanation) + it.edits.map(ProposedEdit::text) }?.hashCode()
+    // The answer the list last brought into view, kept when the phone turns.
+    var shown by rememberSaveable { mutableStateOf(answer) }
+    LaunchedEffect(answer) {
+        if (answer != null && answer != shown) {
+            focus.clearFocus()
+            if (reducedMotion) list.scrollToItem(PROPOSAL_INDEX) else list.animateScrollToItem(PROPOSAL_INDEX)
+        }
+        shown = answer
+    }
+}
+
+/** Where the proposal stands in the result list: the row right below the total, which is the first. */
+private const val PROPOSAL_INDEX = 1
 
 /** What the AI said it understood of the bill when it read it. */
 @Composable
@@ -639,7 +681,7 @@ private fun PersonRow(
     val paid = plan.payments.filter { it.participantId == participant.id }.sumOf { it.amountMinor }
     // Who paid the whole bill carries a tag; a part paid is said with the rest.
     val paidAll = paid != 0L && paid == bill.totalMinor
-    val hasInput = sharing && (mode == SplitMode.BY_SHARES || mode == SplitMode.BY_PERCENT || mode == SplitMode.BY_AMOUNT)
+    val hasInput = sharing && mode.hasValuePerPerson
     val detail = buildList {
         when {
             !sharing -> add(stringResource(R.string.split_not_sharing))

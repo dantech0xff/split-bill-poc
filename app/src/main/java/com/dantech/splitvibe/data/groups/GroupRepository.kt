@@ -63,13 +63,16 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     /**
      * Fetches the list of groups again. The state of a group that is no longer on it goes, unless the
-     * cache was emptied while the list was on its way, as the list itself then is not kept either.
+     * cache was emptied while the list was on its way, as the list itself then is not kept either. A
+     * group joined or created while the list was on its way may not be on it yet, so only a state
+     * kept before the list was asked for goes.
      */
     suspend fun refreshGroups() {
         val answer = call("GET", "v1/groups")
         val groups = ProxyCache.json.decodeFromJsonElement(GroupList.serializer(), checkNotNull(answer.body)).groups
         cache.put(GROUPS, GROUP_LIST, groups, answer.since)
-        cache.removeUnder(GROUP_KEY_PREFIX, keep = groups.map { groupKey(it.id) }.toSet(), since = answer.since)
+        val listed = groups.map { groupKey(it.id) }.toSet()
+        cache.removeUnder(GROUP_KEY_PREFIX, keep = listed, since = answer.since, savedBy = answer.askedAt)
     }
 
     /** Fetches [id] again. A group the caller can no longer read is forgotten. */
@@ -220,20 +223,22 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     /**
      * Calls the proxy, noting the cache's generation first, so an answer that arrives after a sign-out
-     * or a sign-in is not kept for whoever is signed in now. A sign-in the proxy no longer accepts
-     * shows in Settings as one to renew.
+     * or a sign-in is not kept for whoever is signed in now, and the time, so what was kept while the
+     * answer was on its way can be told from what the answer knew of. A sign-in the proxy no longer
+     * accepts shows in Settings as one to renew.
      */
     private suspend fun call(method: String, path: String, body: JsonElement? = null): Answer {
         val since = cache.generation
+        val askedAt = cache.now()
         return try {
-            Answer(api.signedIn(method, path, body), since)
+            Answer(api.signedIn(method, path, body), since, askedAt)
         } catch (e: ProxyException) {
             if (e.code == ProxyApi.SESSION_REFUSED) account.expireSession()
             throw e
         }
     }
 
-    private class Answer(val body: JsonObject?, val since: Long)
+    private class Answer(val body: JsonObject?, val since: Long, val askedAt: Long)
 
     @Serializable
     private data class GroupList(val groups: List<GroupSummary>)

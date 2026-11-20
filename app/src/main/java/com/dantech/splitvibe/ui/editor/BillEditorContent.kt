@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -49,6 +52,7 @@ import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTopBar
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
@@ -80,16 +84,32 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
     // The row open to be changed, kept by the id of its item or charge, so that the same row stays open
     // when rows above it are taken away or the bill changes elsewhere.
     var openRow by rememberSaveable { mutableStateOf<String?>(null) }
+    // The row a tap or an addition has just opened, whose first field then takes the focus, so that a
+    // screen reader and the keyboard move to it with the person. It is not saved: a row that is open
+    // again once the screen comes back, as after the phone turned, leaves the focus where it is.
+    var focusRow by remember { mutableStateOf<String?>(null) }
+    val open = { row: String ->
+        openRow = row
+        focusRow = row
+    }
+    val list = rememberLazyListState()
+    val reducedMotion = LocalReducedMotion.current
     // The rows there were when one was added: the one that is not among them is the new row.
     var rowsBeforeAdding by remember { mutableStateOf<List<String>?>(null) }
     val rows = rowsOf(bill)
     LaunchedEffect(rows) {
         val before = rowsBeforeAdding ?: return@LaunchedEffect
         rows.firstOrNull { it !in before }?.let { added ->
-            openRow = added
             rowsBeforeAdding = null
+            openRow = added
+            // The row added may land below what the list shows, as it does with the keyboard open, where
+            // the list would not even make its fields: the list brings it into view, then its first field
+            // takes the focus.
+            listIndexOf(added, bill)?.let { index -> if (reducedMotion) list.scrollToItem(index) else list.animateScrollToItem(index) }
+            focusRow = added
         }
     }
+    val focused = { focusRow = null }
     val add: ((Bill) -> Bill) -> Unit = { change ->
         rowsBeforeAdding = rows
         onEdit(change)
@@ -103,7 +123,8 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
         bottomBar = { SvBottomBar { SvPrimaryButton(stringResource(R.string.common_done), onClick = onDone) } },
     ) { padding ->
         // The list ends above the bottom bar, so nothing scrolls under it and the keyboard never pushes a field behind it.
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // The places of the rows here are those listIndexOf counts.
+        LazyColumn(state = list, modifier = Modifier.fillMaxSize().padding(padding)) {
             item(key = "bill") {
                 SvCard(
                     modifier = rowMotion()
@@ -173,9 +194,9 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                 val row = itemRow(item.id)
                 val position = SvRowPosition.of(index, itemRows)
                 if (openRow == row) {
-                    OpenItem(item, currency, position, onEdit, modifier = rowMotion())
+                    OpenItem(item, currency, position, onEdit, takesFocus = focusRow == row, onFocused = focused, modifier = rowMotion())
                 } else {
-                    ClosedItem(item, currency, position, onOpen = { openRow = row }, modifier = rowMotion())
+                    ClosedItem(item, currency, position, onOpen = { open(row) }, modifier = rowMotion())
                 }
             }
             item(key = "add item") {
@@ -202,9 +223,17 @@ fun BillEditorContent(bill: Bill, onEdit: ((Bill) -> Bill) -> Unit, onDone: () -
                 val row = chargeRow(charge.id)
                 val position = SvRowPosition.of(index, chargeRows)
                 if (openRow == row) {
-                    OpenCharge(charge, currency, position, onEdit, modifier = rowMotion())
+                    OpenCharge(
+                        charge,
+                        currency,
+                        position,
+                        onEdit,
+                        takesFocus = focusRow == row,
+                        onFocused = focused,
+                        modifier = rowMotion(),
+                    )
                 } else {
-                    ClosedCharge(charge, currency, position, onOpen = { openRow = row }, modifier = rowMotion())
+                    ClosedCharge(charge, currency, position, onOpen = { open(row) }, modifier = rowMotion())
                 }
             }
             item(key = "add charge") {
@@ -251,16 +280,22 @@ private fun ClosedItem(item: BillItem, currency: BillCurrency, position: SvRowPo
     )
 }
 
-/** An item open to be changed: its name and the button that removes it, then its quantity, price each and amount. */
+/**
+ * An item open to be changed: its name and the button that removes it, then its quantity, price each
+ * and amount. With [takesFocus] its name takes the focus, after which [onFocused] says so.
+ */
 @Composable
 private fun OpenItem(
     item: BillItem,
     currency: BillCurrency,
     position: SvRowPosition,
     onEdit: ((Bill) -> Bill) -> Unit,
+    takesFocus: Boolean,
+    onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val name = item.name.ifBlank { stringResource(R.string.editor_this_item) }
+    val firstField = rememberFirstField(takesFocus, onFocused)
     SvOpenListRow(position = position, modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
             // The label stands above the box of the field, so the button lines up with the box rather
@@ -270,7 +305,9 @@ private fun OpenItem(
                     text = item.name,
                     onTextChange = { text -> onEdit { BillEditor.withItemName(it, item.id, text) } },
                     label = stringResource(R.string.common_item),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(firstField),
                 )
                 SvFieldButton(
                     SvActionIcons.Bin,
@@ -331,7 +368,8 @@ private fun ClosedCharge(
 
 /**
  * A charge open to be changed: its label and its amount side by side, lined up at the bottom of their
- * boxes as an item's fields are, and the button that removes it.
+ * boxes as an item's fields are, and the button that removes it. With [takesFocus] its label takes
+ * the focus, after which [onFocused] says so.
  */
 @Composable
 private fun OpenCharge(
@@ -339,8 +377,11 @@ private fun OpenCharge(
     currency: BillCurrency,
     position: SvRowPosition,
     onEdit: ((Bill) -> Bill) -> Unit,
+    takesFocus: Boolean,
+    onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val firstField = rememberFirstField(takesFocus, onFocused)
     // A discount is typed as what it takes off; the bill keeps it as a negative line.
     val shown = if (charge.kind == ChargeKind.DISCOUNT) -charge.amountMinor else charge.amountMinor
     SvOpenListRow(position = position, modifier = modifier) {
@@ -350,6 +391,7 @@ private fun OpenCharge(
                     text = charge.label,
                     onTextChange = { text -> onEdit { BillEditor.withCharge(it, charge.id, text, charge.kind, charge.amountMinor) } },
                     label = stringResource(charge.kind.labelRes),
+                    modifier = Modifier.focusRequester(firstField),
                     // A label left empty is saved as the kind's own name, which is not a change to undo while typing.
                     sameValue = { typed, stored -> typed.trim().ifEmpty { BillEditor.defaultLabel(charge.kind) } == stored.trim() },
                 )
@@ -374,6 +416,37 @@ private fun OpenCharge(
             )
         }
     }
+}
+
+/**
+ * Where [row] stands in the editor's list, which shows the bill's card, its category and the header
+ * of the items first, then the items and the row that adds one, then the header of the charges and the
+ * charges; null for no row of an item or a charge of [bill].
+ */
+private fun listIndexOf(row: String, bill: Bill): Int? {
+    val item = bill.items.indexOfFirst { itemRow(it.id) == row }
+    if (item >= 0) return ROWS_BEFORE_ITEMS + item
+    val charge = bill.charges.indexOfFirst { chargeRow(it.id) == row }
+    return if (charge >= 0) ROWS_BEFORE_ITEMS + bill.items.size + ROWS_BETWEEN_ITEMS_AND_CHARGES + charge else null
+}
+
+/** The bill's card, its category and the header of the items. */
+private const val ROWS_BEFORE_ITEMS = 3
+
+/** The row that adds an item and the header of the charges. */
+private const val ROWS_BETWEEN_ITEMS_AND_CHARGES = 2
+
+/** The first field of a row just opened, which takes the focus once when [takesFocus], after which [onFocused] says so. */
+@Composable
+private fun rememberFirstField(takesFocus: Boolean, onFocused: () -> Unit): FocusRequester {
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(takesFocus) {
+        if (takesFocus) {
+            requester.requestFocus()
+            onFocused()
+        }
+    }
+    return requester
 }
 
 /**

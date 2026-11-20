@@ -272,6 +272,40 @@ class GroupRepositoryTest {
     }
 
     @Test
+    fun `a group joined while the list of groups was on its way keeps its state, and one kept before the list goes`() = runBlocking {
+        var now = 1_000L
+        val cache = ProxyCache(storage.database.proxyCache()) { now }
+        val repository = GroupRepository(proxy.api, cache, proxy.account)
+        // The trip, kept before the list is asked for, which the user was since taken out of elsewhere.
+        server.enqueue(json(GroupFixtures.groupState()))
+        repository.refresh(GROUP_ID)
+
+        val sent = CountDownLatch(1)
+        val answer = CountDownLatch(1)
+        // The list as the proxy made it when it was asked for: without the flat, which is joined after.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                sent.countDown()
+                answer.await(TIMEOUT_S, TimeUnit.SECONDS)
+                return json(listed())
+            }
+        }
+        now = 2_000
+        val refreshing = async(Dispatchers.IO) { repository.refreshGroups() }
+        assertTrue("the list was asked for", sent.await(TIMEOUT_S, TimeUnit.SECONDS))
+
+        // Meanwhile the user joins the flat on this phone, which keeps its state.
+        now = 3_000
+        val flat = ProxyCache.json.decodeFromString(GroupState.serializer(), flat())
+        cache.put("group:$FLAT_ID", GroupState.serializer(), flat, cache.generation)
+        answer.countDown()
+        refreshing.await()
+
+        assertEquals("the flat, joined while the list was on its way", "Flat 3B", repository.cached(FLAT_ID)?.group?.name)
+        assertNull("the trip, kept before the list was asked for", repository.cached(GROUP_ID))
+    }
+
+    @Test
     fun `the latest group comes again only when its own state changes, not with every write to the cache`() = runBlocking {
         server.enqueue(json(GroupFixtures.groupState()))
         groups.refresh(GROUP_ID)

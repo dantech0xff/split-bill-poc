@@ -29,6 +29,9 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
     var generation: Long = 0
         private set
 
+    /** The time the cache stamps what it keeps with now, which a call notes as it goes out. */
+    fun now(): Long = clock()
+
     /** What is kept under [key], read and decoded away from the main thread; null when nothing usable is. */
     fun <T> watch(key: String, serializer: KSerializer<T>): Flow<T?> = dao.watch(key)
         .map { it?.let { entry -> decode(entry, serializer) } }
@@ -60,12 +63,13 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
     suspend fun remove(key: String) = dao.remove(key)
 
     /**
-     * Removes what is kept under the keys that start with [prefix] but those in [keep], unless the
-     * cache was emptied since [since]: what it keeps then belongs to whoever signed in after, which an
-     * answer to a call made before has nothing to say about.
+     * Removes what was kept under the keys that start with [prefix] at [savedBy] or before, but those
+     * in [keep], unless the cache was emptied since [since]: what it keeps then belongs to whoever
+     * signed in after, which an answer to a call made before has nothing to say about. What was kept
+     * after [savedBy], such as while that answer was on its way, stays: the answer does not know it.
      */
-    suspend fun removeUnder(prefix: String, keep: Set<String>, since: Long) = lock.withLock {
-        if (since == generation) dao.removeUnder(prefix, keep.toList())
+    suspend fun removeUnder(prefix: String, keep: Set<String>, since: Long, savedBy: Long) = lock.withLock {
+        if (since == generation) dao.removeUnder(prefix, keep.toList(), savedBy)
     }
 
     suspend fun clear() = lock.withLock {

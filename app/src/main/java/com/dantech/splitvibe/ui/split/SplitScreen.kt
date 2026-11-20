@@ -139,6 +139,8 @@ fun SplitScreen(
                     viewModel = koinViewModel(key = "requests-${shown.result.saved.id}"),
                     onOpenPaymentMethods = onOpenPaymentMethods,
                     onDone = finish,
+                    // What Back does on this step, as the handler above has it.
+                    onBack = finish,
                 )
 
                 is SplitStep.Edit -> BillEditorContent(

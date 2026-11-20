@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
@@ -117,6 +118,8 @@ class SplitFlowTest {
         assertEquals(mapOf("i6" to Division.Equally(among = setOf("p1"))), result.plan.setup.items)
         // The total at the top, which the line below the shares repeats once it is in view.
         compose.onAllNodesWithText(vnd.format(902_664)).onFirst().assertIsDisplayed()
+        // Beside the bill's date below the total: how many people are on the bill.
+        compose.onNodeWithText("3 people").assertIsDisplayed()
 
         // The lazy list: the row of the ways to split scrolls too, sideways.
         val list = compose.onNode(hasScrollToIndexAction())
@@ -174,6 +177,23 @@ class SplitFlowTest {
     }
 
     @Test
+    fun `the round button at the top of the request step leaves the split, as Back does there`() {
+        var left = 0
+        val viewModel = showSplitScreen(onExit = { left++ })
+        compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+        compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        compose.onNodeWithText("Ask for the money").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Back").assert(hasClickAction()).performClick()
+
+        assertEquals("the split was left $left times", 1, left)
+    }
+
+    @Test
     fun `back from the result shows the photo step again, with the photo kept`() {
         val viewModel = showSplitScreen()
         compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
@@ -189,8 +209,8 @@ class SplitFlowTest {
         compose.onNodeWithText("Bill total").assertDoesNotExist()
     }
 
-    /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it. */
-    private fun showSplitScreen(): SplitBillViewModel {
+    /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it, [onExit] called as it is left. */
+    private fun showSplitScreen(onExit: () -> Unit = {}): SplitBillViewModel {
         server.enqueue(Fixtures.proxyAnswer())
         val proxy = TestProxy(server, context)
         val viewModel = testSplitViewModel(
@@ -205,7 +225,7 @@ class SplitFlowTest {
             SplitVibeTheme {
                 SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                     Uri.EMPTY
-                }, scanIntent = { null }, onExit = {}, onOpenSettings = {}, onOpenPro = {})
+                }, scanIntent = { null }, onExit = onExit, onOpenSettings = {}, onOpenPro = {})
             }
         }
         return viewModel

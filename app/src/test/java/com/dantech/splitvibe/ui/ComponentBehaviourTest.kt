@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -127,10 +128,12 @@ import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillItem
+import com.dantech.splitvibe.domain.SplitMode
 import com.dantech.splitvibe.ui.common.CategoryStyle
 import com.dantech.splitvibe.ui.common.NumberField
 import com.dantech.splitvibe.ui.common.style
 import com.dantech.splitvibe.ui.editor.BillEditorContent
+import com.dantech.splitvibe.ui.split.DivisionValueRow
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -982,6 +985,65 @@ class ComponentBehaviourTest {
     }
 
     @Test
+    // A label is as wide as it is drawn, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a part stays beside its name at normal text size, however long the name in its label`() {
+        compose.setContent {
+            SplitVibeTheme {
+                Column {
+                    // A row of what each person pays, and a row of a sheet, as a split by percent shows them.
+                    SvListRow(
+                        position = SvRowPosition.Single,
+                        label = "Nguyễn Văn An, 33.33%",
+                        checked = true,
+                        onCheckedChange = {},
+                        stateDescription = "Shares the bill",
+                        trailing = { SvTextField("33.33", {}, label = "Percent for Nguyễn Văn An", suffix = "%") },
+                        trailingWidth = NUMBER_WIDTH,
+                    ) { Text("Nguyễn Văn An") }
+                    DivisionValueRow(name = "Trần Thị Mai", mode = SplitMode.BY_PERCENT, value = 3_333, currency = VND, onValue = {})
+                }
+            }
+        }
+
+        val rows = listOf("Nguyễn Văn An" to hasContentDescription("Nguyễn Văn An, 33.33%"), "Trần Thị Mai" to hasText("Trần Thị Mai"))
+        for ((name, nameMatcher) in rows) {
+            val label = "Percent for $name"
+            val field = compose.onNode(hasSetTextAction() and hasText(label)).getBoundsInRoot()
+            val beside = compose.onNode(nameMatcher).getBoundsInRoot()
+            assertTrue("The part of $name is not beside the name", field.left >= beside.right && field.top < beside.bottom)
+            assertEquals("The part of $name is not as wide as a part", NUMBER_WIDTH.value, (field.right - field.left).value, BOUNDS_SLACK)
+            // The label is wider than its field, so it is what would have pushed the field off the row.
+            val labelLayout = layoutOf(compose.onNode(hasText(label) and !hasSetTextAction(), useUnmergedTree = true))
+            assertTrue("\"$label\" fits on one line in the part, so this proves nothing", labelLayout.lineCount > 1)
+        }
+    }
+
+    @Test
+    // Whether a title takes one line or more depends on how wide it is drawn, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a top bar keeps a long title to one line when asked to, and lets it wrap otherwise`() {
+        compose.setContent {
+            SplitVibeTheme {
+                Column {
+                    SvTopBar(title = LONG_SHOP_NAME, backLabel = "Back", onBack = {}, windowInsets = WindowInsets(0), oneLineTitle = true)
+                    SvTopBar(title = LONG_SHOP_NAME, backLabel = "Back", onBack = {}, windowInsets = WindowInsets(0))
+                }
+            }
+        }
+
+        val titles = compose.onAllNodes(hasText(LONG_SHOP_NAME) and isHeading(), useUnmergedTree = true)
+        val oneLine = layoutOf(titles[0])
+        assertEquals("The title is not on one line", 1, oneLine.lineCount)
+        assertTrue("The title is cut without an ellipsis", oneLine.isLineEllipsized(0))
+        assertTrue("A title wraps by default", layoutOf(titles[1]).lineCount > 1)
+        // Read whole, ellipsis or not.
+        titles[0].assert(hasText(LONG_SHOP_NAME))
+    }
+
+    @Test
     fun `an action that shows only an icon says its label and leaves room for a finger`() {
         val tapped = mutableListOf<String>()
         compose.setContent {
@@ -1154,6 +1216,12 @@ private val NUMBER_WIDTH = 148.dp
 
 /** How far two edges may differ and still count as one, for rounding to whole pixels. */
 private const val BOUNDS_SLACK = 1f
+
+/** Dong, as the bills of the tests are in. */
+private val VND = BillCurrency("VND", 0)
+
+/** A shop's name as long as a receipt may print it, too long for one line of a top bar's title. */
+private const val LONG_SHOP_NAME = "QUÁN ỐC BA MIỀN, 12 NGUYỄN TRÃI, PHƯỜNG BẾN THÀNH, QUẬN 1"
 
 private const val ROWS = 40
 private const val LAST_ROW = "Row ${ROWS - 1}"
