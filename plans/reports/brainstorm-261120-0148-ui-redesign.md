@@ -138,7 +138,8 @@ trang web cho người nhận liên kết.
 
 ## Câu hỏi còn mở
 
-1. Giữ tím làm màu thương hiệu, hay đổi sang một trong các màu thử trên bảng trang chủ?
-2. Bốn mục điều hướng Home, Groups, Requests, Insights đã đúng chưa?
-3. Định dạng tiền và ngày vẫn chờ quyết định từ trước; bản vẽ đang dùng kiểu tiếng Anh, ví dụ
+1. Chủ sản phẩm bảo vẽ tiếp mà không yêu cầu đổi màu thương hiệu hay điều hướng. Bản vẽ giữ tím
+   và bốn mục Home, Groups, Requests, Insights; cần xác nhận lần cuối khi duyệt.
+2. Định dạng tiền và ngày vẫn chờ quyết định từ trước; bản vẽ đang dùng kiểu tiếng Anh, ví dụ
    "₫902,664" và "Nov 13, 2026".
+3. Có dựng lại và chụp các bảng để soát bố cục trước khi duyệt không?
