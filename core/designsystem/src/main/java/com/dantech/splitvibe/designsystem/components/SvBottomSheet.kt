@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -183,15 +184,15 @@ internal fun TickBox(ticked: Boolean, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         if (ticked) {
-            Icon(
-                Icons.Default.Check,
-                contentDescription = null,
-                modifier = Modifier.size(TICK_SIZE),
-                tint = if (LocalDarkTheme.current) colors.inverseOnSurface else SvTheme.palette.accent,
-            )
+            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(TICK_SIZE), tint = tickColor())
         }
     }
 }
+
+/** The tick of a ticked box and the knob of a switch that is on: lime on ink, and ink on the light box of the dark theme. */
+@Composable
+@ReadOnlyComposable
+internal fun tickColor(): Color = if (LocalDarkTheme.current) MaterialTheme.colorScheme.inverseOnSurface else SvTheme.palette.accent
 
 private val HANDLE_WIDTH = 40.dp
 private val HANDLE_HEIGHT = 5.dp

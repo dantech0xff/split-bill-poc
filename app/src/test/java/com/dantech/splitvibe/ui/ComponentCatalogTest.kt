@@ -10,6 +10,7 @@ import java.io.File
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -20,8 +21,9 @@ import org.robolectric.annotation.GraphicsMode
 @OptIn(ExperimentalRoborazziApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-// Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the floating button.
-@Config(sdk = [34], qualifiers = "w412dp-h4400dp-xhdpi")
+// Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the
+// floating button. The pictures are drawn at 1x: one this tall at 2x does not fit in the memory of the test.
+@Config(sdk = [34], qualifiers = "w412dp-h9000dp-mdpi")
 class ComponentCatalogTest {
 
     @get:Rule
@@ -32,6 +34,14 @@ class ComponentCatalogTest {
 
     @Test
     fun `every component in the dark theme`() = capture("catalog-dark", darkTheme = true)
+
+    /** Text at twice its size must still fit in every component, Vietnamese marks and all. */
+    @Test
+    @Config(qualifiers = "w412dp-h15000dp-mdpi")
+    fun `every component with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        capture("catalog-large-text", darkTheme = false)
+    }
 
     private fun capture(name: String, darkTheme: Boolean) {
         // The catalog shows endless animations. Its clock is moved by hand to a fixed moment, so the

@@ -1,8 +1,6 @@
 package com.dantech.splitvibe.ui.common
 
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,8 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.components.SvTextField
 
 /**
  * A field for something stored as soon as it is typed, such as an item's name. What the person
@@ -38,20 +36,20 @@ internal fun InputField(
 ) {
     var typed by rememberSaveable(label) { mutableStateOf(text) }
     LaunchedEffect(text) { if (!sameValue(typed, text)) typed = text }
-    OutlinedTextField(
+    // The field cuts what is typed at maxLength before it arrives here.
+    SvTextField(
         value = typed,
         onValueChange = { entered ->
-            typed = entered.take(maxLength)
-            onTextChange(typed)
+            typed = entered
+            onTextChange(entered)
         },
+        label = label,
         modifier = modifier,
-        // A label longer than a narrow field, as in another language or with large text, ends in "…"
-        // rather than being cut off; a screen reader reads it whole.
-        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
-        suffix = suffix?.let { { Text(it) } },
-        singleLine = true,
         isError = isError(typed),
+        placeholder = placeholder,
+        suffix = suffix,
+        singleLine = true,
+        maxLength = maxLength,
         keyboardOptions = keyboardOptions,
     )
 }

@@ -53,13 +53,18 @@ fun SvQuietButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 @Composable
 fun SvSmallAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: ImageVector? = null) {
     val palette = SvTheme.palette
-    // An ink pill would not show where the ground is dark itself, in the dark theme and on the
-    // floating bar, so there the pill turns lime and its text ink.
-    val lime = LocalDarkTheme.current || LocalSvGround.current == SvGround.Bar
+    // An ink pill would not show where the ground is dark itself, in the dark theme, on the floating
+    // bar and on a violet block, so there the pill turns lime and its text ink. A lime pill would not
+    // show on a lime block, so there it stays ink in both themes.
+    val lime = when (LocalSvGround.current) {
+        SvGround.Page, SvGround.Card -> LocalDarkTheme.current
+        SvGround.Bar, SvGround.Brand -> true
+        SvGround.Accent -> false
+    }
     val colors = if (lime) {
         ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent)
     } else {
-        ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.inverseSurface, contentColor = palette.accent)
+        ButtonDefaults.buttonColors(containerColor = palette.onAccent, contentColor = palette.accent)
     }
     PillButton(text = text, onClick = onClick, modifier = modifier, enabled = enabled, icon = icon, colors = colors, height = SMALL_HEIGHT)
 }

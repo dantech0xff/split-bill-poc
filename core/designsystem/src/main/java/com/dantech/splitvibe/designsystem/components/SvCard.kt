@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
 import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
+import com.dantech.splitvibe.designsystem.tokens.ShadowColor
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.designsystem.tokens.elevation
@@ -47,14 +48,16 @@ fun SvCard(
 /**
  * What a component sits on. A quiet part of a component, such as a secondary button or a choice
  * that is not chosen, takes a colour that stands out from what is behind it, so that a screen never
- * has to pick one: white on the page, a light grey on a card or a sheet, and a lighter shade of the
- * bar on a floating bar. The main action is lime on a floating bar, where violet would be hard to see.
+ * has to pick one: white on the page, a light grey on a card or a sheet, a lighter shade of the bar
+ * on a floating bar, and a darker shade of a violet or lime block. The main action is lime on a
+ * floating bar and on a violet block, where violet would be hard to see, and ink on a lime block.
  */
-internal enum class SvGround { Page, Card, Bar }
+internal enum class SvGround { Page, Card, Bar, Brand, Accent }
 
 /**
- * Set by the surfaces of the design system: [SvCard], the rows of a group, a notice and a sheet set
- * [SvGround.Card], and [SvBottomBar] sets [SvGround.Bar]. Everything else lies on the page.
+ * Set by the surfaces of the design system: [SvCard], the rows of a group, a notice, a sheet and a
+ * dialog set [SvGround.Card]; [SvBottomBar] and [SvNavBar] set [SvGround.Bar]; [SvHero], [SvTile]
+ * and [SvTicket] set the ground of their own colour. Everything else lies on the page.
  */
 internal val LocalSvGround = staticCompositionLocalOf { SvGround.Page }
 
@@ -66,6 +69,8 @@ internal val SvGround.color: Color
         SvGround.Page -> MaterialTheme.colorScheme.surface
         SvGround.Card -> SvElevation.Level1.surface
         SvGround.Bar -> SvTheme.palette.bar
+        SvGround.Brand -> SvTheme.palette.brand
+        SvGround.Accent -> SvTheme.palette.accent
     }
 
 /** The colour of a quiet control on this ground. */
@@ -84,14 +89,49 @@ internal val SvGround.quiet: Color
 
             // Opaque, so that a ripple or a shadow on it does not mix with the bar a second time.
             SvGround.Bar -> SvTheme.palette.onBar.copy(alpha = BAR_QUIET_ALPHA).compositeOver(SvTheme.palette.bar)
+
+            // A shade of the block, in the colour of shadows, as the tags and buttons on the approved
+            // violet blocks are drawn. Opaque for the same reason as on the bar.
+            SvGround.Brand, SvGround.Accent -> ShadowColor.copy(alpha = BLOCK_QUIET_ALPHA).compositeOver(color)
         }
     }
 
-/** Text and icons on [quiet]. */
+/** Text and icons on [quiet], and on the ground itself. */
 internal val SvGround.onQuiet: Color
     @Composable
     @ReadOnlyComposable
-    get() = if (this == SvGround.Bar) SvTheme.palette.onBar else MaterialTheme.colorScheme.onSurface
+    get() = when (this) {
+        SvGround.Page, SvGround.Card -> MaterialTheme.colorScheme.onSurface
+        SvGround.Bar -> SvTheme.palette.onBar
+        SvGround.Brand -> SvTheme.palette.onBrand
+        SvGround.Accent -> SvTheme.palette.onAccent
+    }
+
+/**
+ * The colour of what is on, filled or chosen on this ground, and of its main action: violet on the
+ * page and on a card, lime on the dark bar and on a violet block, and ink on a lime block.
+ */
+internal val SvGround.active: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = when (this) {
+        SvGround.Page, SvGround.Card -> MaterialTheme.colorScheme.primary
+        SvGround.Bar, SvGround.Brand -> SvTheme.palette.accent
+        SvGround.Accent -> SvTheme.palette.onAccent
+    }
+
+/** Text and icons on [active]. */
+internal val SvGround.onActive: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = when (this) {
+        SvGround.Page, SvGround.Card -> MaterialTheme.colorScheme.onPrimary
+        SvGround.Bar, SvGround.Brand -> SvTheme.palette.onAccent
+        SvGround.Accent -> SvTheme.palette.accent
+    }
 
 /** How much of the bar's text colour lightens a quiet control on the bar, as on the approved designs. */
 private const val BAR_QUIET_ALPHA = 0.11f
+
+/** How much shadow darkens a quiet control on a violet or lime block, as on the approved designs. */
+private const val BLOCK_QUIET_ALPHA = 0.24f

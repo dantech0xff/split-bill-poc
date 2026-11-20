@@ -88,20 +88,26 @@ fun SvBottomBar(modifier: Modifier = Modifier, content: @Composable ColumnScope.
     }
 }
 
-/** The colours of the main action where it sits: lime on the floating bar, violet everywhere else. */
+/**
+ * The colours of the main action where it sits: violet on the page and on a card, lime on the
+ * floating bar and on a violet block, ink on a lime block.
+ */
 @Composable
 internal fun mainActionColors(): ButtonColors {
     val ground = LocalSvGround.current
-    if (ground != SvGround.Bar) return ButtonDefaults.buttonColors()
-    val palette = SvTheme.palette
+    if (ground == SvGround.Page || ground == SvGround.Card) return ButtonDefaults.buttonColors()
     return ButtonDefaults.buttonColors(
-        containerColor = palette.accent,
-        contentColor = palette.onAccent,
-        // A main action that cannot be used yet steps back to the bar's quiet shade, and its label stays readable.
+        containerColor = ground.active,
+        contentColor = ground.onActive,
+        // A main action that cannot be used yet steps back to the quiet shade of what it sits on,
+        // and its label stays readable.
         disabledContainerColor = ground.quiet,
-        disabledContentColor = palette.onBarQuiet,
+        disabledContentColor = if (ground == SvGround.Bar) SvTheme.palette.onBarQuiet else ground.onQuiet.copy(alpha = QUIET_LABEL_ALPHA),
     )
 }
+
+/** How far the label of a main action that cannot be used yet fades on a coloured block. */
+private const val QUIET_LABEL_ALPHA = 0.7f
 
 /** How tall the main action of a screen is, and every other button on the floating bar. */
 internal val MAIN_ACTION_HEIGHT = 56.dp
