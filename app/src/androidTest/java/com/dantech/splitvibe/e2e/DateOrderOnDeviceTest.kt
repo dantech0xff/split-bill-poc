@@ -4,6 +4,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.DateOrder
 import com.dantech.splitvibe.domain.dateOrderOf
+import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -32,7 +34,11 @@ class DateOrderOnDeviceTest {
         val dong = BillCurrency("VND", 0)
 
         val vietnam = onPhone("vi-VN") { dong.format(902_664) }
-        assertTrue("Vietnam: $vietnam", vietnam.indexOf("902.664") in 0 until vietnam.indexOf("₫"))
+        assertTrue("Vietnam: $vietnam", "902.664" in vietnam && "₫" in vietnam)
+        // Recent versions of Android write the dong after the number in Vietnam, and Android 8.0, whose
+        // data about regions is older, writes it before. The app writes it on the side the phone does.
+        val phonesOwn = phonesOwnAmount("vi-VN", "VND", 902_664)
+        assertEquals("Vietnam: $vietnam, where the phone writes $phonesOwn", phonesOwn.symbolFirst("₫"), vietnam.symbolFirst("₫"))
         val unitedStates = onPhone("en-US") { dong.format(902_664) }
         assertTrue("United States: $unitedStates", unitedStates.indexOf("₫") in 0 until unitedStates.indexOf("902,664"))
         val egypt = onPhone("ar-EG") { dong.format(902_664) }
@@ -41,6 +47,17 @@ class DateOrderOnDeviceTest {
         val dollars = onPhone("vi-VN") { BillCurrency("USD", 2).format(123_450) }
         assertTrue("US dollars in Vietnam: $dollars", "$" in dollars && "US$" !in dollars)
     }
+
+    /** How the phone itself writes [whole] units of the currency [code] in the region of [tag], with its own symbol. */
+    private fun phonesOwnAmount(tag: String, code: String, whole: Long): String =
+        NumberFormat.getCurrencyInstance(Locale.forLanguageTag(tag)).apply {
+            currency = Currency.getInstance(code)
+            minimumFractionDigits = 0
+            maximumFractionDigits = 0
+        }.format(whole)
+
+    /** Whether [symbol] comes before the first digit. */
+    private fun String.symbolFirst(symbol: String): Boolean = indexOf(symbol) in 0 until indexOfFirst(Char::isDigit)
 
     /** [block] with the phone set to the region of [tag], as the app reads it, and its own region back after it. */
     private fun <T> onPhone(tag: String, block: () -> T): T {
