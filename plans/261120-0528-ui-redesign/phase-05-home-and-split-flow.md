@@ -1,6 +1,6 @@
 ---
 title: "Phase 5: Trang chủ và luồng chia hóa đơn"
-status: pending
+status: in-progress
 phase: 5
 priority: P1
 effort: "6d"
@@ -125,10 +125,10 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 
 ## Todo
 
-- [ ] `HomeSummary` và `HomeSummaryTest`, có ca `null` so với rỗng
-- [ ] Truy vấn nhóm ghi gần nhất trong `ProxyCacheDao`, `ProxyCache`, `GroupRepository`
-- [ ] `HomeViewModel`, trang chủ theo hai bảng, bốn nơi gọi, bài sau đăng xuất
-- [ ] Chữ theo bảng của quyết định 6, nhãn mới, bài so chuỗi xin đồng ý
+- [x] `HomeSummary` và `HomeSummaryTest`, có ca `null` so với rỗng
+- [x] Truy vấn nhóm ghi gần nhất trong `ProxyCacheDao`, `ProxyCache`, `GroupRepository`
+- [x] `HomeViewModel`, trang chủ theo hai bảng, bốn nơi gọi, bài sau đăng xuất
+- [x] Chữ theo bảng của quyết định 6, nhãn mới, bài so chuỗi xin đồng ý
 - [ ] Màn thêm hóa đơn, đang đọc, xin đồng ý
 - [ ] Màn kết quả theo thứ tự mới
 - [ ] Gỡ phần xem chữ đã gửi; luật cấm tự đặt họ phông

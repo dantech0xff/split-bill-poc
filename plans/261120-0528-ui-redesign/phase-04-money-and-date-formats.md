@@ -1,6 +1,6 @@
 ---
 title: "Phase 4: Tiền và ngày theo vùng của máy"
-status: pending
+status: completed
 phase: 4
 priority: P1
 effort: "3d"
@@ -134,16 +134,16 @@ Kiểm thử mới:
 
 ## Todo
 
-- [ ] Hàm xếp lớp thứ tự ngày và bài kiểm thử trên máy; kết quả API 34 và API 26 được đọc và ghi lại
-- [ ] Nguồn vùng trong `TextLocale.kt`
-- [ ] `BillCurrency`: mặc định theo vùng, ký hiệu tiếng Anh, hàm ba phần, `inputText`; hai khẳng định về số tiền trong bài kiểm thử trên máy
-- [ ] Phần trăm, số lượng, tỉ giá, câu của domain theo vùng
-- [ ] Các hàm ngày theo ba lớp thứ tự
-- [ ] Vùng mặc định en-US cho hai tác vụ kiểm thử; bảng kiểm thử tám vùng
-- [ ] Các tệp của app trong danh sách
-- [ ] Các bài kiểm thử có kỳ vọng đổi
-- [ ] Bài vẽ bốn màn chính ở vùng Việt Nam trong `ScreenGalleryTest`
-- [ ] Cổng kiểm thử, review, kết quả trên máy của commit cuối, ảnh gửi chủ sản phẩm
+- [x] Hàm xếp lớp thứ tự ngày và bài kiểm thử trên máy; kết quả API 34 và API 26 được đọc và ghi lại
+- [x] Nguồn vùng trong `TextLocale.kt`
+- [x] `BillCurrency`: mặc định theo vùng, ký hiệu tiếng Anh, hàm ba phần, `inputText`; hai khẳng định về số tiền trong bài kiểm thử trên máy
+- [x] Phần trăm, số lượng, tỉ giá, câu của domain theo vùng
+- [x] Các hàm ngày theo ba lớp thứ tự
+- [x] Vùng mặc định en-US cho hai tác vụ kiểm thử; bảng kiểm thử tám vùng
+- [x] Các tệp của app trong danh sách
+- [x] Các bài kiểm thử có kỳ vọng đổi
+- [x] Bài vẽ bốn màn chính ở vùng Việt Nam trong `ScreenGalleryTest`
+- [x] Cổng kiểm thử, review, kết quả trên máy của commit cuối, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -166,3 +166,30 @@ Kiểm thử mới:
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 5 chưa bắt đầu; sau đó lỗi của giai đoạn này được sửa bằng commit mới, vì các giai đoạn sau đã dựng trên nó. Không có dữ liệu lưu hay lời gọi máy chủ nào đổi dạng: số gửi đi vẫn là đơn vị nhỏ nhất và mã tiền tệ.
+
+## Kết quả thực hiện
+
+Làm ngày 20/11/2026, trong các commit `1e7063d` (thứ tự ngày của vùng và bài kiểm trên máy), `db150c1` (tiền, số và ngày theo vùng) và `e586166` (sửa bài kiểm trên máy).
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare` trên `db150c1`: 566 bài kiểm thử đơn vị của `:app`, 216 bài của `:core:domain`, 12 bài của `:core:designsystem`, ktlint, lint, các gói và kiểm tra gói phát hành. `git status --porcelain app/src/test/screenshots` rỗng.
+- Kết quả trên máy:
+  - Bước 1, trên `c033470`: lượt `device-tests.yml` 44770414726 (Android 14) và 44770414888 (Android 8.0, 11 và 16). vi-VN là ngày trước, en-US là tháng trước, ja-JP là năm trước, khớp với JDK.
+  - Bước 3 và 10, trên `db150c1`: lượt 44784402368 (Android 14) và 44784400199 (Android 8.0, 11 và 16). Thứ tự ngày, nay đọc từ mẫu `MEDIUM`, qua ở cả bốn bản. Bài về số tiền qua trên Android 11, 14 và 16, và hỏng trên Android 8.0.
+  - Lý do hỏng: máy Android 8.0 đặt vùng Việt Nam viết "₫ 902.664", ký hiệu đứng trước số, vì dữ liệu vùng của bản đó cũ hơn. App chỉ thay ký hiệu và giữ vị trí mà máy dùng, nên đây đúng là quy tắc "theo vùng của máy". `e586166` sửa bài kiểm để so vị trí ký hiệu với cách chính máy viết số tiền.
+  - Trên `d3e0f2f`, có cả bản sửa đó: lượt 44794498316 (Android 14) và 44794497551 (Android 8.0, 11 và 16) đều qua. Ở lần đầu, việc Android 16 hỏng vì máy của GitHub không tải được plugin Kotlin Compose; chạy lại thì qua.
+- Đã sửa sau review độc lập ([báo cáo](./reports/review-phase-04.md)), mỗi bài kiểm mới hay được sửa đều được cho chạy hỏng một lần:
+  - Thứ tự ngày đọc từ mẫu có tên tháng (`MEDIUM`) thay vì mẫu ngắn (`SHORT`). Lý do ở mục Requirements: máy ở Canada hay Thụy Điển không còn viết "2026 Nov 19".
+  - Bài kiểm trên máy kiểm thêm rằng đô la Mỹ trên máy vùng Việt Nam được viết "$", không phải "US$".
+  - Chữ về giá của một lượt gọi AI được dựng lúc hiện, nên đổi vùng thì chữ đổi theo. Tin nhắn mà một view model giữ trong chốc lát vẫn mang dấu của vùng cũ cho tới khi được dựng lại.
+  - Ô nhập tiền dùng dấu thập phân tiền tệ của vùng, như máy ở Thụy Sĩ nói tiếng Pháp.
+  - Ba bài kiểm vốn không thể hỏng được sửa để có thể hỏng.
+  - Thứ tự ngày của vùng hiện hành được giữ sẵn, như nguồn vùng.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn:
+  - Số lượng và phần trăm từ 1.000 trở lên nhận dấu nhóm của vùng, ví dụ "1,500" ở vùng Mỹ.
+  - Một vùng có dấu thập phân khác "." và "," thì ô nhập dùng ".", để cách đọc số gõ vào, vốn giữ nguyên, vẫn đọc được.
+  - Ô tỉ giá giữ độ chính xác cũ; chỉ dấu thập phân đổi.
+- Ảnh gửi chủ sản phẩm: bốn màn ở vùng Việt Nam ("902.664 ₫", "0,2 of a call") và Settings, Pro ở vùng Mỹ ("December 1", "December 17, 2026"). Ngày "13 Nov" của hóa đơn hiện từ giai đoạn 5.
+- Còn mở:
+  - Rủi ro chưa xử lý: ở vùng Việt Nam và Đức, tỉ giá được viết có dấu nhóm, như "25.350". Nếu người dùng gõ lại đúng như vậy vào ô tỉ giá, ô đọc là 25,35, vì cách đọc số gõ vào giữ nguyên như plan định.
+  - `docs/architecture.md` (mục Texts and languages) và `docs/testing.md` còn tả quy tắc cũ; giai đoạn 10 sửa.
+  - Câu hỏi cho chủ sản phẩm: dòng "Amount: …" gửi kèm yêu cầu mang kiểu viết của máy người gửi.
