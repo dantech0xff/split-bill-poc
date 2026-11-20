@@ -10,12 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 
 /**
  * A coloured circle with the person's initials. The same name always gets the same colour, so a
@@ -23,13 +22,13 @@ import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
  */
 @Composable
 fun SvAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
-    val person = PersonColors[Math.floorMod(name.hashCode(), PersonColors.size)]
-    val dark = LocalDarkTheme.current
+    val palette = SvTheme.palette
+    val color = palette.person[Math.floorMod(name.hashCode(), palette.person.size)]
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (dark) person.dark else person.light)
+            .background(color)
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
@@ -38,7 +37,7 @@ fun SvAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
         val initialsSize = with(LocalDensity.current) { (size * 0.36f).toSp() }
         Text(
             text = initials(name),
-            color = if (dark) person.onDark else Color.White,
+            color = palette.onPerson,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = initialsSize, lineHeight = initialsSize),
         )
     }
@@ -53,16 +52,3 @@ internal fun initials(name: String): String {
         else -> (words.first().take(1) + words.last().take(1)).uppercase()
     }
 }
-
-private class PersonColor(val light: Color, val dark: Color, val onDark: Color)
-
-// Six hues spread around the colour wheel, leaving out the violet of the brand. White initials on
-// the light colours and the listed text on the dark ones both have a contrast above 6:1.
-private val PersonColors = listOf(
-    PersonColor(light = Color(0xFFB12938), dark = Color(0xFFFFB3B0), onDark = Color(0xFF680016)),
-    PersonColor(light = Color(0xFF835500), dark = Color(0xFFFEB958), onDark = Color(0xFF442B00)),
-    PersonColor(light = Color(0xFF006D36), dark = Color(0xFF64DE8C), onDark = Color(0xFF003919)),
-    PersonColor(light = Color(0xFF00696F), dark = Color(0xFF00DBE7), onDark = Color(0xFF00373A)),
-    PersonColor(light = Color(0xFF006493), dark = Color(0xFF90CDFF), onDark = Color(0xFF00344E)),
-    PersonColor(light = Color(0xFFA32C81), dark = Color(0xFFFFADE1), onDark = Color(0xFF610049)),
-)

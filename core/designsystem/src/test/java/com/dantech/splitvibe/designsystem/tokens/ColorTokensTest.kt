@@ -18,15 +18,23 @@ class ColorTokensTest {
     @Test
     fun `text is readable on its background in the dark palette`() = DarkColors.assertReadable()
 
+    @Test
+    fun `the colours of Split Vibe's own palette are readable in the light theme`() = LightPalette.assertReadable(LightColors)
+
+    @Test
+    fun `the colours of Split Vibe's own palette are readable in the dark theme`() = DarkPalette.assertReadable(DarkColors)
+
+    private fun ColorScheme.surfaces() = listOf(
+        "surface" to surface,
+        "surfaceContainerLowest" to surfaceContainerLowest,
+        "surfaceContainerLow" to surfaceContainerLow,
+        "surfaceContainer" to surfaceContainer,
+        "surfaceContainerHigh" to surfaceContainerHigh,
+        "surfaceContainerHighest" to surfaceContainerHighest,
+    )
+
     private fun ColorScheme.assertReadable() {
-        val surfaces = listOf(
-            "surface" to surface,
-            "surfaceContainerLowest" to surfaceContainerLowest,
-            "surfaceContainerLow" to surfaceContainerLow,
-            "surfaceContainer" to surfaceContainer,
-            "surfaceContainerHigh" to surfaceContainerHigh,
-            "surfaceContainerHighest" to surfaceContainerHighest,
-        )
+        val surfaces = surfaces()
         val textPairs = buildList {
             add(Triple("onPrimary on primary", onPrimary, primary))
             add(Triple("onPrimaryContainer on primaryContainer", onPrimaryContainer, primaryContainer))
@@ -37,11 +45,14 @@ class ColorTokensTest {
             add(Triple("onError on error", onError, error))
             add(Triple("onErrorContainer on errorContainer", onErrorContainer, errorContainer))
             add(Triple("onBackground on background", onBackground, background))
+            add(Triple("onSurfaceVariant on surfaceVariant", onSurfaceVariant, surfaceVariant))
             add(Triple("inverseOnSurface on inverseSurface", inverseOnSurface, inverseSurface))
             add(Triple("inversePrimary on inverseSurface", inversePrimary, inverseSurface))
             add(Triple("onPrimaryFixed on primaryFixed", onPrimaryFixed, primaryFixed))
             add(Triple("onPrimaryFixedVariant on primaryFixedDim", onPrimaryFixedVariant, primaryFixedDim))
+            add(Triple("onSecondaryFixed on secondaryFixed", onSecondaryFixed, secondaryFixed))
             add(Triple("onSecondaryFixedVariant on secondaryFixedDim", onSecondaryFixedVariant, secondaryFixedDim))
+            add(Triple("onTertiaryFixed on tertiaryFixed", onTertiaryFixed, tertiaryFixed))
             add(Triple("onTertiaryFixedVariant on tertiaryFixedDim", onTertiaryFixedVariant, tertiaryFixedDim))
             for ((name, background) in surfaces) {
                 add(Triple("onSurface on $name", onSurface, background))
@@ -51,15 +62,38 @@ class ColorTokensTest {
                 add(Triple("error on $name", error, background))
             }
         }
-        val tooFaint = textPairs
-            .map { (name, text, background) -> name to contrast(text, background) }
-            .filter { (_, ratio) -> ratio < TEXT_CONTRAST }
-        assertTrue("Text below $TEXT_CONTRAST:1: $tooFaint", tooFaint.isEmpty())
+        assertAllReadable(textPairs)
 
         val faintOutlines = surfaces
             .map { (name, background) -> "outline on $name" to contrast(outline, background) }
             .filter { (_, ratio) -> ratio < OUTLINE_CONTRAST }
         assertTrue("Outline below $OUTLINE_CONTRAST:1: $faintOutlines", faintOutlines.isEmpty())
+    }
+
+    // barOutline is left out on purpose: it is a thin decorative edge from the approved dark design,
+    // and the bar is recognisable without it by its own colour, text and icons.
+    private fun SvPalette.assertReadable(scheme: ColorScheme) {
+        val textPairs = buildList {
+            add(Triple("onBrand on brand", onBrand, brand))
+            add(Triple("onAccent on accent", onAccent, accent))
+            add(Triple("onBar on bar", onBar, bar))
+            add(Triple("onBarQuiet on bar", onBarQuiet, bar))
+            add(Triple("onPerson on notice", onPerson, notice))
+            person.forEachIndexed { index, color -> add(Triple("onPerson on person $index", onPerson, color)) }
+            category.forEachIndexed { index, color -> add(Triple("onPerson on category $index", onPerson, color)) }
+            for ((name, background) in scheme.surfaces()) {
+                add(Triple("moneyIn on $name", moneyIn, background))
+                add(Triple("moneyOut on $name", moneyOut, background))
+            }
+        }
+        assertAllReadable(textPairs)
+    }
+
+    private fun assertAllReadable(pairs: List<Triple<String, Color, Color>>) {
+        val tooFaint = pairs
+            .map { (name, text, background) -> name to contrast(text, background) }
+            .filter { (_, ratio) -> ratio < TEXT_CONTRAST }
+        assertTrue("Text below $TEXT_CONTRAST:1: $tooFaint", tooFaint.isEmpty())
     }
 
     /** The contrast ratio of the accessibility guidelines: 1 for equal colours, 21 for black on white. */

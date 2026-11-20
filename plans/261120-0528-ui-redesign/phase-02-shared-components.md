@@ -77,6 +77,8 @@ Số tiền chính:
 
 Ô nhập, nút phụ và hộp thoại:
 - `SvTextField` nhận `keyboardOptions`, `keyboardActions`, `maxLength`, `isError`, dòng chữ phụ và chữ gợi ý, và không có mặc định nào yếu hơn `ui/common/InputFields.kt:36-44` hôm nay. Nó cũng nhận những phần mà nơi gọi đang dùng: hậu tố (`InputField`), tiền tố và nhiều dòng (`PaymentMethodSheet`), biểu tượng đầu ô (ô tìm của `HistoryScreen`), một chỗ đặt nút ở cuối ô và trạng thái tắt (ô nhập câu lệnh và ô sửa bằng câu của giai đoạn 5).
+- Ô nhập một dòng cắt chữ ở mép khung của dòng. Với Be Vietnam Pro cỡ 16/24, dấu trên của chữ hoa xếp chồng như Ể, Ẩ, Ẳ nhô lên quá khung tới khoảng 1,3 sp, nên tên quán như "QUÁN ỐC BA MIỂN" mất đỉnh dấu. Chữ trong `SvTextField` vì thế có khoảng dòng ít nhất 26 sp ở cỡ 16, và trang mẫu có một ô chứa "Ẳ QUÁN ỐC BA MIỂN" để thấy điều đó ở cả cỡ chữ 200%.
+<!-- Updated: Thực hiện giai đoạn 1 - review thấy dấu chữ hoa bị cắt trong ô nhập một dòng -->
 - Giai đoạn này chỉ chuyển `ui/common/InputFields.kt` sang `SvTextField`, cùng một ngoại lệ: nút `OutlinedButton` nằm trong thanh ở `ui/split/AiConsent.kt:82` chuyển sang `SvQuietButton`, vì màu mới của thanh làm chữ của nó chỉ còn 2,9:1. Mọi chỗ gọi thẳng Material khác trong màn hình do giai đoạn sở hữu gói chuyển: 12 chỗ gọi `AlertDialog` sang `SvDialog`, các nút `FilledTonalButton` sang `SvQuietButton`, cùng các ô nhập, ô chọn và công tắc còn lại, ở giai đoạn 5, 6 và 7.
 - `ui/common/CategoryStyle.kt` (biểu tượng và màu `SvPalette.category` cho từng `BillCategory`) vẫn được tạo ở giai đoạn này.
 

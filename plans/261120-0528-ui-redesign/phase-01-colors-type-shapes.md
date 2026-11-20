@@ -54,7 +54,8 @@ Vai màu của Material. Mọi giá trị màu trong giai đoạn này là đi�
 
 - Mỗi màu thô được khai báo một lần, dưới dạng hằng có tên. Vai màu của Material và `SvPalette` cùng trỏ tới hằng đó, nên chỉnh một giá trị không để lại bản sao cũ.
 - Trạng thái đang chọn của các thành phần `Sv…` dùng `inverseSurface` / `inverseOnSurface`: mực ở giao diện sáng, giấy ở giao diện tối. Khối xanh chanh đặc dùng `SvPalette.accent`.
-- Các vai mà `SvColors.kt` đang đặt nhưng bảng trên không nêu không được bản thiết kế dùng trực tiếp; chúng nhận giá trị cùng họ để không thành phần Material nào lạc tông: `surfaceVariant` bằng `surfaceContainerHigh`, `surfaceDim` bằng `surfaceContainerHighest`, `surfaceBright` bằng `surfaceContainerLowest`, `surfaceTint` bằng `primary`, các vai `*Fixed` theo `primaryContainer` và chữ trên nó, còn `errorContainer` / `onErrorContainer` là sắc nhạt của `error` (xuất phát `#FBE3DE` / `#3B0F08` ở giao diện sáng, `#5A1A10` / `#FFDAD3` ở giao diện tối). `ColorTokensTest` kiểm chữ trên từng vai như với các vai khác.
+- Các vai mà `SvColors.kt` đang đặt nhưng bảng trên không nêu không được bản thiết kế dùng trực tiếp; chúng nhận giá trị cùng họ để không thành phần Material nào lạc tông: `surfaceVariant` bằng `surfaceContainerHigh`, `surfaceTint` bằng `primary`, và `errorContainer` / `onErrorContainer` là sắc nhạt của `error` (xuất phát `#FBE3DE` / `#3B0F08` ở giao diện sáng, `#5A1A10` / `#FFDAD3` ở giao diện tối). `surfaceDim` là bề mặt tối nhất và `surfaceBright` là bề mặt sáng nhất của mỗi giao diện, đúng như tên vai: ở giao diện sáng là `surfaceContainerHighest` và `surfaceContainerLowest`, ở giao diện tối thì ngược lại. Các vai `*Fixed` giống nhau ở hai giao diện như Material định nghĩa: `primaryFixed` theo `primaryContainer` của giao diện sáng, `secondaryFixed` theo `secondaryContainer`, `tertiaryFixed` theo `tertiaryContainer`, cùng chữ trên mỗi vai. `ColorTokensTest` kiểm chữ trên từng vai như với các vai khác.
+<!-- Updated: Thực hiện giai đoạn 1 - surfaceDim, surfaceBright và các vai Fixed theo nghĩa của Material thay cho cách đọc cũ, sau review -->
 
 Bảng màu riêng `SvPalette`, cấp qua `LocalSvPalette` và đọc bằng `SvTheme.palette`:
 
@@ -75,7 +76,7 @@ Bảng màu riêng `SvPalette`, cấp qua `LocalSvPalette` và đọc bằng `Sv
 - `ColorTokensTest` thêm: `onBar` và `onBarQuiet` trên `bar` đạt 4,5:1; chữ trên `brand` và `accent`; `moneyIn` và `moneyOut` trên sáu bề mặt; `onPerson` trên từng màu người; mực trên từng màu danh mục và trên `notice`.
 
 Chữ:
-- Ba họ phông. `display` gồm Bricolage Grotesque Bold 700 và ExtraBold 800, bản 14pt. `displayHero` là tệp ExtraBold bản 96pt, độ đậm 800, chỉ dành cho `displayLarge` và `amountHero`. `text` gồm Be Vietnam Pro 400, 500, 600, 700.
+- Ba họ phông. `display` gồm Bricolage Grotesque Bold 700 và ExtraBold 800, bản 14pt. `displayHero` là tệp ExtraBold bản 96pt, độ đậm 800, chỉ dành cho `displayLarge`, bản Emphasized của nó (không thể đậm hơn nên bằng kiểu gốc) và `amountHero`. `text` gồm Be Vietnam Pro 400, 500, 600, 700.
 - Gán họ cho đủ 30 kiểu của Material 3 Expressive, tức 15 kiểu gốc và 15 bản Emphasized của chúng. `display*`, `headline*`, `titleLarge` và bản Emphasized của chúng dùng `display` 800, riêng `displayLarge` dùng `displayHero`. `titleMedium`, `titleSmall`, `body*`, `label*` và bản Emphasized của chúng dùng `text`. Mỗi bản Emphasized lấy cỡ và khoảng dòng của kiểu gốc tương ứng.
 - Cỡ chính (sp, cỡ/dòng): `displayLarge` 56/60, `displaySmall` 32/36, `headlineMedium` 26/32, `headlineSmall` 24/30, `titleLarge` 20/26, `titleMedium` 16/22, `bodyLarge` 16/24, `bodyMedium` 15/22, `bodySmall` 13/18, `labelLarge` 14/20, `labelMedium` 12/18, `labelSmall` 11/16.
 - Bốn kiểu số tiền được khai báo riêng, đều có `tnum`, không còn dựng từ kiểu Emphasized hay kiểu thân bài: `amountHero` 56/60 thuộc `displayHero`; `amountLarge` 24/28, `amountMedium` 19/24 và `amountSmall` 15/20 thuộc `display`.
@@ -107,7 +108,7 @@ Web:
 - Trang web được thiết kế lại ở giai đoạn 9. Hệ quả: nếu phải phát hành trước khi giai đoạn 9 xong, các trang web mang màu và bóng mới trên bố cục cũ, và việc đó cần chủ sản phẩm đồng ý trước.
 
 Hình khối và mức nổi:
-- `Shapes`: `extraSmall` 8, `small` 12, `medium` 16, `large` 24, `extraLarge` 32 dp. `SvShapes` thêm `pill`, `tile` 14 dp, và góc nhóm ngoài 24 dp, trong 0 dp.
+- `Shapes`: `extraSmall` 8, `small` 12, `medium` 16, `large` 24, `extraLarge` 32 dp. Ba bậc mà các thành phần expressive của Material dùng cũng được đặt để mỗi bậc tròn hơn bậc trước: `largeIncreased` 28, `extraLargeIncreased` 36, `extraExtraLarge` 48 dp. `SvShapes` thêm `pill`, `tile` 14 dp, và góc nhóm ngoài 24 dp, trong 0 dp.
 - `SvElevation` giữ bốn mức và API hiện tại. Mức 1 và 2 phẳng ở giao diện sáng; mức 3 là bóng của thanh nổi (mờ 28 dp, lệch 12 dp, 28% màu mực); mức 4 cho vật đang kéo. Màu bóng là mực, không còn lấy từ `onPrimaryFixed`. Ở giao diện tối, mức vẫn là bề mặt sáng dần.
 - `SvSpacing` thêm `screen` 20 dp cho lề màn hình.
 
@@ -137,13 +138,13 @@ Hình khối và mức nổi:
 
 ## Todo
 
-- [ ] Chín tệp khớp cỡ và mã băm, ba họ phông được khai báo, `FontLoadingTest` qua
+- [x] Chín tệp khớp cỡ và mã băm, ba họ phông được khai báo, `FontLoadingTest` qua
 - [ ] Danh sách mã băm, `FontChecksumsTest`, bước so trong `checksums.yml`; kết quả trên máy GitHub được ghi lại
-- [ ] `SvTypography` đủ 30 kiểu và bốn kiểu số tiền; `TypographyTest` qua
-- [ ] Hằng màu, bảng màu sáng và tối, `SvPalette` có `barOutline`, `SvAvatar` dùng màu người mới
-- [ ] Hình khối, mức nổi, lề màn hình mới
-- [ ] `ColorTokensTest` mở rộng và qua
-- [ ] `WebTokensTest` sửa, `tokens.css` ghi lại và soát khác biệt
+- [x] `SvTypography` đủ 30 kiểu và bốn kiểu số tiền; `TypographyTest` qua
+- [x] Hằng màu, bảng màu sáng và tối, `SvPalette` có `barOutline`, `SvAvatar` dùng màu người mới
+- [x] Hình khối, mức nổi, lề màn hình mới
+- [x] `ColorTokensTest` mở rộng và qua
+- [x] `WebTokensTest` sửa, `tokens.css` ghi lại và soát khác biệt
 - [ ] Cổng kiểm thử qua, ảnh gửi chủ sản phẩm, số đo mức tăng của gói
 
 ## Success Criteria
@@ -167,3 +168,16 @@ Hình khối và mức nổi:
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 2 chưa bắt đầu. Sau đó, lỗi được sửa bằng commit mới, vì các giai đoạn sau dựng trên `SvPalette`, ba họ phông và bộ hình khối này. Không có dữ liệu hay giao kèo nào đổi; `web/src/tokens.css` chỉ tới người dùng ở lần triển khai Worker kế tiếp.
+
+## Kết quả thực hiện
+
+Làm ngày 20/11/2026.
+
+- Chín tệp khớp cỡ và SHA-256 với bảng nguồn gốc khi đặt vào module, và `sha256sum --check --strict` qua với `core/designsystem/font-checksums.sha256`.
+- `FontLoadingTest` đo một kiểu cho mỗi tệp trong bảy tệp phông, ở cỡ 120 sp, so với phông mặc định: cả bảy tệp đều được dùng. Bài thứ hai cho thấy chữ số của Bricolage Grotesque vốn khác bề rộng và chỉ đều nhau nhờ `tnum`. Ở cỡ chữ nhỏ, hai tệp từng trùng bề rộng với phông mặc định vì làm tròn tới số điểm ảnh nguyên, nên bài đo ở cỡ lớn.
+- `res/raw/fonts_keep.xml` giữ hai tệp giấy phép qua bước thu gọn tài nguyên của bản phát hành; tệp `mapping/prodRelease/resources.txt` ghi chúng là còn dùng được qua tệp keep.
+- Gói `prodRelease` chứa đủ bảy tệp phông và hai tệp giấy phép: 905.544 byte khi giải nén, 397.341 byte như được lưu trong gói. Gói dài thêm khoảng 0,4 MB vì phông.
+- `web/src/tokens.css` chỉ đổi ở các biến màu và biến bóng; không biến chữ, hình khối, khoảng cách hay họ phông nào đổi.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn theo bảng thiết kế: `displayMedium` 38/42 và `headlineLarge` 30/36 (giữ thang tăng dần giữa 56 và 26), `titleSmall` 14/20; độ đậm của Be Vietnam Pro là 600 cho tiêu đề nhỏ và nhãn, 400 cho thân bài, bản Emphasized đậm hơn một bậc; khoảng chữ −0,03 em cho cỡ từ 38 sp, −0,02 em cho 24 tới 32 sp, −0,01 em cho 19 tới 20 sp; mức nổi 4 là bóng mực mờ 36 dp, lệch 16 dp, 30%.
+- Đã sửa sau review độc lập ([báo cáo](./reports/review-phase-01.md)): `FontLoadingTest` kiểm đủ bảy tệp và có phép kiểm chữ số không thể qua khi phông rơi về mặc định; việc `fonts` của `checksums.yml` kiểm cả các tệp trong repo, chạy khi tệp phông đổi và chỉ tải qua HTTPS; `.gitattributes` giữ nguyên đầu dòng của hai tệp giấy phép và danh sách mã băm; ba bậc hình khối expressive; bỏ một khai báo `@OptIn` thừa.
+- Còn mở, ghi để giai đoạn 2 xử lý: trong ô nhập một dòng cỡ 16/24, phần dấu trên của chữ hoa xếp chồng như Ể, Ẩ, Ẳ nhô lên quá khung ô tới khoảng 1,3 sp và bị cắt. `SvTextField` của giai đoạn 2 phải cho chữ đủ khoảng dòng.

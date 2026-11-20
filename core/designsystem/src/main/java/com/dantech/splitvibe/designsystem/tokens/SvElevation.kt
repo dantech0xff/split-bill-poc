@@ -15,26 +15,29 @@ import com.dantech.splitvibe.designsystem.theme.LocalDarkTheme
 /**
  * How far a surface floats above the one below it.
  *
- * In the light theme a level is a soft shadow tinted with the accent colour, made of two layers:
- * a wide faint one for the light all around, and a tighter one below for the light from above.
- * In the dark theme shadows are invisible, so a level is a lighter surface instead and nothing
- * is drawn around it.
+ * In the light theme cards lie flat on the page, told apart by their white against the grey
+ * ground, and only what floats over content casts a shadow: a soft ink shadow below it. In the
+ * dark theme shadows are invisible, so a level is a lighter surface instead and nothing is drawn
+ * around it.
  */
-enum class SvElevation(internal val ambient: ShadowLayer, internal val key: ShadowLayer) {
-    /** Rests on the page: a list card. */
-    Level1(ambient = ShadowLayer(6.dp, 0.dp, 0.06f), key = ShadowLayer(2.dp, 1.dp, 0.10f)),
+enum class SvElevation(internal val layers: List<ShadowLayer>) {
+    /** Rests on the page: a list card. Flat. */
+    Level1(layers = emptyList()),
 
-    /** Slightly lifted: a card that can be pressed. */
-    Level2(ambient = ShadowLayer(12.dp, 0.dp, 0.07f), key = ShadowLayer(4.dp, 2.dp, 0.12f)),
+    /** Slightly lifted: a card that can be pressed. Flat in the light theme too. */
+    Level2(layers = emptyList()),
 
-    /** Floats over content: a bottom bar or a floating button. */
-    Level3(ambient = ShadowLayer(20.dp, 0.dp, 0.08f), key = ShadowLayer(8.dp, 4.dp, 0.14f)),
+    /** Floats over content: the floating bars and a floating button. */
+    Level3(layers = listOf(ShadowLayer(radius = 28.dp, offsetY = 12.dp, alpha = 0.28f))),
 
-    /** On top of everything: a dragged item or a dialog. */
-    Level4(ambient = ShadowLayer(32.dp, 0.dp, 0.10f), key = ShadowLayer(12.dp, 8.dp, 0.16f)),
+    /** On top of everything: an item being dragged. */
+    Level4(layers = listOf(ShadowLayer(radius = 36.dp, offsetY = 16.dp, alpha = 0.30f))),
 }
 
 internal class ShadowLayer(val radius: Dp, val offsetY: Dp, val alpha: Float)
+
+/** The colour of every shadow: ink, the colour of the text. */
+internal val ShadowColor = Swatch.Ink
 
 /** The colour of a surface at this level. Light surfaces are all white; dark ones get lighter with each level. */
 val SvElevation.surface: Color
@@ -62,17 +65,13 @@ val SvElevation.surface: Color
 @Composable
 fun Modifier.elevation(level: SvElevation, shape: Shape, strength: () -> Float = { 1f }): Modifier {
     if (LocalDarkTheme.current) return this
-    // The darkest step of the accent ramp, so the shadow carries a hint of the brand colour.
-    val tint = MaterialTheme.colorScheme.onPrimaryFixed
-    return this
-        .shadowLayer(level.ambient, shape, tint, strength)
-        .shadowLayer(level.key, shape, tint, strength)
+    return level.layers.fold(this) { modifier, layer -> modifier.shadowLayer(layer, shape, strength) }
 }
 
-private fun Modifier.shadowLayer(layer: ShadowLayer, shape: Shape, tint: Color, strength: () -> Float) = dropShadow(shape) {
+private fun Modifier.shadowLayer(layer: ShadowLayer, shape: Shape, strength: () -> Float) = dropShadow(shape) {
     val amount = strength().coerceIn(0f, 1f)
     radius = layer.radius.toPx()
-    color = tint
+    color = ShadowColor
     alpha = layer.alpha * amount
     offset = Offset(0f, layer.offsetY.toPx() * amount)
 }

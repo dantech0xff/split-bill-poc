@@ -10,4 +10,7 @@ object SvSpacing {
     val lg = 16.dp
     val xl = 24.dp
     val xxl = 32.dp
+
+    /** The margin between a screen's content and the left and right edges of the screen. */
+    val screen = 20.dp
 }

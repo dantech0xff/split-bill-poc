@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The licence of each bundled font ships with the app, as the SIL Open Font License asks, although
+     no code reads it. Without this, resource shrinking in the release build would remove both files.
+     The build does not package this file itself. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/bricolage_grotesque_ofl,@raw/be_vietnam_pro_ofl" />

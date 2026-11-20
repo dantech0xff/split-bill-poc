@@ -3,6 +3,7 @@ package com.dantech.splitvibe.designsystem.tokens
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -14,9 +15,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The web pages that people open from a link use the app's colours, type, corners, spacing and
- * shadows, as CSS variables in `web/src/tokens.css`. This test writes that file from the tokens
- * here, and fails when the file and the tokens differ. After changing a token, write the file again:
+ * The web pages that people open from a link use the app's colours, spacing and shadows, as CSS
+ * variables in `web/src/tokens.css`. Their type and corners still follow Material's own scales,
+ * which the app used before its redesign, until the pages get a redesign of their own.
+ * This test writes that file from the tokens here, and fails when the file and the tokens differ.
+ * After changing a token, write the file again:
  *
  * ./gradlew :core:designsystem:testDebugUnitTest -PwebTokens=write
  */
@@ -39,7 +42,7 @@ class WebTokensTest {
         appendLine("/* Written from the app's design system by WebTokensTest in core/designsystem. Do not edit by hand. */")
         appendLine(":root {")
         appendLine("  color-scheme: light dark;")
-        // Android draws the type in Roboto; a browser uses the system's own sans-serif face.
+        // The pages carry no font of their own: a browser uses the system's own sans-serif face.
         appendLine("  --sv-font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif;")
         colors(LightColors).forEach { (name, color) -> appendLine("  --sv-$name: ${hex(color)};") }
         typeScale().forEach { (name, style) ->
@@ -50,9 +53,9 @@ class WebTokensTest {
         }
         shapes().forEach { (name, corner) -> appendLine("  --sv-shape-$name: ${px(corner)};") }
         spacing().forEach { (name, space) -> appendLine("  --sv-space-$name: ${px(space.value)};") }
-        val tint = LightColors.onPrimaryFixed
         SvElevation.entries.forEachIndexed { index, level ->
-            appendLine("  --sv-elevation-${index + 1}: ${shadow(level.ambient, tint)}, ${shadow(level.key, tint)};")
+            val shadows = level.layers.joinToString(", ") { shadow(it, ShadowColor) }.ifEmpty { "none" }
+            appendLine("  --sv-elevation-${index + 1}: $shadows;")
             appendLine("  --sv-elevation-${index + 1}-surface: var(--sv-surface-container-lowest);")
         }
         appendLine("}")
@@ -123,7 +126,8 @@ class WebTokensTest {
         )
     }
 
-    private fun typeScale(): List<Pair<String, TextStyle>> = with(SvTypography) {
+    /** Material's own type scale, not the app's: the pages keep their type until they are redesigned. */
+    private fun typeScale(): List<Pair<String, TextStyle>> = with(Typography()) {
         listOf(
             "display-large" to displayLarge,
             "display-medium" to displayMedium,
@@ -143,7 +147,10 @@ class WebTokensTest {
         )
     }
 
-    /** The corners of Material's shape scale, which the app uses as it is, and the app's own. */
+    /**
+     * The corners of Material's default shape scale and the corners of a group of rows as they were
+     * before the app's redesign, so the pages keep their shapes until they are redesigned.
+     */
     private fun shapes(): List<Pair<String, Float>> = with(Shapes()) {
         listOf(
             "extra-small" to corner(extraSmall),
@@ -151,8 +158,8 @@ class WebTokensTest {
             "medium" to corner(medium),
             "large" to corner(large),
             "extra-large" to corner(extraLarge),
-            "group-outer" to SvShapes.groupOuterCorner.value,
-            "group-inner" to SvShapes.groupInnerCorner.value,
+            "group-outer" to WEB_GROUP_OUTER_CORNER,
+            "group-inner" to WEB_GROUP_INNER_CORNER,
         )
     }
 
@@ -185,5 +192,7 @@ class WebTokensTest {
         const val TOKENS_FILE = "../../web/src/tokens.css"
         const val NORMAL_WEIGHT = 400
         const val LARGE_SHAPE = 1000f
+        const val WEB_GROUP_OUTER_CORNER = 20f
+        const val WEB_GROUP_INNER_CORNER = 4f
     }
 }

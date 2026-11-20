@@ -7,6 +7,10 @@ name: Dependency checksums
 # It runs when a library or plugin version changes, also on the branches Dependabot pushes, and on
 # request. It commits nothing: download the artifact, compare it with the file in the repository,
 # and commit it when the difference is only what the version change explains.
+#
+# Its second job checks the fonts the app ships, which are files in the repository and not
+# dependencies, so Gradle never sees them: each is downloaded again from its source at a pinned
+# commit, on this clean machine, and has to match core/designsystem/font-checksums.sha256.
 on:
   workflow_dispatch:
   push:
@@ -15,6 +19,9 @@ on:
       - gradle/wrapper/gradle-wrapper.properties
       - "**/build.gradle.kts"
       - settings.gradle.kts
+      - core/designsystem/font-checksums.sha256
+      - core/designsystem/src/main/res/font/**
+      - core/designsystem/src/main/res/raw/*_ofl.txt
       - .github/workflows/checksums.yml
 
 permissions:
@@ -72,3 +79,38 @@ jobs:
           name: verification-metadata
           path: gradle/verification-metadata.xml
           retention-days: 14
+
+  fonts:
+    name: Check the bundled fonts against their source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Fetched by full commit, never by branch name, into the same paths the list names.
+      - name: Download each font and licence at its pinned commit and compare
+        working-directory: core/designsystem
+        env:
+          BRICOLAGE: https://raw.githubusercontent.com/ateliertriay/bricolage/84745e5b96261ae5f8c6c856e262fe78d1d6efdd
+          BE_VIETNAM_PRO: https://raw.githubusercontent.com/google/fonts/cc5661d43cd4f9aad5567033a8e15ca28dc35c86/ofl/bevietnampro
+        run: |
+          set -euo pipefail
+          # The files in the repository first, then the same files from their source.
+          sha256sum --check --strict font-checksums.sha256
+          fetched="$RUNNER_TEMP/fonts"
+          mkdir -p "$fetched/src/main/res/font" "$fetched/src/main/res/raw"
+          get() { curl --proto '=https' --fail --silent --show-error --location --retry 3 --output "$fetched/$2" "$1"; }
+          get "$BRICOLAGE/fonts/ttf/BricolageGrotesque-Bold.ttf" src/main/res/font/bricolage_grotesque_bold.ttf
+          get "$BRICOLAGE/fonts/ttf/BricolageGrotesque-ExtraBold.ttf" src/main/res/font/bricolage_grotesque_extrabold.ttf
+          get "$BRICOLAGE/fonts/ttf/BricolageGrotesque96pt-ExtraBold.ttf" src/main/res/font/bricolage_grotesque_display_extrabold.ttf
+          get "$BRICOLAGE/OFL.txt" src/main/res/raw/bricolage_grotesque_ofl.txt
+          get "$BE_VIETNAM_PRO/BeVietnamPro-Regular.ttf" src/main/res/font/be_vietnam_pro_regular.ttf
+          get "$BE_VIETNAM_PRO/BeVietnamPro-Medium.ttf" src/main/res/font/be_vietnam_pro_medium.ttf
+          get "$BE_VIETNAM_PRO/BeVietnamPro-SemiBold.ttf" src/main/res/font/be_vietnam_pro_semibold.ttf
+          get "$BE_VIETNAM_PRO/BeVietnamPro-Bold.ttf" src/main/res/font/be_vietnam_pro_bold.ttf
+          get "$BE_VIETNAM_PRO/OFL.txt" src/main/res/raw/be_vietnam_pro_ofl.txt
+          cp font-checksums.sha256 "$fetched/"
+          cd "$fetched"
+          sha256sum --check --strict font-checksums.sha256
