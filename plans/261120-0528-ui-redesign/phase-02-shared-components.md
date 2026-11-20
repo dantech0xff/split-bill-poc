@@ -1,6 +1,6 @@
 ---
 title: "Phase 2: Thành phần dùng chung"
-status: pending
+status: completed
 phase: 2
 priority: P1
 effort: "4d"
@@ -85,7 +85,8 @@ Số tiền chính:
 
 Kiểm thử:
 - `ComponentBehaviourTest` khẳng định rằng tùy chọn bàn phím đi qua `SvTextField` nguyên vẹn và chữ bị cắt ở `maxLength`.
-- Phép kiểm thanh che nội dung, cho cả hai thanh: sau khi cuộn tới phần tử cuối, mép dưới của nó nằm phía trên mép trên của thanh, tính theo tọa độ gốc.
+- Phép kiểm thanh che nội dung, cho cả hai thanh: mép dưới của chính vùng cuộn nằm phía trên mép trên của thanh, tính theo tọa độ gốc, và phần tử cuối vẫn cuộn tới được phía trên thanh. Chỉ xét phần tử cuối thì không thấy được một danh sách cuộn xuống dưới thanh mà chỉ có phần đệm ở cuối.
+<!-- Updated: Review giai đoạn 2 - cả hai thanh nằm trong ô bottomBar, thanh điều hướng không còn báo chiều cao -->
 - `ComponentCatalogTest` thêm ảnh thứ ba, chụp trang mẫu ở cỡ chữ 200%, tên `catalog-large-text`. Ảnh được đọc từ kết quả của chế độ so ngay trong giai đoạn này.
 
 Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biểu tượng có nhãn; không thành phần nào tự chạy khi `LocalReducedMotion` bật; thời lượng lấy từ `SvMotion` và `motionScheme`.
@@ -106,7 +107,8 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 1. Đổi hình dáng các thành phần hiện có theo bảng thứ nhất, giữ nguyên tham số. Tách `SvLargeTopBar` và sửa hai nơi gọi nó: `ui/home/HomeScreen.kt` và `catalog/CatalogScreen.kt`.
 2. `SvBottomBar`: dáng viên thuốc mới, chữ màu `onBar`, và `CompositionLocal` đổi màu cho nút, `SvWorkingRow` và `SvLoadingIndicator`. Soát chín nơi gọi: không nơi nào đổi lời gọi, nút chính trong thanh vẽ `accent`, chữ trong thanh đọc được.
 3. Dựng các thành phần mới theo bảng thứ hai, kể cả `SvDialog`. Mỗi cái kèm chú thích khi nào dùng và một mục trong trang mẫu.
-4. `SvNavBar`: mỗi mục có vai `Tab`, nhãn và trạng thái chọn đọc được; số đếm gộp vào nhãn; nút giữa nhận mô tả từ nơi gọi; quy tắc chữ lớn; báo chiều cao đo được.
+4. `SvNavBar`: mỗi mục có vai `Tab`, nhãn và trạng thái chọn đọc được; số đếm gộp vào nhãn; nút giữa nhận mô tả từ nơi gọi; quy tắc chữ lớn; nằm trong ô `bottomBar` của `Scaffold`, nên không cần báo chiều cao.
+<!-- Updated: Review giai đoạn 2 - cả hai thanh nằm trong ô bottomBar, thanh điều hướng không còn báo chiều cao -->
 5. `SvHeroAmount`: ba phần và câu đọc; tự co từ 56 xuống 20 sp, rồi xuống dòng thứ hai; không cắt chữ.
 6. `SvTextField` với đủ tham số ở mục Requirements; chuyển `ui/common/InputFields.kt` sang nó. Chuyển nút `OutlinedButton` trong thanh ở `ui/split/AiConsent.kt:82` sang `SvQuietButton`. Không đụng chỗ gọi Material nào khác trong màn hình.
 7. Tạo `ui/common/CategoryStyle.kt`.
@@ -115,15 +117,15 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 
 ## Todo
 
-- [ ] Thành phần hiện có đổi hình dáng; `SvLargeTopBar` tách đôi và hai nơi gọi được sửa
-- [ ] `SvBottomBar` mới, nút bên trong vẽ `accent`, chữ bên trong đọc được, chín nơi gọi không đổi
-- [ ] Thành phần mới, kể cả `SvDialog`, và mục trong trang mẫu
-- [ ] `SvNavBar` với vai, số đếm, quy tắc chữ lớn và chiều cao đo được
-- [ ] `SvHeroAmount` ba phần, tự co và xuống dòng
-- [ ] `SvTextField`; `InputFields.kt` chuyển sang nó; nút trong thanh ở `AiConsent.kt:82` thành `SvQuietButton`
-- [ ] `CategoryStyle.kt`
-- [ ] Kiểm thử hành vi, bàn phím, `maxLength` và thanh che nội dung
-- [ ] Ảnh `catalog-large-text`; ba ảnh trang mẫu gửi chủ sản phẩm
+- [x] Thành phần hiện có đổi hình dáng; `SvLargeTopBar` tách đôi và hai nơi gọi được sửa
+- [x] `SvBottomBar` mới, nút bên trong vẽ `accent`, chữ bên trong đọc được, chín nơi gọi không đổi
+- [x] Thành phần mới, kể cả `SvDialog`, và mục trong trang mẫu
+- [x] `SvNavBar` với vai, số đếm và quy tắc chữ lớn, nằm trong ô `bottomBar`
+- [x] `SvHeroAmount` ba phần, tự co và xuống dòng
+- [x] `SvTextField`; `InputFields.kt` chuyển sang nó; nút trong thanh ở `AiConsent.kt:82` thành `SvQuietButton`
+- [x] `CategoryStyle.kt`
+- [x] Kiểm thử hành vi, bàn phím, `maxLength` và thanh che nội dung
+- [x] Ảnh `catalog-large-text`; ba ảnh trang mẫu gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -135,7 +137,8 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 
 ## Risk Assessment
 
-- Thanh che nội dung: `SvBottomBar` ở lại ô `bottomBar` nên nội dung kết thúc phía trên nó; `SvNavBar` nổi trên nội dung, nên màn gốc phải dùng chiều cao mà thanh báo ra. Phép kiểm thanh che nội dung bắt lỗi này.
+- Thanh che nội dung: `SvBottomBar` và `SvNavBar` cùng nằm trong ô `bottomBar`, và danh sách nhận phần đệm của `Scaffold` làm `Modifier.padding`, nên nội dung kết thúc phía trên thanh. Phép kiểm thanh che nội dung so mép dưới của chính vùng cuộn với mép trên của thanh, nên bắt được một danh sách cuộn xuống dưới thanh.
+<!-- Updated: Review giai đoạn 2 - cả hai thanh nằm trong ô bottomBar, thanh điều hướng không còn báo chiều cao -->
 - Nhãn của `SvNavBar` hoặc số tiền chính vẫn bị cắt ở cỡ chữ 200%: dấu hiệu nằm trên ảnh `catalog-large-text_actual.png`. Ứng phó: sửa trong thành phần ngay ở giai đoạn này, không để tới giai đoạn 8.
 - Trong thanh ở `ui/split/AiConsent.kt:82` có một `OutlinedButton` gọi thẳng, thứ mà `CompositionLocal` của thanh không đổi màu được: ở giao diện sáng, chữ `primary` của nó chỉ đạt 2,9:1 trên `bar`, và `SplitFlowOnDeviceTest` chạy kiểm tra trợ năng qua màn này. Vì giai đoạn này là nơi đổi màu thanh, nó chuyển luôn nút đó sang `SvQuietButton`, để không giai đoạn nào kết thúc với một nút khó đọc. Giai đoạn 5 sau đó đưa hai câu trả lời ra khỏi thanh theo bảng `Consent`.
 - `SvTextField` làm yếu bàn phím hoặc mất giới hạn độ dài, khiến số tài khoản đi vào từ điển của bàn phím hoặc giá trị quá dài tới máy chủ: bài kiểm thử về tùy chọn bàn phím và `maxLength` canh việc này.
@@ -144,3 +147,32 @@ Ràng buộc chung: vùng chạm tối thiểu 48 dp; mọi nút chỉ có biể
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 3 chưa bắt đầu. Sau đó, lỗi được sửa bằng commit mới, vì giai đoạn 3 dùng `SvNavBar`, còn các giai đoạn 5 đến 7 dùng `SvDialog`, `SvTextField`, `SvQuietButton` và `CategoryStyle.kt`.
+
+## Kết quả thực hiện
+
+Làm ngày 20/11/2026, trong bốn commit: `ed723d4` (thành phần hiện có mang hình dáng mới, thanh đáy nổi), `4a8bb44` (thành phần mới), `dbc1584` (danh sách kết thúc phía trên thanh đáy) và `130df45` (sửa theo review).
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare` trên `130df45`: 518 bài kiểm thử đơn vị của `:app`, 12 bài của `:core:designsystem`, 200 bài của `:core:domain`, ktlint, lint, các gói và kiểm tra gói phát hành. `git status --porcelain app/src/test/screenshots` rỗng.
+- Lượt `device-tests.yml` 44746212371 trên `130df45`: kiểm thử trên máy ảo Android 14, kèm kiểm tra trợ năng, và việc ghi hồ sơ khởi động đều qua.
+- Lượt trên `4a8bb44` (44728891917) từng hỏng ở `SplitFlowOnDeviceTest`: kiểm tra trợ năng báo một nút chỉ còn cao 26 dp. Nguyên nhân là bốn màn (trình sửa, kết quả, đòi tiền, thống kê) cho danh sách cuộn xuống dưới thanh nổi bằng `contentPadding`, nên nút bị thanh che một phần chỉ còn lộ một dải mỏng. `dbc1584` cho danh sách nhận phần đệm làm `Modifier.padding`, và lượt 44731402258 trên commit đó qua. Từ đó cả hai thanh nằm trong ô `bottomBar` và không gì cuộn xuống dưới chúng; quy tắc này đã ghi vào giai đoạn 3 và 5, và `SvNavBar` không còn báo chiều cao đo được.
+- Đã sửa sau review độc lập ([báo cáo](./reports/review-phase-02.md)); mỗi phép kiểm mới hay được sửa đều được cho chạy trên mã sai một lần, thấy hỏng, rồi mới giữ:
+  - Phép kiểm thanh che nội dung so mép dưới của chính vùng cuộn với mép trên của thanh, cho cả hai thanh và cho màn đòi tiền thật.
+  - Phép kiểm vùng chạm đo kích thước bố cục, thay cho vùng chạm vốn luôn đủ 48 dp. Nó bắt được nút lùi của `SvTopBar` chỉ giữ 44 dp; nút giờ giữ 48 dp quanh vòng tròn 44 dp, nên vòng tròn lùi vào thêm 2 dp so với bảng.
+  - Chú thích của `SvTextField` nói đúng rằng tắt tự sửa không ngăn bàn phím gợi ý hay học chữ, còn `KeyboardType.Password` thì có, và ô vẫn hiện chữ. Trình đọc màn hình vẫn đọc số tài khoản, vì Compose chỉ coi ô là mật khẩu khi chữ bị che.
+  - `SvMessageCard` nằm trên thẻ, bảng hay hộp thoại thì dùng màu trầm của nền đó; độ tương phản của chữ là 16,37:1 ở giao diện sáng và 12,93:1 ở giao diện tối.
+  - Ở chế độ chỉ có biểu tượng, mục đang chọn của thanh điều hướng có thêm một vạch xanh chanh 16×4 dp dưới biểu tượng.
+  - Hàng ba ô số của trình sửa thẳng nhau theo đáy, và nút xóa nằm giữa chiều cao của khung ô.
+  - Ô "Date" và "Total" của trang mẫu rộng hết hàng, và `ComponentCatalogTest` khẳng định trang mẫu không dài quá khung ảnh.
+  - Chồng ảnh đại diện mỗi ô một chữ cái, viền 2 dp.
+  - Chip một hàng tự cuộn tới mục đang chọn: nhảy khi hiện lần đầu, lướt khi đổi lựa chọn, và nhảy khi giảm chuyển động.
+  - Hai bài kiểm lại giới hạn 3 ký tự của ô tiền tệ và 20 ký tự của ô số; chú thích của `SV_TEXT_FIELD_MAX_LENGTH` nhắc ô nhiều dòng phải tự truyền giới hạn.
+- Sửa thêm khi soát lượt sửa, mỗi điều có bài kiểm và đã cho chạy hỏng có chủ ý:
+  - Viền của chồng ảnh đại diện lấy màu của nền nó nằm trên: trắng trên thẻ ở giao diện sáng, `#1C1C21` trên thẻ ở giao diện tối như bảng `DarkResult`, và trắng trên khối tím hay xanh chanh như bảng `Main` và `DarkHome`.
+  - Nhãn của `SvTile` co nhỏ dần, tới 9 sp, thay vì ngắt giữa một từ như "Novemb / er" ở cỡ chữ 200%.
+  - Chú thích của `SvTextField` nói ô nhập chỉ đặt trên trang, thẻ, bảng hay hộp thoại, vì nhãn nằm ngoài khung ô không đổi màu theo thanh tối hay khối màu; không bảng thiết kế nào đặt ô nhập ở những chỗ đó.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn: vòng xoay chờ trong thanh màu xanh chanh; lề hai bên thanh nổi trong suốt; `SvChoiceChips` có thêm kiểu một hàng cuộn ngang; ảnh trang mẫu chụp ở mật độ mdpi trong cửa sổ cao 9.000 dp (sáng, tối) và 15.000 dp (chữ lớn), vì 512 MB bộ nhớ của tiến trình kiểm thử không đủ cho ảnh lớn hơn.
+- Còn mở, cho các giai đoạn sau:
+  - Các điểm Low của review chưa làm: một thẻ có màu riêng vẫn cấp nền thẻ thường, nên viền ảnh đại diện và nút trầm trên đó lấy màu của thẻ trắng; ở giao diện tối thẻ mức 3 trùng màu nút trầm; `BoxWithConstraints` của thanh điều hướng và cỡ chữ cố định của số đếm; vai của nút mũi tên trong nút chia đôi; mô tả lỗi "Invalid input" viết cứng bằng tiếng Anh; `SvDialog` chưa có trong ảnh nào.
+  - Hàng phụ phí của trình sửa chưa căn ô theo đáy; đã ghi vào giai đoạn 5.
+  - `docs/design-system.md:147` còn nói thanh trên co lại khi cuộn; giai đoạn 10 sửa tài liệu.
+  - Ở ảnh `01-home-large-text`, nút nổi "Split a bill" che cuối dòng chữ của trạng thái trống; giai đoạn 3 bỏ nút này.

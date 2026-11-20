@@ -1,6 +1,6 @@
 ---
 title: "Phase 3: Điều hướng với thanh dưới"
-status: pending
+status: in-progress
 phase: 3
 priority: P1
 effort: "3d"
