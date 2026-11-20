@@ -70,7 +70,8 @@ Thành phần mới:
 Thanh đáy và thanh điều hướng:
 - `SvBottomBar` vẫn nằm trong ô `bottomBar` của `Scaffold` ở nơi gọi (riêng ở màn xin đồng ý là cuối cột), và nội dung kết thúc phía trên nó như hôm nay, nên bàn phím không bao giờ che một ô đang nhập sau thanh.
 - `SvBottomBar` cấp một `CompositionLocal` để `SvPrimaryButton` và `SvSplitButton` nằm trong nó vẽ `accent` / `onAccent`. Cùng cơ chế đó cho `SvWorkingRow` và `SvLoadingIndicator` vẽ theo màu của thanh, như bảng `Working`. Chín nơi gọi, không nơi nào phải đổi chữ ký: `ui/editor/BillEditorContent.kt:83`, `ui/split/NewSplitContent.kt:272`, `ui/split/ResultContent.kt:724`, `ui/split/AiConsent.kt:82`, `ui/split/RequestMoneyContent.kt:113`, `ui/paywall/ProScreen.kt:342`, `ui/claim/ClaimScreen.kt:406`, `ui/insights/InsightsScreen.kt:123` (giai đoạn 7 thay bằng một nút nằm trong nội dung) và `app/src/debug/java/com/dantech/splitvibe/catalog/CatalogScreen.kt:96`.
-- `SvNavBar` ở chữ lớn: khi có một nhãn không vừa một dòng, cả thanh chỉ hiện biểu tượng, và các nhãn ở lại làm tên trợ năng. Thanh báo chiều cao đo được của mình, để màn gốc đặt `contentPadding` đáy cho danh sách.
+- `SvNavBar` ở chữ lớn: khi có một nhãn không vừa một dòng, cả thanh chỉ hiện biểu tượng, và các nhãn ở lại làm tên trợ năng. Thanh nằm trong ô `bottomBar` của `Scaffold` ở màn gốc, như `SvBottomBar`, và danh sách của màn kết thúc phía trên nó: không gì cuộn xuống dưới hai thanh.
+<!-- Updated: Review giai đoạn 2 - nội dung cuộn dưới thanh nổi làm kiểm tra trợ năng trên máy hỏng, nên cả hai thanh nằm trong ô bottomBar -->
 
 Số tiền chính:
 - Ký hiệu tiền tệ đứng trước hay sau số tùy vùng của máy (giai đoạn 4), nên `SvHeroAmount` nhận cả tiền tố và hậu tố. Chữ tự co từ 56 xuống 20 sp trên một dòng; nếu vẫn không vừa thì xuống dòng thứ hai; không bao giờ bị cắt.

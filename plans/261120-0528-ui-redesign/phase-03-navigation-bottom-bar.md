@@ -41,7 +41,8 @@ Ngăn xếp và thanh:
 - Lùi ở một màn gốc khác Home gỡ màn đó khỏi ngăn xếp nên về Home, đúng như `remove(key)` hôm nay vẫn làm; lùi ở Home thoát app. Vị trí cuộn của một màn gốc không được giữ khi chọn tab khác.
 - Thanh chỉ hiện ở bốn màn gốc. Bốn màn gốc nhận một ô `bottomBar`, mặc định rỗng, và mất nút lùi riêng: `GroupsScreen.onBack`, `RequestActions.onBack`, `InsightsActions.onBack`. Nơi gọi trong kiểm thử phải sửa trong giai đoạn này: `ui/GroupsGalleryTest.kt:79` và `:194`, `ui/SpendingGalleryTest.kt:118`.
 - `InsightsScreen` hôm nay đã đặt `SvBottomBar` của "Export these bills" trong ô đó (`InsightsScreen.kt:123`). Cho tới khi giai đoạn 7 đưa nút này vào nội dung, hai thanh xếp chồng theo chiều dọc trong cùng ô, thanh điều hướng ở dưới, để không cái nào che cái nào.
-- Danh sách của bốn màn gốc nhận `contentPadding` đáy bằng chiều cao đo được của thanh, không dùng một hằng số, vì thanh cao lên theo cỡ chữ. Phép kiểm thanh che nội dung của giai đoạn 2 được áp cho một màn gốc.
+- Thanh nằm trong ô `bottomBar` của `Scaffold` ở bốn màn gốc, và danh sách của màn gốc dùng phần đệm của `Scaffold` làm `Modifier.padding`, không làm `contentPadding`: danh sách kết thúc phía trên thanh, nên không gì cuộn xuống dưới nó. Lý do: khi nội dung cuộn dưới một thanh nổi có lề trong suốt, một nút bị che một phần chỉ còn lộ một dải mỏng, và kiểm tra trợ năng trên máy coi dải đó là vùng chạm quá nhỏ (lỗi đã gặp ở giai đoạn 2, sửa ở commit `dbc1584`). Phép kiểm thanh che nội dung của giai đoạn 2 được áp cho một màn gốc.
+<!-- Updated: Review giai đoạn 2 - thanh điều hướng nằm trong ô bottomBar thay cho contentPadding bằng chiều cao đo được -->
 
 Nút giữa và nhãn:
 - Nút giữa gọi `startNewSplit()` rồi mở `SplitKey` phía trên màn gốc đang đứng; lùi trở về đúng màn gốc đó. Nó mang `SPLIT_SURFACE` thay cho nút nổi của Home.

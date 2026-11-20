@@ -61,6 +61,8 @@ Luồng chia hóa đơn:
 - Trình sửa hóa đơn: món và phụ phí là hàng, mỗi lúc một hàng mở để sửa. Hàng đang mở được giữ bằng id của món hoặc phụ phí trong `rememberSaveable`, và hàng vừa thêm tự mở. Phần "Total" giữ nguyên hành vi.
 - Màn đòi tiền: dấu thành công, thẻ vé để chia sẻ, lời nhắc thêm cách nhận tiền, hàng từng người với nút "Send". Ảnh chia sẻ dùng thẻ vé mới.
 - Màn kết quả và trình sửa đặt `SvBottomBar` trong ô `bottomBar` của `Scaffold`; hàng cuối và ô đang gõ không nằm dưới thanh, kể cả khi bàn phím mở.
+- Ô số hẹp có hậu tố tiền tệ, như ô số tiền và phần trăm của `DivisionInputs.kt` (148 dp) và ba ô số lượng, đơn giá, thành tiền của trình sửa, không được cắt số ở cỡ chữ 200%: ở chữ lớn chúng xếp xuống dòng (`FlowRow` hoặc xếp dọc), hoặc mã tiền tệ chuyển vào nhãn. Ảnh chữ lớn của màn kết quả, bảng chia theo phần trăm và trình sửa cho thấy điều đó.
+<!-- Updated: Review giai đoạn 2 - số bị cắt trong ô hẹp ở cỡ chữ 200% -->
 
 Chữ, theo bảng của quyết định 6:
 
