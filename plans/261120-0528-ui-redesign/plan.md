@@ -1,7 +1,7 @@
 ---
 title: "Split Vibe: đưa giao diện mới vào app và trang web"
 description: "Mười giai đoạn đưa bản thiết kế lại đã duyệt vào app Android và các trang web: bảng màu, phông chữ, thành phần, thanh điều hướng dưới, tiền và ngày theo vùng của máy, từng nhóm màn hình, kiểm thử, trang web và tài liệu."
-status: pending
+status: in-progress
 priority: P1
 effort: "36d"
 branch: feat/ui-redesign
@@ -122,7 +122,7 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 
 | # | Phase | Effort | Status |
 |---|-------|--------|--------|
-| 1 | [Nền tảng: màu, chữ, hình khối](./phase-01-colors-type-shapes.md) | 3d | Pending |
+| 1 | [Nền tảng: màu, chữ, hình khối](./phase-01-colors-type-shapes.md) | 3d | Completed |
 | 2 | [Thành phần dùng chung](./phase-02-shared-components.md) | 4d | Pending |
 | 3 | [Điều hướng với thanh dưới](./phase-03-navigation-bottom-bar.md) | 3d | Pending |
 | 4 | [Tiền và ngày theo vùng của máy](./phase-04-money-and-date-formats.md) | 3d | Pending |

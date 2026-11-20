@@ -1,6 +1,6 @@
 ---
 title: "Phase 1: Nền tảng: màu, chữ, hình khối"
-status: pending
+status: completed
 phase: 1
 priority: P1
 effort: "3d"
@@ -139,13 +139,13 @@ Hình khối và mức nổi:
 ## Todo
 
 - [x] Chín tệp khớp cỡ và mã băm, ba họ phông được khai báo, `FontLoadingTest` qua
-- [ ] Danh sách mã băm, `FontChecksumsTest`, bước so trong `checksums.yml`; kết quả trên máy GitHub được ghi lại
+- [x] Danh sách mã băm, `FontChecksumsTest`, bước so trong `checksums.yml`; kết quả trên máy GitHub được ghi lại
 - [x] `SvTypography` đủ 30 kiểu và bốn kiểu số tiền; `TypographyTest` qua
 - [x] Hằng màu, bảng màu sáng và tối, `SvPalette` có `barOutline`, `SvAvatar` dùng màu người mới
 - [x] Hình khối, mức nổi, lề màn hình mới
 - [x] `ColorTokensTest` mở rộng và qua
 - [x] `WebTokensTest` sửa, `tokens.css` ghi lại và soát khác biệt
-- [ ] Cổng kiểm thử qua, ảnh gửi chủ sản phẩm, số đo mức tăng của gói
+- [x] Cổng kiểm thử qua, ảnh gửi chủ sản phẩm, số đo mức tăng của gói
 
 ## Success Criteria
 
@@ -174,6 +174,9 @@ Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn
 Làm ngày 20/11/2026.
 
 - Chín tệp khớp cỡ và SHA-256 với bảng nguồn gốc khi đặt vào module, và `sha256sum --check --strict` qua với `core/designsystem/font-checksums.sha256`.
+- Trên máy của GitHub, việc `fonts` của lượt `checksums.yml` 44709397683 (commit `6cbf6b8`) qua: chín tệp trong repo và chín tệp tải lại từ nguồn theo commit ghim đều khớp danh sách.
+- Lượt `device-tests.yml` 44709397725 trên commit `6cbf6b8`: việc trên máy ảo Android 14, kèm kiểm tra trợ năng với bảng màu và phông mới, qua. Việc ghi hồ sơ khởi động hỏng ở lần đầu vì máy của GitHub không tải được plugin Kotlin Compose từ kho Maven, rồi qua khi chạy lại.
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare`: 495 bài kiểm thử đơn vị của `:app`, 12 bài của `:core:designsystem`, ktlint, lint, các gói, kiểm tra gói phát hành, và các lệnh của việc `proxy` cùng kiểm thử web.
 - `FontLoadingTest` đo một kiểu cho mỗi tệp trong bảy tệp phông, ở cỡ 120 sp, so với phông mặc định: cả bảy tệp đều được dùng. Bài thứ hai cho thấy chữ số của Bricolage Grotesque vốn khác bề rộng và chỉ đều nhau nhờ `tnum`. Ở cỡ chữ nhỏ, hai tệp từng trùng bề rộng với phông mặc định vì làm tròn tới số điểm ảnh nguyên, nên bài đo ở cỡ lớn.
 - `res/raw/fonts_keep.xml` giữ hai tệp giấy phép qua bước thu gọn tài nguyên của bản phát hành; tệp `mapping/prodRelease/resources.txt` ghi chúng là còn dùng được qua tệp keep.
 - Gói `prodRelease` chứa đủ bảy tệp phông và hai tệp giấy phép: 905.544 byte khi giải nén, 397.341 byte như được lưu trong gói. Gói dài thêm khoảng 0,4 MB vì phông.
