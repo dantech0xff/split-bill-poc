@@ -59,12 +59,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
+import com.dantech.splitvibe.designsystem.components.SvAccountButton
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
+import com.dantech.splitvibe.designsystem.components.SvBrandTopBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChartBar
 import com.dantech.splitvibe.designsystem.components.SvCheckbox
@@ -185,7 +187,21 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Top bars", hint = "SvLargeTopBar of a main screen, SvTopBar of a screen opened from another.")
+                SvSectionHeader(
+                    "Top bars",
+                    hint = "SvBrandTopBar of the home with SvAccountButton, with a name and without one, SvLargeTopBar of a main " +
+                        "screen, SvTopBar of a screen opened from another.",
+                )
+                SvBrandTopBar(
+                    name = "Split Vibe",
+                    windowInsets = WindowInsets(0),
+                    actions = { SvAccountButton(name = "Dana", label = "Settings", onClick = {}) },
+                )
+                SvBrandTopBar(
+                    name = "Split Vibe",
+                    windowInsets = WindowInsets(0),
+                    actions = { SvAccountButton(name = "", label = "Settings", onClick = {}) },
+                )
                 SvLargeTopBar(
                     title = "Requests",
                     windowInsets = WindowInsets(0),
@@ -217,7 +233,13 @@ fun CatalogScreen() {
                 }
             }
 
-            item { SvSectionHeader("Grouped rows", hint = "SvListRow, with SvAvatar and an amount.") }
+            item {
+                SvSectionHeader(
+                    "Grouped rows",
+                    hint = "SvListRow, with SvAvatar and an amount, under an SvSectionHeader with an action.",
+                    action = { SvTextAction("See all", onClick = {}) },
+                )
+            }
             itemsIndexed(SAMPLE_PEOPLE) { index, name ->
                 val amount = 250_000L + index * 75_340L
                 SvListRow(

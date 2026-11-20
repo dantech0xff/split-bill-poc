@@ -28,11 +28,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 
 /**
  * The top bar of a main screen, one that the navigation bar leads to: its large title, and at the
@@ -60,6 +69,99 @@ fun SvLargeTopBar(
         Row(verticalAlignment = Alignment.CenterVertically, content = actions)
     }
 }
+
+/**
+ * The top bar of the app's home: the app's mark and its [name], and at the end what leads away from
+ * the home as a whole, such as an [SvAccountButton]. The name wraps onto more lines rather than
+ * being cut off, and a screen reader reads it as the title of the screen; the mark is decorative.
+ *
+ * It stays in place while the content scrolls under it, and keeps clear of the status bar by
+ * [windowInsets]; pass `WindowInsets(0)` where something around it already does.
+ */
+@Composable
+fun SvBrandTopBar(
+    name: String,
+    modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = TopBarInsets,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    BarRow(modifier = modifier, windowInsets = windowInsets, top = SvSpacing.md) {
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(MARK_GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BrandMark()
+            Text(name, modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineSmall)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+    }
+}
+
+/**
+ * The button at the end of the home's top bar that leads to the user's account and the settings:
+ * an ink tile with the first letter of [name], the name the user goes by, or the outline of a person
+ * while they have given none. A screen reader reads it as [label], such as "Settings", whatever it
+ * shows. Like an avatar's initials, the letter keeps the size of the tile when the text grows.
+ */
+@Composable
+fun SvAccountButton(name: String, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    FilledIconButton(
+        onClick = onClick,
+        // Drawn at the size of the approved design, in a space a finger can hit.
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .size(ACCOUNT_BUTTON_SIZE)
+            .semantics { contentDescription = label },
+        shape = MaterialTheme.shapes.medium,
+        colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.inverseSurface, contentColor = colors.inverseOnSurface),
+    ) {
+        if (name.isBlank()) {
+            Icon(AccountIcon, contentDescription = null, modifier = Modifier.size(ACCOUNT_ICON_SIZE))
+        } else {
+            val size = with(LocalDensity.current) { (ACCOUNT_BUTTON_SIZE * LETTER_SCALE).toSp() }
+            Text(
+                initials(name).take(1),
+                // The button's label says what it does; the letter alone would only say whose it is.
+                modifier = Modifier.clearAndSetSemantics { },
+                style = MaterialTheme.typography.labelLargeEmphasized.copy(fontSize = size, lineHeight = size),
+            )
+        }
+    }
+}
+
+/** The app's mark: a circle split in two, white and lime, on a violet tile. Decorative. */
+@Composable
+private fun BrandMark() {
+    val palette = SvTheme.palette
+    Box(
+        modifier = Modifier
+            .size(MARK_SIZE)
+            .background(palette.brand, MaterialTheme.shapes.small)
+            .drawBehind {
+                // The two halves as the approved designs draw them, in a 24 by 24 grid in the middle of the tile.
+                val unit = MARK_ICON_SIZE.toPx() / MARK_GRID
+                val inset = (size.width - MARK_ICON_SIZE.toPx()) / 2
+                fun half(color: Color, centreX: Float, centreY: Float, startAngle: Float) {
+                    val radius = MARK_RADIUS * unit
+                    drawArc(
+                        color = color,
+                        startAngle = startAngle,
+                        sweepAngle = HALF_TURN,
+                        useCenter = true,
+                        topLeft = Offset(inset + centreX * unit - radius, inset + centreY * unit - radius),
+                        size = Size(radius * 2, radius * 2),
+                    )
+                }
+                half(palette.onBrand, centreX = 11f, centreY = 11.5f, startAngle = QUARTER_TURN)
+                half(palette.accent, centreX = 13f, centreY = 12.5f, startAngle = -QUARTER_TURN)
+            },
+    )
+}
+
+/** The outline of a person: a head and shoulders. */
+private val AccountIcon: ImageVector = lineIcon("Account", circle(12f, 8f, 4f) + "M4 21c0-4.2 3.4-7 8-7s8 2.8 8 7", group = "SvTopBar")
 
 /**
  * The top bar of a screen opened from another one: a round back button that says [backLabel] to a
@@ -137,3 +239,17 @@ private val TopBarInsets: WindowInsets
 
 private val ROUND_BUTTON_SIZE = 44.dp
 private val BAR_MIN_HEIGHT = 64.dp
+
+private val MARK_SIZE = 36.dp
+private val MARK_ICON_SIZE = 24.dp
+private val MARK_GAP = 10.dp
+private const val MARK_GRID = 24f
+private const val MARK_RADIUS = 9f
+private const val QUARTER_TURN = 90f
+private const val HALF_TURN = 180f
+
+private val ACCOUNT_BUTTON_SIZE = 44.dp
+private val ACCOUNT_ICON_SIZE = 22.dp
+
+/** The letter's size for the tile, as an avatar's initials are sized: 16sp on the 44dp tile. */
+private const val LETTER_SCALE = 0.36f

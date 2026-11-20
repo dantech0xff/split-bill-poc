@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.HomeFixtures
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.billing.FakeBilling
@@ -26,6 +27,7 @@ import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.home.HomeSummary
 import com.dantech.splitvibe.ui.paywall.ProActions
 import com.dantech.splitvibe.ui.paywall.ProScreen
 import com.dantech.splitvibe.ui.paywall.ProUiState
@@ -165,7 +167,22 @@ class NumbersInTextsTest {
                     onAllowSpeechService = {},
                 )
             },
-            { HomeScreen(bills = bills, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {}) },
+            {
+                // With every amount and count home shows: what friends owe and the user owes, the month and a group.
+                HomeScreen(
+                    summary = HomeSummary.of(HomeFixtures.owed, bills, HomeFixtures.month, localCurrency = "VND"),
+                    group = HomeFixtures.group,
+                    bills = bills,
+                    onOpenBill = {},
+                    onSeeAllBills = {},
+                    onOpenSettings = {},
+                    onOpenRequests = {},
+                    onOpenInsights = {},
+                    onOpenGroup = {},
+                    onSplitBill = {},
+                    today = HomeFixtures.today,
+                )
+            },
             {
                 HistoryScreen(
                     listings = bills,
@@ -190,6 +207,7 @@ class NumbersInTextsTest {
 
         assertTrue("the counts are there to look at: $shown", shown.any { "300 AI calls a month" in it })
         assertTrue(shown.any { "7 of 10" in it })
+        assertTrue(shown.any { "2 requests" in it } && shown.any { "Your share of 6 bills" in it })
         val foreign = shown.filter { text -> text.any { it.isDigit() && it !in '0'..'9' } }
         assertEquals("Texts with the phone's digits", emptyList<String>(), foreign)
     }

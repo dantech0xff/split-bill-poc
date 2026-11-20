@@ -307,7 +307,7 @@
     <string name="split_no_camera">No camera app is available on this device. Choose a photo instead.</string>
     <string name="split_opening_photo">Opening the photo…</string>
     <string name="split_reading_on_phone">Reading the bill on this phone…</string>
-    <string name="split_asking_claude">Claude is working out the bill…</string>
+    <string name="split_reading_your_bill">Reading your bill…</string>
     <string name="split_read_and_split">Read and split the bill</string>
 
     <!-- Reading a bill, continued -->
@@ -342,12 +342,16 @@
     <string name="split_charges_hint_by_item">Shared in proportion to each person\'s items.</string>
     <string name="split_charges_hint">Part of the total, divided the same way.</string>
     <string name="split_each_person_pays">Each person pays</string>
+    <!-- Beside the user in the list of what each person pays, when they paid the whole bill -->
+    <string name="split_paid_the_bill">Paid the bill</string>
     <string name="split_paid_by">Paid by</string>
     <string name="split_hide_sent">Hide what was sent to Claude</string>
     <string name="split_show_sent">Show what was sent to Claude</string>
 
     <!-- The result of a split, continued -->
     <string name="split_bill_total">Bill total</string>
+    <!-- The title of the card that says what the AI read on the bill and how it split it -->
+    <string name="split_what_was_understood">What Split Vibe understood</string>
     <string name="split_about">About %1$s</string>
     <string name="split_add_rate_hint">Add an exchange rate to see this bill in %1$s.</string>
     <string name="split_add_rate">Add a rate</string>
@@ -435,7 +439,7 @@
     <string name="assistant_none_applies">None of the changes that are kept can be applied, so the split stays as it is.</string>
     <string name="assistant_not_worked_out">These changes could not be worked out on this bill. Change the split by hand instead.</string>
     <string name="assistant_split_changed">The split was changed.</string>
-    <string name="assistant_nothing_to_change">Claude found nothing to change.</string>
+    <string name="assistant_nothing_to_change">The AI found nothing to change.</string>
     <string name="assistant_no_microphone">To speak a change, allow the microphone for Split Vibe in the phone\'s settings. You can type it instead.</string>
     <string name="assistant_nothing_heard">Nothing was heard. Tap the mic to try again, or type the change.</string>
     <string name="assistant_try_speech_service">This phone cannot turn speech in its language into text by itself. Tap the mic to try its speech service, or type the change.</string>
@@ -446,18 +450,19 @@
     <string name="assistant_ask_something_else">Ask something else</string>
     <string name="assistant_your_answer">Your answer</string>
     <string name="assistant_change_the_split">Change the split</string>
+    <string name="assistant_tell_the_ai">Tell the AI what to change</string>
     <string name="assistant_stop_listening">Stop listening</string>
     <string name="assistant_say_the_change">Say the change</string>
-    <string name="assistant_ask_claude">Ask Claude</string>
+    <string name="assistant_ask_the_ai">Ask the AI</string>
     <string name="assistant_listening">Listening… Tap the mic again when you are done.</string>
-    <string name="assistant_answer_hint">Answer the question, and Claude works the change out again.</string>
+    <string name="assistant_answer_hint">Answer the question, and the AI works the change out again.</string>
     <string name="assistant_hint">For example: Lan didn\'t have beer, or add a 10%% tip. You check the changes before they apply. Asking takes %1$s of a call.</string>
-    <string name="assistant_working">Claude is working out the changes…</string>
+    <string name="assistant_working">Working out the changes…</string>
     <string name="assistant_proposed_changes">Proposed changes</string>
     <string name="assistant_you_asked">You asked: “%1$s”</string>
     <plurals name="assistant_unreadable">
-        <item quantity="one">%d more change Claude proposed could not be read, so they are left out.</item>
-        <item quantity="other">%d more changes Claude proposed could not be read, so they are left out.</item>
+        <item quantity="one">%d more change the AI proposed could not be read, so they are left out.</item>
+        <item quantity="other">%d more changes the AI proposed could not be read, so they are left out.</item>
     </plurals>
     <string name="assistant_after_changes">After these changes: %1$s</string>
     <string name="assistant_discard">Discard</string>
@@ -885,7 +890,27 @@
     <string name="home_see_all">See all</string>
     <string name="home_no_bills">Bills you split are kept here, also without a connection.</string>
     <string name="home_intro_title">Split a bill with AI</string>
-    <string name="home_intro_text">Scan the bill and say how to split it. The bill is read on this phone, worked out by Claude, and you choose who pays what.</string>
+    <string name="home_intro_text">Scan the bill and say how to split it. The bill is read on this phone, worked out by AI, and you choose who pays what.</string>
+    <!-- What is owed, on the home: from the open payment requests, and in the group kept last -->
+    <string name="home_friends_owe_you">Friends owe you</string>
+    <string name="home_you_owe">You owe</string>
+    <string name="home_you_get_back">You get back</string>
+    <!-- The line below what friends owe that leads to the requests to pay: the amounts, then whom they are owed to -->
+    <string name="home_you_owe_to">You owe %1$s to %2$s</string>
+    <plurals name="home_requests">
+        <item quantity="one">%d request</item>
+        <item quantity="other">%d requests</item>
+    </plurals>
+    <!-- The first names of a list too long to name everyone, then how many more there are -->
+    <plurals name="home_and_others">
+        <item quantity="one">%1$s and %2$d other</item>
+        <item quantity="other">%1$s and %2$d others</item>
+    </plurals>
+    <!-- Under what the user's share of this month's finished bills comes to -->
+    <plurals name="home_your_share_of">
+        <item quantity="one">Your share of %d bill</item>
+        <item quantity="other">Your share of %d bills</item>
+    </plurals>
 
     <!-- The navigation bar of the main screens; its other tabs are named by groups_title, requests_title and home_insights -->
     <string name="nav_home">Home</string>

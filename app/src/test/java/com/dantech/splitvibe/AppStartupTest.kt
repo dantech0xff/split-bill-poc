@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -65,6 +66,19 @@ class AppStartupTest {
 
         pressBack()
         compose.onNodeWithText("Recent bills").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the first home invites to split a bill in words, and only the round button says Split a bill to a screen reader`() {
+        // A phone that keeps no bill yet: the invitation to split a first one, with its button.
+        await { shown(SPLIT_A_BILL) }
+        compose.onNode(hasText(SPLIT_A_BILL) and hasClickAction()).assertIsDisplayed()
+
+        compose.onAllNodesWithContentDescription(SPLIT_A_BILL).assertCountEquals(1)
+        compose.onAllNodes(hasContentDescription(SPLIT_A_BILL) and hasText(SPLIT_A_BILL)).assertCountEquals(0)
+        // The one that does is the button in the middle of the navigation bar, which starts the split.
+        compose.onNodeWithContentDescription(SPLIT_A_BILL).performClick()
+        compose.onNodeWithText("New split").assertIsDisplayed()
     }
 
     @Test
@@ -198,4 +212,7 @@ private fun tab(name: String) = hasContentDescription(name) and SemanticsMatcher
 
 /** What home says in place of the bills when the phone keeps none. */
 private const val NO_BILLS = "Bills you split are kept here, also without a connection."
+
+/** The words of the button that invites to split a first bill, and what the round button of the navigation bar says. */
+private const val SPLIT_A_BILL = "Split a bill"
 private const val TIMEOUT_MS = 60_000L

@@ -121,7 +121,7 @@ internal fun AssistantCard(state: AssistantUiState, actions: AssistantActions, m
                             }
                         }
                         IconButton(onClick = actions.onSend, enabled = state.canSend) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.assistant_ask_claude))
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.assistant_ask_the_ai))
                         }
                     }
                 },

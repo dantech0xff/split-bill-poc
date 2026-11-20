@@ -37,6 +37,7 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import com.dantech.splitvibe.BuildConfig
 import com.dantech.splitvibe.data.account.AccountStore
+import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
@@ -61,6 +62,8 @@ import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.history.HistoryViewModel
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.home.HomeSummary
+import com.dantech.splitvibe.ui.home.HomeViewModel
 import com.dantech.splitvibe.ui.insights.InsightsActions
 import com.dantech.splitvibe.ui.insights.InsightsScreen
 import com.dantech.splitvibe.ui.insights.InsightsViewModel
@@ -159,7 +162,8 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val billRepository: BillRepository = koinInject()
     val settings by settingsStore.settings.collectAsStateWithLifecycle()
     val account by accountStore.account.collectAsStateWithLifecycle()
-    val bills by remember(billRepository) { billRepository.listings() }.collectAsStateWithLifecycle(emptyList())
+    // Null until read, so that a phone with bills never shows, for a moment, the home of one without.
+    val bills: List<BillListing>? by remember(billRepository) { billRepository.listings() }.collectAsStateWithLifecycle(initialValue = null)
     val requestTotals by requestOverview.totals.collectAsStateWithLifecycle()
     // The privacy policy and the terms of use on the proxy's address; none in a build without one.
     val legalLinks = remember { LegalLinks.of(BuildConfig.AI_PROXY_URL) }
@@ -190,18 +194,14 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     val accountHolder = remember(account) { accountHolderOf(account) }
     CloseScreensWhenTheAccountLeaves(holder = accountHolder, backStack = backStack)
 
-    // The navigation bar of a main screen, which stands on [tab]. The button in the middle starts a
-    // split above that screen, so back from the split returns to it.
+    // A new split, above the screen it starts from, so back from the split returns to it.
+    val splitABill = {
+        splitViewModel.startNewSplit()
+        backStack.open(SplitKey)
+    }
+    // The navigation bar of a main screen, which stands on [tab], with the button that starts a split in the middle.
     val navBar: @Composable (tab: NavKey) -> Unit = { tab ->
-        AppNavBar(
-            selected = tab,
-            requests = requestTotals,
-            onSelect = backStack::choose,
-            onSplitBill = {
-                splitViewModel.startNewSplit()
-                backStack.open(SplitKey)
-            },
-        )
+        AppNavBar(selected = tab, requests = requestTotals, onSelect = backStack::choose, onSplitBill = splitABill)
     }
 
     // One timing for the fade between screens and for a surface that grows into the next screen,
@@ -227,12 +227,25 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
             entryProvider = entryProvider {
                 entry<HomeKey> { key ->
                     Screen {
+                        // Lives as long as Home, which stays at the bottom of the stack.
+                        val homeViewModel: HomeViewModel = koinViewModel()
+                        val month by homeViewModel.month.collectAsStateWithLifecycle()
+                        val group by homeViewModel.group.collectAsStateWithLifecycle()
                         val recurring by recurringViewModel.rows.collectAsStateWithLifecycle()
                         HomeScreen(
+                            // What the requests add up to comes from the one holder the Requests tab reads too.
+                            summary = HomeSummary.of(requestTotals, bills, month, settings.localCurrency),
+                            group = group,
                             bills = bills,
                             onOpenBill = openBill,
                             onSeeAllBills = { backStack.open(HistoryKey) },
                             onOpenSettings = { backStack.open(SettingsKey) },
+                            // The two main screens open as their tabs do, in place of any other.
+                            onOpenRequests = { backStack.choose(RequestsKey) },
+                            onOpenInsights = { backStack.choose(InsightsKey) },
+                            onOpenGroup = { id -> backStack.open(GroupKey(id)) },
+                            onSplitBill = splitABill,
+                            myName = settings.myName,
                             hasRecurringBills = !recurring.isNullOrEmpty(),
                             bottomBar = { navBar(key) },
                         )

@@ -22,6 +22,7 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.scan.DocumentScanner
 import com.dantech.splitvibe.ui.history.HistoryViewModel
+import com.dantech.splitvibe.ui.home.HomeViewModel
 import com.dantech.splitvibe.ui.paywall.ProViewModel
 import com.dantech.splitvibe.ui.settings.SettingsViewModel
 import com.dantech.splitvibe.ui.split.SplitAssistantViewModel
@@ -68,6 +69,7 @@ class AppModuleTest {
         assertNotNull(koin.get<BillingRepository>())
         assertNotNull(koin.get<ProViewModel>())
         assertNotNull(koin.get<HistoryViewModel> { parametersOf(SavedStateHandle()) })
+        assertNotNull(koin.get<HomeViewModel>())
         // A screen hands the view model the state the system keeps for it.
         val split = koin.get<SplitBillViewModel> { parametersOf(SavedStateHandle()) }
         assertNotNull(koin.get<SplitAssistant>())

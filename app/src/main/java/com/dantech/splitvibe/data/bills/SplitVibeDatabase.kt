@@ -187,6 +187,16 @@ interface ProxyCacheDao {
     @Query("SELECT * FROM proxy_cache WHERE `key` = :key")
     suspend fun get(key: String): ProxyCacheEntity?
 
+    /**
+     * The entry written last of those whose key starts with [prefix], such as the state of the group
+     * refreshed or changed last; null while none is kept. The prefix is compared as it is, so no
+     * character in it stands for others, as `_` and `%` would in a LIKE.
+     */
+    @Query(
+        "SELECT * FROM proxy_cache WHERE substr(`key`, 1, length(:prefix)) = :prefix ORDER BY savedAt DESC, `key` DESC LIMIT 1",
+    )
+    fun watchLatest(prefix: String): Flow<ProxyCacheEntity?>
+
     @Upsert
     suspend fun put(entry: ProxyCacheEntity)
 

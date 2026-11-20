@@ -275,7 +275,7 @@ private fun AnalyzeBar(state: SplitUiState, onAnalyze: () -> Unit, onCancel: () 
                 status = when (state.progress) {
                     Progress.LOADING_PHOTO -> stringResource(R.string.split_opening_photo)
                     Progress.READING_TEXT -> stringResource(R.string.split_reading_on_phone)
-                    Progress.ASKING_CLAUDE -> stringResource(R.string.split_asking_claude)
+                    Progress.ASKING_CLAUDE -> stringResource(R.string.split_reading_your_bill)
                     Progress.IDLE -> ""
                 },
                 cancelLabel = stringResource(R.string.common_cancel),

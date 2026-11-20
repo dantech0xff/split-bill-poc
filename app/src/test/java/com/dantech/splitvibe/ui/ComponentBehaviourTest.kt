@@ -77,9 +77,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.components.SV_TEXT_FIELD_MAX_LENGTH
+import com.dantech.splitvibe.designsystem.components.SvAccountButton
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvBrandTopBar
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChartBar
 import com.dantech.splitvibe.designsystem.components.SvCheckbox
@@ -374,6 +376,37 @@ class ComponentBehaviourTest {
         }
 
         assertEquals(listOf("back", "quiet", "small", "text"), tapped)
+    }
+
+    @Test
+    fun `the account button reads as its label, with a letter or with a person, and a finger can hit it`() {
+        val tapped = mutableListOf<String>()
+        compose.setContent {
+            SplitVibeTheme {
+                Column {
+                    SvBrandTopBar(name = "Split Vibe", actions = {
+                        SvAccountButton(name = "Dana", label = "Settings", onClick = {
+                            tapped +=
+                                "letter"
+                        })
+                    })
+                    SvAccountButton(name = " ", label = "Your account", onClick = { tapped += "person" })
+                }
+            }
+        }
+
+        compose.onNode(hasText("Split Vibe") and isHeading()).assertExists()
+        // The letter says whose the account is, which is no word for a screen reader to say: the label is.
+        compose.onAllNodesWithText("D").assertCountEquals(0)
+        for (label in listOf("Settings", "Your account")) {
+            val node = compose.onNodeWithContentDescription(
+                label,
+            ).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            assertRoomForAFinger(node, label)
+            node.performClick()
+        }
+
+        assertEquals(listOf("letter", "person"), tapped)
     }
 
     @Test

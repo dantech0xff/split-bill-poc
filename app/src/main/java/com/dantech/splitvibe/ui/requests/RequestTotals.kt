@@ -22,7 +22,8 @@ sealed interface RequestTotals {
 
     /**
      * The requests as the proxy last listed them, added up per currency, as nothing converts the
-     * currency of a request.
+     * currency of a request. The currencies, and the people, come in the order of the requests, the
+     * newest first.
      */
     data class Loaded(
         /** What friends owe the user: the requests the user made and has not confirmed as paid yet. */
@@ -34,27 +35,46 @@ sealed interface RequestTotals {
          * about yet, or one owed to the user that its payer says was paid, for the user to confirm.
          */
         val waitingForYou: Int,
+        /** How many requests [owedToYou] adds up. */
+        val owedToYouCount: Int,
+        /** Who owes [owedToYou]: the name the user gave each payer, each name once. */
+        val owedBy: List<String>,
+        /** How many requests [youOwe] adds up. */
+        val youOweCount: Int,
+        /**
+         * Whom the user owes [youOwe]: the name each requester gave themselves, each name once. A
+         * request whose requester gave none is counted in [youOweCount] but names nobody here.
+         */
+        val youOweTo: List<String>,
     ) : RequestTotals
 
     companion object {
         /** The totals of [requests], the list kept on the phone, which is null before it was ever fetched. */
-        fun of(signedIn: Boolean, requests: List<RequestView>?): RequestTotals = when {
-            !signedIn -> SignedOut
-
-            requests == null -> Unknown
-
-            else -> Loaded(
-                owedToYou = requests.filter { it.isMine && it.status != RequestStatus.PAID }.totals(),
-                youOwe = requests.filter { !it.isMine && it.status == RequestStatus.WAITING }.totals(),
+        fun of(signedIn: Boolean, requests: List<RequestView>?): RequestTotals {
+            if (!signedIn) return SignedOut
+            if (requests == null) return Unknown
+            val owed = requests.filter { it.isMine && it.status != RequestStatus.PAID }
+            val owing = requests.filter { !it.isMine && it.status == RequestStatus.WAITING }
+            return Loaded(
+                owedToYou = owed.totals(),
+                youOwe = owing.totals(),
                 waitingForYou = requests.count {
                     if (it.isMine) it.status == RequestStatus.REPORTED_PAID else it.status == RequestStatus.WAITING
                 },
+                owedToYouCount = owed.size,
+                owedBy = owed.names { it.payerName },
+                youOweCount = owing.size,
+                youOweTo = owing.names { it.creditorName },
             )
         }
 
         private fun List<RequestView>.totals(): Map<BillCurrency, Long> = groupBy { it.bill }.mapValues { (_, inOneCurrency) ->
             inOneCurrency.sumOf { it.amountMinor }
         }
+
+        /** The names [nameOf] gives these requests, as they were typed but for spaces at the ends, each once; blank ones are left out. */
+        private fun List<RequestView>.names(nameOf: (RequestView) -> String?): List<String> =
+            mapNotNull { nameOf(it)?.trim()?.takeIf(String::isNotEmpty) }.distinct()
     }
 }
 

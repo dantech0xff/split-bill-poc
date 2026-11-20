@@ -38,6 +38,7 @@ import com.dantech.splitvibe.ui.groups.GroupViewModel
 import com.dantech.splitvibe.ui.groups.GroupsViewModel
 import com.dantech.splitvibe.ui.groups.JoinGroupViewModel
 import com.dantech.splitvibe.ui.history.HistoryViewModel
+import com.dantech.splitvibe.ui.home.HomeViewModel
 import com.dantech.splitvibe.ui.payments.PaymentMethodsViewModel
 import com.dantech.splitvibe.ui.paywall.ProViewModel
 import com.dantech.splitvibe.ui.requests.RequestLinkViewModel
@@ -125,6 +126,7 @@ val appModule = module {
     single { RequestRepository(api = get(), cache = get(), account = get()) }
     single { ShareRepository(api = get(), words = get()) }
 
+    viewModel { HomeViewModel(bills = get(), settings = get<SettingsStore>().settings, groups = get(), clock = PhoneClock) }
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { ProViewModel(billing = get(), accounts = get(), account = get<AccountStore>().account) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }

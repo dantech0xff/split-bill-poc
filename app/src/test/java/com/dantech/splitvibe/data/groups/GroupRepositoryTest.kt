@@ -178,5 +178,46 @@ class GroupRepositoryTest {
         assertTrue(ProxyCache.json.encodeToString(GroupState.serializer(), kept).length < 10_000)
     }
 
+    @Test
+    fun `the latest group is the one whose state the phone kept last, and none is left once the cache is emptied`() = runBlocking {
+        var now = 1_000L
+        val cache = ProxyCache(storage.database.proxyCache()) { now }
+        val repository = GroupRepository(proxy.api, cache, proxy.account)
+        assertNull("nothing kept yet", repository.latestGroup.first())
+
+        server.enqueue(json(GroupFixtures.groupState()))
+        repository.refresh(GROUP_ID)
+        now = 2_000
+        server.enqueue(json(flat()))
+        repository.refresh(FLAT_ID)
+        assertEquals("the group refreshed last", "Flat 3B", repository.latestGroup.first()?.group?.name)
+
+        // A change answered later makes its group the latest again; the list of groups is no group's state.
+        now = 3_000
+        server.enqueue(json(GroupFixtures.groupState()))
+        repository.rename(GROUP_ID, "Chiang Mai trip")
+        now = 4_000
+        server.enqueue(json(GroupFixtures.groupList()))
+        repository.refreshGroups()
+        assertEquals("the group changed last", GROUP_ID, repository.latestGroup.first()?.group?.id)
+
+        // A group the user left goes with its state, and the one kept before it is the latest again.
+        server.enqueue(MockResponse().setResponseCode(204))
+        server.enqueue(json(GroupFixtures.groupList()))
+        repository.leave(GROUP_ID)
+        assertEquals("the group kept before the one left", FLAT_ID, repository.latestGroup.first()?.group?.id)
+
+        // As on every sign-in, sign-out and account deletion.
+        cache.clear()
+        assertNull("nothing of the account that was signed in", repository.latestGroup.first())
+    }
+
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
+
+    /** A second group: the flat the user shares, kept in baht like the trip. */
+    private fun flat() = GroupFixtures.groupState().replace(GROUP_ID, FLAT_ID).replace("Chiang Mai trip", "Flat 3B")
+
+    private companion object {
+        const val FLAT_ID = "8f9a2c1e-0000-4000-8000-000000000002"
+    }
 }

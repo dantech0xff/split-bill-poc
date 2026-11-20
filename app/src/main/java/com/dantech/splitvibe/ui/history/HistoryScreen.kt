@@ -1,6 +1,8 @@
 package com.dantech.splitvibe.ui.history
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,27 +30,32 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
+import com.dantech.splitvibe.designsystem.components.SvIconTile
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvTag
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
-import com.dantech.splitvibe.text.dateText
+import com.dantech.splitvibe.domain.shortDateText
 import com.dantech.splitvibe.text.labelRes
+import com.dantech.splitvibe.ui.common.style
 import com.dantech.splitvibe.ui.recurring.DeleteRecurringBillDialog
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.recurring.RecurringRow
@@ -149,6 +156,7 @@ fun HistoryScreen(
                             listing = listing,
                             position = SvRowPosition.of(index, listings.size),
                             onOpen = { onOpen(listing.id) },
+                            today = today,
                             onDelete = { deleting = listing.id },
                             onRepeat = if (repeatable) ({ repeating = listing.id }) else null,
                             modifier = rowMotion(),
@@ -212,36 +220,49 @@ private fun BillsTabs(selected: BillsTab, onSelect: (BillsTab) -> Unit) {
 }
 
 /**
- * One bill in a list of bills: where, when, on what and with whom, its total, and whether it is
- * still a draft. With [onDelete] it has a menu to delete it, and to repeat it with [onRepeat].
+ * One bill in a list of bills: what it was spent on as the tile of its category, where, when and with
+ * whom, its total, and whether it is still a draft. Its day is written short, as of [today], when its
+ * date can be read, and as the bill printed it when not. With [onDelete] it has a menu to delete it,
+ * and to repeat it with [onRepeat].
  */
 @Composable
 internal fun BillListingRow(
     listing: BillListing,
     position: SvRowPosition,
     onOpen: () -> Unit,
+    today: LocalDate,
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
     onRepeat: (() -> Unit)? = null,
 ) {
     val title = titleOf(listing)
     val total = BillCurrency(listing.currency, listing.fractionDigits).format(listing.totalMinor)
-    val detail = listOfNotNull(
-        listing.date ?: dayOf(listing.updatedAt),
-        stringResource((BillCategory.fromWire(listing.category) ?: BillCategory.OTHER).labelRes),
-        listing.people.takeIf { it.isNotBlank() },
-        stringResource(R.string.history_draft).takeIf { listing.status == BillStatus.DRAFT.name },
-    ).joinToString(" · ")
+    val category = BillCategory.fromWire(listing.category) ?: BillCategory.OTHER
+    val day = dayText(listing, today)
+    val people = listing.people.takeIf { it.isNotBlank() }
+    val draft = stringResource(R.string.history_draft).takeIf { listing.status == BillStatus.DRAFT.name }
+    // The tile shows the category and the tag the draft; a screen reader hears both in words.
+    val spoken = listOfNotNull(day, stringResource(category.labelRes), people, draft).joinToString(" · ")
     SvListRow(
         position = position,
-        label = stringResource(R.string.history_row_label, title, total, detail),
+        label = stringResource(R.string.history_row_label, title, total, spoken),
         onClickLabel = stringResource(R.string.history_open, title),
         onClick = onOpen,
         modifier = modifier,
     ) {
+        val style = category.style
+        SvIconTile(style.icon, style.color)
+        Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                Text(title, modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodyMediumEmphasized)
+                if (draft != null) SvTag(draft)
+            }
+            Text(
+                listOfNotNull(day, people).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.width(SvSpacing.md))
         Text(total, style = MaterialTheme.typography.amountSmall)
@@ -260,4 +281,13 @@ internal fun BillListingRow(
 @Composable
 private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_bill)
 
-private fun dayOf(millis: Long): String = dateText(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+/**
+ * The day of [listing] as a list of bills writes it: its date written short as of [today] when the
+ * date can be read, the date as the bill printed it when it cannot, and the day it was saved when the
+ * bill has no date at all.
+ */
+private fun dayText(listing: BillListing, today: LocalDate): String {
+    val printed = listing.date?.takeIf { it.isNotBlank() }
+    val day = if (printed == null) Instant.ofEpochMilli(listing.updatedAt).atZone(ZoneId.systemDefault()).toLocalDate() else dayOf(printed)
+    return day?.let { shortDateText(it, today) } ?: printed.orEmpty()
+}

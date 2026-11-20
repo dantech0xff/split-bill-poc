@@ -31,6 +31,14 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
 
     fun group(id: String): Flow<GroupState?> = cache.watch(groupKey(id), GroupState.serializer())
 
+    /**
+     * The group whose state the phone kept last, when a refresh or a change of it was answered; null
+     * while the phone keeps no group's state. It is read from what the cache keeps, so it goes with
+     * the cache on every sign-in, sign-out and account deletion, and a group the user can no longer
+     * read, or left, goes with its state.
+     */
+    val latestGroup: Flow<GroupState?> = cache.watchLatest(GROUP_KEY_PREFIX, GroupState.serializer())
+
     /** The group [id] as it was last fetched, or null when it never was. */
     suspend fun cached(id: String): GroupState? = cache.get(groupKey(id), GroupState.serializer())
 
@@ -210,6 +218,9 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
         const val GROUPS = "groups"
         val GROUP_LIST: KSerializer<List<GroupSummary>> = ListSerializer(GroupSummary.serializer())
 
-        fun groupKey(id: String) = "group:$id"
+        /** What the key of every group's state starts with; the list of groups is kept under [GROUPS], which does not. */
+        const val GROUP_KEY_PREFIX = "group:"
+
+        fun groupKey(id: String) = "$GROUP_KEY_PREFIX$id"
     }
 }

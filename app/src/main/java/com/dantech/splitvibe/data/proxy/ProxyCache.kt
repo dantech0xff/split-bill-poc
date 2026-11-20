@@ -35,6 +35,15 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
         .catch { emit(null) }
         .flowOn(Dispatchers.Default)
 
+    /**
+     * The last thing kept under a key that starts with [prefix], read and decoded away from the main
+     * thread; null when nothing is kept under such a key, or the last thing kept cannot be read.
+     */
+    fun <T> watchLatest(prefix: String, serializer: KSerializer<T>): Flow<T?> = dao.watchLatest(prefix)
+        .map { it?.let { entry -> decode(entry, serializer) } }
+        .catch { emit(null) }
+        .flowOn(Dispatchers.Default)
+
     suspend fun <T> get(key: String, serializer: KSerializer<T>): T? = runCatching {
         dao.get(key)
     }.getOrNull()?.let { decode(it, serializer) }

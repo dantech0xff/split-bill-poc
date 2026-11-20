@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.HomeFixtures
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.SpendingFixtures
 import com.dantech.splitvibe.TestProxy
@@ -31,6 +32,7 @@ import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
 import com.dantech.splitvibe.ui.common.LegalLinks
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.home.HomeSummary
 import com.dantech.splitvibe.ui.paywall.ProActions
 import com.dantech.splitvibe.ui.paywall.ProScreen
 import com.dantech.splitvibe.ui.paywall.ProUiState
@@ -82,9 +84,23 @@ class PseudoLocaleGalleryTest {
         assertNotEquals("Settings", context.getString(R.string.settings_title))
     }
 
+    /** With what friends owe, what the user owes, the tiles of the month and of a group, and a draft among the bills. */
     @Test
     fun `home with bills in en-XA`() = shot("50-home-en-xa") {
-        HomeScreen(bills = BILLS, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {})
+        HomeScreen(
+            summary = HomeSummary.of(HomeFixtures.owed, BILLS, HomeFixtures.month, localCurrency = "VND"),
+            group = HomeFixtures.group,
+            bills = BILLS,
+            onOpenBill = {},
+            onSeeAllBills = {},
+            onOpenSettings = {},
+            onOpenRequests = {},
+            onOpenInsights = {},
+            onOpenGroup = {},
+            onSplitBill = {},
+            myName = HomeFixtures.MY_NAME,
+            today = HomeFixtures.today,
+        )
     }
 
     @Test

@@ -48,7 +48,7 @@ val spendingModule = module {
 }
 
 /** The phone's clock, in the zone the phone is in at the moment, which can change while the app runs. */
-private object PhoneClock : Clock() {
+internal object PhoneClock : Clock() {
     override fun getZone(): ZoneId = ZoneId.systemDefault()
 
     override fun withZone(zone: ZoneId): Clock = system(zone)

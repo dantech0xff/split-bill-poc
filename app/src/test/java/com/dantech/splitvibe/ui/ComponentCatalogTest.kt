@@ -26,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the
 // floating button. The pictures are drawn at 1x: one this tall at 2x does not fit in the memory of the test.
-@Config(sdk = [34], qualifiers = "w412dp-h9000dp-mdpi")
+@Config(sdk = [34], qualifiers = "w412dp-h9400dp-mdpi")
 class ComponentCatalogTest {
 
     @get:Rule

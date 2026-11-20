@@ -93,9 +93,42 @@ class RequestTotalsTest {
     }
 
     @Test
+    fun `the open requests on each side are counted, and the people on the other side named once each, the newest first`() {
+        val totals = loaded(
+            asked(150_000, payer = "Minh"),
+            asked(18_000, currency = THB, payer = " Lan "),
+            asked(50_000, reported = true, payer = "Minh"),
+            // Confirmed as paid: neither counted nor named.
+            asked(70_000, reported = true, confirmed = true, payer = "Khoa"),
+            owed(150_000, creditor = "Dana"),
+            owed(20_000, creditor = "Bao"),
+            owed(30_000, creditor = "Dana"),
+            // Paid as the user says, and one without a name: the first is not counted, the second names nobody.
+            owed(80_000, reported = true, creditor = "Tuan"),
+            owed(10_000, creditor = "  "),
+        )
+
+        assertEquals(3, totals.owedToYouCount)
+        assertEquals(listOf("Minh", "Lan"), totals.owedBy)
+        assertEquals(4, totals.youOweCount)
+        assertEquals(listOf("Dana", "Bao"), totals.youOweTo)
+    }
+
+    @Test
     fun `requests never fetched are unknown, which is not the same as none`() {
         assertEquals(RequestTotals.Unknown, RequestTotals.of(signedIn = true, requests = null))
-        assertEquals(RequestTotals.Loaded(emptyMap(), emptyMap(), 0), RequestTotals.of(signedIn = true, requests = emptyList()))
+        assertEquals(
+            RequestTotals.Loaded(
+                emptyMap(),
+                emptyMap(),
+                0,
+                owedToYouCount = 0,
+                owedBy = emptyList(),
+                youOweCount = 0,
+                youOweTo = emptyList(),
+            ),
+            RequestTotals.of(signedIn = true, requests = emptyList()),
+        )
         // The tab shows a count in neither case.
         assertEquals(0, RequestTotals.Unknown.waitingCount)
     }
@@ -263,20 +296,39 @@ class RequestTotalsTest {
     private fun loaded(vararg requests: RequestView): RequestTotals.Loaded =
         RequestTotals.of(signedIn = true, requests = requests.toList()) as RequestTotals.Loaded
 
-    /** A request the user made, for a friend to pay. */
-    private fun asked(amountMinor: Long, currency: CurrencyDto = DONG, reported: Boolean = false, confirmed: Boolean = false) =
-        request(RequestView.CREDITOR, amountMinor, currency, reported, confirmed)
+    /** A request the user made, for a friend called [payer] to pay. */
+    private fun asked(
+        amountMinor: Long,
+        currency: CurrencyDto = DONG,
+        reported: Boolean = false,
+        confirmed: Boolean = false,
+        payer: String = "Minh",
+    ) = request(RequestView.CREDITOR, amountMinor, currency, reported, confirmed, payer = payer, creditor = "Dana")
 
-    /** A request sent to the user, to pay. */
-    private fun owed(amountMinor: Long, currency: CurrencyDto = DONG, reported: Boolean = false, confirmed: Boolean = false) =
-        request(RequestView.DEBTOR, amountMinor, currency, reported, confirmed)
+    /** A request sent to the user, to pay to [creditor]. */
+    private fun owed(
+        amountMinor: Long,
+        currency: CurrencyDto = DONG,
+        reported: Boolean = false,
+        confirmed: Boolean = false,
+        creditor: String? = null,
+    ) = request(RequestView.DEBTOR, amountMinor, currency, reported, confirmed, payer = "Dana", creditor = creditor)
 
-    private fun request(role: String, amountMinor: Long, currency: CurrencyDto, reported: Boolean, confirmed: Boolean) = RequestView(
+    private fun request(
+        role: String,
+        amountMinor: Long,
+        currency: CurrencyDto,
+        reported: Boolean,
+        confirmed: Boolean,
+        payer: String,
+        creditor: String?,
+    ) = RequestView(
         id = "r$amountMinor-$role",
         role = role,
         amountMinor = amountMinor,
         currency = currency,
-        payerName = "Minh",
+        payerName = payer,
+        creditorName = creditor,
         createdAt = 1_763_190_000_000,
         reportedPaidAt = if (reported) 1_763_200_000_000 else null,
         confirmedPaidAt = if (confirmed) 1_763_210_000_000 else null,

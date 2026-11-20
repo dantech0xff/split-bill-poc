@@ -32,6 +32,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
+import com.dantech.splitvibe.HomeFixtures
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
@@ -52,6 +53,7 @@ import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
+import com.dantech.splitvibe.ui.home.HomeSummary
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.dantech.splitvibe.ui.settings.AccountActions
@@ -109,6 +111,19 @@ class ScreenGalleryTest {
     private val storage = TestStorage(context)
     private val server = MockWebServer()
     private val settings = AppSettings(localCurrency = "VND")
+
+    /** A state of home: the requests the navigation bar and the main block read, and whether a group is kept. */
+    private enum class HomeState(val shot: String, val requests: RequestTotals, val keepsGroup: Boolean) {
+        OWED("owed", HomeFixtures.owed, keepsGroup = true),
+        OWING("owing", HomeFixtures.owing, keepsGroup = true),
+        SPENDING("spending", RequestTotals.of(signedIn = true, requests = emptyList()), keepsGroup = true),
+
+        // Signing out empties what the phone kept of the account, its groups too.
+        SIGNED_OUT("signed-out", RequestTotals.SignedOut, keepsGroup = false),
+
+        // As right after a sign-in, which empties what the phone kept of the account before.
+        LOADING("loading", RequestTotals.Unknown, keepsGroup = false),
+    }
 
     private enum class Screen {
         HOME,
@@ -237,10 +252,42 @@ class ScreenGalleryTest {
         shot("10-requests-sent")
     }
 
+    /**
+     * Home in each state it can be in beside the first one: what friends owe the user, only what the
+     * user owes, this month's spending, signed out, and signed in with the requests still on their
+     * way, which shows as no request. The data is that of the approved design of the home.
+     */
+    @Test
+    fun `home in each of its states`() = homeStates(HomeState.entries)
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_AT_NIGHT)
+    fun `home with what friends owe, in the dark theme`() {
+        suffix = "-dark"
+        homeStates(listOf(HomeState.OWED))
+    }
+
+    @Test
+    fun `home with what friends owe, with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        suffix = "-large-text"
+        homeStates(listOf(HomeState.OWED))
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
+    fun `home with what friends owe, on a phone set to Vietnam`() {
+        suffix = "-vi-vn"
+        homeStates(listOf(HomeState.OWED))
+        // The total and the currency on the side a phone set to Vietnam puts it.
+        compose.onNodeWithContentDescription("651.671 ₫").assertExists()
+    }
+
     private fun everyScreen() {
         // The answer is held back so the "working" state stays on screen long enough to be drawn.
         val viewModel = start(answerDelaySeconds = 4)
 
+        // A phone that keeps no bill yet, signed out: the invitation to split a first one.
         shot("01-home")
 
         show(Screen.SETTINGS)
@@ -361,7 +408,7 @@ class ScreenGalleryTest {
         shot("30-assistant")
 
         server.enqueue(revisionAnswer())
-        compose.onNodeWithContentDescription("Ask Claude").performClick()
+        compose.onNodeWithContentDescription("Ask the AI").performClick()
         awaitState { assistant.state.value.let { it.proposal != null || it.error != null } }
         assertNull(assistant.state.value.error)
         // The user keeps two of the three changes.
@@ -379,6 +426,41 @@ class ScreenGalleryTest {
         start(answerDelaySeconds = 0)
         show(Screen.SETTINGS_SPEECH_SERVICE)
         shot("32-settings-speech-service")
+    }
+
+    /** Draws home in each of [states], named after it, with the navigation bar counting the requests of that state. */
+    private fun homeStates(states: List<HomeState>) {
+        var state by mutableStateOf(states.first())
+        compose.setContent {
+            CompositionLocalProvider(LocalRippleConfiguration provides null) {
+                SplitVibeTheme {
+                    val requests = state.requests
+                    HomeScreen(
+                        summary = HomeSummary.of(requests, HomeFixtures.bills, HomeFixtures.month, localCurrency = "VND"),
+                        group = HomeFixtures.group.takeIf { state.keepsGroup },
+                        bills = HomeFixtures.bills,
+                        onOpenBill = {},
+                        onSeeAllBills = {},
+                        onOpenSettings = {},
+                        onOpenRequests = {},
+                        onOpenInsights = {},
+                        onOpenGroup = {},
+                        onSplitBill = {},
+                        myName = HomeFixtures.MY_NAME,
+                        today = HomeFixtures.today,
+                        bottomBar = { AppNavBar(selected = HomeKey, requests = requests, onSelect = {}, onSplitBill = {}) },
+                    )
+                }
+            }
+        }
+        for (each in states) {
+            state = each
+            shot("01-home-${each.shot}")
+        }
+        // The list of home ends above the navigation bar, so none of its rows ever passes under the bar.
+        val bar = compose.onNodeWithContentDescription("Split a bill").onParent().getBoundsInRoot()
+        val list = compose.onNode(hasScrollToIndexAction()).getBoundsInRoot()
+        assertTrue("Home's list runs on to ${list.bottom}, under the top of the navigation bar at ${bar.top}", list.bottom <= bar.top)
     }
 
     private fun wholeResultPage() {
@@ -422,9 +504,22 @@ class ScreenGalleryTest {
             CompositionLocalProvider(LocalRippleConfiguration provides null) {
                 SplitVibeTheme {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(bills = bills, onOpenBill = {}, onSeeAllBills = {}, onOpenSettings = {}, bottomBar = {
-                            AppNavBar(selected = HomeKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {})
-                        })
+                        Screen.HOME -> HomeScreen(
+                            summary = HomeSummary.of(RequestTotals.SignedOut, bills, month = null, settings.localCurrency),
+                            group = null,
+                            bills = bills,
+                            onOpenBill = {},
+                            onSeeAllBills = {},
+                            onOpenSettings = {},
+                            onOpenRequests = {},
+                            onOpenInsights = {},
+                            onOpenGroup = {},
+                            onSplitBill = {},
+                            today = HomeFixtures.today,
+                            bottomBar = {
+                                AppNavBar(selected = HomeKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {})
+                            },
+                        )
 
                         Screen.HISTORY -> HistoryScreen(listings = bills, query = "", onQueryChanged = {
                         }, onOpen = {}, onDelete = {}, onBack = {}, recurring = emptyList(), recurringActions = NO_RECURRING_ACTIONS)
