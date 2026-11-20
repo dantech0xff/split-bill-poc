@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -22,6 +23,7 @@ import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -67,6 +69,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -259,7 +262,7 @@ class ScreenGalleryTest {
         compose.onNode(hasText("Add") and hasClickAction() and hasAnyAncestor(hasText("Bao Tran"))).performClick()
         awaitState { viewModel.state.value.result?.plan?.participants?.size == 4 }
 
-        // The list runs underneath the bottom bar, so bring the beers well clear of it before tapping the row.
+        // Bring the beers into view with a few rows above them, as the picture shows them, then tap the row.
         list.performScrollToNode(hasText(BEERS))
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -HALF_PAGE_PX / 2) }
         compose.onNodeWithText(BEERS).performClick()
@@ -278,7 +281,7 @@ class ScreenGalleryTest {
         list.performScrollToNode(hasText("100% of 100%"))
         shot("18-split-by-percent")
 
-        // Opened through its action: the row may sit under the bottom bar, which a touch would land on.
+        // Opened through its click action, which does not depend on where the row lies on the screen.
         list.performScrollToNode(hasText("You paid", substring = true))
         compose.onNode(hasText("You paid", substring = true) and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         compose.onNodeWithText("Several people").performClick()
@@ -301,6 +304,11 @@ class ScreenGalleryTest {
         shot("15-sending")
         compose.mainClock.autoAdvance = true
         shot("10-requests-sent")
+        // The list of the requests ends above the bottom bar, so none of its rows passes under the bar.
+        // Padding at the end of the list alone would only lift its last row above the bar.
+        val bar = compose.onNodeWithText("Done").onParent().getBoundsInRoot()
+        val requests = compose.onNode(hasScrollToIndexAction()).getBoundsInRoot()
+        assertTrue("The requests run on to ${requests.bottom}, under the top of the bottom bar at ${bar.top}", requests.bottom <= bar.top)
 
         // The finished split is the first bill in the list.
         awaitState { runBlocking { storage.bills.get(checkNotNull(viewModel.state.value.result).saved.id) }?.status == BillStatus.FINAL }

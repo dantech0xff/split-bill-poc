@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.modifiers.TextAutoSizeLayoutScope
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -31,9 +33,12 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -98,7 +103,13 @@ fun SvTile(
         CompositionLocalProvider(LocalSvGround provides ground, LocalContentColor provides ground.onQuiet) {
             Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 leading?.invoke()
-                Text(label, modifier = Modifier.weight(1f), style = typography.smallLabel)
+                val labelStyle = typography.smallLabel
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    style = labelStyle,
+                    autoSize = WholeWords(min = MIN_LABEL_SIZE, max = labelStyle.fontSize),
+                )
                 trailing?.invoke()
             }
             // The figure sits at the bottom of the tile, however tall the tile is.
@@ -218,6 +229,31 @@ object SvCategoryIcons {
 internal val Typography.smallLabel: TextStyle
     get() = bodySmallEmphasized.copy(fontWeight = FontWeight.Bold)
 
+/**
+ * Text at [max], or a little smaller, down to [min], where it would otherwise break a word in two,
+ * as a long word such as "November" does in a narrow tile with large text. A word that is wider than
+ * the line even at [min] is broken there, as text always is.
+ */
+private data class WholeWords(val min: TextUnit, val max: TextUnit) : TextAutoSize {
+    init {
+        require(min.isSp && max.isSp && min.value <= max.value) { "Sizes must be in sp, and min ($min) at most max ($max)" }
+    }
+
+    override fun TextAutoSizeLayoutScope.getFontSize(constraints: Constraints, text: AnnotatedString): TextUnit {
+        fun keepsWordsWhole(size: Float): Boolean = performLayout(constraints, text, size.sp).let { layout ->
+            (0 until layout.lineCount - 1).none { line -> text.text.breaksWordAt(layout.getLineEnd(line)) }
+        }
+        // A label is short, so trying each step from the largest size is cheap enough.
+        var size = max.value
+        while (size > min.value && !keepsWordsWhole(size)) size -= LABEL_SIZE_STEP
+        return size.coerceAtLeast(min.value).sp
+    }
+}
+
+/** Whether a line that ends at [offset] cuts a word, rather than ending at a space or a hyphen. */
+private fun String.breaksWordAt(offset: Int): Boolean =
+    offset in 1 until length && this[offset - 1].isLetterOrDigit() && this[offset].isLetterOrDigit()
+
 private val SvTileKind.ground: SvGround
     @Composable
     @ReadOnlyComposable
@@ -261,6 +297,13 @@ private val SHORT_TILE_HEIGHT = 96.dp
 private val TALL_TILE_HEIGHT = 124.dp
 private val MIN_VALUE_SIZE = 14.sp
 private val MAX_VALUE_SIZE = 24.sp
+
+/**
+ * The smallest size a label shrinks to so as not to break a word. Text in sp grows with the size the
+ * user chose for text, so at twice the usual size this still draws as large as 18sp.
+ */
+private val MIN_LABEL_SIZE = 9.sp
+private const val LABEL_SIZE_STEP = 0.5f
 private val VALUE_LINE_HEIGHT = (28f / 24f).em
 
 private val TAG_HEIGHT = 24.dp

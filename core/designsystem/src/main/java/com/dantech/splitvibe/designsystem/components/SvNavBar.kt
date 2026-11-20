@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -67,12 +66,14 @@ class SvNavItem(val label: String, val icon: ImageVector, val count: Int = 0)
  * grows into the screen it opens.
  *
  * When a label does not fit on one line, as with text at twice its size, every item shows its icon
- * only, and the labels stay the names that a screen reader reads.
+ * only, with a lime mark under the icon of the selected item, and the labels stay the names that a
+ * screen reader reads.
  *
- * The bar floats clear of the edges of the screen and of the system navigation bar, so the content
- * runs on below it. It tells [onHeightChange] how tall it is with the room around it, which changes
- * with the size of text: give the list of the screen that much padding at its end, so that its last
- * row can scroll up above the bar.
+ * The bar floats clear of the edges of the screen and of the system navigation bar. Put it in the
+ * `bottomBar` of the `Scaffold` of a main screen, as [SvBottomBar] is put, and give the list of the
+ * screen the padding that the `Scaffold` passes as `Modifier.padding`, not as `contentPadding`: the
+ * list then ends above the bar, and nothing scrolls under it. A row half hidden behind the bar would
+ * leave only a thin strip of itself to tap.
  */
 @Composable
 fun SvNavBar(
@@ -84,14 +85,11 @@ fun SvNavBar(
     onCenterClick: () -> Unit,
     modifier: Modifier = Modifier,
     centerModifier: Modifier = Modifier,
-    onHeightChange: (Dp) -> Unit = {},
 ) {
     val palette = SvTheme.palette
-    val density = LocalDensity.current
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .onSizeChanged { size -> onHeightChange(with(density) { size.height.toDp() }) }
             .navigationBarsPadding()
             .padding(start = BAR_MARGIN, end = BAR_MARGIN, top = SvSpacing.sm, bottom = BAR_MARGIN),
     ) {
@@ -171,8 +169,17 @@ private fun NavTab(item: SvNavItem, selected: Boolean, iconsOnly: Boolean, onCli
                 )
             }
         }
-        if (!iconsOnly) {
-            Spacer(Modifier.height(SvSpacing.xs))
+        Spacer(Modifier.height(SvSpacing.xs))
+        if (iconsOnly) {
+            // Without its bold label, the selected item would differ from the others by colour alone,
+            // which not everyone can tell apart, so a mark under its icon shows it too. Every item
+            // keeps the room for the mark, so that the icons stay in line.
+            Box(
+                Modifier
+                    .size(SELECTED_MARK_WIDTH, SELECTED_MARK_HEIGHT)
+                    .then(if (selected) Modifier.background(color, SvShapes.pill) else Modifier),
+            )
+        } else {
             Text(
                 item.label,
                 color = color,
@@ -235,3 +242,5 @@ private val COUNT_SIZE = 18.dp
 private val COUNT_TEXT_SIZE = 11.dp
 private val COUNT_OFFSET_X = 10.dp
 private val COUNT_OFFSET_Y = (-6).dp
+private val SELECTED_MARK_WIDTH = 16.dp
+private val SELECTED_MARK_HEIGHT = 4.dp

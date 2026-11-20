@@ -3,11 +3,12 @@ package com.dantech.splitvibe.ui
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,9 +17,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,12 +29,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -44,6 +48,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
@@ -53,6 +58,7 @@ import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.onRoot
@@ -60,17 +66,21 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.components.SV_TEXT_FIELD_MAX_LENGTH
+import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
+import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvChartBar
 import com.dantech.splitvibe.designsystem.components.SvCheckbox
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
@@ -81,6 +91,7 @@ import com.dantech.splitvibe.designsystem.components.SvFabMenuItem
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
+import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvMeter
 import com.dantech.splitvibe.designsystem.components.SvNavBar
 import com.dantech.splitvibe.designsystem.components.SvNavItem
@@ -99,13 +110,21 @@ import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvTile
 import com.dantech.splitvibe.designsystem.components.SvTileKind
 import com.dantech.splitvibe.designsystem.components.SvTopBar
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCategory
+import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.ui.common.CategoryStyle
+import com.dantech.splitvibe.ui.common.NumberField
 import com.dantech.splitvibe.ui.common.style
+import com.dantech.splitvibe.ui.editor.BillEditorContent
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -166,6 +185,46 @@ class ComponentBehaviourTest {
         compose.onNodeWithText("By percent")
             .assertIsSelected()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+    }
+
+    @Test
+    // Whether a chip lies within the row depends on how wide its label really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a row of chips that scrolls sideways shows the chosen chip whole, when it appears and when the choice changes`() {
+        var selected by mutableIntStateOf(WAYS.lastIndex)
+        compose.setContent { SplitVibeTheme { WaysInOneRow(selected = selected, onSelect = { selected = it }) } }
+        assertShownWhole(WAYS.last())
+
+        selected = 0
+        compose.waitForIdle()
+
+        assertShownWhole(WAYS.first())
+    }
+
+    @Test
+    // Whether a chip lies within the row depends on how wide its label really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `with animations off, a row of chips that scrolls sideways moves to the chosen chip at once`() {
+        var selected by mutableIntStateOf(0)
+        compose.setContent {
+            SplitVibeTheme {
+                CompositionLocalProvider(LocalReducedMotion provides true) {
+                    WaysInOneRow(selected = selected, onSelect = { selected = it })
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+
+        selected = WAYS.lastIndex
+        // Hands the change to the composition, which then waits for a frame. A few frames are enough
+        // to compose and lay out the row again, and far too few for the row to glide there.
+        compose.waitForIdle()
+        repeat(FEW_FRAMES) { compose.mainClock.advanceTimeByFrame() }
+
+        assertShownWhole(WAYS.last())
     }
 
     @Test
@@ -275,20 +334,14 @@ class ComponentBehaviourTest {
     }
 
     @Test
-    fun `the floating bottom bar never covers the end of the list above it`() {
+    fun `nothing in the list scrolls under the floating bottom bar`() {
         compose.setContent {
             SplitVibeTheme {
                 Scaffold(bottomBar = { SvBottomBar { SvPrimaryButton("Done", onClick = {}) } }) { padding ->
-                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-                        items(ROWS) { index -> Text("Row $index", modifier = Modifier.padding(SvSpacing.lg)) }
-                    }
+                    ListOfRows(Modifier.padding(padding))
                 }
             }
         }
-
-        // Scrolling only brings the row into the list's own frame, which reaches under the bar; where
-        // it ends up is what shows whether the bar covers it.
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText(LAST_ROW))
 
         val screen = compose.onRoot().getBoundsInRoot()
         val button = compose.onNodeWithText("Done").getBoundsInRoot()
@@ -296,8 +349,7 @@ class ComponentBehaviourTest {
         val bar = compose.onNodeWithText("Done").onParent().getBoundsInRoot()
         assertTrue("The bar was not found around its button", bar.top < button.top && bar.bottom > button.bottom)
         assertTrue("The bar does not float clear of the sides of the screen", bar.left > screen.left && bar.right < screen.right)
-        val last = compose.onNodeWithText(LAST_ROW).getBoundsInRoot()
-        assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
+        assertListEndsAbove(bar)
     }
 
     @Test
@@ -317,8 +369,7 @@ class ComponentBehaviourTest {
         compose.onNode(hasText("Edit bill") and isHeading()).assertExists()
         for (button in listOf(hasContentDescription("Back"), hasText("Sign out"), hasText("Send"), hasText("See all"))) {
             val node = compose.onNode(button).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            val touch = with(compose.density) { node.fetchSemanticsNode().touchBoundsInRoot.size.toDpSize() }
-            assertTrue("$button can be touched on only $touch", touch.width >= TOUCH_TARGET && touch.height >= TOUCH_TARGET)
+            assertRoomForAFinger(node, button.description)
             node.performClick()
         }
 
@@ -360,11 +411,7 @@ class ComponentBehaviourTest {
         compose.onNode(tab("Home")).assertIsSelected()
         // The labels show under the icons, and each tab carries its own name.
         compose.onAllNodesWithText("Requests", useUnmergedTree = true).assertCountEquals(1)
-        for (name in listOf("Home", "Groups", "Requests, 2", "Insights")) {
-            val node = compose.onNode(tab(name)).fetchSemanticsNode()
-            val touch = with(compose.density) { node.touchBoundsInRoot.size.toDpSize() }
-            assertTrue("$name can be touched on only $touch", touch.width >= TOUCH_TARGET && touch.height >= TOUCH_TARGET)
-        }
+        for (name in listOf("Home", "Groups", "Requests, 2", "Insights")) assertRoomForAFinger(compose.onNode(tab(name)), name)
 
         compose.onNode(tab("Requests, 2")).assertIsNotSelected().performClick()
 
@@ -397,26 +444,14 @@ class ComponentBehaviourTest {
     }
 
     @Test
-    fun `the floating navigation bar never covers the end of a list padded with its height`() {
+    fun `nothing in the list of a main screen scrolls under the floating navigation bar`() {
         compose.setContent {
             SplitVibeTheme {
-                var barHeight by remember { mutableStateOf(0.dp) }
-                Box(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = barHeight)) {
-                        items(ROWS) { index -> Text("Row $index", modifier = Modifier.padding(SvSpacing.lg)) }
-                    }
-                    NavBar(
-                        selected = 0,
-                        onSelect = {},
-                        onSplit = {},
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                        onHeightChange = { barHeight = it },
-                    )
+                Scaffold(bottomBar = { NavBar(selected = 0, onSelect = {}, onSplit = {}) }) { padding ->
+                    ListOfRows(Modifier.padding(padding))
                 }
             }
         }
-
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText(LAST_ROW))
 
         val screen = compose.onRoot().getBoundsInRoot()
         val home = compose.onNode(tab("Home")).getBoundsInRoot()
@@ -425,8 +460,7 @@ class ComponentBehaviourTest {
         assertTrue("The bar was not found around its tabs", bar.top <= home.top && bar.bottom >= home.bottom)
         assertTrue("The bar does not float clear of the edges of the screen", bar.left > screen.left && bar.right < screen.right)
         assertTrue("The bar does not float clear of the bottom of the screen", bar.bottom < screen.bottom)
-        val last = compose.onNodeWithText(LAST_ROW).getBoundsInRoot()
-        assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
+        assertListEndsAbove(bar)
     }
 
     @Test
@@ -517,9 +551,8 @@ class ComponentBehaviourTest {
         val checkbox = compose.onNode(hasRole(Role.Checkbox)).assertIsOff()
         val radio = compose.onNode(hasRole(Role.RadioButton)).assertIsNotSelected()
         val switch = compose.onNode(hasRole(Role.Switch)).assertIsOff()
-        for (control in listOf(checkbox, radio, switch)) {
-            val touch = with(compose.density) { control.fetchSemanticsNode().touchBoundsInRoot.size.toDpSize() }
-            assertTrue("A control can be touched on only $touch", touch.width >= TOUCH_TARGET && touch.height >= TOUCH_TARGET)
+        for ((name, control) in listOf("The tick box" to checkbox, "The radio button" to radio, "The switch" to switch)) {
+            assertRoomForAFinger(control, name)
             control.performClick()
         }
 
@@ -566,11 +599,7 @@ class ComponentBehaviourTest {
 
         compose.onNode(hasText("Leave the group?") and isHeading()).assertExists()
         compose.onNodeWithText("You can join again with a new invite.").assertExists()
-        for (label in listOf("Cancel", "Leave")) {
-            val node = compose.onNodeWithText(label).assert(hasRole(Role.Button))
-            val touch = with(compose.density) { node.fetchSemanticsNode().touchBoundsInRoot.size.toDpSize() }
-            assertTrue("$label can be touched on only $touch", touch.width >= TOUCH_TARGET && touch.height >= TOUCH_TARGET)
-        }
+        for (label in listOf("Cancel", "Leave")) assertRoomForAFinger(compose.onNodeWithText(label).assert(hasRole(Role.Button)), label)
 
         val cancel = compose.onNodeWithText("Cancel").getBoundsInRoot()
         val leave = compose.onNodeWithText("Leave").getBoundsInRoot()
@@ -620,10 +649,11 @@ class ComponentBehaviourTest {
                         onValueChange = { number = it },
                         label = "Account number",
                         maxLength = 6,
+                        // A password keyboard is what keeps a keyboard from suggesting and learning the number.
                         keyboardOptions = KeyboardOptions(
                             capitalization = KeyboardCapitalization.Characters,
                             autoCorrectEnabled = false,
-                            keyboardType = KeyboardType.Email,
+                            keyboardType = KeyboardType.Password,
                             imeAction = ImeAction.Done,
                         ),
                     )
@@ -633,7 +663,7 @@ class ComponentBehaviourTest {
         }
 
         val account = keyboardOf(view, compose.onNode(hasSetTextAction() and hasText("Account number")))
-        assertEquals(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, account.inputType and TYPE_AND_VARIATION)
+        assertEquals(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, account.inputType and TYPE_AND_VARIATION)
         assertTrue("Capitals were not asked for", account.inputType and InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS != 0)
         assertEquals("The keyboard may correct the account number", 0, account.inputType and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
         assertEquals(EditorInfo.IME_ACTION_DONE, account.imeOptions and EditorInfo.IME_MASK_ACTION)
@@ -649,8 +679,41 @@ class ComponentBehaviourTest {
         compose.onNode(hasSetTextAction() and hasText("Name")).performTextInput("x".repeat(SV_TEXT_FIELD_MAX_LENGTH + 20))
 
         assertEquals("DE8937", number)
+        // The password keyboard does not hide the number: the field shows it as typed.
         compose.onNode(hasSetTextAction() and hasText("Account number")).assert(hasText("DE8937"))
         assertEquals(SV_TEXT_FIELD_MAX_LENGTH, name.length)
+    }
+
+    @Test
+    fun `the currency field of the bill editor takes three letters and passes on a code it knows`() {
+        var bill by mutableStateOf(EDITED_BILL)
+        compose.setContent { SplitVibeTheme { BillEditorContent(bill = bill, onEdit = { change -> bill = change(bill) }, onDone = {}) } }
+
+        // One letter too many: cut at three, what is left is a code of its own.
+        compose.onNode(hasSetTextAction() and hasText("Currency")).performTextReplacement("USDX")
+
+        compose.onNode(hasSetTextAction() and hasText("Currency")).assert(hasText("USD"))
+        assertEquals("USD", bill.currency.code)
+    }
+
+    @Test
+    fun `a number field takes twenty characters at most`() {
+        var typed = ""
+        compose.setContent {
+            SplitVibeTheme {
+                NumberField(
+                    label = "Amount",
+                    text = "",
+                    parse = { text -> text.toBigDecimalOrNull() },
+                    onValue = { amount -> typed = amount.toPlainString() },
+                )
+            }
+        }
+
+        compose.onNode(hasSetTextAction() and hasText("Amount")).performTextInput("1".repeat(MAX_NUMBER_CHARACTERS + 5))
+
+        assertEquals("1".repeat(MAX_NUMBER_CHARACTERS), typed)
+        compose.onNode(hasSetTextAction() and hasText("Amount")).assert(hasText("1".repeat(MAX_NUMBER_CHARACTERS)))
     }
 
     @Test
@@ -680,6 +743,79 @@ class ComponentBehaviourTest {
             .performClick()
 
         assertTrue(opened)
+    }
+
+    @Test
+    // Whether a word fits depends on how wide its text really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `with large text a tile shrinks its label rather than break a word in two`() {
+        compose.setContent {
+            SplitVibeTheme {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                    // Two tiles side by side across the phone, the first with an icon beside its label.
+                    Row(
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen),
+                        horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+                    ) {
+                        SvTile(
+                            label = "November",
+                            value = "₫3,823,038",
+                            kind = SvTileKind.Accent,
+                            modifier = Modifier.weight(1f),
+                            trailing = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                        )
+                        SvTile(label = "Friends owe you", value = "₫651,671", kind = SvTileKind.Brand, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        for (label in listOf("November", "Friends owe you")) {
+            val layout = layoutOf(compose.onNodeWithText(label, useUnmergedTree = true))
+            val cuts = (0 until layout.lineCount - 1).map { line -> layout.getLineEnd(line) }
+                .filter { end -> label[end - 1].isLetterOrDigit() && label[end].isLetterOrDigit() }
+            assertTrue("\"$label\" breaks a word at $cuts", cuts.isEmpty())
+        }
+    }
+
+    @Test
+    // The colours are read off the drawn picture.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `the rings of an avatar stack have the colour of the dark card it lies on, and are white on a violet block`() {
+        compose.setContent {
+            SplitVibeTheme(darkTheme = true) {
+                Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.lg)) {
+                    SvCard(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.padding(SvSpacing.lg).testTag("on a card")) { SvAvatarStack(names = listOf("Minh", "Lan")) }
+                    }
+                    SvTile(
+                        label = "Chiang Mai trip",
+                        value = "THB 35.43",
+                        kind = SvTileKind.Brand,
+                        leading = { Box(modifier = Modifier.testTag("on violet")) { SvAvatarStack(names = listOf("Minh", "Lan")) } },
+                    )
+                }
+            }
+        }
+
+        val picture = compose.onRoot().captureToImage().toPixelMap()
+
+        // The colour of the first tile's ring, halfway down its left edge, and of what lies just left of it.
+        fun ringAndBehind(tag: String): Pair<Color, Color> {
+            val stack = compose.onNodeWithTag(tag).getBoundsInRoot()
+            return with(compose.density) {
+                val y = ((stack.top + stack.bottom) / 2).roundToPx()
+                picture[(stack.left + RING_PROBE).roundToPx(), y] to picture[(stack.left - RING_PROBE).roundToPx(), y]
+            }
+        }
+        val (cardRing, card) = ringAndBehind("on a card")
+        assertEquals("The ring on a dark card", card, cardRing)
+        val (violetRing, violet) = ringAndBehind("on violet")
+        assertEquals("The ring on a violet block", Color.White, violetRing)
+        assertNotEquals("The violet block itself is not white", Color.White, violet)
     }
 
     @Test
@@ -713,6 +849,41 @@ class ComponentBehaviourTest {
         assertTrue(tapped)
     }
 
+    @Test
+    // The colours are read off the drawn picture.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `a notice stands out from what it lies on, on the page and on a card`() {
+        compose.setContent {
+            SplitVibeTheme {
+                Scaffold { padding ->
+                    Column(
+                        modifier = Modifier
+                            .padding(padding)
+                            .padding(SvSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
+                    ) {
+                        SvMessageCard(text = "On the page", isError = false)
+                        SvCard(modifier = Modifier.fillMaxWidth()) {
+                            SvMessageCard(text = "On a card", isError = true, modifier = Modifier.padding(SvSpacing.lg))
+                        }
+                    }
+                }
+            }
+        }
+
+        val picture = compose.onRoot().captureToImage().toPixelMap()
+        for (text in listOf("On the page", "On a card")) {
+            // The notice is the surface that holds its text. Both points lie clear of its round corners
+            // and of its tile: one just inside its top edge, one just above it, on what it lies on.
+            val notice = compose.onNodeWithText(text).onParent().getBoundsInRoot()
+            val (inside, outside) = with(compose.density) {
+                val x = (notice.left + COLOUR_PROBE_INSET).roundToPx()
+                picture[x, (notice.top + COLOUR_PROBE_DEPTH).roundToPx()] to picture[x, (notice.top - COLOUR_PROBE_DEPTH).roundToPx()]
+            }
+            assertNotEquals("The notice ${text.replaceFirstChar { it.lowercase() }} has the colour of what it lies on", outside, inside)
+        }
+    }
+
     /** What [field] asks of the keyboard once it has the cursor, as the keyboard is told it. */
     private fun keyboardOf(view: View, field: SemanticsNodeInteraction): EditorInfo {
         field.performClick()
@@ -720,17 +891,64 @@ class ComponentBehaviourTest {
         compose.runOnIdle { assertNotNull("The field started no input", view.onCreateInputConnection(info)) }
         return info
     }
+
+    /** Fails unless the chip of [option] lies whole within the row of chips around it. */
+    private fun assertShownWhole(option: String) {
+        val row = compose.onNode(hasScrollAction()).getBoundsInRoot()
+        // Where the chip is, whether or not the row shows it: its bounds would be cut at the edge of the row.
+        val chip = compose.onNodeWithText(option).fetchSemanticsNode()
+        val (start, end) = with(compose.density) { chip.positionInRoot.x.toDp().let { it to it + chip.size.width.toDp() } }
+        assertTrue(
+            "$option lies from $start to $end, beyond the row from ${row.left} to ${row.right}",
+            start >= row.left && end <= row.right,
+        )
+    }
+
+    /**
+     * Fails unless the list on screen ends above [bar]. Its own frame has to end there: padding inside
+     * the frame would only lift its last row above the bar, while every other row still scrolls under
+     * the bar. The last row must still be reachable above the bar too.
+     */
+    private fun assertListEndsAbove(bar: DpRect) {
+        val list = compose.onNode(hasScrollAction())
+        val frame = list.getBoundsInRoot()
+        assertTrue("The list runs on to ${frame.bottom}, under the top of the bar at ${bar.top}", frame.bottom <= bar.top)
+        list.performScrollToNode(hasText(LAST_ROW))
+        val last = compose.onNodeWithText(LAST_ROW).getBoundsInRoot()
+        assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
+    }
+
+    /**
+     * Fails unless [node], called [name], keeps room for a finger: the space it takes in the layout,
+     * which includes what Material reserves around a control drawn smaller, is at least 48dp each way.
+     * Its touch bounds cannot tell, as they grow to 48dp around anything that can be clicked.
+     */
+    private fun assertRoomForAFinger(node: SemanticsNodeInteraction, name: String) {
+        val layout = node.fetchSemanticsNode().layoutInfo
+        val size = with(compose.density) { DpSize(layout.width.toDp(), layout.height.toDp()) }
+        assertTrue("$name takes only $size", size.width >= TOUCH_TARGET && size.height >= TOUCH_TARGET)
+    }
+}
+
+/** The ways to split a bill as chips in one row that scrolls sideways, narrower than the chips. */
+@Composable
+private fun WaysInOneRow(selected: Int, onSelect: (Int) -> Unit) = SvChoiceChips(
+    options = WAYS,
+    selected = selected,
+    onSelect = onSelect,
+    modifier = Modifier.width(ROW_WIDTH),
+    singleRow = true,
+)
+
+/** A list longer than the screen, as a screen with a bar at its bottom shows it. */
+@Composable
+private fun ListOfRows(modifier: Modifier) = LazyColumn(modifier = modifier.fillMaxSize()) {
+    items(ROWS) { index -> Text("Row $index", modifier = Modifier.padding(SvSpacing.lg)) }
 }
 
 /** The navigation bar of the main screens, as the app fills it. */
 @Composable
-private fun NavBar(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    onSplit: () -> Unit,
-    modifier: Modifier = Modifier,
-    onHeightChange: (Dp) -> Unit = {},
-) = SvNavBar(
+private fun NavBar(selected: Int, onSelect: (Int) -> Unit, onSplit: () -> Unit) = SvNavBar(
     items = listOf(
         SvNavItem("Home", Icons.Default.Home),
         SvNavItem("Groups", Icons.Default.Person),
@@ -742,8 +960,6 @@ private fun NavBar(
     centerLabel = "Split a bill",
     centerIcon = Icons.Default.Add,
     onCenterClick = onSplit,
-    modifier = modifier,
-    onHeightChange = onHeightChange,
 )
 
 private fun hasRole(role: Role) = SemanticsMatcher.expectValue(SemanticsProperties.Role, role)
@@ -762,6 +978,33 @@ private fun TextLayoutResult.firstLineHeight(): Float = getLineBottom(0) - getLi
 private const val ROWS = 40
 private const val LAST_ROW = "Row ${ROWS - 1}"
 private val TOUCH_TARGET = 48.dp
+
+/** The ways to split a bill, more than fit in [ROW_WIDTH]. */
+private val WAYS = listOf("Equally", "By item", "By shares", "By percent", "By amount")
+private val ROW_WIDTH = 240.dp
+
+/** A few frames, 64ms: enough to lay something out again, too short for anything to glide. */
+private const val FEW_FRAMES = 4
+
+/** Where a colour is read: this far in from the start of a surface, and this far inside or outside its top edge. */
+private val COLOUR_PROBE_INSET = 32.dp
+private val COLOUR_PROBE_DEPTH = 8.dp
+
+/** Half the width of an avatar's ring: inside it on one side of the tile's edge, clear of it on the other. */
+private val RING_PROBE = 1.dp
+
+/** The bill the editor shows: one item, in dong. */
+private val EDITED_BILL = Bill(
+    merchant = "Pho 24",
+    date = "2026-11-13",
+    currency = BillCurrency("VND", 0),
+    items = listOf(BillItem("i1", "Phở bò", BigDecimal.ONE, 65_000, 65_000)),
+    charges = emptyList(),
+    printedTotalMinor = null,
+)
+
+/** The longest number the app's number fields take. */
+private const val MAX_NUMBER_CHARACTERS = 20
 
 /** A phone of common size, as the screen galleries draw. */
 private const val PHONE = "w412dp-h915dp-xhdpi"

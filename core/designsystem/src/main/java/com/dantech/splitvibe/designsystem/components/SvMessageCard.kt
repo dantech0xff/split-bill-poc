@@ -33,15 +33,20 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * A notice inside the page: a card with a yellow tile that marks something the user should know,
  * or with [isError] a red tile for something that went wrong. [action] adds one button below the
  * text that lets the user act on it. The tile is decorative; the text says it all.
+ *
+ * On the page and on the floating bar it has the colour of a card, white in the light theme. Inside
+ * a card, a sheet or a dialog, which have that colour themselves, it takes their quiet shade instead,
+ * a light grey in the light theme, so that it still stands out from them.
  */
 @Composable
 fun SvMessageCard(text: String, isError: Boolean, modifier: Modifier = Modifier, action: String? = null, onAction: () -> Unit = {}) {
     val colors = MaterialTheme.colorScheme
     val palette = SvTheme.palette
+    val ground = LocalSvGround.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = SvElevation.Level1.surface,
+        color = if (ground == SvGround.Card) ground.quiet else SvElevation.Level1.surface,
         contentColor = colors.onSurface,
     ) {
         CompositionLocalProvider(LocalSvGround provides SvGround.Card) {

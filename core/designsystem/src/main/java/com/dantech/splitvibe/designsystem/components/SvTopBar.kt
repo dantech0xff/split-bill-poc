@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -83,7 +84,10 @@ fun SvTopBar(
     BarRow(modifier = modifier, windowInsets = windowInsets, top = SvSpacing.sm) {
         FilledIconButton(
             onClick = onBack,
-            modifier = Modifier.size(ROUND_BUTTON_SIZE),
+            // Drawn at the size of the approved design, in a space a finger can hit, as the action is.
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .size(ROUND_BUTTON_SIZE),
             shape = CircleShape,
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = ground.quiet, contentColor = ground.onQuiet),
         ) {

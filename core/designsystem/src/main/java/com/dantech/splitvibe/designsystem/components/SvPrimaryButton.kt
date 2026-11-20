@@ -56,11 +56,14 @@ fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
  * The bar at the bottom of a screen that holds its main action: a dark pill that floats above the
  * content, clear of the edges of the screen and of the system navigation bar.
  *
- * Put it in the `bottomBar` of a `Scaffold`, or last in a column below the part that scrolls: the
- * content then ends above it, so it never hides the end of a list, nor a field the keyboard pushed
- * up. What is in it takes the colours of the bar by itself: [SvPrimaryButton] and [SvSplitButton]
- * turn lime, [SvQuietButton], [SvWorkingRow] and [SvLoadingIndicator] take the bar's own shades,
- * and plain text is drawn in the bar's text colour.
+ * Put it in the `bottomBar` of a `Scaffold`, and give the list of the screen the padding that the
+ * `Scaffold` passes as `Modifier.padding`, not as `contentPadding`; or put it last in a column below
+ * the part that scrolls. The content then ends above the bar and nothing scrolls under it, so the
+ * bar never hides a row, nor a field the keyboard pushed up.
+ *
+ * What is in it takes the colours of the bar by itself: [SvPrimaryButton] and [SvSplitButton] turn
+ * lime, [SvQuietButton], [SvWorkingRow] and [SvLoadingIndicator] take the bar's own shades, and
+ * plain text is drawn in the bar's text colour.
  */
 @Composable
 fun SvBottomBar(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

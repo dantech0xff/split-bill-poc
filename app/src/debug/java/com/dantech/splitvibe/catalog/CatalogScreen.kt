@@ -242,13 +242,16 @@ fun CatalogScreen() {
             }
 
             item {
-                SvSectionHeader("Messages")
+                SvSectionHeader("Messages", hint = "SvMessageCard on the page, and on a card, where it turns grey.")
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
                 ) {
                     SvMessageCard(text = "A notice, with one action.", isError = false, action = "Act on it")
                     SvMessageCard(text = "Something went wrong.", isError = true)
+                    SvCard(modifier = Modifier.fillMaxWidth()) {
+                        SvMessageCard(text = "On a card or a sheet.", isError = true, modifier = Modifier.padding(SvSpacing.lg))
+                    }
                 }
             }
 
@@ -646,17 +649,16 @@ private fun FieldSamples() {
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-            SvTextField(date, { date = it }, label = "Date", modifier = Modifier.weight(1f), placeholder = "2026-11-13")
-            SvTextField(
-                total,
-                { total = it },
-                label = "Total",
-                modifier = Modifier.weight(1f),
-                suffix = "VND",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-            )
-        }
+        SvTextField(date, { date = it }, label = "Date", modifier = Modifier.fillMaxWidth(), placeholder = "2026-11-13")
+        // Across the full width, as the bill editor lays out its total, so that large text still shows the whole amount.
+        SvTextField(
+            total,
+            { total = it },
+            label = "Total",
+            modifier = Modifier.fillMaxWidth(),
+            suffix = "VND",
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+        )
         SvTextField(
             handle,
             { handle = it },

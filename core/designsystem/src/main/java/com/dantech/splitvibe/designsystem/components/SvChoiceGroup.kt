@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.designsystem.components
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,17 +14,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.tokens.SvShapes
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import kotlin.math.roundToInt
 
 /**
  * A choice of one option out of a few, as pills of equal width in one row, such as the period of
@@ -58,7 +72,8 @@ fun SvChoiceGroup(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
 /**
  * A choice of one option out of more than fit in a row of equal pills, such as the five ways to
  * split a bill, as pills that wrap onto the next line. With [singleRow] they stay on one line that
- * scrolls sideways instead, which suits a screen where the choice should take little height. The
+ * scrolls sideways instead, which suits a screen where the choice should take little height; the
+ * row then shows the chosen pill whole when it first appears and whenever the choice changes. The
  * chosen pill is dark on the light page and light on the dark one. A screen reader reads each
  * option as a radio button.
  */
@@ -70,36 +85,87 @@ fun SvChoiceChips(
     modifier: Modifier = Modifier,
     singleRow: Boolean = false,
 ) {
-    val chips = @Composable {
-        options.forEachIndexed { index, option ->
-            val chosen = index == selected
-            val colors = choiceColors(chosen)
-            Surface(
-                selected = chosen,
-                onClick = { onSelect(index) },
-                modifier = Modifier.semantics { role = Role.RadioButton },
-                shape = SvShapes.pill,
-                color = colors.container,
-                contentColor = colors.content,
-            ) {
-                ChoiceLabel(option, colors.style, modifier = Modifier.padding(horizontal = SvSpacing.sm))
-            }
+    val chip = @Composable { index: Int, placement: Modifier ->
+        val chosen = index == selected
+        val colors = choiceColors(chosen)
+        Surface(
+            selected = chosen,
+            onClick = { onSelect(index) },
+            modifier = placement.semantics { role = Role.RadioButton },
+            shape = SvShapes.pill,
+            color = colors.container,
+            contentColor = colors.content,
+        ) {
+            ChoiceLabel(options[index], colors.style, modifier = Modifier.padding(horizontal = SvSpacing.sm))
         }
     }
     if (singleRow) {
+        val scroll = rememberScrollState()
+        // Where each chip lies along the row, counted from the start of the row.
+        val spans = remember { mutableStateMapOf<Int, IntRange>() }
+        val direction = LocalLayoutDirection.current
+        ShowWhole(scroll, spans[selected])
         Row(
             modifier = modifier
                 .selectableGroup()
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(scroll),
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
-        ) { chips() }
+        ) {
+            options.indices.forEach { index ->
+                val place = Modifier.onPlaced { coordinates ->
+                    val span = coordinates.spanFromStart(direction)
+                    // Written only when it moved, so that placing the chips again does not compose the row again.
+                    if (spans[index] != span) spans[index] = span
+                }
+                chip(index, place)
+            }
+        }
     } else {
         FlowRow(
             modifier = modifier.selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
-        ) { chips() }
+        ) {
+            options.indices.forEach { index -> chip(index, Modifier) }
+        }
     }
+}
+
+/**
+ * Scrolls a row that scrolls sideways so that [span], the part of the row counted from its start
+ * that the chosen chip takes, shows whole. The row jumps there when it first appears, and glides
+ * there when the choice changes, unless animations are off.
+ */
+@Composable
+private fun ShowWhole(scroll: ScrollState, span: IntRange?) {
+    val reduced = LocalReducedMotion.current
+    val glide = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    // Whether the row has been brought to its chosen chip before; only the effect below reads it.
+    var shown by remember { mutableStateOf(false) }
+    val viewport = scroll.viewportSize
+    LaunchedEffect(span, viewport) {
+        if (span == null || viewport == 0) return@LaunchedEffect
+        val target = when {
+            // A chip wider than the row shows its start, where its label begins.
+            span.first < scroll.value || span.last - span.first + 1 > viewport -> span.first
+
+            span.last >= scroll.value + viewport -> span.last + 1 - viewport
+
+            else -> scroll.value
+        }
+        if (target != scroll.value) {
+            if (shown && !reduced) scroll.animateScrollTo(target, glide) else scroll.scrollTo(target)
+        }
+        shown = true
+    }
+}
+
+/** The part of the row that this chip takes, counted from the start of the row, which is its right edge in a right-to-left layout. */
+private fun LayoutCoordinates.spanFromStart(direction: LayoutDirection): IntRange {
+    val left = positionInParent().x.roundToInt()
+    val width = size.width
+    val start = if (direction == LayoutDirection.Ltr) left else (parentLayoutCoordinates?.size?.width ?: 0) - left - width
+    return start until start + width
 }
 
 @Composable

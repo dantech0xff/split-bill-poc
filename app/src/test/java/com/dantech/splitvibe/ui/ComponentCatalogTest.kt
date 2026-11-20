@@ -1,5 +1,7 @@
 package com.dantech.splitvibe.ui
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.catalog.CatalogScreen
@@ -7,6 +9,7 @@ import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +53,10 @@ class ComponentCatalogTest {
         compose.setContent { SplitVibeTheme(darkTheme = darkTheme) { CatalogScreen() } }
         compose.mainClock.advanceTimeBy(SETTLE_MS)
         captureScreenRoboImage(File("src/test/screenshots/$name.png"))
+        // The picture is as tall as the window, so a catalog that grew longer than the window would
+        // lose its last sections without a word: its list must have nothing left to scroll to.
+        val list = compose.onNode(hasScrollToIndexAction()).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        assertFalse("The catalog runs on below the bottom of the picture", list.value() < list.maxValue())
     }
 }
 

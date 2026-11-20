@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.ui.editor
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -201,22 +202,28 @@ private fun ItemEditor(
     val name = item.name.ifBlank { stringResource(R.string.editor_this_item) }
     SvListRow(position = position, modifier = modifier) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // The label stands above the box of the field, so the button lines up with the box rather
+            // than with the whole field: at the bottom of the row, centred in a space as tall as the box.
+            Row(verticalAlignment = Alignment.Bottom) {
                 InputField(
                     text = item.name,
                     onTextChange = { text -> onEdit { BillEditor.withItemName(it, item.id, text) } },
                     label = stringResource(R.string.common_item),
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { onEdit { BillEditor.withoutItem(it, item.id) } }) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.editor_remove, name),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Box(modifier = Modifier.height(FIELD_BOX_HEIGHT), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = { onEdit { BillEditor.withoutItem(it, item.id) } }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.editor_remove, name),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+            // A label that takes two lines, as with large text, makes its field taller from the top,
+            // so the boxes of the three fields line up at their bottoms.
+            Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm), verticalAlignment = Alignment.Bottom) {
                 NumberField(
                     label = stringResource(R.string.editor_quantity),
                     text = item.quantity.stripTrailingZeros().toPlainString(),
@@ -368,3 +375,9 @@ private fun addLabelOf(kind: ChargeKind): Int = when (kind) {
 private val CURRENCY_FIELD_WIDTH = 112.dp
 private val QUANTITY_FIELD_WIDTH = 80.dp
 private val CHARGE_FIELD_WIDTH = 128.dp
+
+/**
+ * How tall the box of a field is below its label, at the usual size of text. Larger text makes the
+ * box a little taller, and a button centred in this space still lies within it.
+ */
+private val FIELD_BOX_HEIGHT = 52.dp

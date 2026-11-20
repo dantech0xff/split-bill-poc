@@ -22,7 +22,9 @@ internal val DisplayFamily = FontFamily(
 
 /**
  * The cut of Bricolage Grotesque drawn for large sizes, which is narrower. It is a family of its own
- * because it has the same weight as the ExtraBold in [DisplayFamily], and is used only from 56sp.
+ * because it has the same weight as the ExtraBold in [DisplayFamily]. It sets displayLarge and its
+ * emphasized twin at 56sp, and `amountHero`, the style of `SvHeroAmount`, which keeps this cut at
+ * whatever size a long amount shrinks to, down to 20sp.
  */
 internal val DisplayHeroFamily = FontFamily(
     Font(R.font.bricolage_grotesque_display_extrabold, FontWeight.ExtraBold),

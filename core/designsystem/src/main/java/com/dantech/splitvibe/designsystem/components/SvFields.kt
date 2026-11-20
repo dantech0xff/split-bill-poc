@@ -50,12 +50,20 @@ import com.dantech.splitvibe.designsystem.tokens.surface
 /**
  * A field to type text into, such as the name of a place or an amount, with its [label] above it.
  * The field takes the width it is given, so give it `Modifier.fillMaxWidth()` or a weight in a row.
+ * Put it on the page, a card, a sheet or a dialog, as the approved designs do: its label and its
+ * supporting text lie outside its box and keep the text colours of those, which would not read on
+ * the dark bar or on a violet or lime block.
  *
- * What is typed is cut at [maxLength] characters. [keyboardOptions] reach the keyboard as they are
- * given, so a field for an account number can turn off the keyboard's corrections and suggestions;
- * by default the first letter of each sentence is a capital and the keyboard's action goes to the
- * next field, or adds a new line in a field of more than one line. [keyboardActions] say what the
- * keyboard's action does.
+ * What is typed is cut at [maxLength] characters, [SV_TEXT_FIELD_MAX_LENGTH] unless the field says
+ * otherwise. [keyboardOptions] reach the keyboard as they are given; by default the first letter of
+ * each sentence is a capital and the keyboard's action goes to the next field, or adds a new line in
+ * a field of more than one line. [keyboardActions] say what the keyboard's action does.
+ *
+ * Turning auto-correct off in [keyboardOptions] only stops the keyboard from changing words: it still
+ * suggests words and may learn what is typed. A value that a keyboard must not learn, such as an
+ * account number, asks for a password keyboard (`KeyboardType.Password`), which keyboards neither
+ * suggest for nor learn from. The field still shows what is typed, as it applies no visual
+ * transformation.
  *
  * [placeholder] shows while the field is empty, such as an example of what to type. [prefix] and
  * [suffix] stand before and after what is typed, such as "paypal.me/" or a currency code, and
@@ -275,7 +283,12 @@ private fun String.cutAt(maxLength: Int): String {
     return substring(0, end)
 }
 
-/** Long enough for any name or label, short enough to keep what is stored small. */
+/**
+ * How many characters a field takes unless it says otherwise: long enough for any name or label,
+ * short enough to keep what is stored small. A field of more than one line is cut at it too, so
+ * such a field must pass a cap of its own, such as the 500 characters that the details of a
+ * payment method may take.
+ */
 const val SV_TEXT_FIELD_MAX_LENGTH = 80
 
 private val SingleLineKeyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next)
