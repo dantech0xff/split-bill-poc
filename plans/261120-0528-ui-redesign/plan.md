@@ -265,9 +265,10 @@ Bốn người phản biện báo 37 điều sai và 9 điều đúng một ph�
 
 Bốn điều chưa kiểm được, mỗi điều là bước đầu tiên của giai đoạn chứa nó:
 
-1. [UNVERIFIED] Robolectric nạp được phông từ `res/font` (giai đoạn 1).
-2. [UNVERIFIED] Mã băm của bảy tệp phông khớp khi tải trên một máy sạch của GitHub (giai đoạn 1).
-3. [UNVERIFIED] Thứ tự ngày, tháng, năm mà Android trả về cho từng vùng ở API 26 khớp với bản Java dùng trong kiểm thử (giai đoạn 4).
+1. Đã kiểm ở giai đoạn 1: Robolectric nạp được phông từ `res/font`; `FontLoadingTest` đo cả bảy tệp.
+2. Đã kiểm ở giai đoạn 1: mã băm của bảy tệp phông khớp khi tải trên một máy sạch của GitHub (việc `fonts` của lượt `checksums.yml` 44709397683).
+3. Đã kiểm ở giai đoạn 4: thứ tự ngày, tháng, năm mà Android trả về cho vi-VN, en-US và ja-JP khớp với bản Java, trên Android 8.0, 11, 14 và 16 (lượt `device-tests.yml` 44770414726 và 44770414888).
+<!-- Updated: Thực hiện giai đoạn 1 và 4 - ba điều chưa kiểm đã được kiểm -->
 4. [UNVERIFIED] Ba tệp phông cho web vừa trong trần 120 KB nén dành riêng cho phông (giai đoạn 9).
 
 ### Whole-Plan Consistency Sweep
