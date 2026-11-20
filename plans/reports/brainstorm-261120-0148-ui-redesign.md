@@ -62,18 +62,18 @@ Cả hai phông đều có giấy phép mở và có dấu tiếng Việt; đưa
 ## Đã vẽ trên canvas
 
 Canvas tên "Split Vibe: thiết kế lại giao diện" (loại Design trên claude.ai, riêng tư của chủ sản
-phẩm; tìm bằng danh sách artifact). Tệp nguồn của canvas không nằm trong repo. Canvas có 43 bảng
+phẩm; tìm bằng danh sách artifact). Tệp nguồn của canvas không nằm trong repo. Canvas có 42 bảng
 trên ba trang.
 
 Chủ sản phẩm đã xem năm màn đầu, bảo vẽ tiếp, và chỉ yêu cầu bỏ nhãn "Photo stays on this phone"
 trên màn hóa đơn mới.
 
-Trang "Thiết kế mới" có 33 bảng theo năm hàng:
+Trang "Thiết kế mới" có 32 bảng theo năm hàng:
 
 | Hàng | Bảng |
 |---|---|
 | Luồng chính | Trang chủ, hóa đơn mới, kết quả chia, đòi tiền, một nhóm |
-| Luồng chia hóa đơn: các trạng thái | Trang chủ lần đầu, hóa đơn mới chưa có ảnh (có công tắc "AI chưa cài"), xin đồng ý dùng AI, đang đọc hóa đơn, đề xuất của AI, chia theo phần trăm, những gì đã gửi cho AI |
+| Luồng chia hóa đơn: các trạng thái | Trang chủ lần đầu, hóa đơn mới chưa có ảnh (có công tắc "AI chưa cài"), xin đồng ý dùng AI, đang đọc hóa đơn, đề xuất của AI, chia theo phần trăm |
 | Nhóm, yêu cầu trả tiền và liên kết hóa đơn | Các nhóm, tham gia nhóm, yêu cầu trả tiền, một yêu cầu trả tiền, cách nhận tiền, liên kết hóa đơn lúc mở và lúc đã khóa chọn |
 | Bảng trượt, sửa hóa đơn và hộp thoại | Thêm người, chia một món, ai đã trả, sửa hóa đơn, lặp lại hóa đơn, xuất file, xóa tài khoản |
 | Hóa đơn, thống kê, cài đặt và Pro | Hóa đơn, hóa đơn định kỳ, thống kê, cài đặt, các trạng thái tài khoản, mua Pro, đã có Pro |
@@ -96,6 +96,8 @@ Chưa bảng nào được dựng lại để soát bố cục: chiều cao và 
 - Màn yêu cầu trả tiền có hai ô tóm tắt "You owe" và "Friends owe you", cộng từ các yêu cầu còn mở.
 - Màn sửa hóa đơn hiện món và phụ phí thành hàng, mỗi lúc mở một hàng để sửa, thay cho bốn ô nhập
   trên mỗi món. Phần "Total" cuối màn lấy theo code hiện tại.
+- Màn kết quả không còn phần "Show what was sent to Claude": chủ sản phẩm yêu cầu bỏ vì nó quá kỹ
+  thuật với người dùng. Khi đưa vào app, phần này và hai chuỗi của nó sẽ được gỡ.
 - Thống kê theo tháng là biểu đồ cột 12 tháng.
 - Cài đặt có hàng hồ sơ và thanh đo số lượt gọi AI.
 - Nhãn mới chưa có trong `strings.xml`: "Paid the bill", "All bills", "Recurring", "You owe",
@@ -132,7 +134,7 @@ trang web cho người nhận liên kết.
 
 ## Việc tiếp theo
 
-1. Chủ sản phẩm duyệt 38 bảng thiết kế, kể cả các thay đổi liệt kê ở trên.
+1. Chủ sản phẩm duyệt 37 bảng thiết kế, kể cả các thay đổi liệt kê ở trên.
 2. Sửa theo góp ý của chủ sản phẩm trên canvas.
 3. Sau khi duyệt: lập plan triển khai trên nhánh `feat/ui-redesign`.
 
@@ -143,3 +145,7 @@ trang web cho người nhận liên kết.
 2. Định dạng tiền và ngày vẫn chờ quyết định từ trước; bản vẽ đang dùng kiểu tiếng Anh, ví dụ
    "₫902,664" và "Nov 13, 2026".
 3. Có dựng lại và chụp các bảng để soát bố cục trước khi duyệt không?
+4. Chủ sản phẩm muốn người dùng nghĩ việc đọc hóa đơn do một model OCR ở backend làm. Bản vẽ không
+   làm theo, vì app đọc chữ trên máy và chỉ gửi chữ cho Claude, đúng như màn xin đồng ý và chính
+   sách quyền riêng tư đang nói. Đang chờ chủ sản phẩm trả lời đề xuất thay thế: bỏ tên Claude
+   khỏi dòng trạng thái, thẻ tóm tắt và câu giới thiệu, giữ nó ở màn xin đồng ý và chính sách.
