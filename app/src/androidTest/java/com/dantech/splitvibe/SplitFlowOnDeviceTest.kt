@@ -1,6 +1,7 @@
 package com.dantech.splitvibe
 
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.settings.AppSettings
@@ -121,11 +123,12 @@ class SplitFlowOnDeviceTest {
     /**
      * Types a person's part into their row of the split as a finger does, with the keyboard open: the
      * field being typed into stays in view above the bar at the bottom, and the bar above the keyboard.
-     * The last row is the one nearest the bar. On a phone that shows no keyboard, as some emulators do
-     * not, the test is skipped rather than passed, as it would prove nothing there.
+     * The last row is the one nearest the bar. The emulators that run these tests have a hardware
+     * keyboard, so the phone is set to show its own keyboard anyway while the test runs. On a phone that
+     * still shows none, the test is skipped rather than passed, as it would prove nothing there.
      */
     @Test
-    fun aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard() {
+    fun aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard() = withTheOnScreenKeyboard {
         compose.onNodeWithContentDescription("Split a bill").performClick()
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitNode(hasText("Read and split the bill") and isEnabled())
@@ -153,6 +156,26 @@ class SplitFlowOnDeviceTest {
         assertTrue("The field ends at ${field.bottom}, under the top of the bar at ${bar.top}", field.bottom <= bar.top)
         val keyboard = keyboardTop()
         assertTrue("The bar ends at ${bar.bottom}, under the top of the keyboard at $keyboard", bar.bottom <= keyboard)
+    }
+
+    /**
+     * Runs [block] with the phone set to show its on-screen keyboard even while a hardware keyboard is
+     * attached, and puts the setting back as it was afterwards.
+     */
+    private fun withTheOnScreenKeyboard(block: () -> Unit) {
+        val before = shell("settings get secure $SHOW_KEYBOARD_WITH_KEYS").trim()
+        shell("settings put secure $SHOW_KEYBOARD_WITH_KEYS 1")
+        try {
+            block()
+        } finally {
+            shell("settings put secure $SHOW_KEYBOARD_WITH_KEYS ${if (before == "1") "1" else "0"}")
+        }
+    }
+
+    /** Runs a shell [command] on the phone with the rights of the shell, and returns what it printed. */
+    private fun shell(command: String): String {
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText() }
     }
 
     /** Waits for work that runs off the main thread: loading the photo, reading its text. */
@@ -214,3 +237,6 @@ private const val TIMEOUT_MS = 60_000L
 
 /** Long enough for a keyboard to slide in, short enough not to hold up a run on a phone without one. */
 private const val KEYBOARD_TIMEOUT_MS = 5_000L
+
+/** The setting that shows the on-screen keyboard while a hardware keyboard is attached, as on these emulators. */
+private const val SHOW_KEYBOARD_WITH_KEYS = "show_ime_with_hard_keyboard"
