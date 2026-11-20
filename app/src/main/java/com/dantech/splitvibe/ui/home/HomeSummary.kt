@@ -107,7 +107,7 @@ data class GroupTile(val id: String, val name: String, val balance: Money) {
         get() = when {
             balance.minor > 0 -> R.string.home_you_get_back
             balance.minor < 0 -> R.string.home_you_owe
-            else -> R.string.groups_settled_up
+            else -> R.string.home_settled_up
         }
 
     /** The balance without its sign, which [standing] says. */

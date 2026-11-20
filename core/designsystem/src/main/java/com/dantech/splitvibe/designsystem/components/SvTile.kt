@@ -225,6 +225,36 @@ object SvCategoryIcons {
     }
 }
 
+/**
+ * The icons that stand at the end of the label of an [SvTile], as the approved designs draw them.
+ * Decorative: the tile says the same in words.
+ */
+object SvTileIcons {
+    /** Three filled bars, each taller than the one before: what was spent in a month. 34 by 28dp. */
+    val Spending: ImageVector = ImageVector.Builder(
+        name = "SvTileIcons.Spending",
+        defaultWidth = 34.dp,
+        defaultHeight = 28.dp,
+        viewportWidth = 34f,
+        viewportHeight = 28f,
+    ).apply {
+        addPath(pathData = addPathNodes(bar(left = 0f, top = 18f) + bar(left = 13f, top = 5f) + bar(left = 26f, top = 0f)), fill = IconInk)
+    }.build()
+}
+
+/** A bar of [SvTileIcons.Spending] as path data: 8 units wide from [left], from [top] to the bottom of the icon, with round corners. */
+private fun bar(left: Float, top: Float): String {
+    val r = BAR_CORNER
+    val across = BAR_WIDTH - 2 * r
+    val down = SPENDING_ICON_HEIGHT - top - 2 * r
+    return "M${left + r} ${top}h${across}a$r $r 0 0 1 $r ${r}v${down}a$r $r 0 0 1 ${-r} ${r}h${-across}" +
+        "a$r $r 0 0 1 ${-r} ${-r}v${-down}a$r $r 0 0 1 $r ${-r}z"
+}
+
+private const val BAR_WIDTH = 8f
+private const val BAR_CORNER = 3f
+private const val SPENDING_ICON_HEIGHT = 28f
+
 /** The small bold label at the top of a tile and above a field. */
 internal val Typography.smallLabel: TextStyle
     get() = bodySmallEmphasized.copy(fontWeight = FontWeight.Bold)

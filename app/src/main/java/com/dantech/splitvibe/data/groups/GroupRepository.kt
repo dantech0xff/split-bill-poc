@@ -4,6 +4,7 @@ import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.GroupAmounts
@@ -34,18 +35,41 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
     /**
      * The group whose state the phone kept last, when a refresh or a change of it was answered; null
      * while the phone keeps no group's state. It is read from what the cache keeps, so it goes with
-     * the cache on every sign-in, sign-out and account deletion, and a group the user can no longer
-     * read, or left, goes with its state.
+     * the cache on every sign-in, sign-out and account deletion. A group's state goes when the user
+     * leaves it, when the proxy no longer lets the user read it as it is fetched, and when the list
+     * of groups no longer has it once that list is fetched again, as after the user was taken out of
+     * the group on another phone. Until one of those happens, a group the user can no longer read is
+     * still the latest group.
      */
     val latestGroup: Flow<GroupState?> = cache.watchLatest(GROUP_KEY_PREFIX, GroupState.serializer())
 
     /** The group [id] as it was last fetched, or null when it never was. */
     suspend fun cached(id: String): GroupState? = cache.get(groupKey(id), GroupState.serializer())
 
+    /**
+     * The requester of [request] as their group knows them, when it is a request made in a group that
+     * the phone keeps: the name only they can change, rather than the one they typed on the request,
+     * which anyone could. Null for any other request.
+     */
+    suspend fun creditorNameOf(request: RequestView): String? {
+        val groupId = request.groupId ?: return null
+        val memberId = request.creditorMemberId ?: return null
+        return cached(groupId)?.member(memberId)?.name
+    }
+
+    /** [creditorNameOf] each of [requests] that has one, by the id of the request. */
+    suspend fun creditorNamesOf(requests: List<RequestView>): Map<String, String> =
+        requests.mapNotNull { request -> creditorNameOf(request)?.let { request.id to it } }.toMap()
+
+    /**
+     * Fetches the list of groups again. The state of a group that is no longer on it goes, unless the
+     * cache was emptied while the list was on its way, as the list itself then is not kept either.
+     */
     suspend fun refreshGroups() {
         val answer = call("GET", "v1/groups")
         val groups = ProxyCache.json.decodeFromJsonElement(GroupList.serializer(), checkNotNull(answer.body)).groups
         cache.put(GROUPS, GROUP_LIST, groups, answer.since)
+        cache.removeUnder(GROUP_KEY_PREFIX, keep = groups.map { groupKey(it.id) }.toSet(), since = answer.since)
     }
 
     /** Fetches [id] again. A group the caller can no longer read is forgotten. */

@@ -126,7 +126,15 @@ val appModule = module {
     single { RequestRepository(api = get(), cache = get(), account = get()) }
     single { ShareRepository(api = get(), words = get()) }
 
-    viewModel { HomeViewModel(bills = get(), settings = get<SettingsStore>().settings, groups = get(), clock = PhoneClock) }
+    viewModel {
+        HomeViewModel(
+            bills = get(),
+            settings = get<SettingsStore>().settings,
+            groups = get(),
+            account = get<AccountStore>().account,
+            clock = PhoneClock,
+        )
+    }
     viewModel { SettingsViewModel(repository = get()) }
     viewModel { ProViewModel(billing = get(), accounts = get(), account = get<AccountStore>().account) }
     viewModel { HistoryViewModel(bills = get(), savedState = get()) }
@@ -169,7 +177,7 @@ val appModule = module {
         )
     }
     viewModel { RequestsViewModel(repository = get(), groups = get(), account = get<AccountStore>().account) }
-    viewModel { RequestOverviewViewModel(repository = get(), account = get<AccountStore>().account) }
+    viewModel { RequestOverviewViewModel(repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel { (token: String) -> RequestLinkViewModel(token, repository = get(), groups = get(), account = get<AccountStore>().account) }
     viewModel {
         RequestMoneyViewModel(

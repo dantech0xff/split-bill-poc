@@ -41,7 +41,7 @@ class RequestsViewModel(private val repository: RequestRepository, private val g
      * knows them, which only they can change, rather than the name they typed on the request.
      */
     val creditorNames: StateFlow<Map<String, String>> = repository.requests
-        .map { list -> list.orEmpty().mapNotNull { request -> groups.creditorNameOf(request)?.let { request.id to it } }.toMap() }
+        .map { list -> groups.creditorNamesOf(list.orEmpty()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(
@@ -172,11 +172,4 @@ class RequestLinkViewModel(
     private companion object {
         val TAKEN = text(R.string.requests_taken)
     }
-}
-
-/** The requester's name in the group of a group request, when the group is kept on the phone. */
-private suspend fun GroupRepository.creditorNameOf(request: RequestView): String? {
-    val groupId = request.groupId ?: return null
-    val memberId = request.creditorMemberId ?: return null
-    return cached(groupId)?.member(memberId)?.name
 }

@@ -69,16 +69,19 @@ class AppStartupTest {
     }
 
     @Test
-    fun `the first home invites to split a bill in words, and only the round button says Split a bill to a screen reader`() {
+    fun `the first home invites to split a bill in words that start a split, and only the round button says them to a screen reader`() {
         // A phone that keeps no bill yet: the invitation to split a first one, with its button.
         await { shown(SPLIT_A_BILL) }
         compose.onNode(hasText(SPLIT_A_BILL) and hasClickAction()).assertIsDisplayed()
 
         compose.onAllNodesWithContentDescription(SPLIT_A_BILL).assertCountEquals(1)
         compose.onAllNodes(hasContentDescription(SPLIT_A_BILL) and hasText(SPLIT_A_BILL)).assertCountEquals(0)
-        // The one that does is the button in the middle of the navigation bar, which starts the split.
-        compose.onNodeWithContentDescription(SPLIT_A_BILL).performClick()
+
+        // The invitation starts a split as the round button does.
+        compose.onNode(hasText(SPLIT_A_BILL) and hasClickAction()).performClick()
         compose.onNodeWithText("New split").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
     }
 
     @Test

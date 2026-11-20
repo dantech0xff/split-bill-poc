@@ -51,6 +51,9 @@ fun longDateWithYearText(day: TemporalAccessor, order: DateOrder = regionDateOrd
 /** [month] and its year, such as "November 2026", which every region writes in this order. */
 fun monthYearText(month: TemporalAccessor): String = MONTH_YEAR.format(month)
 
+/** [month] by its name alone, such as "November", as a tile or a heading of that month has it in every region. */
+fun monthText(month: TemporalAccessor): String = MONTH.format(month)
+
 /** The order of a date in the region the phone is set to. */
 private fun regionDateOrder(): DateOrder {
     val region = regionLocale()
@@ -80,3 +83,4 @@ private val YEAR_FULL_MONTH_DAY = english("yyyy MMMM d")
 
 /** The month as a name standing on its own, as a heading has it. */
 private val MONTH_YEAR = english("LLLL yyyy")
+private val MONTH = english("LLLL")

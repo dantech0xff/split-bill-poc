@@ -11,6 +11,8 @@ import com.dantech.splitvibe.awaitOnMain
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.groups.CurrencyDto
+import com.dantech.splitvibe.data.groups.GroupRepository
+import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.requests.RequestView
@@ -268,6 +270,30 @@ class RequestTotalsTest {
     }
 
     @Test
+    fun `the requester of a request made in a group is named as the group knows them, not by the name typed on it`() {
+        val proxy = TestProxy(server, context)
+        proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
+        val cache = ProxyCache(storage.database.proxyCache())
+        // The group knows its member as Minh; on his request he typed the name of someone else.
+        runBlocking { cache.put("group:${GroupFixtures.GROUP_ID}", GroupState.serializer(), TRIP, cache.generation) }
+        val inTheGroup = GroupFixtures.request(id = "r1", role = "debtor")
+            .replace("\"groupId\":null", "\"groupId\":\"${GroupFixtures.GROUP_ID}\",\"creditorMemberId\":\"${GroupFixtures.MINH}\"")
+        val outside = GroupFixtures.request(id = "r2", role = "debtor").replace("\"creditorName\":\"Dana\"", "\"creditorName\":\"Bao\"")
+        server.enqueue(requestList(inTheGroup, outside))
+
+        val holder = holder(proxy, cache)
+        awaitOnMain { holder.totals.value is RequestTotals.Loaded }
+
+        // As the list of requests names them: the group's name for the one, the typed name for the other.
+        assertEquals(listOf("Minh", "Bao"), (holder.totals.value as RequestTotals.Loaded).youOweTo)
+        val typed = RequestTotals.of(
+            signedIn = true,
+            requests = listOf(request(RequestView.DEBTOR, 1_000, DONG, false, false, "Dana", "Dana")),
+        )
+        assertEquals("without a group, the typed name", listOf("Dana"), (typed as RequestTotals.Loaded).youOweTo)
+    }
+
+    @Test
     fun `once signed out the totals are gone`() {
         val proxy = TestProxy(server, context)
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
@@ -288,7 +314,11 @@ class RequestTotalsTest {
     }
 
     private fun holder(proxy: TestProxy, cache: ProxyCache = ProxyCache(storage.database.proxyCache())): RequestOverviewViewModel =
-        RequestOverviewViewModel(RequestRepository(proxy.api, cache, proxy.account), proxy.account.account).also(storage::closeWith)
+        RequestOverviewViewModel(
+            RequestRepository(proxy.api, cache, proxy.account),
+            GroupRepository(proxy.api, cache, proxy.account),
+            proxy.account.account,
+        ).also(storage::closeWith)
 
     private fun requestList(vararg requests: String) =
         MockResponse().setHeader("Content-Type", "application/json").setBody("""{"requests":[${requests.joinToString(",")}]}""")
@@ -345,6 +375,7 @@ class RequestTotalsTest {
         val MINH_TO_PAY = GroupFixtures.request(id = "r1", role = "debtor")
         val MINH_TO_CONFIRM = GroupFixtures.request(id = "r2", reportedPaidAt = 1)
         val DONG = CurrencyDto("VND", 0)
+        val TRIP: GroupState = ProxyCache.json.decodeFromString(GroupState.serializer(), GroupFixtures.groupState())
         val VND = DONG.toBillCurrency()
         val THB = CurrencyDto("THB", 2)
     }

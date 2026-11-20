@@ -193,6 +193,7 @@ class NumbersInTextsTest {
                     onBack = {},
                     recurring = emptyList(),
                     recurringActions = RecurringActions(onPause = {}, onResume = {}, onDelete = {}),
+                    today = HomeFixtures.today,
                 )
             },
         )

@@ -894,6 +894,10 @@
     <string name="home_friends_owe_you">Friends owe you</string>
     <string name="home_you_owe">You owe</string>
     <string name="home_you_get_back">You get back</string>
+    <!-- What the tile of a group says when the user neither gets anything back nor owes anything there -->
+    <string name="home_settled_up">Settled up</string>
+    <!-- What a tap on the block of what the user owes does, said by a screen reader only -->
+    <string name="home_open_requests">Open your requests</string>
     <!-- The line below what friends owe that leads to the requests to pay: the amounts, then whom they are owed to -->
     <string name="home_you_owe_to">You owe %1$s to %2$s</string>
     <plurals name="home_requests">

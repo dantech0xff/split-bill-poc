@@ -3,6 +3,7 @@ package com.dantech.splitvibe.designsystem.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -39,9 +40,19 @@ import com.dantech.splitvibe.designsystem.tokens.elevation
  * its label then keeps its size and is cut off by the shrinking edge instead of wrapping onto more
  * lines. [icon] is decorative and stands before the label, lime on violet and in the colour of the
  * label elsewhere.
+ *
+ * With [compact] it is 52dp tall and as wide as its label, for the main action of a block rather than
+ * of the whole screen, such as the invitation on a violet block to split a first bill.
  */
 @Composable
-fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, icon: ImageVector? = null) {
+fun SvPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    compact: Boolean = false,
+) {
     val ground = LocalSvGround.current
     // Only the violet pill of the light page takes the accent; lime would not show on a lime pill.
     val violet = (ground == SvGround.Page || ground == SvGround.Card) && !LocalDarkTheme.current
@@ -49,19 +60,20 @@ fun SvPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modi
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = MAIN_ACTION_HEIGHT),
+            .then(if (compact) Modifier else Modifier.fillMaxWidth())
+            .heightIn(min = if (compact) COMPACT_ACTION_HEIGHT else MAIN_ACTION_HEIGHT),
         shape = SvShapes.pill,
         colors = mainActionColors(),
+        contentPadding = if (compact) compactPadding(withIcon = icon != null) else ButtonDefaults.ContentPadding,
     ) {
         if (icon != null) {
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(MAIN_ICON_SIZE),
+                modifier = Modifier.size(if (compact) COMPACT_ICON_SIZE else MAIN_ICON_SIZE),
                 tint = if (enabled && violet) SvTheme.palette.accent else LocalContentColor.current,
             )
-            Spacer(Modifier.width(MAIN_ICON_GAP))
+            Spacer(Modifier.width(if (compact) COMPACT_ICON_GAP else MAIN_ICON_GAP))
         }
         Text(
             text,
@@ -136,6 +148,14 @@ private const val QUIET_LABEL_ALPHA = 0.7f
 internal val MAIN_ACTION_HEIGHT = 56.dp
 private val MAIN_ICON_SIZE = 22.dp
 private val MAIN_ICON_GAP = 10.dp
+
+/** The main action of a block, as the approved designs draw it: a little lower, with a little less room around its label. */
+private val COMPACT_ACTION_HEIGHT = 52.dp
+private val COMPACT_ICON_SIZE = 20.dp
+private val COMPACT_ICON_GAP = 8.dp
+
+/** The room around the label of a compact main action; an icon at its start takes a little of it. */
+private fun compactPadding(withIcon: Boolean) = PaddingValues(start = if (withIcon) 18.dp else 22.dp, end = 22.dp)
 
 /** The space between the edge of the floating bar and what is in it. */
 private val BAR_PADDING = 8.dp

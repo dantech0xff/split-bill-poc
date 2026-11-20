@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
@@ -91,6 +90,7 @@ import com.dantech.splitvibe.designsystem.components.SvHeroKind
 import com.dantech.splitvibe.designsystem.components.SvIconTile
 import com.dantech.splitvibe.designsystem.components.SvInset
 import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
+import com.dantech.splitvibe.designsystem.components.SvLinkButton
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
@@ -122,6 +122,7 @@ import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvTicket
 import com.dantech.splitvibe.designsystem.components.SvTile
+import com.dantech.splitvibe.designsystem.components.SvTileIcons
 import com.dantech.splitvibe.designsystem.components.SvTileKind
 import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.components.SvWorkingRow
@@ -183,8 +184,8 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader(
                     "Hero",
-                    hint = "SvHero in violet, lime and the bar's colour, with SvHeroAmount. A long amount shrinks, " +
-                        "then goes on to a second line.",
+                    hint = "SvHero in violet, lime and the bar's colour, with SvHeroAmount, SvLinkButton and the compact " +
+                        "SvPrimaryButton. A long amount shrinks, then goes on to a second line.",
                 )
                 HeroSamples()
             }
@@ -654,7 +655,12 @@ private fun HeroSamples() {
                 SvTag("Nov 13, 2026")
                 SvTag("3 people")
             }
-            SvQuietButton("You owe ₫150,000 to Dana", onClick = {})
+            SvLinkButton("You owe ₫150,000 to Dana", onClick = {}, emphasis = "₫150,000")
+        }
+        SvHero {
+            Text("Split a bill with AI", style = MaterialTheme.typography.headlineLarge)
+            Text("Scan the bill and say how to split it.")
+            SvPrimaryButton("Split a bill", onClick = {}, icon = SvActionIcons.Plus, compact = true)
         }
         SvHero(
             kind = SvHeroKind.Accent,
@@ -761,7 +767,7 @@ private fun TileSamples() {
                 value = sampleMoney(3_823_038),
                 kind = SvTileKind.Accent,
                 caption = "Your share of 6 bills",
-                trailing = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                trailing = { Icon(SvTileIcons.Spending, contentDescription = null) },
                 modifier = Modifier.weight(1f),
                 onClick = {},
                 onClickLabel = "Open the insights",

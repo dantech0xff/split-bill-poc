@@ -17,14 +17,25 @@ import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Transfer
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -40,6 +51,7 @@ class GroupRepositoryTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val storage = TestStorage(context)
+    private val cache = ProxyCache(storage.database.proxyCache())
     private lateinit var proxy: TestProxy
     private lateinit var groups: GroupRepository
 
@@ -48,7 +60,7 @@ class GroupRepositoryTest {
         server.start()
         proxy = TestProxy(server, context)
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE), signedInAs = "dana@example.com")
-        groups = GroupRepository(proxy.api, ProxyCache(storage.database.proxyCache()), proxy.account)
+        groups = GroupRepository(proxy.api, cache, proxy.account)
     }
 
     @After
@@ -197,13 +209,13 @@ class GroupRepositoryTest {
         server.enqueue(json(GroupFixtures.groupState()))
         repository.rename(GROUP_ID, "Chiang Mai trip")
         now = 4_000
-        server.enqueue(json(GroupFixtures.groupList()))
+        server.enqueue(json(listed(GROUP_ID, FLAT_ID)))
         repository.refreshGroups()
         assertEquals("the group changed last", GROUP_ID, repository.latestGroup.first()?.group?.id)
 
         // A group the user left goes with its state, and the one kept before it is the latest again.
         server.enqueue(MockResponse().setResponseCode(204))
-        server.enqueue(json(GroupFixtures.groupList()))
+        server.enqueue(json(listed(FLAT_ID)))
         repository.leave(GROUP_ID)
         assertEquals("the group kept before the one left", FLAT_ID, repository.latestGroup.first()?.group?.id)
 
@@ -212,12 +224,93 @@ class GroupRepositoryTest {
         assertNull("nothing of the account that was signed in", repository.latestGroup.first())
     }
 
+    @Test
+    fun `a group that is no longer in the list of groups goes with its state, as after the user was taken out of it elsewhere`() =
+        runBlocking {
+            server.enqueue(json(GroupFixtures.groupState()))
+            groups.refresh(GROUP_ID)
+            server.enqueue(json(flat()))
+            groups.refresh(FLAT_ID)
+
+            // The owner of the trip took the user out of it on another phone: the list has only the flat.
+            server.enqueue(json(listed(FLAT_ID)))
+            groups.refreshGroups()
+
+            assertNull("the trip's state", groups.cached(GROUP_ID))
+            assertEquals("the flat's state", "Flat 3B", groups.cached(FLAT_ID)?.group?.name)
+            assertEquals(FLAT_ID, groups.latestGroup.first()?.group?.id)
+        }
+
+    @Test
+    fun `a list of groups that comes after the cache was emptied removes nothing kept since`() = runBlocking {
+        val sent = CountDownLatch(1)
+        val answer = CountDownLatch(1)
+        // The list of the account signed in before, held back until the cache was emptied.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                sent.countDown()
+                answer.await(TIMEOUT_S, TimeUnit.SECONDS)
+                return json(listed())
+            }
+        }
+        val refreshing = async(Dispatchers.IO) { groups.refreshGroups() }
+        assertTrue("the list was asked for", sent.await(TIMEOUT_S, TimeUnit.SECONDS))
+
+        // As a sign-in does, then the next account's group is kept.
+        cache.clear()
+        cache.put(
+            "group:$FLAT_ID",
+            GroupState.serializer(),
+            ProxyCache.json.decodeFromString(GroupState.serializer(), flat()),
+            cache.generation,
+        )
+        answer.countDown()
+        refreshing.await()
+
+        assertEquals("the next account's group", "Flat 3B", groups.cached(FLAT_ID)?.group?.name)
+        assertNull("nor is the late list kept", groups.groups.first())
+    }
+
+    @Test
+    fun `the latest group comes again only when its own state changes, not with every write to the cache`() = runBlocking {
+        server.enqueue(json(GroupFixtures.groupState()))
+        groups.refresh(GROUP_ID)
+        val seen = mutableListOf<GroupState?>()
+        val watching = launch { groups.latestGroup.collect { seen += it } }
+        withTimeout(TIMEOUT_S * 1_000) { while (seen.isEmpty()) delay(10) }
+
+        // What else the phone keeps changes: the requests, and the list of groups, which still has the trip.
+        cache.put("requests", ListSerializer(String.serializer()), listOf("r1"), cache.generation)
+        server.enqueue(json(listed(GROUP_ID)))
+        groups.refreshGroups()
+        delay(SETTLE_MS)
+        assertEquals("other writes", 1, seen.size)
+
+        // The trip itself changes.
+        server.enqueue(json(GroupFixtures.groupState().replace("\"revision\":9", "\"revision\":10")))
+        groups.refresh(GROUP_ID)
+        withTimeout(TIMEOUT_S * 1_000) { while (seen.size < 2) delay(10) }
+        watching.cancel()
+        assertEquals(10L, seen.last()?.group?.revision)
+    }
+
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
+
+    /** The proxy's list of the groups of [ids], each one the user is a member of. */
+    private fun listed(vararg ids: String) = """{"groups":[""" + ids.joinToString(",") { id ->
+        """{"id":"$id","name":"$id","currency":{"code":"THB","fractionDigits":2},"revision":9,"myMemberId":"$ME","status":"member"}"""
+    } + "]}"
 
     /** A second group: the flat the user shares, kept in baht like the trip. */
     private fun flat() = GroupFixtures.groupState().replace(GROUP_ID, FLAT_ID).replace("Chiang Mai trip", "Flat 3B")
 
     private companion object {
         const val FLAT_ID = "8f9a2c1e-0000-4000-8000-000000000002"
+
+        /** How long a held answer waits at most, so that no test can hang. */
+        const val TIMEOUT_S = 10L
+
+        /** Long enough for what the database tells of a write to have come through. */
+        const val SETTLE_MS = 300L
     }
 }

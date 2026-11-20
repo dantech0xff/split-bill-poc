@@ -19,34 +19,34 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.designsystem.components.SvAccountButton
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBrandTopBar
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvHero
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
-import com.dantech.splitvibe.designsystem.components.SvNavIcons
-import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvLinkButton
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
-import com.dantech.splitvibe.designsystem.components.SvSmallAction
 import com.dantech.splitvibe.designsystem.components.SvTag
 import com.dantech.splitvibe.designsystem.components.SvTagKind
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTile
+import com.dantech.splitvibe.designsystem.components.SvTileIcons
 import com.dantech.splitvibe.designsystem.components.SvTileKind
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.domain.TEXT_LOCALE
+import com.dantech.splitvibe.domain.monthText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.history.BillListingRow
 import java.time.LocalDate
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 
 /**
  * The app's home. At the top is the one thing the user most needs to know, as [summary] works it
@@ -144,35 +144,57 @@ fun HomeScreen(
 
 @Composable
 private fun MainBlock(block: HomeBlock, onOpenRequests: () -> Unit, onSplitBill: () -> Unit, modifier: Modifier) {
+    // A screen reader reads what a block says as one element, and a button in it as one more.
+    val oneElement = modifier.semantics(mergeDescendants = true) {}
     when (block) {
-        is HomeBlock.FriendsOweYou -> RequestsHero(stringResource(R.string.home_friends_owe_you), block.owed, modifier) {
+        is HomeBlock.FriendsOweYou -> RequestsHero(stringResource(R.string.home_friends_owe_you), block.owed, oneElement) {
             // What the user owes in turn, as the way to the requests to pay.
-            block.youOwe?.let { owing -> SvQuietButton(youOweText(owing), onClick = onOpenRequests, modifier = Modifier.fillMaxWidth()) }
+            block.youOwe?.let { owing ->
+                val amounts = inSentence((listOf(owing.main) + owing.others).map { it.text })
+                SvLinkButton(youOweText(amounts, owing.people), onClick = onOpenRequests, emphasis = amounts)
+            }
         }
 
-        is HomeBlock.YouOwe -> RequestsHero(stringResource(R.string.home_you_owe), block.owing, modifier)
+        // The whole block leads to the requests to pay, as the line under what friends owe does.
+        is HomeBlock.YouOwe -> RequestsHero(
+            label = stringResource(R.string.home_you_owe),
+            requests = block.owing,
+            modifier = modifier,
+            onClick = onOpenRequests,
+            onClickLabel = stringResource(R.string.home_open_requests),
+        )
 
         is HomeBlock.ThisMonth -> SvHero(
-            modifier = modifier,
-            label = { Text(monthName(block.spending.month)) },
+            modifier = oneElement,
+            label = { Text(monthText(block.spending.month)) },
             amount = { HeroAmount(block.spending.myShare) },
         ) {
             Text(plural(R.plurals.home_your_share_of, block.spending.bills).resolve())
         }
 
-        HomeBlock.Invitation -> SvHero(modifier = modifier) {
+        HomeBlock.Invitation -> SvHero(modifier = oneElement) {
             Text(stringResource(R.string.home_intro_title), style = MaterialTheme.typography.headlineLarge)
             Text(stringResource(R.string.home_intro_text))
             // The words show, and no description goes with them: the round button of the navigation
             // bar is the one element that says "Split a bill" to a screen reader.
-            SvSmallAction(stringResource(R.string.home_split_a_bill), onClick = onSplitBill, icon = SvNavIcons.Split)
+            SvPrimaryButton(stringResource(R.string.home_split_a_bill), onClick = onSplitBill, icon = SvActionIcons.Plus, compact = true)
         }
     }
 }
 
-/** The open [requests] of one side under [label]: how many, their total, the totals in other currencies, and who is on the other side. */
+/**
+ * The open [requests] of one side under [label]: how many, their total, the totals in other
+ * currencies, and who is on the other side. With [onClick] the whole block is one button.
+ */
 @Composable
-private fun RequestsHero(label: String, requests: OpenRequests, modifier: Modifier, below: @Composable ColumnScope.() -> Unit = {}) {
+private fun RequestsHero(
+    label: String,
+    requests: OpenRequests,
+    modifier: Modifier,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    below: @Composable ColumnScope.() -> Unit = {},
+) {
     SvHero(
         modifier = modifier,
         label = {
@@ -180,6 +202,8 @@ private fun RequestsHero(label: String, requests: OpenRequests, modifier: Modifi
             SvTag(plural(R.plurals.home_requests, requests.count).resolve(), kind = SvTagKind.Accent)
         },
         amount = { HeroAmount(requests.main) },
+        onClick = onClick,
+        onClickLabel = onClickLabel,
     ) {
         // Nothing converts the currency of a request, so each other currency keeps a total of its own.
         if (requests.others.isNotEmpty()) {
@@ -209,12 +233,12 @@ private fun Tiles(month: MonthSpending?, group: GroupTile?, onOpenInsights: () -
         val tile = Modifier.weight(1f)
         if (month != null) {
             SvTile(
-                label = monthName(month.month),
+                label = monthText(month.month),
                 value = month.myShare.text,
                 kind = SvTileKind.Accent,
                 modifier = tile,
                 caption = plural(R.plurals.home_your_share_of, month.bills).resolve(),
-                trailing = { Icon(SvNavIcons.Insights, contentDescription = null) },
+                trailing = { Icon(SvTileIcons.Spending, contentDescription = null) },
                 onClick = onOpenInsights,
                 onClickLabel = stringResource(R.string.common_open),
             )
@@ -234,19 +258,22 @@ private fun Tiles(month: MonthSpending?, group: GroupTile?, onOpenInsights: () -
     }
 }
 
-/** [money] in large type, its symbol or code smaller beside the number, on whichever side the phone's region puts it. */
+/**
+ * [money] in large type, its symbol or code smaller beside the number, on whichever side the phone's
+ * region puts it. A screen reader says it as it is written: saying an amount in words, such as
+ * "651,671 dong", is left for later, as the app has no way to yet.
+ */
 @Composable
 private fun HeroAmount(money: Money) {
     val parts = money.currency.formatParts(money.minor)
     SvHeroAmount(prefix = parts.prefix, number = parts.number, suffix = parts.suffix, spokenText = money.text)
 }
 
-/** "You owe ₫150,000 to Dana": what the user owes in every currency, and to whom. */
+/** "You owe ₫150,000 to Dana": what the user owes, [amounts] in every currency, and to whom, [people]. */
 @Composable
-private fun youOweText(owing: OpenRequests): String {
-    val amounts = (listOf(owing.main) + owing.others).map { it.text }
-    val whom = if (owing.people.isEmpty()) stringResource(R.string.requests_them) else namesOf(owing.people)
-    return stringResource(R.string.home_you_owe_to, inSentence(amounts), whom)
+private fun youOweText(amounts: String, people: List<String>): String {
+    val whom = if (people.isEmpty()) stringResource(R.string.requests_them) else namesOf(people)
+    return stringResource(R.string.home_you_owe_to, amounts, whom)
 }
 
 /** [people] in a sentence, such as "Minh and Lan", with the first ones only, and how many more, when they are many. */
@@ -265,11 +292,6 @@ private fun inSentence(items: List<String>): String = if (items.size < 2) {
 } else {
     stringResource(R.string.insights_and_list, items.dropLast(1).joinToString(", "), items.last())
 }
-
-/** The name of [month] on its own, in the words of the app's texts, such as "November". */
-private fun monthName(month: YearMonth): String = MONTH_NAME.format(month)
-
-private val MONTH_NAME = DateTimeFormatter.ofPattern("LLLL", TEXT_LOCALE)
 
 /** How many of the latest bills the home screen shows; the rest are a tap away. */
 private const val RECENT_BILLS = 3

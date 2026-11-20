@@ -131,7 +131,7 @@ class HomeSummaryTest {
     fun `a balance of zero is settled up`() {
         val settled = checkNotNull(GroupTile.of(TRIP.copy(bills = emptyList(), settlements = emptyList())))
 
-        assertEquals(R.string.groups_settled_up, settled.standing)
+        assertEquals(R.string.home_settled_up, settled.standing)
         assertEquals(baht(0), settled.amount)
     }
 

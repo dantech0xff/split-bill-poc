@@ -464,6 +464,8 @@ class ScreenGalleryTest {
         // The finished split is the first bill in the list.
         awaitState { runBlocking { storage.bills.get(checkNotNull(viewModel.state.value.result).saved.id) }?.status == BillStatus.FINAL }
         show(Screen.HISTORY)
+        // The sample bill's date, of the year of the day the list is drawn on, written short.
+        compose.onNode(hasText(SAMPLE_BILL_DAY, substring = true)).assertExists()
         shot("21-history")
     }
 
@@ -631,8 +633,18 @@ class ScreenGalleryTest {
                             },
                         )
 
-                        Screen.HISTORY -> HistoryScreen(listings = bills, query = "", onQueryChanged = {
-                        }, onOpen = {}, onDelete = {}, onBack = {}, recurring = emptyList(), recurringActions = NO_RECURRING_ACTIONS)
+                        // The day the dates of the bills are written as of, so the picture is the same in every year.
+                        Screen.HISTORY -> HistoryScreen(
+                            listings = bills,
+                            query = "",
+                            onQueryChanged = {},
+                            onOpen = {},
+                            onDelete = {},
+                            onBack = {},
+                            recurring = emptyList(),
+                            recurringActions = NO_RECURRING_ACTIONS,
+                            today = HomeFixtures.today,
+                        )
 
                         Screen.SPLIT -> SplitScreen(viewModel = viewModel, aiStatus = AiStatus.AVAILABLE, newCameraTarget = {
                             Uri.EMPTY
@@ -725,6 +737,9 @@ private const val PHONE_AT_NIGHT = "w412dp-h915dp-night-xhdpi"
 
 /** The same phone set to Vietnamese in Vietnam, the region its amounts and dates follow. */
 private const val PHONE_IN_VIETNAM = "vi-rVN-w412dp-h915dp-xhdpi"
+
+/** The day of the sample bill as a list of bills writes it in the year it is of, on a phone set to the United States. */
+private const val SAMPLE_BILL_DAY = "Nov 13 · "
 
 /** The sample bill's total as a phone set to Vietnam writes it, with a space that does not break before the symbol. */
 private const val VIETNAMESE_TOTAL = "902.664\u00A0₫"

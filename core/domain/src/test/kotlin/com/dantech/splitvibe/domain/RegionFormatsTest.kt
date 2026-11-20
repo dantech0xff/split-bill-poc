@@ -110,6 +110,7 @@ class RegionFormatsTest {
             "13 November",
             "13 November 2026",
             "November 2026",
+            "November",
         )
         val expected = mapOf(
             "en-US" to listOf(
@@ -123,6 +124,7 @@ class RegionFormatsTest {
                 "November 13",
                 "November 13, 2026",
                 "November 2026",
+                "November",
             ),
             "vi-VN" to vietnamAndGermany,
             "de-DE" to vietnamAndGermany,
@@ -141,6 +143,7 @@ class RegionFormatsTest {
                     longDateText(NOV_13),
                     longDateWithYearText(NOV_13),
                     monthYearText(YearMonth.of(2026, 11)),
+                    monthText(YearMonth.of(2026, 11)),
                 )
             }
         }
@@ -193,18 +196,28 @@ class RegionFormatsTest {
     }
 
     @Test
-    fun `the four forms of a date in each of the three orders, and the month with its year in all of them`() {
+    fun `the four forms of a date in each of the three orders, and the month alone and with its year in all of them`() {
         fun forms(order: DateOrder) = listOf(
             shortDateText(NOV_13, NOV_20, order),
             dateWithYearText(NOV_13, order),
             longDateText(NOV_13, order),
             longDateWithYearText(NOV_13, order),
             monthYearText(NOV_13),
+            monthText(NOV_13),
         )
 
-        assertEquals(listOf("13 Nov", "13 Nov 2026", "13 November", "13 November 2026", "November 2026"), forms(DateOrder.DayFirst))
-        assertEquals(listOf("Nov 13", "Nov 13, 2026", "November 13", "November 13, 2026", "November 2026"), forms(DateOrder.MonthFirst))
-        assertEquals(listOf("Nov 13", "2026 Nov 13", "November 13", "2026 November 13", "November 2026"), forms(DateOrder.YearFirst))
+        assertEquals(
+            listOf("13 Nov", "13 Nov 2026", "13 November", "13 November 2026", "November 2026", "November"),
+            forms(DateOrder.DayFirst),
+        )
+        assertEquals(
+            listOf("Nov 13", "Nov 13, 2026", "November 13", "November 13, 2026", "November 2026", "November"),
+            forms(DateOrder.MonthFirst),
+        )
+        assertEquals(
+            listOf("Nov 13", "2026 Nov 13", "November 13", "2026 November 13", "November 2026", "November"),
+            forms(DateOrder.YearFirst),
+        )
     }
 
     @Test

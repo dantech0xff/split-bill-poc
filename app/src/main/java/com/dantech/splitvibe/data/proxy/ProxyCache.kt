@@ -5,6 +5,7 @@ import com.dantech.splitvibe.data.bills.ProxyCacheEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -37,9 +38,12 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
 
     /**
      * The last thing kept under a key that starts with [prefix], read and decoded away from the main
-     * thread; null when nothing is kept under such a key, or the last thing kept cannot be read.
+     * thread; null when nothing is kept under such a key, or the last thing kept cannot be read. It
+     * comes again only when that row changes, not on every write to the cache, which the database
+     * would otherwise report each time.
      */
     fun <T> watchLatest(prefix: String, serializer: KSerializer<T>): Flow<T?> = dao.watchLatest(prefix)
+        .distinctUntilChanged()
         .map { it?.let { entry -> decode(entry, serializer) } }
         .catch { emit(null) }
         .flowOn(Dispatchers.Default)
@@ -54,6 +58,15 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
     }
 
     suspend fun remove(key: String) = dao.remove(key)
+
+    /**
+     * Removes what is kept under the keys that start with [prefix] but those in [keep], unless the
+     * cache was emptied since [since]: what it keeps then belongs to whoever signed in after, which an
+     * answer to a call made before has nothing to say about.
+     */
+    suspend fun removeUnder(prefix: String, keep: Set<String>, since: Long) = lock.withLock {
+        if (since == generation) dao.removeUnder(prefix, keep.toList())
+    }
 
     suspend fun clear() = lock.withLock {
         generation++

@@ -98,6 +98,7 @@ import com.dantech.splitvibe.designsystem.components.SvFieldButton
 import com.dantech.splitvibe.designsystem.components.SvFieldRow
 import com.dantech.splitvibe.designsystem.components.SvFieldWidth
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
+import com.dantech.splitvibe.designsystem.components.SvLinkButton
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
@@ -391,12 +392,10 @@ class ComponentBehaviourTest {
         compose.setContent {
             SplitVibeTheme {
                 Column {
-                    SvBrandTopBar(name = "Split Vibe", actions = {
-                        SvAccountButton(name = "Dana", label = "Settings", onClick = {
-                            tapped +=
-                                "letter"
-                        })
-                    })
+                    SvBrandTopBar(
+                        name = "Split Vibe",
+                        actions = { SvAccountButton(name = "Dana", label = "Settings", onClick = { tapped += "letter" }) },
+                    )
                     SvAccountButton(name = " ", label = "Your account", onClick = { tapped += "person" })
                 }
             }
@@ -414,6 +413,37 @@ class ComponentBehaviourTest {
         }
 
         assertEquals(listOf("letter", "person"), tapped)
+    }
+
+    @Test
+    // How tall a button of text is depends on how tall its text really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a button that leads on is a bar a finger can hit, and the main action of a block is as tall as the designs draw it`() {
+        val tapped = mutableListOf<String>()
+        compose.setContent {
+            SplitVibeTheme {
+                Column {
+                    SvLinkButton("You owe ₫150,000 to Dana", onClick = { tapped += "link" }, emphasis = "₫150,000")
+                    SvPrimaryButton("Split a bill", onClick = { tapped += "block" }, icon = SvActionIcons.Plus, compact = true)
+                }
+            }
+        }
+
+        for (button in listOf(hasText("You owe ₫150,000 to Dana"), hasText("Split a bill"))) {
+            val node = compose.onNode(button).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            assertRoomForAFinger(node, button.description)
+            node.performClick()
+        }
+        assertEquals(listOf("link", "block"), tapped)
+
+        val screen = compose.onRoot().getBoundsInRoot()
+        val link = compose.onNode(hasText("You owe ₫150,000 to Dana")).getBoundsInRoot()
+        assertEquals("The bar of a button that leads on", LINK_HEIGHT, link.bottom - link.top)
+        assertEquals("A button that leads on runs across what it lies on", screen.right - screen.left, link.right - link.left)
+        val block = compose.onNode(hasText("Split a bill")).getBoundsInRoot()
+        assertEquals("The main action of a block", BLOCK_ACTION_HEIGHT, block.bottom - block.top)
+        assertTrue("The main action of a block runs across it, as only the main action of a screen does", block.right < screen.right)
     }
 
     @Test
@@ -1128,6 +1158,10 @@ private const val BOUNDS_SLACK = 1f
 private const val ROWS = 40
 private const val LAST_ROW = "Row ${ROWS - 1}"
 private val TOUCH_TARGET = 48.dp
+
+/** As the approved designs draw them: a button that leads on as a bar of one line, and the main action of a block. */
+private val LINK_HEIGHT = 48.dp
+private val BLOCK_ACTION_HEIGHT = 52.dp
 
 /** The ways to split a bill, more than fit in [ROW_WIDTH]. */
 private val WAYS = listOf("Equally", "By item", "By shares", "By percent", "By amount")

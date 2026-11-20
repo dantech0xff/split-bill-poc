@@ -42,15 +42,21 @@ sealed interface RequestTotals {
         /** How many requests [youOwe] adds up. */
         val youOweCount: Int,
         /**
-         * Whom the user owes [youOwe]: the name each requester gave themselves, each name once. A
-         * request whose requester gave none is counted in [youOweCount] but names nobody here.
+         * Whom the user owes [youOwe], each name once: the requester of a request made in a group as
+         * the group knows them, and of any other request by the name they gave themselves. A request
+         * whose requester has no name is counted in [youOweCount] but names nobody here.
          */
         val youOweTo: List<String>,
     ) : RequestTotals
 
     companion object {
-        /** The totals of [requests], the list kept on the phone, which is null before it was ever fetched. */
-        fun of(signedIn: Boolean, requests: List<RequestView>?): RequestTotals {
+        /**
+         * The totals of [requests], the list kept on the phone, which is null before it was ever
+         * fetched. [creditorNames] names the requester of a request made in a group, by the id of the
+         * request, as the group knows them: that name, which only they can change, is the one to trust
+         * over the one typed on the request, as the list of requests does.
+         */
+        fun of(signedIn: Boolean, requests: List<RequestView>?, creditorNames: Map<String, String> = emptyMap()): RequestTotals {
             if (!signedIn) return SignedOut
             if (requests == null) return Unknown
             val owed = requests.filter { it.isMine && it.status != RequestStatus.PAID }
@@ -64,7 +70,7 @@ sealed interface RequestTotals {
                 owedToYouCount = owed.size,
                 owedBy = owed.names { it.payerName },
                 youOweCount = owing.size,
-                youOweTo = owing.names { it.creditorName },
+                youOweTo = owing.names { creditorNames[it.id] ?: it.creditorName },
             )
         }
 

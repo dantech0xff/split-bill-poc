@@ -197,6 +197,10 @@ interface ProxyCacheDao {
     )
     fun watchLatest(prefix: String): Flow<ProxyCacheEntity?>
 
+    /** Deletes every entry whose key starts with [prefix] but the ones whose key is in [keep], compared as [watchLatest] does. */
+    @Query("DELETE FROM proxy_cache WHERE substr(`key`, 1, length(:prefix)) = :prefix AND `key` NOT IN (:keep)")
+    suspend fun removeUnder(prefix: String, keep: List<String>)
+
     @Upsert
     suspend fun put(entry: ProxyCacheEntity)
 

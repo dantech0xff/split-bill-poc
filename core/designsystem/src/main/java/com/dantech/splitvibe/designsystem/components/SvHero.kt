@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.designsystem.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -61,6 +63,10 @@ enum class SvHeroKind {
  * Its colour comes from [kind]. What is in it takes the colours that read on it by itself: text in the
  * block's own text colour, and buttons, tags and indicators in the shades of the block, such as a
  * lime main action on violet. The circle in its corner is decorative.
+ *
+ * With [onClick] the whole block is one button that reads all of what it holds, and [onClickLabel]
+ * says what a tap does, such as opening what the block sums up; such a block holds no button of its
+ * own.
  */
 @Composable
 fun SvHero(
@@ -68,11 +74,14 @@ fun SvHero(
     kind: SvHeroKind = SvHeroKind.Brand,
     label: (@Composable RowScope.() -> Unit)? = null,
     amount: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val ground = kind.ground
     val circle = ground.onQuiet.copy(alpha = kind.circleAlpha)
     val typography = MaterialTheme.typography
+    val action = if (onClick == null) Modifier else Modifier.clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -84,6 +93,7 @@ fun SvHero(
                 val x = if (layoutDirection == LayoutDirection.Ltr) size.width - fromEnd else fromEnd
                 drawCircle(circle, radius = radius, center = Offset(x, CIRCLE_CENTRE_FROM_TOP.toPx()))
             }
+            .then(action)
             .padding(SvSpacing.xl),
         verticalArrangement = Arrangement.spacedBy(SvSpacing.xs),
     ) {
