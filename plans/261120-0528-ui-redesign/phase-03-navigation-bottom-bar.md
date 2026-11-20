@@ -1,6 +1,6 @@
 ---
 title: "Phase 3: Điều hướng với thanh dưới"
-status: in-progress
+status: completed
 phase: 3
 priority: P1
 effort: "3d"
@@ -106,16 +106,16 @@ Kiểm thử:
 
 ## Todo
 
-- [ ] `TabNavigation.kt` và `TabNavigationTest`
-- [ ] `RequestTotals`, `RequestTotalsTest` và bộ giữ theo Activity, tạo trong `AppNavHost`
-- [ ] `AppNavBar`; bốn màn gốc có ô `bottomBar`, không còn nút lùi riêng; ba chỗ kiểm thử được sửa
-- [ ] Trang chủ không còn nút nổi và bốn nút dẫn; nút giữa mang `SPLIT_SURFACE`; bốn nơi gọi `HomeScreen` được sửa
-- [ ] Bills và Recurring thành một màn hai thẻ; `RecurringKey` bị bỏ
-- [ ] Quy tắc đổi tài khoản; liên kết mở app không đổi
-- [ ] Dấu của `sharedSurface`; mười hai chỗ tìm "Split a bill" và chỗ tìm tab Requests được đổi
-- [ ] `BackNavigationTest` và `AppStartupTest` mở rộng
-- [ ] Ảnh bốn màn gốc có thanh; phép kiểm thanh che nội dung cho một màn gốc
-- [ ] Cổng kiểm thử qua, lượt `device-tests.yml` được đọc, ảnh gửi chủ sản phẩm
+- [x] `TabNavigation.kt` và `TabNavigationTest`
+- [x] `RequestTotals`, `RequestTotalsTest` và bộ giữ theo Activity, tạo trong `AppNavHost`
+- [x] `AppNavBar`; bốn màn gốc có ô `bottomBar`, không còn nút lùi riêng; ba chỗ kiểm thử được sửa
+- [x] Trang chủ không còn nút nổi và bốn nút dẫn; nút giữa mang `SPLIT_SURFACE`; bốn nơi gọi `HomeScreen` được sửa
+- [x] Bills và Recurring thành một màn hai thẻ; `RecurringKey` bị bỏ
+- [x] Quy tắc đổi tài khoản; liên kết mở app không đổi
+- [x] Dấu của `sharedSurface`; mười hai chỗ tìm "Split a bill" và chỗ tìm tab Requests được đổi
+- [x] `BackNavigationTest` và `AppStartupTest` mở rộng
+- [x] Ảnh bốn màn gốc có thanh; phép kiểm thanh che nội dung cho một màn gốc
+- [x] Cổng kiểm thử qua, lượt `device-tests.yml` được đọc, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -138,3 +138,29 @@ Kiểm thử:
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 4 chưa bắt đầu. Sau đó, lỗi được sửa bằng commit mới, vì các giai đoạn 5 đến 7 dựng trên thanh, `RequestTotals` và màn Bills hai thẻ. Không có dữ liệu lưu nào đổi dạng: ngăn xếp chỉ sống trong trạng thái lưu của Activity.
+
+## Kết quả thực hiện
+
+Làm ngày 20/11/2026, trong commit `98dd8af`.
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare`: 562 bài kiểm thử đơn vị của `:app`, 12 bài của `:core:designsystem`, 200 bài của `:core:domain`, ktlint, lint, các gói, bản dựng kiểm thử trên máy và hồ sơ khởi động. `git status --porcelain app/src/test/screenshots` rỗng; `gradle/libs.versions.toml`, `gradle/verification-metadata.xml` và `AppLinkTest.kt` không đổi.
+- Lượt `device-tests.yml` 44768269699 trên `98dd8af`: kiểm thử trên máy ảo Android 14 và việc ghi hồ sơ khởi động với `Journeys.kt` mới đều qua. Lượt này gồm `AppLaunchTest`, `SplitFlowOnDeviceTest` với kiểm tra trợ năng, và bốn hành trình `e2e` với cách tìm mới. Lượt chạy tay 44770414888 trên `c033470` chạy các hành trình trên Android 8.0, 11 và 16; cả ba qua.
+- Biểu tượng của thanh lấy từ bảng `Main`: nhà, hai người, hai mũi tên ngược chiều, biểu đồ cột và dấu cộng. Chúng nằm trong `SvNavIcons` của `:core:designsystem`.
+- Để kiểm thử tìm được phần tử mang một bề mặt dùng chung, `sharedSurface` đặt một thuộc tính ngữ nghĩa riêng, `SvSharedSurfaceName`, và chỉ đặt khi ở trong `Screen {}`. Mã của app không có `testTag`.
+- Đã sửa sau review độc lập ([báo cáo](./reports/review-phase-03.md)); mỗi bài kiểm mới đều được cho chạy trên mã sai một lần, thấy hỏng, rồi mới giữ:
+  - Lùi không bao giờ gỡ Home. Trước đó, giữ cử chỉ vuốt lùi, bấm Home rồi thả ra làm ngăn xếp rỗng và app dừng.
+  - Ba bài nhắm vào lỗi đã biết của Navigation 3 bản 1.2.1, khi một màn đang bị lùi lại được mở trước lúc lùi xong: lùi từ Groups rồi bấm Groups lúc màn đang mờ dần; lùi từ màn chia rồi bấm nút giữa; giữ cử chỉ vuốt lùi, bấm một thẻ rồi thả. Cả ba qua dưới Robolectric, nên không cần cách né; trên máy thật thì chưa thử tay.
+  - Quy tắc đổi tài khoản áp dụng khi tài khoản đang giữ chỗ, còn phiên hay phiên đã hết, đăng xuất, bị xóa, hoặc bị một tài khoản khác đăng nhập thay. Khi đó ngăn xếp còn `HomeKey` cùng `SettingsKey` và các màn mở từ đó, hoặc chỉ `HomeKey` nếu Cài đặt không còn trong ngăn xếp. Tài khoản được nhận ra bằng mã băm của địa chỉ, nên địa chỉ không nằm trong trạng thái lưu.
+  - Tổng yêu cầu trả tiền được đọc theo từng phiên, nên tài khoản mới không thấy danh sách mà tài khoản trước để lại. Lần tải còn treo của phiên cũ bị bỏ khi có phiên mới.
+  - Ở Thống kê, chỉ thanh xuất file nhận phần đệm của thanh hệ thống, nên khung của thanh điều hướng giống nhau ở cả bốn màn gốc.
+  - Hai thẻ của màn Bills nằm trong một danh sách với khóa cố định, nên tiêu điểm ở lại thẻ vừa chọn. Thẻ đang mở vẫn còn sau khi Activity được dựng lại.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn:
+  - Chuỗi `recurring_title` bị bỏ, vì không còn nơi nào hiện nó.
+  - Thanh trên của bốn màn gốc vẫn là `TopAppBar` của Material, không có nút lùi, cho tới giai đoạn 6 và 7.
+  - Hai thẻ của Bills là một `SvChoiceGroup`; giai đoạn 7 cho chúng vai thẻ.
+  - Ảnh cả trang của Thống kê cao 2.300 dp thay vì 2.000 dp, để mọi phần vẫn nằm phía trên hai thanh.
+- Chưa làm được trên máy này, cần một máy ảo: hiệu ứng nở từ nút giữa sang màn chia; vuốt lùi có xem trước; thanh đứng yên ở Thống kê khi có phần đệm thật của thanh hệ thống; lỗi của Navigation 3 bản 1.2.1 trên máy thật; và lần cài đè khi màn Recurring đang mở. Với lần cài đè, theo cách Android cài một bản cập nhật (dừng hẳn app và đóng các Activity của nó), ngăn xếp cũ có `RecurringKey` sẽ không được khôi phục; điều này chưa được thử. Nếu nó được khôi phục, `NavKeySerializer` sẽ ném lỗi vì không tìm thấy lớp.
+- Còn mở:
+  - Câu hỏi cho chủ sản phẩm: theo quy tắc của plan, đăng xuất trong Cài đặt mở từ màn chia sẽ đóng màn chia, và ảnh hóa đơn chưa đọc mất theo.
+  - Pro mở từ màn chia hay từ Claim sẽ đóng nếu một tài khoản khác đăng nhập thay một phiên đã hết, vì Cài đặt không nằm trong ngăn xếp.
+  - `docs/store-listing.md` ghi ảnh 40-insights là 824×4000; nay ảnh cao 4.600 điểm ảnh. Giai đoạn 10 làm lại ảnh cửa hàng.

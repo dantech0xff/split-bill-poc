@@ -124,8 +124,8 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 |---|-------|--------|--------|
 | 1 | [Nền tảng: màu, chữ, hình khối](./phase-01-colors-type-shapes.md) | 3d | Completed |
 | 2 | [Thành phần dùng chung](./phase-02-shared-components.md) | 4d | Completed |
-| 3 | [Điều hướng với thanh dưới](./phase-03-navigation-bottom-bar.md) | 3d | In progress |
-| 4 | [Tiền và ngày theo vùng của máy](./phase-04-money-and-date-formats.md) | 3d | Pending |
+| 3 | [Điều hướng với thanh dưới](./phase-03-navigation-bottom-bar.md) | 3d | Completed |
+| 4 | [Tiền và ngày theo vùng của máy](./phase-04-money-and-date-formats.md) | 3d | In progress |
 | 5 | [Trang chủ và luồng chia hóa đơn](./phase-05-home-and-split-flow.md) | 6d | Pending |
 | 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | Pending |
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | Pending |
