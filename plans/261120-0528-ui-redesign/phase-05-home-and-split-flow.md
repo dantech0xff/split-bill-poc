@@ -129,16 +129,16 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 - [x] Truy vấn nhóm ghi gần nhất trong `ProxyCacheDao`, `ProxyCache`, `GroupRepository`
 - [x] `HomeViewModel`, trang chủ theo hai bảng, bốn nơi gọi, bài sau đăng xuất
 - [x] Chữ theo bảng của quyết định 6, nhãn mới, bài so chuỗi xin đồng ý
-- [ ] Màn thêm hóa đơn, đang đọc, xin đồng ý
-- [ ] Màn kết quả theo thứ tự mới
-- [ ] Gỡ phần xem chữ đã gửi; luật cấm tự đặt họ phông
-- [ ] Ba bảng trượt
-- [ ] Trình sửa hóa đơn mỗi lúc một hàng mở, giữ theo id
-- [ ] Màn đòi tiền và thẻ chia sẻ
-- [ ] Mười ba lời gọi thẳng thành phần Material
-- [ ] Phép kiểm thanh che trong `BillSafetyTest`; bài gõ với bàn phím mở trên máy
-- [ ] Các bài kiểm thử còn lại của luồng
-- [ ] Bốn ảnh cỡ chữ 200% được xem
+- [x] Màn thêm hóa đơn, đang đọc, xin đồng ý
+- [x] Màn kết quả theo thứ tự mới
+- [x] Gỡ phần xem chữ đã gửi; luật cấm tự đặt họ phông
+- [x] Ba bảng trượt
+- [x] Trình sửa hóa đơn mỗi lúc một hàng mở, giữ theo id
+- [x] Màn đòi tiền và thẻ chia sẻ
+- [x] Mười ba lời gọi thẳng thành phần Material
+- [x] Phép kiểm thanh che trong `BillSafetyTest`; bài gõ với bàn phím mở trên máy
+- [x] Các bài kiểm thử còn lại của luồng
+- [x] Bốn ảnh cỡ chữ 200% được xem
 - [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
