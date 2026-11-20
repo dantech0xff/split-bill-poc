@@ -8,6 +8,7 @@ import com.dantech.splitvibe.english
 import com.dantech.splitvibe.inEnglish
 import java.io.IOException
 import java.math.BigDecimal
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -58,14 +59,27 @@ class AccountMessagesTest {
 
         assertEquals("2.8 of 3 free calls left on this phone.", callsLeftText(calls("3", "0.2", "2.8", resetsAt = null)).english())
         assertEquals(
-            "2.8 of 3 calls left this month. They come back on 1 December.",
+            "2.8 of 3 calls left this month. They come back on December 1.",
             callsLeftText(calls("3", "0.20", "2.80", resetsAt = DECEMBER_FIRST)).english(),
         )
         assertEquals(
-            "0 of 10 calls left this month. They come back on 1 December.",
+            "0 of 10 calls left this month. They come back on December 1.",
             callsLeftText(calls("10", "10", "0.00", DECEMBER_FIRST)).english(),
         )
-        assertEquals("Reading a bill takes 1 call, and changing a split by a sentence takes 0.2.", CALL_COSTS.english())
+        assertEquals("Reading a bill takes 1 call, and changing a split by a sentence takes 0.2.", callCosts().english())
+    }
+
+    @Test
+    fun `what each use takes has the marks of the region the phone is set to when it is shown`() {
+        assertEquals("Reading a bill takes 1 call, and changing a split by a sentence takes 0.2.", callCosts().english())
+        val before = Locale.getDefault()
+        // The phone is set to Vietnam while the app runs.
+        Locale.setDefault(Locale.forLanguageTag("vi-VN"))
+        try {
+            assertEquals("Reading a bill takes 1 call, and changing a split by a sentence takes 0,2.", callCosts().english())
+        } finally {
+            Locale.setDefault(before)
+        }
     }
 
     private companion object {

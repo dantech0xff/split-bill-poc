@@ -2,6 +2,8 @@ package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -47,8 +49,16 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
         return if (negative) -minor else minor
     }
 
-    /** [minor] written the way [parse] reads it back, without a currency sign or grouping, such as "12.50". */
-    fun inputText(minor: Long): String = toMajor(minor).toPlainString()
+    /**
+     * [minor] written the way [parse] reads it back, without a currency sign or grouping, with the
+     * decimal mark that [format] writes it with for [locale], the phone's region unless another is
+     * given: "12.50" or "12,50". Money can take another mark than other numbers do, as in
+     * French-speaking Switzerland, where an amount has a point before its decimals and a number a comma.
+     */
+    fun inputText(minor: Long, locale: Locale = regionLocale()): String {
+        val marks = DecimalFormatSymbols.getInstance(locale)
+        return fieldText(toMajor(minor), if (isoCurrency(code) != null) marks.monetaryDecimalSeparator else marks.decimalSeparator)
+    }
 
     // Building a formatter is slow, and an amount that runs through the numbers in between is
     // formatted on every frame. A formatter must not be shared between threads, so each thread
@@ -56,17 +66,43 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
     @Transient
     private val formatters = ThreadLocal<Pair<Locale, NumberFormat>>()
 
-    /** [minor] as an amount of money, such as "₫250,993", written as [locale] writes it, English unless another is given. */
-    fun format(minor: Long, locale: Locale = TEXT_LOCALE): String {
-        val number = formatterFor(locale).format(toMajor(minor))
-        return if (isoCurrency(code) != null || code.isBlank()) number else "$number $code"
+    /**
+     * [minor] as an amount of money written for [locale], the phone's region unless another is given:
+     * "₫902,664" in the United States, "902.664 ₫" in Vietnam. The region decides the marks between
+     * thousands and before decimals, the side of the number the symbol goes on and the space beside
+     * it. The digits are 0 to 9 and the symbol is the one of the app's English texts everywhere, such
+     * as "$" where a Vietnamese phone would write "US$". A code that is no ISO currency, such as one
+     * read off a bill, follows the number after a space.
+     */
+    fun format(minor: Long, locale: Locale = regionLocale()): String = formatterFor(locale).format(toMajor(minor)) + codeAfterNumber
+
+    /**
+     * The text of [format] in three parts, for an amount shown large with its symbol smaller beside
+     * it: the [AmountParts.number] with its marks, and what comes before and after it. Joined, they
+     * are the text of [format]. Which side the symbol goes on depends on the region, and the part on
+     * either side may also hold only marks that are not seen, such as the one an Egyptian phone puts
+     * first to keep the direction of the text.
+     */
+    fun formatParts(minor: Long, locale: Locale = regionLocale()): AmountParts {
+        val written = formatterFor(locale).format(toMajor(minor))
+        // The digits of the number and the marks between them; a currency symbol never holds a digit.
+        val first = written.indexOfFirst(Char::isDigit)
+        val last = written.indexOfLast(Char::isDigit)
+        return AmountParts(written.substring(0, first), written.substring(first, last + 1), written.substring(last + 1) + codeAfterNumber)
     }
+
+    /** What follows the number of a currency the platform does not know: a space and its code, such as " ABC". */
+    private val codeAfterNumber: String get() = if (isoCurrency(code) != null || code.isBlank()) "" else " $code"
 
     private fun formatterFor(locale: Locale): NumberFormat {
         formatters.get()?.let { (cachedLocale, formatter) -> if (cachedLocale == locale) return formatter }
         val iso = isoCurrency(code)
         val formatter = if (iso != null) {
-            NumberFormat.getCurrencyInstance(locale).apply { currency = iso }
+            NumberFormat.getCurrencyInstance(locale).apply {
+                currency = iso
+                // The symbol the app's English texts write: "$" where Vietnam writes "US$" and France "$US".
+                if (this is DecimalFormat) decimalFormatSymbols = decimalFormatSymbols.apply { currencySymbol = iso.getSymbol(TEXT_LOCALE) }
+            }
         } else {
             NumberFormat.getNumberInstance(locale)
         }
@@ -126,3 +162,11 @@ data class BillCurrency(val code: String, val fractionDigits: Int) {
         }
     }
 }
+
+/**
+ * An amount of money as [BillCurrency.formatParts] gives it: the [number] with the marks between its
+ * digits, and the [prefix] and [suffix] around it, either of which holds the symbol or the code of
+ * the currency when it has one, such as "₫" and "902,664" in the United States, or "902.664" and
+ * "\u00A0₫", a space that does not break and the symbol, in Vietnam.
+ */
+data class AmountParts(val prefix: String, val number: String, val suffix: String)

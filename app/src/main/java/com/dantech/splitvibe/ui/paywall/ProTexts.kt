@@ -8,14 +8,13 @@ import com.dantech.splitvibe.billing.PeriodUnit
 import com.dantech.splitvibe.billing.ProMembership
 import com.dantech.splitvibe.billing.ProPeriod
 import com.dantech.splitvibe.billing.ProPlan
+import com.dantech.splitvibe.domain.longDateWithYearText
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.text
 import java.net.URLEncoder
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** The name of a plan, such as "Monthly". */
 internal fun nameOf(period: ProPeriod): UiText = when (period) {
@@ -48,15 +47,16 @@ internal fun offerText(plan: ProPlan): UiText? {
 }
 
 /**
- * When Pro renews or ends, such as "Renews on 17 December 2026.", in the phone's time zone; Pro
- * given without an end says that it does not end, and a subscription Google Play is still renewing
- * says so. Null for Pro that is not active otherwise, such as one waiting for a payment, which the
- * notice about the payment covers.
+ * When Pro renews or ends, such as "Renews on December 17, 2026." on a phone set to the United
+ * States and "Renews on 17 December 2026." on one set to Vietnam, in the phone's time zone; Pro given
+ * without an end says that it does not end, and a subscription Google Play is still renewing says
+ * so. Null for Pro that is not active otherwise, such as one waiting for a payment, which the notice
+ * about the payment covers.
  */
 internal fun renewalText(membership: ProMembership, zone: ZoneId = ZoneId.systemDefault()): UiText? {
     if (!membership.active) return RENEWAL_PENDING.takeIf { membership.awaitingRenewal && !membership.billingIssue }
     val end = membership.expiresAt ?: return text(R.string.pro_does_not_end)
-    val day = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH).format(Instant.ofEpochMilli(end).atZone(zone))
+    val day = longDateWithYearText(Instant.ofEpochMilli(end).atZone(zone))
     return text(if (membership.willRenew) R.string.pro_renews_on else R.string.pro_ends_on, day)
 }
 

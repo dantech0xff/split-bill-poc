@@ -29,3 +29,10 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+tasks.test {
+    // Amounts and dates follow the region the machine is set to, so the texts the tests expect are
+    // those of a machine set to the United States, on every machine that runs them.
+    systemProperty("user.language", "en")
+    systemProperty("user.country", "US")
+}

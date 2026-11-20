@@ -64,9 +64,9 @@ class ProTextsTest {
 
     @Test
     fun `Pro says when it renews, or when it ends when it will not renew`() {
-        assertEquals("Renews on 17 December 2026.", renewalText(FakeBilling.active(), ZoneOffset.UTC).inEnglish())
+        assertEquals("Renews on December 17, 2026.", renewalText(FakeBilling.active(), ZoneOffset.UTC).inEnglish())
         val ending = FakeBilling.active(willRenew = false)
-        assertEquals("Ends on 17 December 2026, as it is set not to renew.", renewalText(ending, ZoneOffset.UTC).inEnglish())
+        assertEquals("Ends on December 17, 2026, as it is set not to renew.", renewalText(ending, ZoneOffset.UTC).inEnglish())
         assertEquals("It does not end.", renewalText(FakeBilling.active().copy(expiresAt = null), ZoneOffset.UTC).inEnglish())
     }
 

@@ -51,7 +51,6 @@ import com.dantech.splitvibe.domain.SplitMode
 import com.dantech.splitvibe.ui.common.MAX_TEXT_CHARS
 import com.dantech.splitvibe.ui.common.NumberField
 import java.math.BigDecimal
-import java.util.Locale
 
 /** Someone on the bill as the sheets show them: their id and the name to call them by. */
 internal data class SheetPerson(val id: String, val name: String)
@@ -361,7 +360,7 @@ internal fun ExchangeRateSheet(
         NumberField(
             label = stringResource(R.string.split_rate_label, from, to),
             // Without grouping, so it reads back as the number it is.
-            text = rate?.rate?.let { ExchangeRate.rateText(it, Locale.ROOT).replace(",", "") }.orEmpty(),
+            text = rate?.rate?.let { ExchangeRate.rateInputText(it) }.orEmpty(),
             parse = ::positiveRate,
             onValue = { typed = it },
             modifier = Modifier

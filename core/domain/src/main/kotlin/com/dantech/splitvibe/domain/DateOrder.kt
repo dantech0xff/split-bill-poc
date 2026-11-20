@@ -10,23 +10,26 @@ import java.util.Locale
  * dates in English words, so the order is all it takes from the region.
  */
 enum class DateOrder {
-    /** The day first, as in Vietnam, Germany, France, India and Egypt: "13 Nov 2026". */
+    /** The day first, as in Vietnam, Germany, France, Sweden, India, Egypt and Iran: "13 Nov 2026". */
     DayFirst,
 
-    /** The month first, as in the United States: "Nov 13, 2026". */
+    /** The month first, as in the United States and English-speaking Canada: "Nov 13, 2026". */
     MonthFirst,
 
-    /** The year first, as in Japan and Iran: "2026 Nov 13". */
+    /** The year first, as in Japan: "2026 Nov 13". */
     YearFirst,
 }
 
 /**
- * The order of the short date that [locale] writes, such as "dd/MM/y" in Vietnam. Only the letters
- * for the day, the month and the year count: quoted words, separators and the invisible marks that
- * some regions put between them to keep the direction of the text are left out.
+ * The order of a date with the name of its month as [locale] writes it, read from its medium pattern,
+ * such as "d MMM, y" in Vietnam or "MMM d, y" in the United States. The app writes the names of
+ * months, and some regions write a date of digits alone in another order: English-speaking Canada
+ * and Sweden write "y-MM-dd", but "MMM d, y" and "d MMM y" with a month name. Only the letters for
+ * the day, the month and the year count: quoted words, separators and the invisible marks that some
+ * regions put between them to keep the direction of the text are left out.
  */
 fun dateOrderOf(locale: Locale): DateOrder {
-    val pattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern(FormatStyle.SHORT, null, IsoChronology.INSTANCE, locale)
+    val pattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern(FormatStyle.MEDIUM, null, IsoChronology.INSTANCE, locale)
     return when (pattern.replace(QUOTED_TEXT, "").firstOrNull { it in DATE_FIELDS }) {
         'y', 'u' -> DateOrder.YearFirst
         'M', 'L' -> DateOrder.MonthFirst

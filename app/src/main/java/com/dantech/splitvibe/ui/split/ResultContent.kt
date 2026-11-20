@@ -88,6 +88,7 @@ import com.dantech.splitvibe.domain.Participant
 import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.domain.numberText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.groups.AddToGroupSheet
@@ -562,7 +563,7 @@ private fun ItemRow(
     val name = item.name.ifBlank { stringResource(R.string.common_item) }
     val unitPrice = item.unitPriceMinor
     val quantity = if (unitPrice != null && item.quantity.compareTo(BigDecimal.ONE) != 0) {
-        stringResource(R.string.split_quantity_times, item.quantity.stripTrailingZeros().toPlainString(), bill.format(unitPrice))
+        stringResource(R.string.split_quantity_times, numberText(item.quantity), bill.format(unitPrice))
     } else {
         null
     }

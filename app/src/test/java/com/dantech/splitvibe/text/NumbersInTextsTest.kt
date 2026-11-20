@@ -35,6 +35,7 @@ import com.dantech.splitvibe.ui.settings.AccountUiState
 import com.dantech.splitvibe.ui.settings.SettingsScreen
 import java.io.File
 import java.math.BigDecimal
+import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.util.Locale
 import org.junit.After
@@ -47,10 +48,10 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 /**
- * The English texts write their numbers one way whatever the phone is set to: with the digits 0 to
- * 9 and "." before decimals, as the counts, the calls left and the ordinals of the texts always
- * were. Phones set to Persian or Arabic write numbers with digits of their own, which a count, an
- * amount or a date must not take there.
+ * The English texts write their counts one way whatever the phone is set to, as the counts, the
+ * plurals and the ordinals of the texts always were. Amounts and dates follow the phone's region, in
+ * its marks and in its order, but with the digits 0 to 9 everywhere: phones set to Persian or Arabic
+ * write numbers with digits of their own, which no count, amount or date may take there.
  */
 @RunWith(AndroidJUnit4::class)
 class NumbersInTextsTest {
@@ -66,11 +67,13 @@ class NumbersInTextsTest {
 
     @Test
     @Config(sdk = [34], qualifiers = "fa")
-    fun `counts, money and dates are written in English on a phone set to Persian`() = everyNumberInEnglish()
+    fun `counts stay in English, and money and dates take the region's marks and order with the digits 0 to 9, in Persian`() =
+        countsInEnglishMoneyAndDatesOfTheRegion(writtenDay = "19 Nov 2026")
 
     @Test
     @Config(sdk = [34], qualifiers = "ar")
-    fun `counts, money and dates are written in English on a phone set to Arabic`() = everyNumberInEnglish()
+    fun `counts stay in English, and money and dates take the region's marks and order with the digits 0 to 9, in Arabic`() =
+        countsInEnglishMoneyAndDatesOfTheRegion(writtenDay = "19 Nov 2026")
 
     @Test
     @Config(sdk = [34], qualifiers = "fa")
@@ -99,8 +102,9 @@ class NumbersInTextsTest {
         assertEquals("Read these through UiText:\n${elsewhere.joinToString("\n")}", emptyList<String>(), elsewhere)
     }
 
-    private fun everyNumberInEnglish() {
-        likeThePhone()
+    /** [writtenDay] is how the phone's region writes 19 November 2026 with English month names. */
+    private fun countsInEnglishMoneyAndDatesOfTheRegion(writtenDay: String) {
+        val phone = likeThePhone()
         val resources = context.resources
 
         assertEquals("300 AI calls a month", plural(R.plurals.pro_calls_a_month, CallsLeft.PRO_MONTHLY).resolve(resources))
@@ -110,9 +114,18 @@ class NumbersInTextsTest {
         )
         assertEquals("Try again in about 40 minutes.", plural(R.plurals.wait_minutes, 40).resolve(resources))
         assertTrue(text(R.string.pro_not_counted_yet, CallsLeft.PRO_MONTHLY).resolve(resources).contains("Pro's 300 a month"))
-        assertEquals("₫250,993", BillCurrency("VND", 0).format(250_993))
-        assertEquals("$12.50", BillCurrency("USD", 2).format(1_250))
-        assertEquals("Nov 19, 2026", dateText(LocalDate.of(2026, 11, 19)))
+
+        // What the phone's region writes, told from the phone's own locale with the digits 0 to 9.
+        val marks = DecimalFormatSymbols.getInstance(Locale.Builder().setLocale(phone).setUnicodeLocaleKeyword("nu", "latn").build())
+        val dong = BillCurrency("VND", 0).format(250_993)
+        val dollars = BillCurrency("USD", 2).format(1_250)
+        val day = dateText(LocalDate.of(2026, 11, 19))
+        for (written in listOf(dong, dollars, day)) {
+            assertTrue("only the digits 0 to 9: $written", written.all { !it.isDigit() || it in '0'..'9' })
+        }
+        assertTrue(dong, "₫" in dong && "250${marks.groupingSeparator}993" in dong)
+        assertTrue(dollars, "$" in dollars && "12${marks.decimalSeparator}50" in dollars)
+        assertEquals(writtenDay, day)
     }
 
     private fun screensInEnglish() {
@@ -181,11 +194,12 @@ class NumbersInTextsTest {
         assertEquals("Texts with the phone's digits", emptyList<String>(), foreign)
     }
 
-    /** The phone's language as Android sets it up, also as the default locale, which money and dates used to follow. */
-    private fun likeThePhone() {
+    /** The phone's language as Android sets it up, also as the default locale, whose region money and dates follow. */
+    private fun likeThePhone(): Locale {
         val phone = context.resources.configuration.locales[0]
         Locale.setDefault(phone)
         assertNotEquals("the phone's own digits, which the texts must not take", "300", String.format(phone, "%d", 300))
+        return phone
     }
 
     /** Every text of [node] and the nodes below it. */

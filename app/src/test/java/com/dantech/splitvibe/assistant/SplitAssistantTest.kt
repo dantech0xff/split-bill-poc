@@ -24,6 +24,7 @@ import com.dantech.splitvibe.llm.BillAnalyzerException
 import com.dantech.splitvibe.llm.BillAnalyzerException.Kind
 import com.dantech.splitvibe.llm.text
 import java.math.BigDecimal
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -122,7 +123,7 @@ class SplitAssistantTest {
     fun `turns each refusal of the proxy into a kind and a message the person can act on`() = runBlocking {
         val cases = listOf(
             Case(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_USED_UP}"""), Kind.QUOTA_EXHAUSTED, "used your 3 free calls."),
-            Case(refusal(429, """{"error":"quota_exhausted","usage":$MONTH_USED_UP}"""), Kind.QUOTA_EXHAUSTED, "come back on 1 December"),
+            Case(refusal(429, """{"error":"quota_exhausted","usage":$MONTH_USED_UP}"""), Kind.QUOTA_EXHAUSTED, "come back on December 1"),
             // Should a change ever weigh more than what a person has left.
             Case(
                 refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_PART_LEFT}"""),
@@ -165,6 +166,23 @@ class SplitAssistantTest {
             val failure = failureOf { assistant.revise("Lan không uống bia", bill, plan, "Dana") }
             assertEquals(case.toString(), case.kind, failure.kind)
             assertTrue("${failure.text.english()} should say \"${case.says}\"", failure.text.english().contains(case.says))
+        }
+    }
+
+    @Test
+    fun `what a change takes is said with the marks of the region the phone is set to when it is said`() = runBlocking {
+        val before = Locale.getDefault()
+        // The assistant was made on a phone set to the United States, which is then set to Vietnam.
+        Locale.setDefault(Locale.forLanguageTag("vi-VN"))
+        try {
+            server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$TRIAL_PART_LEFT}"""))
+
+            val failure = failureOf { assistant.revise("Lan không uống bia", bill, plan, "Dana") }
+
+            val said = failure.text.english()
+            assertTrue(said, said.contains("Changing a split takes 0,2 of a call, and 0,1 of your 3 free calls are left."))
+        } finally {
+            Locale.setDefault(before)
         }
     }
 

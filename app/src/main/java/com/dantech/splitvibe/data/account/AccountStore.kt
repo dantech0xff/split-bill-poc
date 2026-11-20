@@ -5,13 +5,13 @@ import androidx.core.content.edit
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.settings.KeystoreCipher
 import com.dantech.splitvibe.data.settings.TextCipher
+import com.dantech.splitvibe.domain.longDateText
+import com.dantech.splitvibe.domain.numberText
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.text
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,11 +55,12 @@ data class CallsLeft(
     val resetsAt: Long?,
     val plan: Plan = if (period == TRIAL_PERIOD) Plan.TRIAL else Plan.FREE,
 ) {
-    /** The day the monthly calls come back, such as "1 December", or null for a trial. */
+    /**
+     * The day the monthly calls come back, in the order of the phone's region: "December 1" in the
+     * United States, "1 December" in Vietnam. Null for a trial.
+     */
     val comesBackOn: String?
-        get() = resetsAt?.let {
-            DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH).format(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC))
-        }
+        get() = resetsAt?.let { longDateText(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC)) }
 
     companion object {
         /** What reading a bill takes of the calls. The proxy decides it; the app only says it. */
@@ -77,8 +78,11 @@ data class CallsLeft(
         /** The [period] of the calls an install gets before anyone signs in on it. */
         const val TRIAL_PERIOD = "trial"
 
-        /** [calls] as the app writes a number of calls, without zeros that say nothing: "2.8", "3", "0.2". */
-        fun text(calls: BigDecimal): String = calls.stripTrailingZeros().toPlainString()
+        /**
+         * [calls] as the app writes a number of calls, with the decimal mark of the phone's region and
+         * without zeros that say nothing: "2.8", "3" and "0.2" in the United States, "2,8" in Vietnam.
+         */
+        fun text(calls: BigDecimal): String = numberText(calls)
     }
 }
 

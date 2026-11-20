@@ -1,7 +1,7 @@
 package com.dantech.splitvibe.domain.payments
 
 import com.dantech.splitvibe.domain.BillCurrency
-import com.dantech.splitvibe.domain.TEXT_LOCALE
+import com.dantech.splitvibe.domain.regionLocale
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.URLEncoder
@@ -52,12 +52,18 @@ object PaymentRequestBuilder {
     /** Letters the SEPA scheme carries everywhere, besides a to z and digits. */
     private const val SEPA_PUNCTUATION = "/-?:().,'+ "
 
+    /**
+     * What the payer of [amountMinor] in [currency] gets to pay it with [method]. The "Amount:" line of
+     * the details is written for [locale], the phone's region unless another is given, as the other
+     * texts of the phone that sends the request are. The link and the code carry the amount as each
+     * network reads it, the same in every region.
+     */
     fun build(
         method: PaymentMethod,
         amountMinor: Long,
         currency: BillCurrency,
         note: String?,
-        locale: Locale = TEXT_LOCALE,
+        locale: Locale = regionLocale(),
     ): PaymentRequest {
         val shownAmount = "Amount: ${currency.format(amountMinor, locale)}"
         val shownNote = note?.trim()?.takeIf { it.isNotEmpty() }?.let { "Note: $it" }

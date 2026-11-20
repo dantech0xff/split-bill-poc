@@ -2,6 +2,7 @@ package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.util.Locale
 import kotlinx.serialization.Serializable
 
 /** What one person owes: their part of the items plus their part of the shared charges. */
@@ -234,8 +235,13 @@ object SplitCalculator {
     }
 }
 
-/** Hundredths of a percent as people write a percentage: "10%", "33.33%", "0.5%". */
-internal fun percentText(basisPoints: Long): String = BigDecimal.valueOf(basisPoints, 2).stripTrailingZeros().toPlainString() + "%"
+/**
+ * Hundredths of a percent as people write a percentage, with the marks of [locale], the phone's region
+ * unless another is given: "10%", "33.33%" and "0.5%" in the United States, "33,33%" in Vietnam. The
+ * sign stays where the English sentence around it has it.
+ */
+internal fun percentText(basisPoints: Long, locale: Locale = regionLocale()): String =
+    numberText(BigDecimal.valueOf(basisPoints, 2), locale) + "%"
 
 /**
  * This number as a Long, throwing [ArithmeticException] when it does not fit, as

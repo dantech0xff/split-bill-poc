@@ -65,7 +65,7 @@ class GatewayBillAnalyzer(
             tooLong = text(R.string.read_too_long),
             tooSlow = text(R.string.read_too_slow),
             notTaken = text(R.string.read_not_taken),
-            cost = text(R.string.read_cost),
+            cost = { text(R.string.read_cost) },
         )
     }
 }

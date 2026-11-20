@@ -9,12 +9,11 @@ import androidx.annotation.StringRes
 import androidx.core.content.FileProvider
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.domain.Insights
-import com.dantech.splitvibe.domain.TEXT_LOCALE
+import com.dantech.splitvibe.domain.monthYearText
 import com.dantech.splitvibe.text.UiText
 import java.io.File
 import java.io.IOException
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -138,7 +137,7 @@ class Exporter(private val context: Context, private val locale: () -> Locale = 
         /** The name of the PDF summary of the period [periodKey] names, such as "spending-2026-11.pdf". */
         fun pdfName(periodKey: String): String = "spending-$periodKey.pdf"
 
-        /** [month] as a heading, such as "November 2026", in English as the app is. */
-        fun monthName(month: YearMonth): String = month.format(DateTimeFormatter.ofPattern("LLLL yyyy", TEXT_LOCALE))
+        /** [month] as a heading, such as "November 2026", in English as the app is and the same in every region. */
+        fun monthName(month: YearMonth): String = monthYearText(month)
     }
 }

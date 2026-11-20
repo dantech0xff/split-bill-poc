@@ -45,9 +45,10 @@ object SplitEdits {
      * One short sentence on what [edit] does to [bill] and [plan], with the names of the people and
      * items it names, such as "Beer: shared by Dana and Minh". [meName] is the user's own name, as
      * the user is called on the bill; a blank one makes them "You". A ref of someone added by an
-     * earlier edit is not on [plan]: the list form of [describe] names them.
+     * earlier edit is not on [plan]: the list form of [describe] names them. Amounts, percentages and
+     * quantities are written for [locale], the phone's region unless another is given.
      */
-    fun describe(edit: SplitEdit, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = TEXT_LOCALE): String =
+    fun describe(edit: SplitEdit, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = regionLocale()): String =
         Describer(State(bill, plan), meName, emptyMap(), locale).sentence(edit)
 
     /**
@@ -55,7 +56,7 @@ object SplitEdits {
      * it leave, as [apply] meets them. So a ref names the person its [SplitEdit.AddPerson] adds, and
      * a percentage charge shows the amount it adds.
      */
-    fun describe(edits: List<SplitEdit>, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = TEXT_LOCALE): List<String> {
+    fun describe(edits: List<SplitEdit>, bill: Bill, plan: SplitPlan, meName: String, locale: Locale = regionLocale()): List<String> {
         val newPeople = edits.filterIsInstance<SplitEdit.AddPerson>().associate { it.ref to it.name }
         val sentences = mutableListOf<String>()
         walk(bill, plan, edits) { _, edit, before, _ -> sentences += Describer(before, meName, newPeople, locale).sentence(edit) }
@@ -276,9 +277,11 @@ object SplitEdits {
         private val meName: String,
         /** The names of the people the edits add, by ref, for an edit that names someone whose addition was rejected. */
         private val newPeople: Map<String, String>,
+        /** The region the amounts, percentages and quantities are written for. */
         private val locale: Locale,
     ) {
-        fun sentence(edit: SplitEdit): String = text(edit).replaceFirstChar { it.titlecase(locale) }
+        // The sentence is English, whatever the region, and so is the capital letter it starts with.
+        fun sentence(edit: SplitEdit): String = text(edit).replaceFirstChar { it.titlecase(TEXT_LOCALE) }
 
         private fun text(edit: SplitEdit): String = when (edit) {
             is SplitEdit.ItemSharers -> {
@@ -302,7 +305,7 @@ object SplitEdits {
 
             is SplitEdit.WholeShares -> "Whole bill in shares: ${parts(edit.shares) { it.toString() }}"
 
-            is SplitEdit.WholePercent -> "Whole bill by percentage: ${parts(edit.basisPoints, ::percentText)}"
+            is SplitEdit.WholePercent -> "Whole bill by percentage: ${parts(edit.basisPoints) { percentText(it, locale) }}"
 
             is SplitEdit.WholeAmounts -> "Whole bill by amount: ${parts(edit.amounts, ::money)}"
 
@@ -330,7 +333,7 @@ object SplitEdits {
                 val price = state.findItem(edit.itemId)?.unitPriceMinor
                 val amount = price?.takeIf { isQuantity(quantity) }?.let { BillEditor.lineAmount(quantity, it) }
                 // A number too odd to be a quantity is shown in scientific notation, which stays short.
-                val shown = if (isQuantity(quantity)) quantity.stripTrailingZeros().toPlainString() else quantity.toString()
+                val shown = if (isQuantity(quantity)) numberText(quantity, locale) else quantity.toString()
                 "${item(edit.itemId)}: quantity $shown" + if (amount == null) "" else " (${money(amount)})"
             }
         }
@@ -348,7 +351,7 @@ object SplitEdits {
             val percent = edit.percentBasisPoints
             return when {
                 percent != null && amount == null -> {
-                    val shown = percentText(percent)
+                    val shown = percentText(percent, locale)
                     val added = chargeAmount(state.bill, percent)?.let { " (${money(BillEditor.signedCharge(edit.kind, it))})" }.orEmpty()
                     "Add ${article(shown)} $shown $noun$added"
                 }

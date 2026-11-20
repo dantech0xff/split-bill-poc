@@ -46,6 +46,7 @@ import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
@@ -64,12 +65,14 @@ import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.math.BigDecimal
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -202,6 +205,32 @@ class ScreenGalleryTest {
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
+        shot("05-result-top")
+
+        compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        shot("10-requests-sent")
+    }
+
+    /** The four main screens on a phone set to Vietnam, whose amounts are written "902.664 ₫": the texts stay English. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
+    fun `the four main screens on a phone set to Vietnam`() {
+        suffix = "-vi-vn"
+        // The sample bill's total as the screens write it, before any of them is drawn.
+        assertEquals("the phone's region", Locale.forLanguageTag("vi-VN"), Locale.getDefault(Locale.Category.FORMAT))
+        assertEquals(VIETNAMESE_TOTAL, BillCurrency("VND", 0).format(902_664))
+        val viewModel = start(answerDelaySeconds = 0)
+        shot("01-home")
+
+        show(Screen.SPLIT)
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        shot("03-photo-and-instruction")
+
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+        compose.onNodeWithText(VIETNAMESE_TOTAL).assertExists()
         shot("05-result-top")
 
         compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
@@ -488,6 +517,12 @@ class ScreenGalleryTest {
 private const val SCREENSHOTS = "src/test/screenshots"
 private const val PHONE = "w412dp-h915dp-xhdpi"
 private const val PHONE_AT_NIGHT = "w412dp-h915dp-night-xhdpi"
+
+/** The same phone set to Vietnamese in Vietnam, the region its amounts and dates follow. */
+private const val PHONE_IN_VIETNAM = "vi-rVN-w412dp-h915dp-xhdpi"
+
+/** The sample bill's total as a phone set to Vietnam writes it, with a space that does not break before the symbol. */
+private const val VIETNAMESE_TOTAL = "902.664\u00A0₫"
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
 private const val TALL = "w412dp-h1900dp-xhdpi"

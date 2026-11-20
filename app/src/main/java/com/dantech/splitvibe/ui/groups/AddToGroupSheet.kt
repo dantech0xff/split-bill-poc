@@ -32,6 +32,7 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.ExchangeRate
+import com.dantech.splitvibe.domain.inputNumberText
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.resolve
 
@@ -165,7 +166,7 @@ private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, 
     var typed by rememberSaveable { mutableStateOf<String?>(null) }
     val from = saved.bill.currency.code
     OutlinedTextField(
-        value = typed ?: rate?.rate?.stripTrailingZeros()?.toPlainString().orEmpty(),
+        value = typed ?: rate?.rate?.stripTrailingZeros()?.let { inputNumberText(it) }.orEmpty(),
         onValueChange = { text ->
             typed = text.take(RATE_LENGTH)
             onRate(text)

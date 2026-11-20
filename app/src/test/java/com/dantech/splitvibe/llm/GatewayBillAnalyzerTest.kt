@@ -114,12 +114,12 @@ class GatewayBillAnalyzerTest {
             Case(
                 refusal(429, """{"error":"quota_exhausted","usage":$MONTH_PART_LEFT}"""),
                 Kind.QUOTA_EXHAUSTED,
-                "0.4 of this month's 10 calls are left. They come back on 1 December",
+                "0.4 of this month's 10 calls are left. They come back on December 1",
             ),
             Case(
                 refusal(429, """{"error":"quota_exhausted","usage":$MONTH_USED_UP}"""),
                 Kind.QUOTA_EXHAUSTED,
-                "They come back on 1 December",
+                "They come back on December 1",
             ),
             Case(refusal(401, """{"error":"session"}"""), Kind.SIGN_IN_EXPIRED, "Sign in again"),
             Case(refusal(503, """{"error":"ai_off"}"""), Kind.AI_OFF, "switched off"),
@@ -356,9 +356,9 @@ class GatewayBillAnalyzerTest {
                 "Reading a bill takes a whole call, and 0.8 of your 3 free calls are left. Sign in with Google for 10 calls a month, " +
                 "or get Pro for 300.",
             MONTH_USED_UP.replace("}", ""","plan":"free"}""") to
-                "You have used this month's 10 calls. They come back on 1 December. Get Pro for 300 calls a month.",
-            PRO_USED_UP to "You have used this month's 300 calls. They come back on 1 December.",
-            PRO_PART_LEFT to "Reading a bill takes a whole call, and 0.4 of this month's 300 calls are left. They come back on 1 December.",
+                "You have used this month's 10 calls. They come back on December 1. Get Pro for 300 calls a month.",
+            PRO_USED_UP to "You have used this month's 300 calls. They come back on December 1.",
+            PRO_PART_LEFT to "Reading a bill takes a whole call, and 0.4 of this month's 300 calls are left. They come back on December 1.",
         )
         for ((usage, said) in cases) {
             server.enqueue(refusal(429, """{"error":"quota_exhausted","usage":$usage}"""))
@@ -383,7 +383,7 @@ class GatewayBillAnalyzerTest {
 
         assertEquals("You have used your 3 free calls. Sign in with Google in Settings to get more each month.", trial.text.english())
         assertTrue(trial.signInHelps(canSignIn = true, signedIn = false, sellsPro = false))
-        assertEquals("You have used this month's 10 calls. They come back on 1 December.", monthly.text.english())
+        assertEquals("You have used this month's 10 calls. They come back on December 1.", monthly.text.english())
         assertFalse(trial.proHelps(sellsPro = false))
         assertFalse(monthly.proHelps(sellsPro = false))
     }

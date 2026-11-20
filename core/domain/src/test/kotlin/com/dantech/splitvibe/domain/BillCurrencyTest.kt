@@ -1,6 +1,7 @@
 package com.dantech.splitvibe.domain
 
 import java.math.BigDecimal
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -80,17 +81,25 @@ class BillCurrencyTest {
     }
 
     @Test
-    fun `money, rates and the domain's sentences are written in English, whatever the phone's locale`() {
+    fun `money, rates and the domain's sentences take the phone's marks but keep the digits 0 to 9 and the English symbols`() {
         val before = Locale.getDefault()
-        // Persian and Arabic phones write numbers with digits of their own, and another decimal mark.
+        // Persian and Arabic phones write numbers with digits of their own, and other marks around them.
         for (phone in listOf("fa-IR", "ar-EG")) {
             Locale.setDefault(Locale.forLanguageTag(phone))
             try {
-                val vnd = BillCurrency("VND", 0)
-                assertEquals(phone, "₫250,993", vnd.format(250_993))
-                assertEquals(phone, "1 USD = 25,350 VND", ExchangeRate("USD", "VND", BigDecimal(25_350)).describe())
-                val problem = Payments.problem(listOf(Payment("me", 100)), totalMinor = 300, BillCurrency("USD", 2))
-                assertEquals(phone, "Payments add up to $1.00, $2.00 short of the bill total of $3.00.", problem)
+                // The marks of the phone's region with the digits 0 to 9, told from the phone's own locale.
+                val marks = DecimalFormatSymbols.getInstance(Locale.forLanguageTag("$phone-u-nu-latn"))
+                val dong = BillCurrency("VND", 0).format(250_993)
+                val rate = ExchangeRate("USD", "VND", BigDecimal(25_350)).describe()
+                val problem = Payments.problem(listOf(Payment("me", 100)), totalMinor = 300, BillCurrency("USD", 2)).orEmpty()
+
+                for (written in listOf(dong, rate, problem)) {
+                    assertTrue("$phone: $written", written.all { !it.isDigit() || it in '0'..'9' })
+                }
+                assertTrue("$phone: $dong", "₫" in dong && "250${marks.groupingSeparator}993" in dong)
+                assertTrue("$phone: $rate", rate.startsWith("1 USD = 25${marks.groupingSeparator}350") && rate.endsWith(" VND"))
+                assertTrue("$phone: $problem", problem.startsWith("Payments add up to ") && "short of the bill total of " in problem)
+                assertTrue("$phone: $problem", "$" in problem && "1${marks.decimalSeparator}00" in problem)
             } finally {
                 Locale.setDefault(before)
             }

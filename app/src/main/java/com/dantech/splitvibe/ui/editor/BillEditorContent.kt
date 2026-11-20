@@ -54,6 +54,7 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.BillEditor
 import com.dantech.splitvibe.domain.BillItem
 import com.dantech.splitvibe.domain.ChargeKind
+import com.dantech.splitvibe.domain.inputNumberText
 import com.dantech.splitvibe.text.labelRes
 import com.dantech.splitvibe.ui.common.InputField
 import com.dantech.splitvibe.ui.common.NumberField
@@ -226,7 +227,7 @@ private fun ItemEditor(
             Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm), verticalAlignment = Alignment.Bottom) {
                 NumberField(
                     label = stringResource(R.string.editor_quantity),
-                    text = item.quantity.stripTrailingZeros().toPlainString(),
+                    text = inputNumberText(item.quantity.stripTrailingZeros()),
                     parse = ::positiveQuantity,
                     onValue = { quantity -> onEdit { BillEditor.withItemQuantity(it, item.id, quantity) } },
                     modifier = Modifier.width(QUANTITY_FIELD_WIDTH),

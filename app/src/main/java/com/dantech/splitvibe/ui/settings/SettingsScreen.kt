@@ -199,7 +199,7 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
             if (account.ai != AiStatus.NOT_SET_UP) PlanRow(account.callsLeft?.plan, onOpenPro = actions.onOpenPro)
             account.callsLeft?.let { Text(callsLeftText(it).resolve(), style = MaterialTheme.typography.bodyLarge) }
             if (account.ai != AiStatus.NOT_SET_UP) {
-                Text(CALL_COSTS.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(callCosts().resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             val email = account.signedInAs
@@ -415,6 +415,9 @@ internal fun callsLeftText(calls: CallsLeft): UiText {
     }
 }
 
-/** What each use of the AI takes of the calls. */
-internal val CALL_COSTS: UiText =
+/**
+ * What each use of the AI takes of the calls, built each time it is shown, so its numbers have the
+ * marks of the region the phone is set to then.
+ */
+internal fun callCosts(): UiText =
     plural(R.plurals.call_costs, CallsLeft.READ.toInt(), CallsLeft.text(CallsLeft.READ), CallsLeft.text(CallsLeft.REVISION))

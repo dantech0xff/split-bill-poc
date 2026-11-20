@@ -3,7 +3,6 @@ package com.dantech.splitvibe.domain
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
-import java.text.NumberFormat
 import java.util.Locale
 import kotlinx.serialization.Serializable
 
@@ -44,8 +43,11 @@ data class ExchangeRate(
         null
     }
 
-    /** The rate as people write it, such as "1 USD = 25,350 VND". */
-    fun describe(locale: Locale = TEXT_LOCALE): String = "1 $from = ${rateText(rate, locale)} $to"
+    /**
+     * The rate as people write it in [locale], the phone's region unless another is given: "1 USD =
+     * 25,350 VND" in the United States, "1 USD = 25.350 VND" in Vietnam.
+     */
+    fun describe(locale: Locale = regionLocale()): String = "1 $from = ${rateText(rate, locale)} $to"
 
     companion object {
         /** The [source] of a rate the user typed in. */
@@ -66,12 +68,11 @@ data class ExchangeRate(
             return ExchangeRate(from, to, toRate.divide(fromRate, MathContext.DECIMAL64), minOf(fromDay, toDay), source)
         }
 
-        /** A rate the way it is shown and typed: six significant digits, grouped as [locale] does. */
-        fun rateText(rate: BigDecimal, locale: Locale = TEXT_LOCALE): String {
-            val shown = rate.round(SHOWN).stripTrailingZeros()
-            return NumberFormat.getNumberInstance(locale).apply {
-                maximumFractionDigits = shown.scale().coerceAtLeast(0)
-            }.format(shown)
-        }
+        /** A rate the way it is shown: six significant digits, with the marks of [locale] between thousands and before decimals. */
+        fun rateText(rate: BigDecimal, locale: Locale = regionLocale()): String = numberText(rate.round(SHOWN), locale)
+
+        /** A rate the way a field shows it to be typed over: the digits of [rateText] without grouping, so it reads back as the same rate. */
+        fun rateInputText(rate: BigDecimal, locale: Locale = regionLocale()): String =
+            inputNumberText(rate.round(SHOWN).stripTrailingZeros(), locale)
     }
 }

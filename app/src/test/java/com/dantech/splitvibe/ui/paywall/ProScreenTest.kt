@@ -109,7 +109,7 @@ class ProScreenTest {
 
         compose.onNode(hasText("You have Pro") and isHeading()).assertExists()
         compose.onNodeWithText("Monthly plan, $3.99 a month").assertExists()
-        compose.onNodeWithText("Renews on 17 December 2026.").assertExists()
+        compose.onNodeWithText("Renews on December 17, 2026.").assertExists()
         compose.onNodeWithText("Google Play could not take your last payment", substring = true).assertExists()
         compose.onNodeWithText("Subscribe", substring = true).assertDoesNotExist()
 

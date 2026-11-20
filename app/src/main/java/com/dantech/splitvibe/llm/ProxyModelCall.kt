@@ -41,8 +41,12 @@ class ModelCallWords(
     val tooSlow: UiText,
     /** The proxy did not take the request as it was. */
     val notTaken: UiText,
-    /** What one call of this kind takes, such as "Reading a bill takes a whole call"; what is left follows it. */
-    val cost: UiText,
+    /**
+     * What one call of this kind takes, such as "Reading a bill takes a whole call"; what is left
+     * follows it. It is built for each message, so a number in it has the marks of the region the
+     * phone is set to then, as the numbers around it do.
+     */
+    val cost: () -> UiText,
 )
 
 /**
@@ -178,8 +182,8 @@ class ProxyModelCall(
         val said = when {
             left == null && date != null -> plural(R.plurals.model_quota_used_month, count, limit, date)
             left == null -> plural(R.plurals.model_quota_used_free, count, limit)
-            date != null -> plural(R.plurals.model_quota_left_month, count, words.cost, left, limit, date)
-            else -> plural(R.plurals.model_quota_left_free, count, words.cost, left, limit)
+            date != null -> plural(R.plurals.model_quota_left_month, count, words.cost(), left, limit, date)
+            else -> plural(R.plurals.model_quota_left_free, count, words.cost(), left, limit)
         }
         return sentences(said, more)
     }

@@ -56,7 +56,9 @@ import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.domain.TEXT_LOCALE
+import com.dantech.splitvibe.domain.dateOrderOf
+import com.dantech.splitvibe.domain.dateWithYearText
+import com.dantech.splitvibe.domain.regionLocale
 import com.dantech.splitvibe.share.ShareCardRenderer
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.resolve
@@ -64,8 +66,6 @@ import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.split.nameOf
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
 /** What the screen of a bill's link does when the person taps something. */
@@ -100,11 +100,12 @@ private sealed interface Confirm {
 /**
  * The bill's link: everyone at the table opens it in a browser and taps what they had, and this
  * screen shows their picks as they come. The user says who each one is on the bill, stops the
- * picking, checks the split, and sends what each person owes to the page.
+ * picking, checks the split, and sends what each person owes to the page. The day the link is open
+ * until is written in the order of [locale], the phone's region unless another is given.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, actions: ClaimActions, locale: Locale = TEXT_LOCALE) {
+fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, actions: ClaimActions, locale: Locale = regionLocale()) {
     val share = state.share
     var confirming by rememberSaveable(stateSaver = ConfirmSaver) { mutableStateOf<Confirm?>(null) }
     Scaffold(
@@ -494,8 +495,7 @@ private val ConfirmSaver = Saver<Confirm?, List<String>>(
 /** Where the link stands, in one line: open until when, or what happens now. */
 private fun statusOf(share: ShareView, locale: Locale): UiText = when (share.status) {
     ShareView.OPEN -> {
-        val until = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
-            .format(Instant.ofEpochMilli(share.expiresAt).atZone(ZoneId.systemDefault()))
+        val until = dateWithYearText(Instant.ofEpochMilli(share.expiresAt).atZone(ZoneId.systemDefault()), dateOrderOf(locale))
         text(R.string.claim_open_until, until)
     }
 

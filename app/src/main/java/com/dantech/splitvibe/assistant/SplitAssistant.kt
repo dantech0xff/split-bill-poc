@@ -78,7 +78,7 @@ class SplitAssistant(
             tooLong = text(R.string.assistant_too_long),
             tooSlow = text(R.string.assistant_too_slow),
             notTaken = text(R.string.assistant_not_taken),
-            cost = text(R.string.assistant_cost, CallsLeft.text(CallsLeft.REVISION)),
+            cost = { text(R.string.assistant_cost, CallsLeft.text(CallsLeft.REVISION)) },
         )
     }
 }

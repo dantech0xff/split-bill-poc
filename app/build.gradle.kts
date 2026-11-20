@@ -181,6 +181,10 @@ android {
             test.systemProperty("roborazzi.test.$screenshots", "true")
             // Draws shadows and other hardware-rendered effects the way a device does.
             test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+            // Amounts and dates follow the phone's region. Robolectric sets it from a test's qualifiers,
+            // the United States without them; a plain JUnit test has the machine's, set here to the same.
+            test.systemProperty("user.language", "en")
+            test.systemProperty("user.country", "US")
         }
         // An emulator that Gradle downloads, starts and stops itself for the tests in src/androidTest:
         // ./gradlew :app:pixel6Api34ProdDebugAndroidTest

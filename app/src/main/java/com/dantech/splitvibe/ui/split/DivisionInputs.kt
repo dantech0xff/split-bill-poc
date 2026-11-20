@@ -23,6 +23,8 @@ import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.domain.inputNumberText
+import com.dantech.splitvibe.domain.numberText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.NUMBER_FIELD_WIDTH
@@ -31,8 +33,14 @@ import com.dantech.splitvibe.ui.common.NumberField
 /** Percentages in hundredths, read and written like an amount with two decimals: "33.33" is 3333. */
 internal val PERCENT = BillCurrency("", 2)
 
-/** A percentage in hundredths as it is shown and typed, without zeros that say nothing: 2500 is "25", 1250 is "12.5". */
-internal fun percentText(basisPoints: Long): String = PERCENT.toMajor(basisPoints).stripTrailingZeros().toPlainString()
+/**
+ * A percentage in hundredths as it is shown, with the marks of the phone's region and without zeros
+ * that say nothing: 2500 is "25", and 1250 is "12.5" in the United States and "12,5" in Vietnam.
+ */
+internal fun percentText(basisPoints: Long): String = numberText(PERCENT.toMajor(basisPoints))
+
+/** A percentage in hundredths as its field shows it: as [percentText] writes it, but without grouping, so [parsePercent] reads it back. */
+internal fun percentInputText(basisPoints: Long): String = inputNumberText(PERCENT.toMajor(basisPoints).stripTrailingZeros())
 
 /**
  * A percentage as someone types it, in hundredths: "25" is 2500 and "33,33" is 3333. The last
@@ -75,7 +83,7 @@ internal fun DivisionValueInput(name: String, mode: SplitMode, value: Long, curr
 
         SplitMode.BY_PERCENT -> NumberField(
             label = stringResource(R.string.split_percent_for, name),
-            text = percentText(value),
+            text = percentInputText(value),
             suffix = stringResource(R.string.split_percent_sign),
             parse = ::parsePercent,
             onValue = onValue,
