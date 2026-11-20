@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Join a group</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 52px 20px 0; display: flex; flex-direction: column; gap: 12px">
+
+<header style="display: flex; align-items: center; gap: 12px; height: 48px">
+<a href="Groups.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FFFFFF; color: #111114; display: flex; align-items: center; justify-content: center; text-decoration: none">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"></path></svg>
+</a>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.02em">Join a group</h1>
+</header>
+
+<section style="position: relative; overflow: hidden; border-radius: 32px; background: #C9F73A; color: #111114; padding: 24px; display: flex; flex-direction: column; gap: 6px">
+<div aria-hidden="true" style="position: absolute; top: -48px; right: -40px; width: 168px; height: 168px; border-radius: 50%; background: #111114; opacity: 0.08"></div>
+<span style="position: relative; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 32px; line-height: 36px; letter-spacing: -0.02em">Chiang Mai trip</span>
+<span style="position: relative; font-size: 15px; font-weight: 600; line-height: 22px">Balances in THB</span>
+</section>
+
+<div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px">
+<label for="member-name" style="font-size: 13px; font-weight: 700; line-height: 18px">Your name in the group</label>
+<input id="member-name" type="text" value="An Pham" style="box-sizing: border-box; width: 100%; height: 52px; border: 1.5px solid #8A8992; border-radius: 16px; background: #FFFFFF; padding: 0 16px; font-family: inherit; font-size: 16px; color: #111114">
+</div>
+
+<fieldset style="margin: 16px 0 0; padding: 0; border: none; min-width: 0">
+<legend style="padding: 0; margin: 0 0 10px">
+<span style="display: block; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.01em">Are you one of these people?</span>
+<span style="display: block; margin-top: 4px; font-size: 13px; line-height: 18px; color: #5F5E66">Bills already in the group may name you.</span>
+</legend>
+<div style="background: #FFFFFF; border-radius: 24px; padding: 4px 8px 4px 16px">
+<label style="min-height: 60px; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 40px; height: 40px; flex: none; border-radius: 14px; background: #FFD23F; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center">A</span>
+<span style="flex: 1; font-size: 16px; font-weight: 600">An</span>
+<input type="radio" name="place" value="An" style="width: 24px; height: 24px; flex: none; margin: 0 10px; accent-color: #5B34F5">
+</label>
+</div>
+</fieldset>
+
+<a href="Group.dc.html" style="position: absolute; left: 20px; right: 20px; bottom: 24px; height: 56px; border-radius: 28px; background: #5B34F5; color: #FFFFFF; text-decoration: none; font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center">Join the group</a>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

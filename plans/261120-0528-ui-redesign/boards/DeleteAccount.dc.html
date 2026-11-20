@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Delete your account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif">
+
+<div aria-hidden="true" style="padding: 52px 20px 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 12px; height: 48px">
+<span style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m6-6-6 6 6 6"></path></svg></span>
+<span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.02em">Settings</span>
+</div>
+</div>
+
+<div aria-hidden="true" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(17, 17, 20, 0.55)"></div>
+
+<section aria-labelledby="dialog-title" style="position: absolute; left: 20px; right: 20px; top: 50%; transform: translateY(-50%); box-sizing: border-box; background: #FFFFFF; border-radius: 28px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<h2 id="dialog-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 24px; line-height: 30px; letter-spacing: -0.02em">Delete your account?</h2>
+<p style="margin: 0; font-size: 15px; line-height: 22px">Split Vibe’s server deletes your account, with its plan and its bill links. In groups and payment requests you become “Former member”, and what you paid and owe stays, so nobody’s balance changes. The AI calls you used this month stay counted until the month ends. Deleting the account does not cancel Pro, so if you have it, cancel it in Google Play first.</p>
+
+<label for="delete-phone-data" style="min-height: 48px; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span style="position: relative; width: 24px; height: 24px; flex: none; display: flex">
+<input id="delete-phone-data" type="checkbox" style="appearance: none; -webkit-appearance: none; margin: 0; width: 24px; height: 24px; box-sizing: border-box; border: 2px solid #111114; border-radius: 8px; background: #FFFFFF; cursor: pointer">
+</span>
+<span style="flex: 1; min-width: 0; font-size: 14px; font-weight: 500; line-height: 20px">Also delete the bills, people and payment methods on this phone</span>
+</label>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<a href="Settings.dc.html" style="height: 52px; border-radius: 26px; background: #F0EFEA; color: #111114; text-decoration: none; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center">Cancel</a>
+<button style="height: 52px; border: none; border-radius: 26px; background: #C4321A; color: #FFFFFF; font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer">Delete</button>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

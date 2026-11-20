@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bills</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 900px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 52px 20px 24px; display: flex; flex-direction: column; gap: 12px">
+
+<header style="display: flex; align-items: center; gap: 12px; height: 48px">
+<a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FFFFFF; color: #111114; display: flex; align-items: center; justify-content: center; text-decoration: none">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"></path></svg>
+</a>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.02em">Bills</h1>
+</header>
+
+<label style="height: 52px; box-sizing: border-box; border: 1.5px solid #8A8992; border-radius: 16px; background: #FFFFFF; padding: 0 16px; display: flex; align-items: center; gap: 10px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+<input type="search" aria-label="Search by place, item or person" placeholder="Search by place, item or person" style="flex: 1; min-width: 0; height: 44px; border: none; outline: none; background: none; font-family: inherit; font-size: 15px; color: #111114">
+</label>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<a href="Bills.dc.html" aria-current="page" style="height: 44px; border-radius: 22px; background: #111114; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center">All bills</a>
+<a href="Recurring.dc.html" style="height: 44px; border-radius: 22px; background: #FFFFFF; color: #111114; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center">Recurring</a>
+</div>
+
+<div style="background: #FFFFFF; border-radius: 24px; padding: 8px; display: flex; flex-direction: column">
+
+<div style="display: flex; align-items: center; gap: 4px">
+<a href="Result.dc.html" style="flex: 1; min-width: 0; min-height: 60px; box-sizing: border-box; border-radius: 16px; padding: 8px; text-decoration: none; color: #111114; display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #FF8A3D; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 12v9M17 3c-1.7 1.5-2.5 3.6-2.5 6.5V13H17m0-10v18"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Bún chả</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">₫600,000</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 15 · Food &amp; drink · You, Minh, Lan</span>
+</span>
+</a>
+<button aria-label="More for Bún chả" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #FF8A3D; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 12v9M17 3c-1.7 1.5-2.5 3.6-2.5 6.5V13H17m0-10v18"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Phở Thìn</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">₫310,000</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 12 · Food &amp; drink · You, Minh, Lan</span>
+</span>
+</button>
+<button aria-label="More for Phở Thìn" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #FF6FB5; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v3.5a1.5 1.5 0 0 0 0 3V17H4v-3.5a1.5 1.5 0 0 0 0-3V7zM14 7v10"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Musée</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">€20.00</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 10 · Entertainment · You, Lan</span>
+</span>
+</button>
+<button aria-label="More for Musée" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #5CC8FF; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16h14M6.5 16v2.5M17.5 16v2.5M4 16v-3.5l2-5.5h12l2 5.5V16M7.5 12.5h.01M16.5 12.5h.01"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Grab</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">THB 187.00</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 5 · Transport · You, Lan</span>
+</span>
+</button>
+<button aria-label="More for Grab" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #5BE3A0; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10h14l-1.2 8.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8L5 10zM9 10l3-5 3 5M3.5 10h17"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Tops Market</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">THB 412.50</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 3 · Groceries · You</span>
+</span>
+</button>
+<button aria-label="More for Tops Market" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #A8B4FF; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"></circle><path d="M11 12l8-8M16 7l2.5 2.5M14 9l2 2"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Rent</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">₫9,000,000</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 1 · Rent · You, Minh, Khoa</span>
+</span>
+</button>
+<button aria-label="More for Rent" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #FF6FB5; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v3.5a1.5 1.5 0 0 0 0 3V17H4v-3.5a1.5 1.5 0 0 0 0-3V7zM14 7v10"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Bowling</span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">$30.00</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Oct 20 · Entertainment · You, Lan</span>
+</span>
+</button>
+<button aria-label="More for Bowling" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 4px">
+<button style="flex: 1; min-width: 0; min-height: 60px; border: none; border-radius: 16px; background: none; padding: 8px; font-family: inherit; text-align: left; color: #111114; display: flex; align-items: center; gap: 12px; cursor: pointer">
+<span aria-hidden="true" style="width: 44px; height: 44px; flex: none; border-radius: 14px; background: #FF8A3D; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111114" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 12v9M17 3c-1.7 1.5-2.5 3.6-2.5 6.5V13H17m0-10v18"></path></svg></span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px"><span style="display: flex; align-items: center; gap: 8px"><span style="font-size: 15px; font-weight: 600; line-height: 22px">Bia Hơi</span><span style="height: 20px; padding: 0 8px; border-radius: 10px; background: #F0EFEA; font-size: 11px; font-weight: 700; display: flex; align-items: center">Draft</span></span><span style="font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 700; font-size: 15px">₫240,000</span></span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Nov 14 · Food &amp; drink · You, Lan</span>
+</span>
+</button>
+<button aria-label="More for Bia Hơi" style="width: 36px; height: 44px; flex: none; border: none; background: none; color: #111114; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg></button>
+</div>
+
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 1420px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 52px 20px 24px; display: flex; flex-direction: column; gap: 12px">
+
+<header style="display: flex; align-items: center; gap: 12px; height: 48px">
+<a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; flex: none; border-radius: 50%; background: #FFFFFF; color: #111114; display: flex; align-items: center; justify-content: center; text-decoration: none">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6"></path></svg>
+</a>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -0.02em">Settings</h1>
+</header>
+
+<div style="display: flex; align-items: center; gap: 14px">
+<span aria-hidden="true" style="width: 56px; height: 56px; flex: none; border-radius: 20px; background: #FF6FB5; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center">Y</span>
+<span style="flex: 1; min-width: 0; font-size: 15px; line-height: 22px; overflow-wrap: anywhere">Signed in with Google as minh.tran@example.com.</span>
+</div>
+
+<section style="background: #FFFFFF; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.01em">AI calls</h2>
+<span style="height: 24px; padding: 0 10px; border-radius: 12px; background: #F0EFEA; font-size: 12px; font-weight: 700; display: flex; align-items: center">Free plan</span>
+<a href="Pro.dc.html" style="margin-left: auto; height: 44px; padding: 0 18px; border-radius: 22px; background: #5B34F5; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 700; display: flex; align-items: center">Get Pro</a>
+</div>
+<p style="margin: 0; font-size: 15px; font-weight: 600; line-height: 22px">9 of 10 calls left this month. They come back on 1 December.</p>
+<div role="img" aria-label="9 of 10 calls left" style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px">
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #5B34F5"></span>
+<span style="height: 12px; border-radius: 6px; background: #F0EFEA"></span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #5F5E66">Reading a bill takes 1 call, and changing a split by a sentence takes 0.2.</p>
+</section>
+
+<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 6px">
+<label for="currency" style="font-size: 13px; font-weight: 700; line-height: 18px">Local currency</label>
+<input id="currency" type="text" value="VND" style="box-sizing: border-box; width: 100%; height: 52px; border: 1.5px solid #8A8992; border-radius: 16px; background: #FFFFFF; padding: 0 16px; font-family: inherit; font-size: 16px; color: #111114">
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">The currency this app works in, for example VND. Used when a bill does not show its currency.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="name" style="font-size: 13px; font-weight: 700; line-height: 18px">Your name</label>
+<input id="name" type="text" style="box-sizing: border-box; width: 100%; height: 52px; border: 1.5px solid #8A8992; border-radius: 16px; background: #FFFFFF; padding: 0 16px; font-family: inherit; font-size: 16px; color: #111114">
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">How you show in groups and on the requests you send.</span>
+</div>
+
+<div style="margin-top: 4px; background: #FFFFFF; border-radius: 24px; padding: 16px; display: flex; align-items: center; gap: 12px">
+<label for="speech" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; cursor: pointer">
+<span style="font-size: 15px; font-weight: 600; line-height: 22px">Use the phone’s online speech service</span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">For saying a change when the phone cannot turn speech into text by itself. It may send what you say over the internet.</span>
+</label>
+<span style="position: relative; width: 52px; height: 32px; flex: none; border-radius: 16px; background: #111114; display: block">
+<input id="speech" type="checkbox" role="switch" checked="checked" style="position: absolute; top: -6px; left: 0; width: 52px; height: 44px; margin: 0; opacity: 0; cursor: pointer">
+<span aria-hidden="true" style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; background: #C9F73A"></span>
+</span>
+</div>
+
+<div style="background: #FFFFFF; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 15px; font-weight: 600; line-height: 22px">Reading bills and changing splits with AI</span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">You agreed that Split Vibe sends the text of your bills, and the changes you ask for, to Anthropic in the United States.</span>
+<button style="align-self: flex-start; margin-top: 6px; height: 44px; border: none; border-radius: 22px; background: #F0EFEA; color: #111114; padding: 0 18px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer">Take back</button>
+</div>
+
+<div style="background: #FFFFFF; border-radius: 24px; padding: 8px; display: flex; flex-direction: column">
+<a href="PaymentMethods.dc.html" style="min-height: 60px; box-sizing: border-box; border-radius: 16px; padding: 10px 8px; text-decoration: none; color: #111114; display: flex; align-items: center; gap: 12px">
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 600; line-height: 22px">Ways to get paid</span>
+<span style="font-size: 13px; line-height: 18px; color: #5F5E66">Bank accounts, PayPal, UPI or links that your requests carry</span>
+</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none"><path d="m9 6 6 6-6 6"></path></svg>
+</a>
+<button style="height: 52px; border: none; border-radius: 16px; background: none; padding: 0 8px; font-family: inherit; font-size: 15px; font-weight: 600; text-align: left; color: #111114; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer">
+<span>Privacy policy</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+</button>
+<button style="height: 52px; border: none; border-radius: 16px; background: none; padding: 0 8px; font-family: inherit; font-size: 15px; font-weight: 600; text-align: left; color: #111114; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer">
+<span>Terms of use</span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>
+</button>
+</div>
+
+<button style="margin-top: 4px; height: 56px; flex: none; border: none; border-radius: 28px; background: #5B34F5; color: #FFFFFF; font-family: inherit; font-size: 17px; font-weight: 700; cursor: pointer">Save</button>
+
+<button style="height: 48px; flex: none; border: none; border-radius: 24px; background: #FFFFFF; color: #111114; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer">Sign out</button>
+
+<a href="DeleteAccount.dc.html" style="align-self: center; height: 44px; padding: 0 12px; color: #C4321A; text-decoration: none; font-size: 15px; font-weight: 700; display: flex; align-items: center">Delete account</a>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1420}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
