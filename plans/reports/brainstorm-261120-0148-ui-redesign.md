@@ -62,14 +62,50 @@ Cả hai phông đều có giấy phép mở và có dấu tiếng Việt; đưa
 ## Đã vẽ trên canvas
 
 Canvas tên "Split Vibe: thiết kế lại giao diện" (loại Design trên claude.ai, riêng tư của chủ sản
-phẩm; tìm bằng danh sách artifact). Tệp nguồn của canvas không nằm trong repo.
+phẩm; tìm bằng danh sách artifact). Tệp nguồn của canvas không nằm trong repo. Canvas có 43 bảng
+trên ba trang.
 
-- Trang "Thiết kế mới": trang chủ, hóa đơn mới, kết quả chia, đòi tiền, một nhóm. Các nút chính nối
-  năm màn thành một luồng bấm thử được. Bảng trang chủ có lựa chọn thử bốn màu thương hiệu.
-- Trang "Hiện tại và vấn đề": năm màn hình hiện tại tương ứng, mỗi màn kèm ghi chú vấn đề.
+Chủ sản phẩm đã xem năm màn đầu, bảo vẽ tiếp, và chỉ yêu cầu bỏ nhãn "Photo stays on this phone"
+trên màn hóa đơn mới.
 
-Thay đổi bố cục đáng chú ý ở màn kết quả: phần "Each person pays" lên ngay dưới tổng tiền và gộp
-với chip người; kiểu chia thành một hàng nút cuộn ngang ngay trên danh sách món.
+Trang "Thiết kế mới" có 33 bảng theo năm hàng:
+
+| Hàng | Bảng |
+|---|---|
+| Luồng chính | Trang chủ, hóa đơn mới, kết quả chia, đòi tiền, một nhóm |
+| Luồng chia hóa đơn: các trạng thái | Trang chủ lần đầu, hóa đơn mới chưa có ảnh (có công tắc "AI chưa cài"), xin đồng ý dùng AI, đang đọc hóa đơn, đề xuất của AI, chia theo phần trăm, những gì đã gửi cho AI |
+| Nhóm, yêu cầu trả tiền và liên kết hóa đơn | Các nhóm, tham gia nhóm, yêu cầu trả tiền, một yêu cầu trả tiền, cách nhận tiền, liên kết hóa đơn lúc mở và lúc đã khóa chọn |
+| Bảng trượt, sửa hóa đơn và hộp thoại | Thêm người, chia một món, ai đã trả, sửa hóa đơn, lặp lại hóa đơn, xuất file, xóa tài khoản |
+| Hóa đơn, thống kê, cài đặt và Pro | Hóa đơn, hóa đơn định kỳ, thống kê, cài đặt, các trạng thái tài khoản, mua Pro, đã có Pro |
+
+Trang "Giao diện tối" có năm màn của luồng chính. Các màn khác suy ra từ cùng bảng màu tối: nền
+`#0F0F12`, thẻ `#1C1C21`, nền phụ `#2A2A31`, chữ `#F4F4F1`, chữ phụ `#B7B6BF`, nút chính màu xanh
+chanh, thanh nổi `#26262C` có viền `#3A3A42`.
+
+Trang "Hiện tại và vấn đề" có năm màn hình hiện tại của luồng chính, mỗi màn kèm ghi chú vấn đề.
+
+Các nút trên bảng nối với nhau thành bản bấm thử được, và không liên kết nào trỏ tới bảng chưa có.
+Chưa bảng nào được dựng lại để soát bố cục: chiều cao và chỗ xuống dòng là ước lượng.
+
+## Thay đổi so với app hiện tại cần chủ sản phẩm xác nhận
+
+- Màn kết quả: "Each person pays" lên ngay dưới tổng tiền và gộp với chip người; kiểu chia thành
+  một hàng nút ngay trên danh sách món.
+- Danh sách hóa đơn và hóa đơn định kỳ gộp thành hai thẻ "All bills" và "Recurring" của một màn.
+  Ô tìm kiếm chỉ có ở thẻ "All bills".
+- Màn yêu cầu trả tiền có hai ô tóm tắt "You owe" và "Friends owe you", cộng từ các yêu cầu còn mở.
+- Màn sửa hóa đơn hiện món và phụ phí thành hàng, mỗi lúc mở một hàng để sửa, thay cho bốn ô nhập
+  trên mỗi món. Phần "Total" cuối màn lấy theo code hiện tại.
+- Thống kê theo tháng là biểu đồ cột 12 tháng.
+- Cài đặt có hàng hồ sơ và thanh đo số lượt gọi AI.
+- Nhãn mới chưa có trong `strings.xml`: "Paid the bill", "All bills", "Recurring", "You owe",
+  "Friends owe you", "Tell the AI what to change", và ngày viết kiểu "Nov 13".
+- Mã tiền tệ cách số một dấu cách, ví dụ "THB 187.00"; app hiện in "THB187.00".
+- Ô nhóm trên trang chủ cần số dư của nhóm đó. Danh sách nhóm từ máy chủ không có số dư, nên ô này
+  chỉ hiện số dư khi trạng thái nhóm đã lưu trên máy.
+
+Chưa vẽ: bản tóm tắt PDF (là tài liệu, không phải màn hình), hai khung hình chuyển cảnh, và các
+trang web cho người nhận liên kết.
 
 ## Ràng buộc
 
@@ -87,8 +123,8 @@ với chip người; kiểu chia thành một hàng nút cuộn ngang ngay trên
 
 ## Tiêu chí hoàn thành
 
-1. Chủ sản phẩm duyệt hướng trên năm màn đầu, rồi duyệt đủ các màn còn lại ở cả giao diện sáng và
-   tối.
+1. Chủ sản phẩm duyệt hướng trên năm màn đầu, rồi duyệt đủ các màn còn lại. Giao diện tối được
+   duyệt trên năm màn chính và bảng màu tối.
 2. App dùng token, thành phần và điều hướng mới trên mọi màn hình; ảnh tham chiếu được ghi lại.
 3. Kiểm thử đơn vị, lint, kiểm thử trên máy ảo API 26, 30, 34, 36 và kiểm tra trợ năng đều qua.
 4. Các trang web dùng chung token đổi theo; tài liệu hệ thiết kế và ảnh cho Google Play được cập
@@ -96,10 +132,8 @@ với chip người; kiểu chia thành một hàng nút cuộn ngang ngay trên
 
 ## Việc tiếp theo
 
-1. Chủ sản phẩm xem năm màn đầu và chốt hướng, màu thương hiệu và điều hướng.
-2. Vẽ các màn còn lại: danh sách nhóm, yêu cầu trả tiền, thống kê, hóa đơn và định kỳ, sửa hóa đơn,
-   cài đặt, Pro, xin đồng ý dùng AI, các bảng trượt, các trạng thái trống, đang chạy và lỗi, giao
-   diện tối.
+1. Chủ sản phẩm duyệt 38 bảng thiết kế, kể cả các thay đổi liệt kê ở trên.
+2. Sửa theo góp ý của chủ sản phẩm trên canvas.
 3. Sau khi duyệt: lập plan triển khai trên nhánh `feat/ui-redesign`.
 
 ## Câu hỏi còn mở
