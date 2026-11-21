@@ -3,8 +3,10 @@
     <!-- Window theme only, as in the light theme. The window behind the app is the dark page, which is
          what a cold start shows before the app draws, and what the splash screen of Android 12 and
          later shows around the icon, as it takes the colour of the window background when none of its
-         own is set. -->
+         own is set. The background colour is the page too, in place of the parent's grey: the list of
+         recent apps shows it for the app until it has a picture of it. -->
     <style name="Theme.SplitVibe" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_dark</item>
+        <item name="android:colorBackground">@color/window_dark</item>
     </style>
 </resources>

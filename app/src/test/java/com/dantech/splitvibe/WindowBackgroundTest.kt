@@ -3,6 +3,7 @@ package com.dantech.splitvibe
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.Role
@@ -26,10 +27,12 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * What lies behind the screens of the app in the dark theme. The window is what a cold start shows
- * before the app draws, and what the splash screen of Android 12 and later takes its colour from; the
- * layer the screens lie in shows between two screens while one fades out and the next fades in. Both
- * are the dark page, so neither ever flashes the light window of the platform's theme.
+ * What lies behind the screens of the app. The window is what a cold start shows before the app
+ * draws, and what the splash screen of Android 12 and later takes its colour from; the background
+ * colour of the theme is what the list of recent apps shows for the app until it has a picture of
+ * it; the layer the screens lie in shows between two screens while one fades out and the next fades
+ * in. All three are the page of the theme the phone is in, so none of them ever shows the colours of
+ * the platform's theme, which are not the page's in either theme.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,15 +43,11 @@ class WindowBackgroundTest {
     val compose = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun `in the dark theme the window behind the app is the colour of the page`() {
-        val page = blankPage()
-        assertTrue("The page ${hex(page)} is not dark: the test does not run in the dark theme", luminance(page) < DARK)
+    fun `in the dark theme the window behind the app is the colour of the page`() = assertTheWindowIsThePage(dark = true)
 
-        var window: Int? = null
-        compose.activityRule.scenario.onActivity { window = (it.window.decorView.background as? ColorDrawable)?.color }
-
-        assertEquals("The window is ${window?.let(::hex)}, the page ${hex(page)}", page, window)
-    }
+    @Test
+    @Config(qualifiers = "w412dp-h915dp-xhdpi")
+    fun `in the light theme the window behind the app is the colour of the page`() = assertTheWindowIsThePage(dark = false)
 
     @Test
     fun `halfway through a change of screen the page shows between the screens, not the window behind them`() {
@@ -64,6 +63,27 @@ class WindowBackgroundTest {
         compose.mainClock.autoAdvance = true
 
         assertSameColour("Halfway from Home to Groups", page, between)
+    }
+
+    /**
+     * Fails unless the window behind the app and the background colour of its theme are the colour of
+     * the page, which is that of the [dark] or the light theme.
+     */
+    private fun assertTheWindowIsThePage(dark: Boolean) {
+        val page = blankPage()
+        // A page of the other theme would mean that the test does not run in the theme it is about.
+        assertEquals("The page ${hex(page)} is not of the ${if (dark) "dark" else "light"} theme", dark, luminance(page) < MIDDLE_GREY)
+
+        var window: Int? = null
+        var background: Int? = null
+        compose.activityRule.scenario.onActivity { activity ->
+            window = (activity.window.decorView.background as? ColorDrawable)?.color
+            val value = TypedValue()
+            if (activity.theme.resolveAttribute(android.R.attr.colorBackground, value, true)) background = value.data
+        }
+
+        assertEquals("The window is ${window?.let(::hex)}, the page ${hex(page)}", page, window)
+        assertEquals("The background colour of the theme is ${background?.let(::hex)}, the page ${hex(page)}", page, background)
     }
 
     /**
@@ -97,8 +117,8 @@ class WindowBackgroundTest {
         const val BLANK_HEIGHT_PERCENT = 76
         const val BLANK_POINTS = 5
 
-        /** Below this, a colour is the dark page rather than anything the light theme draws. */
-        const val DARK = 0.05f
+        /** The luminance between the dark page and the light one. */
+        const val MIDDLE_GREY = 0.5f
 
         /** How far apart two colours may be, in a channel, from the rounding of blending one into the other. */
         const val ROUNDING = 2

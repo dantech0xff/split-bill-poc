@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Window theme only; all UI is Jetpack Compose with Material 3. -->
-    <style name="Theme.SplitVibe" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Window theme only; all UI is Jetpack Compose with Material 3. The window behind the app is the
+         light page, which is what a cold start shows before the app draws, and what the splash screen
+         of Android 12 and later shows around the icon, as it takes the colour of the window background
+         when none of its own is set. The background colour is the page too: the list of recent apps
+         shows it for the app until it has a picture of it. values-night holds the dark theme's. -->
+    <style name="Theme.SplitVibe" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_light</item>
+        <item name="android:colorBackground">@color/window_light</item>
+    </style>
 </resources>

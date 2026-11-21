@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#0B6E4F</color>
-    <!-- The page of the dark theme, the background of :core:designsystem's dark colour scheme, for the
-         window behind the app. WindowBackgroundTest checks that the two stay the same. -->
+    <!-- The page of each theme, the background of :core:designsystem's colour schemes, for the window
+         behind the app and the background colour of the theme. WindowBackgroundTest checks that each
+         stays the same as the page. -->
+    <color name="window_light">#FFF6F6F4</color>
     <color name="window_dark">#FF0F0F12</color>
 </resources>
