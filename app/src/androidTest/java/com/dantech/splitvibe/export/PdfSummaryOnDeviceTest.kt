@@ -33,7 +33,7 @@ class PdfSummaryOnDeviceTest {
     /** Sixty bills of dinner, more than one page holds. */
     private val bills = (1..60).map { number ->
         val pho = BillItem("i1", "Phở", BigDecimal.ONE, null, 90_000)
-        val bill = Bill("Phở Thìn $number", "2026-11-%02d".format(1 + number % 28), vnd, listOf(pho), emptyList(), null)
+        val bill = Bill("Phở sáng $number", "2026-11-%02d".format(1 + number % 28), vnd, listOf(pho), emptyList(), null)
             .copy(category = BillCategory.FOOD_AND_DRINK)
         val plan = SplitPlan().withParticipantAdded("Minh").withPayments(Payments.single(ME_ID, bill.totalMinor))
         SavedBill(id = "bill-$number", status = BillStatus.FINAL, createdAt = 0, updatedAt = 0, bill = bill, plan = plan)

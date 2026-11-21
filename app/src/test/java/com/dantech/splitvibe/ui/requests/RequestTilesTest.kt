@@ -274,7 +274,7 @@ class RequestTilesTest {
             RequestView.CREDITOR,
             18_700,
             payer = "Lan",
-            title = "Grab",
+            title = "Taxi",
             currency = """{"code":"THB","fractionDigits":2}""",
         )
 
@@ -284,7 +284,7 @@ class RequestTilesTest {
             RequestView.DEBTOR,
             80_000,
             payer = "Dana",
-            title = "Phở Thìn",
+            title = "Phở sáng",
             reportedPaidAt = 1_763_200_000_000,
         )
 

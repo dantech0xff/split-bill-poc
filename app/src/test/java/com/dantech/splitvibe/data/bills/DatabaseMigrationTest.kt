@@ -82,7 +82,7 @@ class DatabaseMigrationTest {
     @Test
     fun `version 2 moves to 3 with the recurring bills, and each bill's category read from its document`() {
         val rent = SpendingFixtures.finished("rent", "2026-11-01", "Rent", BillCategory.RENT, 9_000_000, listOf("Minh"))
-        val older = SpendingFixtures.finished("older", "2026-10-02", "Phở Thìn", BillCategory.FOOD_AND_DRINK, 120_000, listOf("Lan"))
+        val older = SpendingFixtures.finished("older", "2026-10-02", "Phở sáng", BillCategory.FOOD_AND_DRINK, 120_000, listOf("Lan"))
         val unknown = SpendingFixtures.finished("unknown", "2026-10-03", "Ga Hà Nội", BillCategory.TRANSPORT, 80_000, emptyList())
         versionTwo {
             insertBill(rent, json.encodeToString(SavedBill.serializer(), rent))

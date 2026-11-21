@@ -117,7 +117,7 @@ object SpendingFixtures {
         // The user paid for Minh and Lan's dinner and had none of it.
         finished("b10", "2026-11-15", "Bún chả", BillCategory.FOOD_AND_DRINK, 600_000, listOf("Minh", "Lan"), userShares = false),
         // 310,000 in three is 103,333 each, and the dong left over is the user's.
-        finished("b1", "2026-11-12", "Phở Thìn", BillCategory.FOOD_AND_DRINK, 310_000, listOf("Minh", "Lan")),
+        finished("b1", "2026-11-12", "Phở sáng", BillCategory.FOOD_AND_DRINK, 310_000, listOf("Minh", "Lan")),
         // €20.00 with a rate typed to dollars, not to dong.
         finished(
             "b11",
@@ -134,7 +134,7 @@ object SpendingFixtures {
         finished(
             "b12",
             "2026-11-05",
-            "Grab",
+            "Taxi",
             BillCategory.TRANSPORT,
             18_700,
             listOf("Lan"),

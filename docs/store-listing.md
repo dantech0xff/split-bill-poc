@@ -88,7 +88,7 @@ order:
 
 | # | File | Size (px) | Shows |
 |---|---|---|---|
-| 1 | `01-home-owed.png` | 824 × 1830 | The home: what friends owe you and what you owe, this month's spending, a group's balance, the latest bills (the sample bill, "Phở Thìn" and "Grab") and the navigation bar |
+| 1 | `01-home-owed.png` | 824 × 1830 | The home: what friends owe you and what you owe, this month's spending, a group's balance, the latest bills (the sample bill, "Phở sáng" and "Taxi") and the navigation bar |
 | 2 | `02-new-split.png` | 824 × 1830 | A new split: scan the bill, take a photo, pick one, use the sample bill or type it in by hand, and say how to split it |
 | 3 | `05-result-top.png` | 824 × 1830 | The sample bill read: its total, what Split Vibe understood, and what each of the three people pays |
 | 4 | `31-assistant-proposal.png` | 824 × 1830 | A change by a sentence, with each share before and after |

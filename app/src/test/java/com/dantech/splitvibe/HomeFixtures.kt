@@ -44,8 +44,8 @@ object HomeFixtures {
     /** The three bills split last, the newest first. */
     val bills: List<BillListing> = listOf(
         finished("bill-1", "Quán Ốc Ba Miền", "2026-11-13", BillCurrency("VND", 0), 902_664, "You, Minh, Lan", "food_and_drink"),
-        finished("bill-2", "Phở Thìn", "2026-11-12", BillCurrency("VND", 0), 310_000, "You, Minh, Lan", "food_and_drink"),
-        finished("bill-3", "Grab", "2026-11-05", BillCurrency("THB", 2), 18_700, "You, Lan", "transport"),
+        finished("bill-2", "Phở sáng", "2026-11-12", BillCurrency("VND", 0), 310_000, "You, Minh, Lan", "food_and_drink"),
+        finished("bill-3", "Taxi", "2026-11-05", BillCurrency("THB", 2), 18_700, "You, Lan", "transport"),
     )
 
     private fun finished(

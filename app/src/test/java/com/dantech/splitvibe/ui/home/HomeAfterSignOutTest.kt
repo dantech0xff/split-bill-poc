@@ -124,7 +124,7 @@ class HomeAfterSignOutTest {
         runBlocking { account.deleteAccount(withPhoneData = false).join() }
 
         awaitNothingOfTheAccount()
-        compose.onNodeWithText("Phở Thìn").assertIsDisplayed()
+        compose.onNodeWithText("Phở sáng").assertIsDisplayed()
     }
 
     @Test
@@ -293,6 +293,6 @@ class HomeAfterSignOutTest {
         val DANA_OWES = GroupFixtures.request(id = "r2", role = "debtor")
 
         /** A bill of this month on the phone, which no account owns. */
-        val PHO = SpendingFixtures.finished("b1", "2026-11-12", "Phở Thìn", BillCategory.FOOD_AND_DRINK, 310_000, listOf("Minh", "Lan"))
+        val PHO = SpendingFixtures.finished("b1", "2026-11-12", "Phở sáng", BillCategory.FOOD_AND_DRINK, 310_000, listOf("Minh", "Lan"))
     }
 }

@@ -433,7 +433,7 @@ class InsightsViewModelTest {
         // Lan was forgotten, so the phone remembers her under a new id since, and "minh" joined the
         // newer bill from its link; the older one is with the Minh the phone remembers.
         val older = SpendingFixtures
-            .finished("f1", "2026-11-01", "Phở Thìn", FOOD_AND_DRINK, 300_000, listOf("Lan", "Minh"))
+            .finished("f1", "2026-11-01", "Phở sáng", FOOD_AND_DRINK, 300_000, listOf("Lan", "Minh"))
             .withPersonIds("Lan" to "lan-forgotten", "Minh" to "minh-remembered")
         val newer = SpendingFixtures
             .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))

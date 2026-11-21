@@ -55,7 +55,7 @@ class BillRepositoryTest {
     @Test
     fun `a copy read before another save is refused, so it cannot overwrite that save`() = runBlocking {
         val read = bills.save(draft("pho-1", "Phở Hà Nội", 120_000))
-        bills.save(read.copy(bill = BillEditor.withMerchant(read.bill, "Phở Thìn")))
+        bills.save(read.copy(bill = BillEditor.withMerchant(read.bill, "Phở sáng")))
 
         try {
             bills.save(read.copy(bill = BillEditor.withMerchant(read.bill, "Phở Bát Đàn")))
@@ -63,7 +63,7 @@ class BillRepositoryTest {
         } catch (e: BillConflictException) {
             assertEquals("pho-1", e.billId)
         }
-        assertEquals("Phở Thìn", bills.get("pho-1")?.bill?.merchant)
+        assertEquals("Phở sáng", bills.get("pho-1")?.bill?.merchant)
     }
 
     @Test
