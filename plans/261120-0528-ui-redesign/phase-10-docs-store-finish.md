@@ -94,7 +94,7 @@ Hoàn tất:
 - [x] `docs/design-system.md` viết lại, có nguồn gốc của phông
 - [x] `docs/architecture.md`, `docs/testing.md`, `docs/web.md`, `README.md` và `docs/play-console.md` cập nhật
 - [x] Ba tài liệu pháp lý đọc trọn, kết luận ghi cho từng tài liệu
-- [ ] Bảy ảnh cho Google Play soát theo ba quy tắc, bảng ghi lại, chủ sản phẩm duyệt; ảnh README thay (đã soát, ghi bảng và thay ảnh README; chờ chủ sản phẩm duyệt bảy ảnh)
+- [x] Bảy ảnh cho Google Play soát theo ba quy tắc, bảng ghi lại, chủ sản phẩm duyệt; ảnh README thay (chủ sản phẩm duyệt bảy ảnh ngày 21/11/2026, sau khi đổi hai tên hóa đơn mẫu)
 - [x] Review độc lập trên toàn bộ nhánh và sửa phát hiện
 - [x] Hồ sơ khởi động ghi từ commit cuối của mã app, `headSha` đã kiểm
 - [x] Mọi lệnh của `ci.yml` qua tại chỗ
@@ -164,9 +164,10 @@ Làm ngày 21/11/2026, trong các commit `a9e555b` (tài liệu và bảng ảnh
   - Màn nhận phần thôi thoáng hiện "Send the new details" khi các cách nhận tiền chưa tải xong (`f5d6535`, merge ở `f029355`). Bài mới tái hiện được lỗi trên mã cũ. Lượt CI đầu trên `main` đỏ vì `ReducedMotionTest` chập chờn; chạy lại thì xanh, và máy ảo cùng Security qua.
   - Mã thanh toán mẫu (`0974649`, `6240aaf`, merge ở `6240aaf`): số Vietcombank trong kiểm thử của proxy thành số 0, và các bài kiểm "không được lộ" dùng dấu riêng `SECRET-ACCOUNT` và `Zqxv`; PromptPay thành `000-000-0000`; `revolut.me/dana` và `paypal.me/minhtran` thành `splitvibedemo`; IBAN ví dụ giữ nguyên. Bảy ảnh tham chiếu đổi đúng các dòng đó. Cổng kiểm thử 14 bước qua; trên `main`, CI, máy ảo và Security qua. Các bảng thiết kế đã duyệt giữ nguyên.
   - Bài chập chờn (`d6a07ba`): một bài thử tạm, giữ một lần đọc của Room đang chạy rồi đóng cơ sở dữ liệu, cho thấy lần đọc đó hỏng với `IllegalStateException` và làm hỏng luồng thu dù luồng đã bị hủy. Khi đợi luồng dừng hẳn rồi mới đóng thì không lỗi. `TestStorage.close()` giờ hủy các view model đọc, đợi chúng dừng hẳn trong khi looper chính chạy, rồi mới đóng. Mười một lớp kiểm thử dùng cơ chế này chạy 10 lượt liền đều qua, và cổng 9 bước của app qua.
+  - Bản sửa bài chập chờn được merge ở `5e48019`; CI trên `main` qua.
+  - Tên mẫu (`ed69e09`, `fec9d35`, merge ở `fec9d35`): UPI `asha.rao@okaxis`, PayPal.Me `DiaRusso` và `paypal.me/lan` thành `splitvibedemo`, `SplitVibeDemo` và `Split Vibe Demo`; hai hóa đơn mẫu "Phở Thìn" và "Grab", tên một quán và một công ty có thật, thành "Phở sáng" và "Taxi", ngắn như cũ để bố cục không đổi kể cả ở cỡ chữ lớn nhất. Mười lăm ảnh tham chiếu đổi đúng các dòng đó. Cổng kiểm thử 14 bước qua; trên `main`, CI, máy ảo và Security qua.
+  - Chủ sản phẩm duyệt bảy ảnh cửa hàng, và giữ nguyên hóa đơn mẫu "Quán Ốc Ba Miền" mà app kèm sẵn.
 - Còn mở:
-  - Chủ sản phẩm duyệt bảy ảnh cửa hàng. Ảnh 1 có hai hóa đơn mẫu tên "Phở Thìn" và "Grab", trông như doanh nghiệp thật.
   - Còn phải thử tay trên điện thoại thật, Android 14 trở lên: chuyển động, TalkBack đọc nhóm gói Pro và lời báo đăng nhập, và VoiceOver trên trang web.
   - Bật dependency graph của repo, để lượt Dependency graph trên `main` qua.
-  - Vài mã thanh toán mẫu khác chưa đổi vì chỉ nằm trong mã kiểm thử: `asha.rao@okaxis` (UPI), `DiaRusso` (PayPal.Me) và `paypal.me/lan`. Các bộ mẫu so với thư viện vietnam-qr-pay và promptpay-qr giữ ví dụ của hai thư viện đó.
   - Số mẫu cũ vẫn còn trong lịch sử git công khai, và lịch sử không được viết lại.
