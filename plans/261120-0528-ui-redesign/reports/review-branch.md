@@ -151,6 +151,6 @@
 
 ### Unresolved questions
 1. **App icon:** the launcher icon, the Android 12+ splash screen and the Play listing still use the old green receipt (`ic_launcher_foreground.xml`, `launcher_background` #0B6E4F). The app's new mark, the violet and lime split circle, appears on Home and on every shared ticket. Should the icon be in scope?
-2. **Sample bank account:** `ScreenGalleryTest.kt:907-908` uses Vietcombank's bank code with account number 0071000123456, visible in `10-requests-method-sheet.png`. Is it certain to be fictional? If not, use a number that cannot exist.
+2. **Sample bank account:** `ScreenGalleryTest.kt:907-908` uses Vietcombank's bank code with a 13-digit account number that looks real, visible in `10-requests-method-sheet.png`. Is it certain to be fictional? If not, use a number that cannot exist. (Answered after the review: the owner chose a number that cannot exist, and the sample is now all zeros; the number the review quoted is left out here for the same reason.)
 3. **Owner decisions:** the phase files still list items needing the owner's approval. Examples: the "Amount:" line in the sender's region format, signing out over a split closing the split, the AI's explanation written in US format next to amounts in the phone's region, and phase 7's chart and wording choices. Were all of these approved in the 21 November screenshot review? No record ties each item to a decision.
 4. **Keyboard test:** is `KeyboardOnDeviceTest`'s accessibility check meant to run anywhere?
