@@ -24,10 +24,10 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import java.io.File
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -71,7 +71,11 @@ class TestStorage(context: Context) : AutoCloseable {
     }
 
     override fun close() {
-        readers.forEach { it.viewModelScope.cancel() }
+        // A read that has started when its view model stops still runs to its end on Room's own thread,
+        // and closing the database under it fails the read and the view model with it. So the database
+        // closes only once every reader has stopped, with the main looper let run for what they finish there.
+        val stopping = readers.map { reader -> reader.viewModelScope.coroutineContext.job.apply { cancel() } }
+        awaitOnMain { stopping.all { it.isCompleted } }
         database.close()
     }
 }
