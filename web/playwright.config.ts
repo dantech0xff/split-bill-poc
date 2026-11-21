@@ -20,6 +20,8 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     ...devices["Pixel 7"],
+    // The pages write amounts and dates as the browser's region does; the texts the tests expect are those of the United States.
+    locale: "en-US",
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
     launchOptions: {
