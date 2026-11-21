@@ -110,6 +110,17 @@ Screens read them with `SvTheme.palette`.
 The app gives each bill category its icon and its colour from this palette in
 `app/src/main/java/com/dantech/splitvibe/ui/common/CategoryStyle.kt`.
 
+### The mark and the launcher icon
+
+The app's mark is a circle split in two, a white half up and to the left and a lime half down and to
+the right, on violet: `onBrand` and `accent` on `brand`. `SvBrandTopBar` draws it on a violet tile at
+the top of Home, and `SvBrandMark` draws it without the tile on the stub of a shared ticket. The
+launcher icon (`app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`) draws the same mark larger, with
+the halves further apart, so that the split reads on a home screen. Android 12 and later show it on
+the splash screen too, and its monochrome layer gives the themed icon of Android 13 and later. The
+small icon of a notice is the same mark in one colour. `LauncherIconTest` checks that the icon keeps
+the palette's colours and draws `store-icon-512.png`, the picture of the icon for the Play listing.
+
 ### Readable text
 
 `ColorTokensTest` checks that text has a contrast of at least 4.5:1 on whatever the palette pairs it

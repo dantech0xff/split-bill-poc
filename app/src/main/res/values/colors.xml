@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="launcher_background">#0B6E4F</color>
+    <!-- The launcher icon's ground and its lime half: the brand and accent colours of
+         :core:designsystem's palette. LauncherIconTest checks that they stay so. -->
+    <color name="launcher_background">#FF5B34F5</color>
+    <color name="launcher_lime">#FFC9F73A</color>
     <!-- The page of each theme, the background of :core:designsystem's colour schemes, for the window
          behind the app and the background colour of the theme. WindowBackgroundTest checks that each
          stays the same as the page. -->

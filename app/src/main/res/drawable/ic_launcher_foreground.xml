@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A receipt with a split line. -->
+<!-- The app's mark, a circle split in two, as the top bar of Home draws it, but larger and with the
+     halves further apart, so that the split reads at the size of a home screen: a circle of radius 23
+     cut in two, the white half up and to the left, the lime half down and to the right. It keeps
+     inside the circle of diameter 66 in the middle of the 108, which every launcher's mask leaves
+     whole. The themed icon of Android 13 and later takes its shape from this layer too. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38,30h32v48l-5.3,-4l-5.4,4l-5.3,-4l-5.3,4l-5.4,-4l-5.3,4z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M51,28.5A23,23 0,0 0,51 74.5Z" />
     <path
-        android:fillColor="#0B6E4F"
-        android:pathData="M44,40h20v3h-20zM44,48h20v3h-20zM44,56h12v3h-12z" />
-    <path
-        android:fillColor="#F4A259"
-        android:pathData="M52.5,26h3v56h-3z" />
+        android:fillColor="@color/launcher_lime"
+        android:pathData="M57,33.5A23,23 0,0 1,57 79.5Z" />
 </vector>

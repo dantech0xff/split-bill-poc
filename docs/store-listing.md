@@ -121,9 +121,11 @@ How they meet Play's rules:
 ## Other assets
 
 Play also asks for an app icon (512 × 512 px, 32-bit PNG with alpha, up to 1,024 KB) and a feature
-graphic (1,024 × 500 px, JPEG or 24-bit PNG without alpha). Neither is in the repository yet. Play
-recommends that the feature graphic carry no words of ranking or price such as "Best", "#1" or
-"Free".
+graphic (1,024 × 500 px, JPEG or 24-bit PNG without alpha). The icon is `store-icon-512.png` among
+the reference images: `LauncherIconTest` draws it from the launcher icon, square and without rounded
+corners since Play rounds them itself, so it changes only with the launcher icon. The feature graphic
+is not in the repository yet; Play recommends that it carry no words of ranking or price such as
+"Best", "#1" or "Free".
 
 ## Category and contact
 
