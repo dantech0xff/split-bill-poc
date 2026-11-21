@@ -112,10 +112,16 @@ data class SplitResultState(
     val summary: String get() = saved.summary
 
     /** [minor] of the bill's currency in the user's, formatted, such as "₫2,535,000"; null without a rate. */
-    fun converted(minor: Long): String? {
-        val rate = exchangeRate ?: return null
+    fun converted(minor: Long): String? = exchangeRate?.let { convertedAt(it.rate, minor) }
+
+    /**
+     * [minor] of the bill's currency, the whole bill unless said otherwise, in the user's at [rate],
+     * formatted, such as at a rate being typed; null when the bill needs no rate or the amount is too
+     * large to hold, which only a mistyped rate can make it.
+     */
+    fun convertedAt(rate: BigDecimal, minor: Long = bill.totalMinor): String? {
         val to = local ?: return null
-        return rate.convert(minor, bill.currency, to)?.let(to::format)
+        return ExchangeRate(bill.currency.code, localCurrency, rate).convert(minor, bill.currency, to)?.let(to::format)
     }
 
     /** What the screen calls [participantId]: the user is "You", and someone without a name "Someone". */

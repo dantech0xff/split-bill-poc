@@ -14,13 +14,21 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.AiStatus
+import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.ME_ID
+import com.dantech.splitvibe.domain.Participant
+import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.Person
 import com.dantech.splitvibe.domain.SplitMode
+import com.dantech.splitvibe.domain.SplitPlan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -29,7 +37,10 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Parts of the split screens on their own: the sheet that adds someone, the tiles that add a bill, and a person's row in a sheet. */
+/**
+ * Parts of the split screens on their own: the sheet that adds someone, the tiles that add a bill, a
+ * person's row in a sheet, and the sheet of the rate.
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 class SplitScreenPartsTest {
@@ -108,6 +119,44 @@ class SplitScreenPartsTest {
         compose.onNodeWithText("Lan").assertExists()
         compose.onNodeWithText("Minh").assertExists()
         compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+    }
+
+    /**
+     * The sheet of the rate says what the bill comes to at the rate as it is typed, so that a rate
+     * typed a thousand times off, as "25.412" for 25,412 dong to the dollar, shows at once.
+     */
+    @Test
+    fun `the sheet of the rate says what the bill comes to at the rate being typed`() {
+        val dinner = SplitResultState(
+            SavedBill(
+                id = "b1",
+                createdAt = 1,
+                updatedAt = 1,
+                bill = Bill("Dinner", "2026-11-14", BillCurrency("USD", 2), emptyList(), emptyList(), printedTotalMinor = 4_200),
+                plan = SplitPlan(participants = listOf(Participant.ME), payments = listOf(Payment(ME_ID, 4_200))),
+            ),
+            localCurrency = "VND",
+        )
+        compose.setContent {
+            SplitVibeTheme {
+                ExchangeRateSheet(
+                    from = "USD",
+                    to = "VND",
+                    rate = null,
+                    totalAt = { typed -> dinner.convertedAt(typed) },
+                    onSave = {},
+                    onUseDayRate = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        compose.onAllNodes(hasText("About", substring = true)).assertCountEquals(0)
+
+        val field = compose.onNode(hasSetTextAction())
+        field.performTextInput("25.412")
+        compose.onNodeWithText("About ${VND.format(1_067)}").assertExists()
+        field.performTextReplacement("25412")
+        compose.onNodeWithText("About ${VND.format(1_067_304)}").assertExists()
     }
 
     /** How the text of [node] is laid out: its lines as drawn. */

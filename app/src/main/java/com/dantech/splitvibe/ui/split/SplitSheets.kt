@@ -349,13 +349,16 @@ internal fun PaymentsSheet(
 
 /**
  * The rate that converts the bill into the user's currency: the day's rate the app found, or one
- * the user types in, such as the one their card was charged at.
+ * the user types in, such as the one their card was charged at. While a rate is typed, the sheet says
+ * what the bill comes to at it, [totalAt], so that a rate typed a thousand times off shows at once,
+ * such as "25.412" for 25,412 dong to the dollar.
  */
 @Composable
 internal fun ExchangeRateSheet(
     from: String,
     to: String,
     rate: ExchangeRate?,
+    totalAt: (BigDecimal) -> String?,
     onSave: (BigDecimal) -> Unit,
     onUseDayRate: () -> Unit,
     onDismiss: () -> Unit,
@@ -388,6 +391,14 @@ internal fun ExchangeRateSheet(
             allowEmpty = true,
             onEmpty = { typed = null },
         )
+        typed?.let(totalAt)?.let { total ->
+            Text(
+                stringResource(R.string.split_about, total),
+                modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 

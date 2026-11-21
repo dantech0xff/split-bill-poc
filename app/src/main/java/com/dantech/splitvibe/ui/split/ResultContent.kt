@@ -488,6 +488,7 @@ fun ResultContent(
             from = bill.currency.code,
             to = result.localCurrency,
             rate = result.exchangeRate,
+            totalAt = { typed -> result.convertedAt(typed) },
             onSave = { rate ->
                 actions.onSetExchangeRate(rate)
                 changingRate = false
