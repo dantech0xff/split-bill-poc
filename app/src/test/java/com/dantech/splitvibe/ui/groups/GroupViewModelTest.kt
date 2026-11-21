@@ -74,7 +74,7 @@ class GroupViewModelTest {
         proxy.account.saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE))
         val cache = ProxyCache(storage.database.proxyCache())
         val methods = PaymentMethodRepository(storage.database)
-        runBlocking { methods.add(PaymentMethod.PromptPay("081-234-5678")) }
+        runBlocking { methods.add(PaymentMethod.PromptPay("000-000-0000")) }
         viewModel = GroupViewModel(
             GROUP_ID,
             GroupRepository(proxy.api, cache, proxy.account),

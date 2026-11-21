@@ -22,7 +22,7 @@ object RequestFixtures {
             150_000,
             payer = "Dana",
             title = "Pho 24",
-            method = """{"type":"link","url":"https://revolut.me/dana"}""",
+            method = """{"type":"link","url":"https://revolut.me/splitvibedemo"}""",
         ),
     )
 

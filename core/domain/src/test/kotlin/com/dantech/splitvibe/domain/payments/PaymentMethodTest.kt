@@ -45,7 +45,7 @@ class PaymentMethodTest {
         assertNotNull(PaymentMethod.Upi("asha.rao", "Asha Rao").problem())
         assertNotNull(PaymentMethod.Upi("asha.rao@okaxis", " ").problem())
 
-        assertNull(PaymentMethod.PromptPay("081-234-5678").problem())
+        assertNull(PaymentMethod.PromptPay("000-000-0000").problem())
         assertNull(PaymentMethod.PromptPay("+66 81 234 5678").problem())
         assertNull(PaymentMethod.PromptPay("1-1111-11111-11-1").problem())
         assertNotNull(PaymentMethod.PromptPay("81-234-5678").problem())

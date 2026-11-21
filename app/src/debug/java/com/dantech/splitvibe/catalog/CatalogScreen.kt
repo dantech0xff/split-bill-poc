@@ -878,7 +878,7 @@ private fun FieldSamples() {
     var where by remember { mutableStateOf("Ẳ QUÁN ỐC BA MIỂN") }
     var date by remember { mutableStateOf("") }
     var total by remember { mutableStateOf("902664") }
-    var handle by remember { mutableStateOf("minhtran") }
+    var handle by remember { mutableStateOf("splitvibedemo") }
     var account by remember { mutableStateOf("000000000") }
     var search by remember { mutableStateOf("") }
     var change by remember { mutableStateOf("") }

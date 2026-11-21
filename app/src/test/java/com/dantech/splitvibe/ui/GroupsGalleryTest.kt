@@ -373,9 +373,9 @@ class GroupsGalleryTest {
     private fun PaymentMethods() = PaymentMethodsScreen(
         methods = listOf(
             SavedPaymentMethod("1", PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN"), isMain = true),
-            SavedPaymentMethod("2", PaymentMethod.PromptPay("081-234-5678"), isMain = false),
+            SavedPaymentMethod("2", PaymentMethod.PromptPay("000-000-0000"), isMain = false),
             SavedPaymentMethod("3", PaymentMethod.SepaQr("Dana Nguyen", "DE89370400440532013000"), isMain = false),
-            SavedPaymentMethod("4", PaymentMethod.PastedLink("https://revolut.me/dana"), isMain = false),
+            SavedPaymentMethod("4", PaymentMethod.PastedLink("https://revolut.me/splitvibedemo"), isMain = false),
         ),
         onSave = { _, _ -> },
         onMakeMain = {},
