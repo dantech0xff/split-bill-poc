@@ -979,7 +979,7 @@ ShareView, as its owner sees it:
 person and that amount.
 
 ```json
-{"link": "https://paypal.me/lan/71500VND", "qrPayload": null, "details": "PayPal: paypal.me/lan\nAmount: ₫71,500", "amountFilledIn": true}
+{"link": "https://paypal.me/splitvibedemo/71500VND", "qrPayload": null, "details": "PayPal: paypal.me/splitvibedemo\nAmount: ₫71,500", "amountFilledIn": true}
 ```
 
 - `link` is null, a URL that starts `https://` and has a host, or a link that starts

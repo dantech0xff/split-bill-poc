@@ -21,7 +21,7 @@ describe("the parsers of the proxy's answers", () => {
 
   it("keep amounts and payments of a settled link", () => {
     const share = parseShare(shareLocked.share);
-    expect(share?.amounts?.p1?.payment?.link).toBe("https://paypal.me/lan/86500VND");
+    expect(share?.amounts?.p1?.payment?.link).toBe("https://paypal.me/splitvibedemo/86500VND");
     expect(share?.amounts?.me).toEqual({ amountMinor: 77000, payment: null });
   });
 

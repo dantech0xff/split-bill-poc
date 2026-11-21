@@ -135,7 +135,7 @@ describe("the bill link's page", () => {
       "Minh ₫86,500",
       "An ₫67,500",
     ]);
-    const pay = page.querySelector<HTMLAnchorElement>('a[href="https://paypal.me/lan/86500VND"]');
+    const pay = page.querySelector<HTMLAnchorElement>('a[href="https://paypal.me/splitvibedemo/86500VND"]');
     expect(textOf(pay)).toBe("Pay on paypal.me");
     expect(pay?.target).toBe("_blank");
     expect(pay?.rel).toBe("noopener noreferrer");

@@ -83,7 +83,7 @@ export function openShare(token: string, key?: string, ip?: string) {
 
 /** What a payer of [amountMinor] gets to pay Lan with PayPal. */
 export function payPal(amountMinor: number) {
-  return { link: `https://paypal.me/lan/${amountMinor}VND`, qrPayload: null, details: `PayPal: paypal.me/lan\nAmount: ₫${amountMinor}`, amountFilledIn: true };
+  return { link: `https://paypal.me/splitvibedemo/${amountMinor}VND`, qrPayload: null, details: `PayPal: paypal.me/splitvibedemo\nAmount: ₫${amountMinor}`, amountFilledIn: true };
 }
 
 /** The same database, but [before] runs once, just before the first batch whose SQL [matches] says it is the one. */

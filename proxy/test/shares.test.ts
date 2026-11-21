@@ -777,16 +777,16 @@ describe("settling a split", () => {
     }
     const pay = payPal(107_250);
     const bad = [
-      { ...pay, link: "http://paypal.me/lan" },
+      { ...pay, link: "http://paypal.me/splitvibedemo" },
       { ...pay, link: "javascript:alert(1)" },
       { ...pay, link: "data:text/html,<script>alert(1)</script>" },
       { ...pay, link: "upi://mandate?pa=lan@okbank" },
       { ...pay, link: "intent://pay#Intent;scheme=upi;end" },
-      { ...pay, link: "HTTPS://paypal.me/lan" },
+      { ...pay, link: "HTTPS://paypal.me/splitvibedemo" },
       { ...pay, link: "https://" },
-      { ...pay, link: " https://paypal.me/lan" },
-      { ...pay, link: "https://paypal.me/lan nguyen" },
-      { ...pay, link: "https://paypal.me/\nlan" },
+      { ...pay, link: " https://paypal.me/splitvibedemo" },
+      { ...pay, link: "https://paypal.me/splitvibedemo nguyen" },
+      { ...pay, link: "https://paypal.me/\nsplitvibedemo" },
       { ...pay, link: `https://example.com/${"x".repeat(POLICY.maxPaymentLinkChars)}` },
       { ...pay, link: 42 },
       { ...pay, qrPayload: "q".repeat(POLICY.maxPaymentCodeChars + 1) },
@@ -797,7 +797,7 @@ describe("settling a split", () => {
       { ...pay, details: undefined },
       { ...pay, amountFilledIn: "yes" },
       { ...pay, amountFilledIn: undefined },
-      "https://paypal.me/lan",
+      "https://paypal.me/splitvibedemo",
     ];
     for (const payment of bad) {
       const finalized = await finalize(payment);

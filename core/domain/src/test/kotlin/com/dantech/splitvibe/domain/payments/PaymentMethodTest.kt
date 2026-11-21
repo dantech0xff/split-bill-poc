@@ -37,13 +37,13 @@ class PaymentMethodTest {
 
     @Test
     fun `each method checks what it was given`() {
-        assertNull(PaymentMethod.PayPalMe("DiaRusso").problem())
-        assertNotNull(PaymentMethod.PayPalMe("dia.russo").problem())
+        assertNull(PaymentMethod.PayPalMe("SplitVibeDemo").problem())
+        assertNotNull(PaymentMethod.PayPalMe("splitvibe.demo").problem())
         assertNotNull(PaymentMethod.PayPalMe("a".repeat(21)).problem())
 
-        assertNull(PaymentMethod.Upi("asha.rao@okaxis", "Asha Rao").problem())
-        assertNotNull(PaymentMethod.Upi("asha.rao", "Asha Rao").problem())
-        assertNotNull(PaymentMethod.Upi("asha.rao@okaxis", " ").problem())
+        assertNull(PaymentMethod.Upi("splitvibedemo@okaxis", "Split Vibe Demo").problem())
+        assertNotNull(PaymentMethod.Upi("splitvibedemo", "Split Vibe Demo").problem())
+        assertNotNull(PaymentMethod.Upi("splitvibedemo@okaxis", " ").problem())
 
         assertNull(PaymentMethod.PromptPay("000-000-0000").problem())
         assertNull(PaymentMethod.PromptPay("+66 81 234 5678").problem())

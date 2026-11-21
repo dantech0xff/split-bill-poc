@@ -3,9 +3,9 @@ import { PLAY_STORE_URL, abuseMailto, isAndroid, openInAppHref, safePaymentLink 
 
 describe("safePaymentLink", () => {
   it("takes an https link with a host, as the browser parses it", () => {
-    expect(safePaymentLink("https://paypal.me/lan/71500VND")).toEqual({
+    expect(safePaymentLink("https://paypal.me/splitvibedemo/71500VND")).toEqual({
       kind: "web",
-      href: "https://paypal.me/lan/71500VND",
+      href: "https://paypal.me/splitvibedemo/71500VND",
       host: "paypal.me",
     });
     expect(safePaymentLink("https://Example.COM/pay")).toEqual({ kind: "web", href: "https://example.com/pay", host: "example.com" });
@@ -20,19 +20,19 @@ describe("safePaymentLink", () => {
     ["javascript:", "javascript:alert(document.domain)"],
     ["javascript: in capitals", "JavaScript:alert(1)"],
     ["javascript: after a space", " javascript:alert(1)"],
-    ["http:", "http://paypal.me/lan"],
+    ["http:", "http://paypal.me/splitvibedemo"],
     ["intent:", "intent://pay#Intent;scheme=upi;end"],
     ["data:", "data:text/html,<script>alert(1)</script>"],
     ["https: without a host", "https://"],
     ["https: without slashes or host", "https:"],
     ["https: with an empty authority", "https:///"],
-    ["https: without its slashes", "https:paypal.me/lan"],
-    ["https: in capitals", "HTTPS://paypal.me/lan"],
-    ["a link with a space", "https://paypal.me/lan pay"],
+    ["https: without its slashes", "https:paypal.me/splitvibedemo"],
+    ["https: in capitals", "HTTPS://paypal.me/splitvibedemo"],
+    ["a link with a space", "https://paypal.me/splitvibedemo pay"],
     ["a UPI link that is not a payment", "upi://mandate?pa=lan@okbank"],
     ["a UPI link in capitals", "UPI://pay?pa=lan@okbank"],
     ["a relative path", "/v1/shares/open"],
-    ["a control character", "https://paypal.me/\nlan"],
+    ["a control character", "https://paypal.me/\nsplitvibedemo"],
     ["an empty text", ""],
     ["no link", null],
   ])("refuses %s", (_label, link) => {

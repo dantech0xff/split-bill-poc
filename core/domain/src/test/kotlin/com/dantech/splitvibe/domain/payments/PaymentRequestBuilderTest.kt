@@ -125,30 +125,30 @@ class PaymentRequestBuilderTest {
 
     @Test
     fun `a UPI link is a payer's payment, never a collect request`() {
-        val method = PaymentMethod.Upi("asha.rao@okaxis", "Asha Rao")
+        val method = PaymentMethod.Upi("splitvibedemo@okaxis", "Split Vibe Demo")
 
         val inRupees = build(method, 25_000, inr, "Dinner at Saravana")
-        assertEquals("upi://pay?pa=asha.rao@okaxis&pn=Asha%20Rao&am=250.00&cu=INR&tn=Dinner%20at%20Saravana", inRupees.link)
+        assertEquals("upi://pay?pa=splitvibedemo@okaxis&pn=Split%20Vibe%20Demo&am=250.00&cu=INR&tn=Dinner%20at%20Saravana", inRupees.link)
         assertEquals(inRupees.link, inRupees.qrPayload)
         assertTrue(inRupees.amountFilledIn)
 
         val inDollars = build(method, 1_000, usd, "a".repeat(80))
-        assertEquals("upi://pay?pa=asha.rao@okaxis&pn=Asha%20Rao&tn=" + "a".repeat(50), inDollars.link)
+        assertEquals("upi://pay?pa=splitvibedemo@okaxis&pn=Split%20Vibe%20Demo&tn=" + "a".repeat(50), inDollars.link)
         assertFalse(inDollars.amountFilledIn)
     }
 
     @Test
     fun `a PayPal_Me link carries the amount in the currencies PayPal takes`() {
-        val method = PaymentMethod.PayPalMe("DiaRusso")
+        val method = PaymentMethod.PayPalMe("SplitVibeDemo")
 
-        // PayPal's own example.
-        assertEquals("https://paypal.me/DiaRusso/25AUD", build(method, 2_500, BillCurrency("AUD", 2)).link)
-        assertEquals("https://paypal.me/DiaRusso/12.50USD", build(method, 1_250, usd).link)
-        assertEquals("https://paypal.me/DiaRusso/1500JPY", build(method, 1_500, BillCurrency("JPY", 0)).link)
+        // The amount and currency of PayPal's own example, with a sample name of the app's.
+        assertEquals("https://paypal.me/SplitVibeDemo/25AUD", build(method, 2_500, BillCurrency("AUD", 2)).link)
+        assertEquals("https://paypal.me/SplitVibeDemo/12.50USD", build(method, 1_250, usd).link)
+        assertEquals("https://paypal.me/SplitVibeDemo/1500JPY", build(method, 1_500, BillCurrency("JPY", 0)).link)
         // PayPal takes no forints below one, and no dong at all.
-        assertEquals("https://paypal.me/DiaRusso", build(method, 150_050, BillCurrency("HUF", 2)).link)
+        assertEquals("https://paypal.me/SplitVibeDemo", build(method, 150_050, BillCurrency("HUF", 2)).link)
         val inDong = build(method, 100_000, vnd)
-        assertEquals("https://paypal.me/DiaRusso", inDong.link)
+        assertEquals("https://paypal.me/SplitVibeDemo", inDong.link)
         assertFalse(inDong.amountFilledIn)
         assertTrue(inDong.details, inDong.details.contains("Amount: "))
     }

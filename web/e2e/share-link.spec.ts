@@ -20,9 +20,9 @@ const AMOUNTS = {
   p1: {
     amountMinor: 86500,
     payment: {
-      link: "https://paypal.me/lan/86500VND",
-      qrPayload: "https://paypal.me/lan/86500VND",
-      details: "PayPal: paypal.me/lan\nAmount: ₫86,500",
+      link: "https://paypal.me/splitvibedemo/86500VND",
+      qrPayload: "https://paypal.me/splitvibedemo/86500VND",
+      details: "PayPal: paypal.me/splitvibedemo\nAmount: ₫86,500",
       amountFilledIn: true,
     },
   },
@@ -187,7 +187,7 @@ test("everyone at the table picks live, then sees what to pay and how, until the
     await page.locator("summary", { hasText: "Minh" }).click();
     await page.locator("summary", { hasText: "An" }).click();
     const pay = page.getByRole("link", { name: "Pay on paypal.me" });
-    await expect(pay).toHaveAttribute("href", "https://paypal.me/lan/86500VND");
+    await expect(pay).toHaveAttribute("href", "https://paypal.me/splitvibedemo/86500VND");
     await expect(pay).toHaveAttribute("target", "_blank");
     await expect(pay).toHaveAttribute("rel", "noopener noreferrer");
     for (const amount of ["₫86,500", "₫67,500"]) {

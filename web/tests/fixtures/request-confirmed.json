@@ -7,9 +7,9 @@
     "title": "Hot pot",
     "status": "confirmed",
     "payment": {
-      "link": "https://paypal.me/lan/150000VND",
+      "link": "https://paypal.me/splitvibedemo/150000VND",
       "qrPayload": null,
-      "details": "PayPal: paypal.me/lan",
+      "details": "PayPal: paypal.me/splitvibedemo",
       "amountFilledIn": true
     },
     "createdAt": 1763180000000

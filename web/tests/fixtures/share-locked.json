@@ -29,9 +29,9 @@
       "p1": {
         "amountMinor": 86500,
         "payment": {
-          "link": "https://paypal.me/lan/86500VND",
+          "link": "https://paypal.me/splitvibedemo/86500VND",
           "qrPayload": null,
-          "details": "PayPal: paypal.me/lan\nAmount: ₫86,500",
+          "details": "PayPal: paypal.me/splitvibedemo\nAmount: ₫86,500",
           "amountFilledIn": true
         }
       },

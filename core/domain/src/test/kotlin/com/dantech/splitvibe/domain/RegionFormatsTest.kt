@@ -306,8 +306,8 @@ class RegionFormatsTest {
         val requests = listOf(
             Triple(PaymentMethod.PromptPay("0801234567"), THB, 42_250L),
             Triple(PaymentMethod.VietQr("970416", "000000000", "NGUYEN VAN A"), VND, 902_664L),
-            Triple(PaymentMethod.Upi("asha.rao@okaxis", "Asha Rao"), INR, 125_050L),
-            Triple(PaymentMethod.PayPalMe("DiaRusso"), USD, 1_250L),
+            Triple(PaymentMethod.Upi("splitvibedemo@okaxis", "Split Vibe Demo"), INR, 125_050L),
+            Triple(PaymentMethod.PayPalMe("SplitVibeDemo"), USD, 1_250L),
             Triple(PaymentMethod.SepaQr("Red Cross of Belgium", "BE72000000001616"), EUR, 12_345L),
         )
         fun codes() = requests.map { (method, currency, minor) ->

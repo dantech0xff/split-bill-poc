@@ -16,9 +16,9 @@ test("a payment request shows who asks whom for what, how to pay, and opens in t
     title: "Hot pot",
     method: {},
     payment: {
-      link: "https://paypal.me/lan/150000VND",
-      qrPayload: "https://paypal.me/lan/150000VND",
-      details: "PayPal: paypal.me/lan\nAmount: ₫150,000",
+      link: "https://paypal.me/splitvibedemo/150000VND",
+      qrPayload: "https://paypal.me/splitvibedemo/150000VND",
+      details: "PayPal: paypal.me/splitvibedemo\nAmount: ₫150,000",
       amountFilledIn: true,
     },
   });
@@ -29,10 +29,10 @@ test("a payment request shows who asks whom for what, how to pay, and opens in t
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Lan asks Minh for");
   await expect(page.locator(".hero")).toHaveText(/₫150,000\s*For Hot pot\s*Not paid yet/);
   const pay = page.getByRole("link", { name: "Pay on paypal.me" });
-  await expect(pay).toHaveAttribute("href", "https://paypal.me/lan/150000VND");
+  await expect(pay).toHaveAttribute("href", "https://paypal.me/splitvibedemo/150000VND");
   await expect(pay).toHaveAttribute("rel", "noopener noreferrer");
   await expect(page.getByRole("img", { name: "QR code to pay ₫150,000" })).toBeVisible();
-  await expect(page.getByText("PayPal: paypal.me/lan")).toBeVisible();
+  await expect(page.getByText("PayPal: paypal.me/splitvibedemo")).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy the details" })).toBeVisible();
   await expect(page.getByText("The amount, ₫150,000, is filled in for you.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open in Split Vibe" })).toHaveAttribute(
