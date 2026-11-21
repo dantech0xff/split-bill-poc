@@ -79,7 +79,7 @@ describe("push notifications", () => {
         payerName: "Minh Secretname",
         creditorName: "Owner Secretname",
         title: "Secret hot pot",
-        method: { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789", accountName: "SECRET NAME" },
+        method: { kind: "VietQr", bankBin: "970436", accountNumber: "SECRET-ACCOUNT", accountName: "SECRET NAME" },
         groupId: group.id,
         toMemberId: minhId,
       },
@@ -101,7 +101,7 @@ describe("push notifications", () => {
       expect(Object.keys(message).sort()).toEqual(["android", "data", "notification", "token"]);
       expect(message.android).toEqual({ notification: { channel_id: "requests" } });
       expect(message.notification).toEqual(PUSH_TEXT[message.data.type as Push["type"]]);
-      expect(JSON.stringify(message)).not.toMatch(/Secret|SECRET|970436|0123456789|garden|hot pot|https?:/i);
+      expect(JSON.stringify(message)).not.toMatch(/Secret|SECRET|970436|garden|hot pot|https?:/i);
     }
     expect(fcm.tokensIssued()).toBe(1);
   });

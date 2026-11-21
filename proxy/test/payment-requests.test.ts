@@ -12,12 +12,12 @@ type Created = { request: RequestView; url: string };
 
 const DAY = 24 * 60 * 60 * 1000;
 
-const METHOD = { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789", accountName: "NGUYEN LAN" };
+const METHOD = { kind: "VietQr", bankBin: "970436", accountNumber: "0000000000", accountName: "NGUYEN LAN" };
 /** How to pay, as the creditor's app builds it for the request's web page. */
 const PAYMENT = {
   link: null,
-  qrPayload: "00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA53037045406150000",
-  details: "Bank: Vietcombank (970436)\nAccount: 0123456789\nName: NGUYEN LAN\nAmount: ₫150,000",
+  qrPayload: "00020101021238540010A00000072701240006970436011000000000000208QRIBFTTA53037045406150000",
+  details: "Bank: Vietcombank (970436)\nAccount: 0000000000\nName: NGUYEN LAN\nAmount: ₫150,000",
   amountFilledIn: true,
 };
 
@@ -122,7 +122,7 @@ describe("a payment request", () => {
       { creditorName: "x".repeat(61) },
       { title: "x".repeat(81) },
       { title: 42 },
-      { method: "VietQr 970436 0123456789" },
+      { method: "VietQr 970436 0000000000" },
       { method: [METHOD] },
       { method: undefined },
       { remindEveryDays: 2 },

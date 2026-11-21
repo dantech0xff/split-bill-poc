@@ -65,7 +65,7 @@ describe("a link opened in a browser", () => {
       payerName: "Minh Zqxv",
       creditorName: "Lan Zqxv",
       title: "Zqxv dinner",
-      method: { kind: "PlainDetails", text: "Account 0123456789" },
+      method: { kind: "PlainDetails", text: "Zqxv bank, account 0000000000" },
     });
     const shared = await api<{ url: string }>(owner, "PUT", `/v1/shares/${crypto.randomUUID()}`, {
       billId: crypto.randomUUID(),
@@ -99,6 +99,6 @@ describe("a link opened in a browser", () => {
       expect(page.headers.get("referrer-policy")).toBe("no-referrer");
       expect(page.body).toBe(pages[0].body);
     }
-    expect(pages[0].body).not.toMatch(/Zqxv|987654|0123456789/);
+    expect(pages[0].body).not.toMatch(/Zqxv|987654/);
   });
 });

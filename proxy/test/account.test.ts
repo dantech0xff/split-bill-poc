@@ -488,7 +488,7 @@ function newRequest(creditor: Person, extra: Record<string, unknown> = {}) {
     payerName: "Minh",
     creditorName: "Lan",
     title: "Groceries",
-    method: { kind: "VietQr", bankBin: "970436", accountNumber: "0123456789" },
+    method: { kind: "VietQr", bankBin: "970436", accountNumber: "0000000000" },
     payment: { link: "https://paypal.me/lan/70000VND", qrPayload: null, details: "PayPal: paypal.me/lan", amountFilledIn: true },
     ...extra,
   });
