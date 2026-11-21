@@ -59,9 +59,18 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
         return cached(groupId)?.member(memberId)?.name
     }
 
-    /** [creditorNameOf] each of [requests] that has one, by the id of the request. */
-    suspend fun creditorNamesOf(requests: List<RequestView>): Map<String, String> =
-        requests.mapNotNull { request -> creditorNameOf(request)?.let { request.id to it } }.toMap()
+    /**
+     * [creditorNameOf] each of [requests] that has one, by the id of the request. Each group's kept
+     * state is read and decoded once for the whole list, however many of its requests the list holds.
+     */
+    suspend fun creditorNamesOf(requests: List<RequestView>): Map<String, String> {
+        val groups = requests.mapNotNull { it.groupId }.distinct().associateWith { cached(it) }
+        return requests.mapNotNull { request ->
+            val group = request.groupId?.let(groups::get) ?: return@mapNotNull null
+            val memberId = request.creditorMemberId ?: return@mapNotNull null
+            group.member(memberId)?.name?.let { request.id to it }
+        }.toMap()
+    }
 
     /**
      * Fetches the list of groups again. The state of a group that is no longer on it goes, unless the

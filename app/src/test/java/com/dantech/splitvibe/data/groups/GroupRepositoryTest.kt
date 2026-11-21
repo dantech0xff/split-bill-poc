@@ -12,9 +12,12 @@ import com.dantech.splitvibe.GroupFixtures.MINH
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.data.account.Session
+import com.dantech.splitvibe.data.bills.ProxyCacheDao
+import com.dantech.splitvibe.data.bills.ProxyCacheEntity
 import com.dantech.splitvibe.data.proxy.ProxyApi
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.proxy.ProxyException
+import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Transfer
 import java.util.concurrent.CountDownLatch
@@ -328,7 +331,57 @@ class GroupRepositoryTest {
         assertEquals(10L, seen.last()?.group?.revision)
     }
 
+    /**
+     * The names of the requesters of a list of requests come from the state the phone keeps of their
+     * groups, which is read from the database and decoded once for each group, not once per request:
+     * a trip with forty open requests and a flat with one read two states.
+     */
+    @Test
+    fun `the names of the requesters read each group's kept state once for the whole list`() = runBlocking {
+        val database = CountingReads(storage.database.proxyCache())
+        val counted = GroupRepository(proxy.api, ProxyCache(database), proxy.account)
+        server.enqueue(json(GroupFixtures.groupState()))
+        server.enqueue(json(flat()))
+        counted.refresh(GROUP_ID)
+        counted.refresh(FLAT_ID)
+        val trip = (1..40).map { index -> groupRequest("trip-$index", GROUP_ID, if (index % 2 == 0) MINH else LAN) }
+        val requests = trip + groupRequest("flat-1", FLAT_ID, MINH) + groupRequest("outside", groupId = null, creditor = null)
+        database.reads = 0
+
+        val names = counted.creditorNamesOf(requests)
+
+        assertEquals("the group's kept state was read ${database.reads} times", 2, database.reads)
+        assertEquals(41, names.size)
+        assertEquals("Lan", names["trip-1"])
+        assertEquals("Minh", names["trip-40"])
+        assertEquals("Minh", names["flat-1"])
+        assertNull("a request made outside any group", names["outside"])
+    }
+
     private fun json(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
+
+    /** A request of the group [groupId] that the member [creditor] asked for, as the person asked to pay sees it. */
+    private fun groupRequest(id: String, groupId: String?, creditor: String?) = RequestView(
+        id = id,
+        role = RequestView.DEBTOR,
+        amountMinor = 35_500,
+        currency = CurrencyDto("THB", 2),
+        payerName = "Dana",
+        creditorName = "typed on the request",
+        creditorMemberId = creditor,
+        groupId = groupId,
+        createdAt = 1,
+    )
+
+    /** The database of the cache, counting how often an entry is read from it, and so decoded. */
+    private class CountingReads(private val dao: ProxyCacheDao) : ProxyCacheDao by dao {
+        var reads = 0
+
+        override suspend fun get(key: String): ProxyCacheEntity? {
+            reads++
+            return dao.get(key)
+        }
+    }
 
     /** The proxy's list of the groups of [ids], each one the user is a member of. */
     private fun listed(vararg ids: String) = """{"groups":[""" + ids.joinToString(",") { id ->
