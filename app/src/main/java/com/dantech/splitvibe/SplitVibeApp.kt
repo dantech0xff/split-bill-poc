@@ -8,6 +8,7 @@ import com.dantech.splitvibe.di.appModule
 import com.dantech.splitvibe.di.spendingModule
 import com.dantech.splitvibe.notifications.DeviceRegistrar
 import com.dantech.splitvibe.notifications.Push
+import com.dantech.splitvibe.text.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,8 @@ class SplitVibeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Before anything reads a text: the forms of plurals come from resources made by this context.
+        UiText.start(this)
         val koin = startKoin {
             androidContext(this@SplitVibeApp)
             modules(appModule, spendingModule)

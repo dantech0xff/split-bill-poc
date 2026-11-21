@@ -1,6 +1,10 @@
 package com.dantech.splitvibe.text
 
 import android.content.Context
+import android.content.res.Resources
+import android.icu.text.PluralRules
+import android.util.TypedValue
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,6 +29,7 @@ import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.TEXT_LOCALE
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.home.HomeSummary
@@ -99,6 +104,44 @@ class NumbersInTextsTest {
         assertEquals("Request $amount from 1 person", plural(R.plurals.split_request_from, 1, amount, 1).resolve(resources))
         assertEquals("Request $amount from 2 people", plural(R.plurals.split_request_from, 2, amount, 2).resolve(resources))
     }
+
+    /** French gives the singular to 0 as well as to 1, which in the English texts would read "0 bill". */
+    @Test
+    @Config(sdk = [34], qualifiers = "fr")
+    fun `on a phone set to French a count of zero takes the plural, as in English`() = assertZeroTakesThePlural()
+
+    /** Persian gives the singular to 0 as well as to 1, which in the English texts would read "0 bill". */
+    @Test
+    @Config(sdk = [34], qualifiers = "fa")
+    fun `on a phone set to Persian a count of zero takes the plural, as in English`() = assertZeroTakesThePlural()
+
+    /** The pseudolocale ar-XB of a debug build is the English texts in another dress, and its plurals keep that dress. */
+    @Test
+    @Config(sdk = [34], qualifiers = "ar-rXB")
+    fun `on a phone set to the pseudolocale ar-XB the plurals stay in its dress`() {
+        val resources = context.resources
+        for ((count, english) in listOf(1 to "Your share of 1 bill", 2 to "Your share of 2 bills")) {
+            val dressed = String.format(TEXT_LOCALE, resources.getQuantityString(R.plurals.home_your_share_of, count), count)
+            assertNotEquals("the pseudolocale's own form for $count", english, dressed)
+            assertEquals(dressed, plural(R.plurals.home_your_share_of, count).resolve(resources))
+        }
+    }
+
+    /**
+     * Reading a plural leaves the phone's own resources as they were: the words of Android and of the
+     * libraries the app uses stay in the phone's language, such as Copy in the menu over a selected text
+     * and the "selected" a screen reader says of a tab.
+     */
+    @Test
+    @Config(sdk = [34], qualifiers = "vi-rVN")
+    fun `a plural read on a phone set to Vietnamese leaves the phone's own words in Vietnamese`() =
+        assertAPluralLeavesThePhoneAsItWas(rightToLeft = false)
+
+    /** As on a phone set to Vietnamese, and the phone's resources go on reading the files they have for right to left. */
+    @Test
+    @Config(sdk = [34], qualifiers = "ar")
+    fun `a plural read on a phone set to Arabic leaves the phone's own words in Arabic, right to left`() =
+        assertAPluralLeavesThePhoneAsItWas(rightToLeft = true)
 
     @Test
     fun `a text with a count is read only through UiText, which writes it in English`() {
@@ -228,6 +271,53 @@ class NumbersInTextsTest {
         assertEquals("Texts with the phone's digits", emptyList<String>(), foreign)
     }
 
+    private fun assertZeroTakesThePlural() {
+        val resources = context.resources
+        // The phone's own rules give the singular to 0: the form a plural read straight from its resources would take.
+        assertEquals("one", PluralRules.forLocale(resources.configuration.locales[0]).select(0.0))
+
+        assertEquals("Your share of 0 bills", plural(R.plurals.home_your_share_of, 0).resolve(resources))
+        assertEquals("Your share of 1 bill", plural(R.plurals.home_your_share_of, 1).resolve(resources))
+        assertEquals("Your share of 2 bills", plural(R.plurals.home_your_share_of, 2).resolve(resources))
+    }
+
+    /**
+     * Reads a plural through UiText, as the screens do, and fails unless the phone's resources then read
+     * as they did before: Android's and Compose's words in the phone's language, the layout direction
+     * of their configuration, and Android's own file for [rightToLeft] where it has one.
+     */
+    private fun assertAPluralLeavesThePhoneAsItWas(rightToLeft: Boolean) {
+        val resources = context.resources
+        val before = PhoneResources.of(resources)
+        // In the phone's language and direction to begin with, so that English or left to right afterwards tells.
+        assertTrue("words in English before any plural: ${before.words}", before.words.none { (id, word) -> word == PHONE_WORDS[id] })
+        assertEquals(if (rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR, before.direction)
+        assertEquals("the file of the animation read: ${before.closingAnimation}", rightToLeft, "-ldrtl" in before.closingAnimation)
+
+        assertEquals("Your share of 2 bills", plural(R.plurals.home_your_share_of, 2).resolve(resources))
+
+        assertEquals(before, PhoneResources.of(resources))
+    }
+
+    /**
+     * What a phone's resources read: Android's and Compose's [words], the layout [direction] of their
+     * configuration, and the file of Android's animation for a screen that closes, which is another file
+     * for right to left, so the file says which direction the resources look their values up in.
+     */
+    private data class PhoneResources(val words: Map<Int, String>, val direction: Int, val closingAnimation: String) {
+        companion object {
+            fun of(resources: Resources): PhoneResources {
+                val animation = Resources.getSystem().getIdentifier("activity_close_enter", "anim", "android")
+                assertNotEquals("Android's animation of a closing screen", 0, animation)
+                return PhoneResources(
+                    words = PHONE_WORDS.keys.associateWith(resources::getString),
+                    direction = resources.configuration.layoutDirection,
+                    closingAnimation = TypedValue().also { resources.getValue(animation, it, true) }.string.toString(),
+                )
+            }
+        }
+    }
+
     /** The phone's language as Android sets it up, also as the default locale, whose region money and dates follow. */
     private fun likeThePhone(): Locale {
         val phone = context.resources.configuration.locales[0]
@@ -256,5 +346,8 @@ class NumbersInTextsTest {
 
         /** A string read straight from the resources with its arguments. */
         val STRING_READ = Regex("""(?:stringResource|getString)\(\s*R\.string\.(\w+)""")
+
+        /** Words that only the phone's own resources hold, Android's and Compose's, with what they say in English. */
+        val PHONE_WORDS = mapOf(android.R.string.copy to "Copy", androidx.compose.ui.R.string.selected to "Selected")
     }
 }
