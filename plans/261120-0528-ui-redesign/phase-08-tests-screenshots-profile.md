@@ -1,6 +1,6 @@
 ---
 title: "Phase 8: Kiểm thử, ảnh tham chiếu và hồ sơ khởi động"
-status: pending
+status: in-progress
 phase: 8
 priority: P1
 effort: "3d"
@@ -83,11 +83,11 @@ Toàn bộ giao diện mới được kiểm một lượt cuối. Ảnh tham ch
 - [x] Ảnh tối, cỡ chữ 200%, `en-XA` và `vi-VN` đã soát; các sửa gom vào một lượt ghi lại
 - [ ] Chủ sản phẩm duyệt các bảng ảnh và các trạng thái không có bảng riêng
 - [x] `AppLaunchTest` đi qua bốn tab
-- [ ] Hai phông xem bằng mắt trên API 26, các chuyển động thử tay
-- [ ] Cổng kiểm thử ở chế độ so mặc định, review độc lập, sửa phát hiện
-- [ ] Token màu được chốt, mã commit ghi trong báo cáo
-- [ ] Hai lượt `device-tests.yml` trên commit cuối, kết luận đọc theo từng việc
-- [ ] Cỡ gói được đo, báo cáo của giai đoạn được viết
+- [ ] Hai phông xem bằng mắt trên API 26, các chuyển động thử tay (phông đã xem qua ảnh chụp trên Android 8.0 của GitHub; chuyển động chờ máy thật)
+- [x] Cổng kiểm thử ở chế độ so mặc định, review độc lập, sửa phát hiện
+- [x] Token màu được chốt, mã commit ghi trong báo cáo
+- [x] Hai lượt `device-tests.yml` trên commit cuối, kết luận đọc theo từng việc
+- [x] Cỡ gói được đo, báo cáo của giai đoạn được viết
 
 ## Success Criteria
 
@@ -112,3 +112,44 @@ Toàn bộ giao diện mới được kiểm một lượt cuối. Ảnh tham ch
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 9 chưa bắt đầu; sau đó lỗi được sửa bằng commit mới. Ảnh tham chiếu phải được hoàn lại cùng với mã mà chúng chụp. Hoàn lại cả giai đoạn đưa thư mục về bộ ảnh cũ, là bộ không khớp với giao diện mới, nên từ lúc đó kiểm thử lại phải chạy với `-Pscreenshots=compare` cho tới khi ảnh được ghi lại.
+
+## Kết quả thực hiện
+
+Làm ngày 21/11/2026, trong các commit `381f1b9` (nền trang dưới các bước của luồng chia), `e25a6a7` (artifact giữ ảnh chụp trên máy), `cd4db15` (ghi lại ảnh tham chiếu), `defc5cc` và `cdde18e` (số nhiều theo tiếng Anh trên mọi máy), `416330d` và `9baf94f` (cửa sổ mang màu trang ở cả hai giao diện), `b849067` (bài trên máy hỏng thay vì bỏ qua lặng lẽ) `8e4d13c` (ảnh cho mọi bảng trượt và hộp thoại) và `9628fe1` (hành trình nhập tay bấm "Add an item" chắc chắn hơn).
+
+- Ảnh tham chiếu:
+  - Ghi lại một lần vào thư mục đã dọn trống: 136 ảnh. Đúng sáu ảnh thừa bị xóa (`07-pick-people`, `08-item-sharers`, `09-sent-to-claude`, mỗi ảnh cùng bản tối); 90 ảnh đổi và 45 ảnh mới, tất cả từ bài chụp có sẵn.
+  - Sau đó chỉ ghi lại đúng những ảnh mà mỗi sửa nhắm tới, và kiểm bằng mã băm rằng không ảnh nào khác đổi: `15-sending` cùng bản tối (nền trang dưới các bước), `01-home-vi-vn` (chữ "1 bill"), và 21 ảnh mới của bảng trượt và hộp thoại. Thư mục giờ có 157 ảnh, và review đã đối chiếu rằng mỗi ảnh đều có một bài chụp vẽ ra.
+  - Ảnh chụp trên máy đặt vùng Việt Nam khẳng định trước khi chụp rằng tổng được viết "902.664 ₫" và không có "₫902,664". Ảnh trang chủ `vi-VN` có hóa đơn mẫu với số tiền và ngày "13 Nov".
+- Cổng kiểm thử của plan qua ở chế độ so mặc định trên `8e4d13c`; `9628fe1` chỉ đổi một hành trình trên máy, và qua ktlint cùng bản dựng của các bài trên máy: 727 bài kiểm thử đơn vị của `:app`, không bài nào bỏ qua, cùng các bài của `:core:domain` và `:core:designsystem`. Lượt so thứ hai, ép chạy lại bằng `--rerun`, cũng qua. `git status --porcelain app/src/test/screenshots` rỗng sau các lượt so.
+- Kết quả trên máy:
+  - Trên `b14380a`, lượt 44873406823 (Android 14 và hồ sơ khởi động) và 44873407013 (Android 8.0, 11 và 16) đều qua. Ở Android 8.0 cả 8 bài chạy, không bài nào bị bỏ qua: bài gõ khi bàn phím mở đã chạy thật và qua.
+  - Trên `9628fe1`, commit cuối của giai đoạn, lượt mặc định 44884813217 (việc `android-14`, có kiểm tra trợ năng, và việc `profile`) và lượt `api-levels` 44884813287 đều qua. Ở Android 8.0 cả 8 bài chạy, không bài nào hỏng hay bị bỏ qua: bài bàn phím chạy thật, và bài chụp ảnh giữ hai ảnh. Ở Android 11 và 16, ảnh hệ thống ATD không bật bàn phím nào, nên bài bàn phím được bỏ qua như dự tính.
+  - Trên `8e4d13c`, việc Android 8.0 hỏng ba lần vì máy của GitHub không tải được plugin Kotlin Compose hay KSP, rồi một lần ở hành trình nhập tay: sau khi gõ, bàn phím còn đang làm danh sách co lại, nên nút "Add an item" vừa cuộn tới đã không còn được dựng. `9628fe1` cho hành trình cuộn và bấm trong một lần, thử lại cho tới khi bấm được.
+- Hai phông trên Android 8.0: máy này không chạy được máy ảo, nên bài `ScreenshotsOnDeviceTest` chụp trang chủ và màn kết quả của hóa đơn mẫu, và lượt chạy trên GitHub giữ hai ảnh trong artifact `e2e-api-26`. Trên ảnh, tiêu đề và số tiền vẽ bằng Bricolage Grotesque, phần chữ còn lại bằng Be Vietnam Pro, và dấu tiếng Việt ("QUÁN ỐC BA MIỄN") cùng ký hiệu "₫" vẽ đúng.
+- Cỡ gói `app-prod-release-unsigned.apk`: 46.968.632 byte ở `main` (`2550279`) và 47.440.992 byte trên nhánh, tức tăng 472.360 byte (461 KiB, 1,0%), trong đó 393.442 byte là bảy tệp phông.
+- Token màu được chốt ở `8e4d13c`; lần đổi giá trị cuối cùng là `2201c71` (`radioRing`, `blankTile`). Từ đây đổi một giá trị trong `SvColors.kt` hay `SvPalette.kt` là một yêu cầu thay đổi.
+- Hồ sơ khởi động không được commit ở giai đoạn này; việc `profile` vẫn ghi được hồ sơ với các hành trình mới.
+- Lỗi tìm ra khi soát ảnh, sửa trong giai đoạn này:
+  - Trên máy đặt tiếng Việt, chữ có số nhiều luôn ở dạng nhiều ("Your share of 1 bills"), vì máy chọn dạng theo luật của tiếng Việt. Giờ dạng số nhiều theo luật tiếng Anh trên mọi máy, còn số tiền và ngày trong câu vẫn theo vùng của máy. Bản sửa đầu (`defc5cc`) làm chữ của Android và của các thư viện trên máy không đặt tiếng Anh chuyển sang tiếng Anh sau lần đọc số nhiều đầu tiên; lượt review tiếp theo bắt được, và `cdde18e` sửa, có bài kiểm cho tiếng Việt và tiếng Ả Rập.
+  - Ở giao diện tối, cửa sổ phía sau app có màu sáng, nên lúc mở app và giữa hai màn lộ ra một lớp sáng. Giờ cửa sổ mang màu trang ở cả hai giao diện, và các màn nằm trên lớp nền `SvScreenLayer`.
+- Đã sửa sau lượt [review độc lập](./reports/review-phase-08.md) và lượt review tiếp theo:
+  - Bài bàn phím chỉ bỏ qua khi máy không bật bàn phím nào, và hỏng khi bàn phím không hiện trong 20 giây.
+  - Bài chụp ảnh chỉ chạy khi lượt theo mức API yêu cầu, và hỏng khi thiếu thư mục để lưu.
+  - Phép kiểm không thể hỏng trước ảnh màn chụp hóa đơn `vi-VN` được bỏ, và chú thích chỉ nói điều mà phép kiểm làm.
+  - 21 bảng trượt và hộp thoại chưa có ảnh nay có ảnh sáng.
+- Các giá trị mà giai đoạn để ngỏ:
+  - Phông trên Android 8.0 được xem qua ảnh do lượt chạy trên GitHub chụp, thay cho việc xem tay trên máy ảo. Vì vậy `device-tests.yml` có thêm một đường dẫn trong artifact và một tham số cho bài chụp.
+  - Bài gõ khi bàn phím mở chuyển sang gói `e2e`, thành `KeyboardOnDeviceTest`.
+  - Phần nền trong `15-sending`, ảnh chụp giữa lúc chuyển bước, đổi 2 tới 3 mức sáng vì lớp nền trang, đúng màu của thiết kế.
+  - Ở giao diện tối, thanh chữ của hệ thống (Copy, Paste) và các cửa sổ bật lên của hệ thống giờ màu tối; thanh trạng thái của cửa sổ khởi động trên Android 8 tới 11 màu đen.
+  - Các sửa không được gom vào một lượt ghi lại duy nhất như bước 4 định: mỗi sửa ghi lại đúng những ảnh nó nhắm tới, và mỗi lần đều kiểm bằng mã băm.
+- Cần máy thật, chưa làm được ở đây:
+  - Hiệu ứng nở từ nút giữa, vuốt lùi có xem trước từ một màn gốc về Home, bảng trượt kéo theo tay, và app khi tắt chuyển động, trên Android 14 trở lên.
+  - TalkBack đọc nhóm nút chọn gói của Pro ("1 of 2") và lời báo đăng nhập xong.
+  - Thanh chữ của hệ thống trên máy đặt tiếng Việt ở giao diện tối.
+- Còn mở:
+  - Chủ sản phẩm duyệt các bảng ảnh so với `boards/` và các trạng thái không có bảng riêng (12 bảng ảnh đã gửi).
+  - Câu giải thích của AI trên màn kết quả viết "902,664 VND" theo kiểu Mỹ cạnh "902.664 ₫", vì đó là chữ của mô hình.
+  - `01-home-loading` và `01-home-signed-out` giống hệt nhau, như plan định.
+  - `docs/testing.md` được cập nhật ở giai đoạn 10.

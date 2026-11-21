@@ -129,7 +129,7 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 | 5 | [Trang chủ và luồng chia hóa đơn](./phase-05-home-and-split-flow.md) | 6d | Completed |
 | 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | Completed |
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | Completed |
-| 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | In progress |
+| 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | In progress, chờ chủ sản phẩm duyệt ảnh và thử chuyển động trên máy thật |
 | 9 | [Trang web](./phase-09-web-pages.md) | 5d | Pending, chờ duyệt bảng web |
 | 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Pending |
 
