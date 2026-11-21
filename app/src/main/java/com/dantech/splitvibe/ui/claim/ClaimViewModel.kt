@@ -100,15 +100,23 @@ class ClaimViewModel(
     val methods: StateFlow<List<SavedPaymentMethod>?> = paymentMethods.all.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The method the page asks people to pay the user with: the one picked here, else the main one. */
-    val method: StateFlow<SavedPaymentMethod?> = combine(methods, chosenMethodId) { list, id ->
-        list?.firstOrNull { it.id == id } ?: list?.firstOrNull()
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val method: StateFlow<SavedPaymentMethod?> = combine(methods, chosenMethodId) { list, id -> chosenOf(list, id) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    /** The page asks people to pay with a method other than the one chosen now, such as one corrected since. */
-    val methodChanged: StateFlow<Boolean> = combine(bill, method) { saved, chosen ->
+    /**
+     * The page asks people to pay with a method other than the one chosen now, such as one corrected
+     * since. Until the saved methods are there, there is nothing to compare the page's with, so it has
+     * not changed. The method is chosen here from the same list, so that it is never one step behind it.
+     */
+    val methodChanged: StateFlow<Boolean> = combine(bill, methods, chosenMethodId) { saved, list, id ->
         val link = saved?.share
-        link != null && link.settled && asksForMoney(saved) && link.method != chosen?.let { fingerprintOf(it.method) }
+        list != null && link != null && link.settled && asksForMoney(saved) &&
+            link.method != chosenOf(list, id)?.let { fingerprintOf(it.method) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Of [list], the method picked here, [id], else the main one, which the list puts first. */
+    private fun chosenOf(list: List<SavedPaymentMethod>?, id: String?): SavedPaymentMethod? =
+        list?.firstOrNull { it.id == id } ?: list?.firstOrNull()
 
     /** The bill this screen opened with; nothing is changed once another bill is open. */
     private var billId: String? = null

@@ -147,6 +147,10 @@ class ClaimViewModelTest {
         host.bill.value = host.bill.value?.copy(share = link)
     }
 
+    /** The bill's link once the amounts went, which asks people to pay with [method]. */
+    private fun settledWith(method: PaymentMethod) =
+        ShareLink(ShareFixtures.SHARE_ID, ShareFixtures.URL, EXPIRES_AT, CREATED_AT, settled = true, method = fingerprintOf(method))
+
     @Test
     fun `a bill without a link gets one, which the bill keeps with when it ends`() {
         val viewModel = viewModel()
@@ -290,20 +294,28 @@ class ClaimViewModelTest {
     @Test
     fun `a payment method changed since the amounts went is noticed`() {
         runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
-        linked(
-            ShareLink(
-                ShareFixtures.SHARE_ID,
-                ShareFixtures.URL,
-                EXPIRES_AT,
-                CREATED_AT,
-                settled = true,
-                method = fingerprintOf(PaymentMethod.VietQr("970416", "0000000000", "DANA NGUYEN")),
-            ),
-        )
+        linked(settledWith(PaymentMethod.VietQr("970416", "0000000000", "DANA NGUYEN")))
 
         val viewModel = viewModel()
 
+        // Only once the saved methods are there is there one to compare the link's with.
+        awaitOnMain { viewModel.method.value != null }
         awaitOnMain { viewModel.methodChanged.value }
+    }
+
+    @Test
+    fun `the payment method the amounts went with is not taken for changed, even before the saved methods are there`() {
+        val saved = PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")
+        runBlocking { methods.add(saved) }
+        linked(settledWith(saved))
+
+        val viewModel = viewModel()
+
+        // The database answers on another thread, and its answer reaches the screen only when the main looper runs.
+        assertNull(viewModel.methods.value)
+        assertFalse("Changed before the saved methods were there", viewModel.methodChanged.value)
+        awaitOnMain { viewModel.method.value != null }
+        assertFalse("Changed once the saved methods were there", viewModel.methodChanged.value)
     }
 
     @Test
