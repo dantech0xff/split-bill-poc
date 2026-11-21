@@ -7,13 +7,14 @@ import org.junit.Test
 
 /**
  * Screens take their look from the design system and decide none of it themselves, their type
- * included. That keeps the app consistent, and a change in the Material library then has to be
- * handled in one module only.
+ * included, and they use its fields, tick boxes, switches, dialogs and buttons rather than Material's.
+ * That keeps the app consistent, and a change in the Material library then has to be handled in one
+ * module only.
  */
 class DesignSystemBoundaryTest {
 
     @Test
-    fun `screens leave theme, colour, type, shadow and motion to the design system`() {
+    fun `screens leave theme, colour, type, shadow, motion and controls to the design system`() {
         val files = SOURCE_DIRECTORIES.flatMap { directory -> File(directory).walkTopDown().filter { it.extension == "kt" }.toList() }
         // A wrong working directory would otherwise make the test pass without looking at anything.
         assertTrue("Only ${files.size} source files found in $SOURCE_DIRECTORIES", files.size >= MIN_SOURCE_FILES)
@@ -57,6 +58,13 @@ class DesignSystemBoundaryTest {
             "fontFamily = FontFamily.Monospace," to "a font family of its own",
             "Text(code, style = style.copy(fontFamily = mono))" to "a font family of its own",
             "val mono = FontFamily(Font(R.font.mono))" to "a font family of its own",
+            "OutlinedTextField(value = typed, onValueChange = { typed = it })" to "a Material control of its own",
+            "Checkbox(checked = withPhoneData, onCheckedChange = null)" to "a Material control of its own",
+            "leadingContent = { RadioButton(selected = selected, onClick = null) }," to "a Material control of its own",
+            "Switch(checked = allowed, onCheckedChange = null)" to "a Material control of its own",
+            "androidx.compose.material3.Switch (checked = allowed, onCheckedChange = null)" to "a Material control of its own",
+            "AlertDialog(onDismissRequest = onDismiss, confirmButton = {})" to "a Material control of its own",
+            "FilledTonalButton(onClick = onOpenPro) {" to "a Material control of its own",
         )
         forbiddenSamples.forEach { (line, what) -> assertEquals(line, listOf(what), violationsIn(line, "SomeScreen.kt")) }
 
@@ -71,6 +79,18 @@ class DesignSystemBoundaryTest {
             "val fade = SvMotion.screenChange<Float>()",
             "DropdownMenuItem(text = { Text(option.label) }, onClick = {})",
             "Text(name, style = MaterialTheme.typography.bodyMediumEmphasized)",
+            // The design system's own controls, and names that merely end in a forbidden one.
+            "SvTextField(value = typed, onValueChange = { typed = it }, label = name)",
+            "SvCheckbox(checked = withPhoneData, onCheckedChange = null)",
+            "SvRadio(selected = selected, onClick = null)",
+            "SvSwitch(checked = allowed, onCheckedChange = null)",
+            "if (shown) SpeechServiceSwitch(allowed = allowed, onChange = onChange)",
+            "SvDialog(title = title, confirmLabel = delete, onConfirm = {}, onDismiss = onDismiss)",
+            "SvQuietButton(text = manage, onClick = onOpenPro)",
+            // A row that is one control as a whole names the control's role, which is no call to it.
+            "Modifier.toggleable(value = allowed, role = Role.Switch, onValueChange = onChange)",
+            "Modifier.selectable(selected = chosen, role = Role.RadioButton, onClick = onSelect)",
+            "import androidx.compose.material3.Switch",
         )
         allowedSamples.forEach { line -> assertEquals(line, emptyList<String>(), violationsIn(line, "SomeScreen.kt")) }
 
@@ -116,6 +136,13 @@ private val FORBIDDEN = listOf(
     Rule("a delay of its own", Regex("""\bdelay\s*\("""), allowedIn = setOf("ShareRepository.kt")),
     // The two families of the app's type come with its styles; a screen picks a style, never a family.
     Rule("a font family of its own", Regex("""\bFontFamily\b|\bfontFamily\s*=""")),
+    // The design system draws these controls in the app's look: SvTextField, SvCheckbox, SvRadio,
+    // SvSwitch, SvDialog and SvQuietButton. Only a call is caught, as a whole word, so a name that ends
+    // in one of them, such as SvSwitch, and a role such as Role.Switch, are not.
+    Rule(
+        "a Material control of its own",
+        Regex("""\b(OutlinedTextField|Checkbox|RadioButton|Switch|AlertDialog|FilledTonalButton)\s*\("""),
+    ),
 )
 
 /** The app's screens, and the catalog that shows the components in debug builds. */

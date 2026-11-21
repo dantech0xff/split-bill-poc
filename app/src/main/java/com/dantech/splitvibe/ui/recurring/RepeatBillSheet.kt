@@ -3,16 +3,13 @@ package com.dantech.splitvibe.ui.recurring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +31,9 @@ import com.dantech.splitvibe.data.bills.dayOf
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.Recurrence
@@ -77,22 +77,25 @@ fun RepeatBillSheet(
         supportingText = stringResource(R.string.recurring_repeat_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            Spacer(Modifier.weight(1f))
-            Button(onClick = { onRepeat(typed.trim(), schedule, firstDraft) }) { Text(stringResource(R.string.recurring_repeat)) }
+            SvQuietButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f))
+            SvPrimaryButton(
+                text = stringResource(R.string.recurring_repeat),
+                onClick = { onRepeat(typed.trim(), schedule, firstDraft) },
+                modifier = Modifier.weight(1f),
+            )
         },
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = SvSpacing.xl, vertical = SvSpacing.sm),
+            modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
-            OutlinedTextField(
+            SvTextField(
                 value = typed,
-                onValueChange = { typed = it.take(RecurringBillRepository.MAX_NAME) },
+                onValueChange = { typed = it },
+                label = stringResource(R.string.common_name),
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.common_name)) },
-                placeholder = { Text(stringResource(R.string.recurring_name_placeholder)) },
-                singleLine = true,
+                placeholder = stringResource(R.string.recurring_name_placeholder),
+                maxLength = RecurringBillRepository.MAX_NAME,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
             )
             SvChoiceGroup(
@@ -101,21 +104,25 @@ fun RepeatBillSheet(
                 onSelect = { frequency = if (it == 0) Frequency.WEEKLY else Frequency.MONTHLY },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
                 val changeLabel = stringResource(R.string.recurring_change_first_draft)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.recurring_first_draft, dayText(firstDraft)), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.recurring_first_draft, dayText(firstDraft)),
+                        style = MaterialTheme.typography.bodyMediumEmphasized,
+                    )
                     Text(
                         describe(schedule).resolve(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(
+                SvQuietButton(
+                    stringResource(R.string.requests_change_method),
                     onClick = { picking = true },
                     // Said in full, as "Change" alone does not tell someone who hears the screen what it changes.
                     modifier = Modifier.semantics { contentDescription = changeLabel },
-                ) { Text(stringResource(R.string.requests_change_method)) }
+                )
             }
         }
     }

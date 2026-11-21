@@ -74,6 +74,41 @@ fun SvChoiceGroup(options: List<String>, selected: Int, onSelect: (Int) -> Unit,
 }
 
 /**
+ * The tabs of a screen that shows one of a few lists in the same place, such as all bills and the
+ * recurring ones: pills of equal width in one row, drawn as [SvChoiceGroup] draws its options. A
+ * screen reader reads each pill as a tab and says which one is selected, as it reads the items of
+ * [SvNavBar].
+ *
+ * Keep the row in the same place of the screen whichever tab is open, such as one item of a lazy
+ * list under a key of its own, so that the focus of a screen reader and of the keyboard stays on the
+ * tab that was just chosen.
+ */
+@Composable
+fun SvTabs(tabs: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+    ) {
+        tabs.forEachIndexed { index, tab ->
+            val chosen = index == selected
+            val colors = choiceColors(chosen)
+            Surface(
+                selected = chosen,
+                onClick = { onSelect(index) },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { role = Role.Tab },
+                shape = SvShapes.pill,
+                color = colors.container,
+                contentColor = colors.content,
+            ) {
+                ChoiceLabel(tab, colors.style)
+            }
+        }
+    }
+}
+
+/**
  * A choice of one option out of more than fit in a row of equal pills, such as the five ways to
  * split a bill, as pills that wrap onto the next line. With [singleRow] they stay on one line that
  * scrolls sideways instead, which suits a screen where the choice should take little height; the

@@ -189,6 +189,25 @@ fun SvIconTile(icon: ImageVector, color: Color, modifier: Modifier = Modifier, s
 }
 
 /**
+ * An icon on a quiet tile, for something without a colour of its own, such as a recurring bill or
+ * the bills in no group: the tile takes the quiet shade of what it lies on, light grey on a card, and
+ * the icon the colour of text, in both themes. It has the shape of [SvIconTile] at the same [size].
+ * Decorative: say the same in text beside it.
+ */
+@Composable
+fun SvQuietIconTile(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = ICON_TILE_SIZE) {
+    val ground = LocalSvGround.current
+    Box(
+        modifier = modifier
+            .size(size)
+            .background(ground.quiet, IconTileShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(size * ICON_SCALE), tint = ground.onQuiet)
+    }
+}
+
+/**
  * The icons of what a bill was spent on, as the approved designs draw them: 24dp, in lines 2dp wide
  * with round ends. Show one on an [SvIconTile] in the colour of its category from
  * `SvTheme.palette.category`.

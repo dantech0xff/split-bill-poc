@@ -4,9 +4,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 
 /**
- * The icons of what can be done with a bill, as the approved designs draw them: 24dp, in lines with
- * round ends, apart from the spark of the AI, which is filled. Each is decorative unless the button it
- * is on has no text, which then needs a label of its own.
+ * The icons of what can be done with a bill, and of what a row about bills is, such as one that comes
+ * back, as the approved designs draw them: 24dp, in lines with round ends, apart from the spark of the
+ * AI, which is filled. Each is decorative unless the button it is on has no text, which then needs a
+ * label of its own.
  */
 object SvActionIcons {
     /** The corners of a page with a line across it: scanning a bill. */
@@ -64,6 +65,24 @@ object SvActionIcons {
 
     /** An arrow up: asking for what was typed. */
     val Ask: ImageVector = lineIcon("Ask", "M12 19V5m-6 6 6-6 6 6", ACTION_ICONS, lineWidth = 2.6f)
+
+    /** Two arrows that go round each other: a bill that comes back. */
+    val Repeat: ImageVector = lineIcon(
+        "Repeat",
+        "M17 3l3 3-3 3M20 6H8a4 4 0 0 0-4 4v1M7 21l-3-3 3-3M4 18h12a4 4 0 0 0 4-4v-1",
+        ACTION_ICONS,
+    )
+
+    /** An arrow up out of a tray: exporting what is on the screen as files. */
+    val Export: ImageVector = lineIcon(
+        "Export",
+        "M12 15V4m-4.5 4.5L12 4l4.5 4.5M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3",
+        ACTION_ICONS,
+        lineWidth = 2.4f,
+    )
+
+    /** A short line across: none of something, such as the bills in no group. */
+    val None: ImageVector = lineIcon("None", "M6 12h12", ACTION_ICONS, lineWidth = 2.4f)
 }
 
 private const val ACTION_ICONS = "SvActionIcons"

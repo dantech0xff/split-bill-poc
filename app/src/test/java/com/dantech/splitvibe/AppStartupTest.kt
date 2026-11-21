@@ -1,5 +1,6 @@
 package com.dantech.splitvibe
 
+import android.Manifest
 import android.os.Looper
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -7,8 +8,6 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -19,7 +18,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.Configuration
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.domain.BillCategory
@@ -176,22 +179,53 @@ class AppStartupTest {
         // Home lists no bill, and still offers to see them all.
         await { shown(NO_BILLS) && shown("See all") }
         compose.onNodeWithText("See all").performClick()
-        compose.onNodeWithText("All bills").assertIsOn()
-        val choice = compose.onNodeWithText("Recurring").fetchSemanticsNode().id
-        compose.onNodeWithText("Recurring").performClick()
+        compose.onNode(billsTab("All bills")).assertIsSelected()
+        val choice = compose.onNode(billsTab("Recurring")).fetchSemanticsNode().id
+        compose.onNode(billsTab("Recurring")).performClick()
 
-        compose.onNodeWithText("Recurring").assertIsOn()
-        compose.onNodeWithText("All bills").assertIsOff()
-        // The choice of tab is still the element it was, so a screen reader and the keyboard keep their place on it.
-        assertEquals(choice, compose.onNodeWithText("Recurring").fetchSemanticsNode().id)
+        compose.onNode(billsTab("Recurring")).assertIsSelected()
+        compose.onNode(billsTab("All bills")).assertIsNotSelected()
+        // The tab is still the element it was, so a screen reader and the keyboard keep their place on it.
+        assertEquals(choice, compose.onNode(billsTab("Recurring")).fetchSemanticsNode().id)
         await { shown("Rent") }
         compose.onNodeWithText("Rent").assertIsDisplayed()
 
         // The open tab is still open once the system made the activity again.
         compose.activityRule.scenario.recreate()
-        compose.onNodeWithText("Recurring").assertIsOn()
+        compose.onNode(billsTab("Recurring")).assertIsSelected()
         await { shown("Rent") }
         compose.onNodeWithText("Rent").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a bill repeated from all bills shows on the Recurring tab at once, and is still there once the list is opened again`() {
+        // A recurring bill asks to show notices; given already, nothing covers the screen. It also
+        // schedules its drafts, which run at once here.
+        val app = ApplicationProvider.getApplicationContext<SplitVibeApp>()
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        WorkManagerTestInitHelper.initializeTestWorkManager(app, Configuration.Builder().setExecutor(SynchronousExecutor()).build())
+        runBlocking {
+            val rent = SpendingFixtures.finished("rent", "2026-11-16", "Rent", BillCategory.RENT, 9_000_000, listOf("Minh"))
+            GlobalContext.get().get<BillRepository>().save(rent)
+        }
+        await { shown("See all") }
+        compose.onNodeWithText("See all").performClick()
+        compose.onNodeWithContentDescription("More for Rent").performClick()
+        compose.onNodeWithText("Repeat this bill").performClick()
+        compose.onNode(hasText("Repeat") and hasClickAction()).performClick()
+
+        compose.onNode(billsTab("Recurring")).assertIsSelected()
+        await { shown(RECURRING_INTRO) }
+        pressBack()
+        compose.onNodeWithText("Recent bills").assertIsDisplayed()
+
+        // The list opens on all bills again, and the recurring bill waits on its own tab.
+        compose.onNodeWithText("See all").performClick()
+        compose.onNode(billsTab("All bills")).assertIsSelected()
+        compose.onNode(billsTab("Recurring")).performClick()
+        await { shown(RECURRING_INTRO) }
+        compose.onNodeWithContentDescription("More for Rent").assertExists()
+        compose.onNodeWithText("Every month on the 16th").assertIsDisplayed()
     }
 
     private fun pressBack() {
@@ -213,8 +247,14 @@ private val TABS = listOf("Home", "Groups", "Requests", "Insights")
 /** The tab of the navigation bar called [name], as opposed to the title of the screen it opens. */
 private fun tab(name: String) = hasContentDescription(name) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
 
+/** The tab of the list of bills that shows [name], which a screen reader reads as a tab, as it reads those of the navigation bar. */
+private fun billsTab(name: String) = hasText(name) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+
 /** What home says in place of the bills when the phone keeps none. */
 private const val NO_BILLS = "Bills you split are kept here, also without a connection."
+
+/** What the Recurring tab says above its recurring bills, once it has some. */
+private const val RECURRING_INTRO = "On each day a recurring bill comes back, a draft of it is made for you to check and finish."
 
 /** The words of the button that invites to split a first bill, and what the round button of the navigation bar says. */
 private const val SPLIT_A_BILL = "Split a bill"

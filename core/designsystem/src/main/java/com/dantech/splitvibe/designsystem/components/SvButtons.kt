@@ -201,18 +201,29 @@ private val LinkChevron: ImageVector = ImageVector.Builder(
 /**
  * An action that only needs a word, such as "See all" beside a title or "Restore purchases" below
  * a plan: underlined text in the colour of the text around it, with a touch target of its own.
+ *
+ * With [destructive] the word is in the colour of errors and larger, without the line under it, for
+ * the action at the end of a screen that deletes something for good, such as the account, as the
+ * approved designs draw it.
  */
 @Composable
-fun SvTextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun SvTextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, destructive: Boolean = false) {
+    val typography = MaterialTheme.typography
     TextButton(
         onClick = onClick,
         modifier = modifier.heightIn(min = TOUCH_TARGET),
         enabled = enabled,
-        colors = ButtonDefaults.textButtonColors(contentColor = LocalSvGround.current.onQuiet),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = if (destructive) MaterialTheme.colorScheme.error else LocalSvGround.current.onQuiet,
+        ),
     ) {
         Text(
             text,
-            style = MaterialTheme.typography.labelLargeEmphasized.copy(textDecoration = TextDecoration.Underline),
+            style = if (destructive) {
+                typography.titleMediumEmphasized
+            } else {
+                typography.labelLargeEmphasized.copy(textDecoration = TextDecoration.Underline)
+            },
             textAlign = TextAlign.Center,
         )
     }

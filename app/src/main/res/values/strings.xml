@@ -131,6 +131,15 @@
         <item quantity="one">Reading a bill takes %1$s call, and changing a split by a sentence takes %2$s.</item>
         <item quantity="other">Reading a bill takes %1$s calls, and changing a split by a sentence takes %2$s.</item>
     </plurals>
+    <!-- What a screen reader says for the meter of the calls left, which the sentence above it says in full -->
+    <plurals name="settings_calls_meter_trial">
+        <item quantity="one">%1$s of %2$s free call left</item>
+        <item quantity="other">%1$s of %2$s free calls left</item>
+    </plurals>
+    <plurals name="settings_calls_meter_month">
+        <item quantity="one">%1$s of %2$s call left</item>
+        <item quantity="other">%1$s of %2$s calls left</item>
+    </plurals>
     <string name="sign_in_no_account">Add a Google account to this phone, then try again.</string>
     <string name="sign_in_unavailable">Signing in with Google is not available on this phone.</string>
     <string name="sign_in_failed">Signing in with Google did not work. Please try again.</string>
@@ -1046,4 +1055,9 @@
     <string name="insights_pdf_summary">PDF summary</string>
     <string name="insights_csv_hint">%1$s, %2$s and %3$s, for a spreadsheet app. Numbers are written the way this phone\'s language writes them, so a spreadsheet app on it reads them right.</string>
     <string name="insights_pdf_hint">A summary to read or print: the totals by month, category, person and group, and every bill.</string>
+
+    <!-- The chart of the months of the insights, as a screen reader reads it -->
+    <string name="insights_chart">Spending by month from %1$s to %2$s.</string>
+    <string name="insights_chart_highest">%1$s is the highest.</string>
+    <string name="insights_chart_highest_then">%1$s is the highest, then %2$s.</string>
 </resources>

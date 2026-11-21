@@ -78,6 +78,12 @@ data class InsightsState(
     /** A short form of [periodName] for file names, such as "2026-11". */
     val periodKey: String,
     val insights: Insights,
+    /**
+     * Every month of the period, the earliest first, those without a bill too: this month, or the 12
+     * months up to it, or for all time the months from the first one with a bill to this month, or to
+     * a later month a bill is dated in.
+     */
+    val months: List<YearMonth>,
     /** The finished bills of the period, by the day each counts on, the latest first. */
     val bills: List<SavedBill>,
     /** What the totals leave out and why. */
@@ -230,10 +236,23 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
             InsightsPeriod.ALL_TIME -> "all-time"
         },
         insights = insights,
+        months = monthsOf(period, today, insights.byMonth.keys),
         bills = inPeriod.map { (saved, _) -> saved },
         notes = notesOf(insights, bySavedDay = inPeriod.count { (saved, _) -> dayOf(saved.bill.date) == null }),
         anyFinished = finished.isNotEmpty(),
     )
+}
+
+/**
+ * Every month of [period] as it is on [today], the earliest first. All time runs from the first of
+ * the months [counted] has bills in, to the month of [today] or to a later month that has bills; with
+ * no month counted it has none.
+ */
+private fun monthsOf(period: InsightsPeriod, today: LocalDate, counted: Set<YearMonth>): List<YearMonth> {
+    val current = YearMonth.from(today)
+    val first = period.days(today)?.let { YearMonth.from(it.start) } ?: counted.minOrNull() ?: return emptyList()
+    val last = maxOf(current, counted.maxOrNull() ?: current)
+    return generateSequence(first) { it.plusMonths(1) }.takeWhile { it <= last }.toList()
 }
 
 /**

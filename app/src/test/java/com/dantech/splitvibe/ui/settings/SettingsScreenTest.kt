@@ -2,15 +2,24 @@ package com.dantech.splitvibe.ui.settings
 
 import android.app.Application
 import android.content.Intent
+import android.text.InputType
+import android.view.View
+import android.view.inputmethod.EditorInfo
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -19,6 +28,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.account.Account
@@ -31,15 +41,19 @@ import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.ui.common.LegalLinks
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * What Settings offers about the phone's online speech service, which only the user's consent brings
- * there, the plan beside the calls left, and what deleting the account says about Pro.
+ * there, the plan beside the calls left, the keyboard of the local currency, and what deleting the
+ * account says about Pro and how its dialog warns that it cannot be undone.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -55,6 +69,12 @@ class SettingsScreenTest {
     private var legalLinks: LegalLinks? = null
     private val deletions = mutableListOf<Boolean>()
     private var withdrawals = 0
+
+    /** The view the screen is drawn in, which the keyboard talks to. */
+    private lateinit var view: View
+
+    /** The colour of errors in the theme the screen is drawn with. */
+    private var errorColour = Color.Unspecified
 
     @Test
     fun `the consent to the AI is not offered before the user agreed to it`() {
@@ -160,6 +180,35 @@ class SettingsScreenTest {
     }
 
     @Test
+    // The colour is read off the drawn picture.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun `deleting the account cannot be undone, so the button that goes ahead is in the colour of errors`() {
+        show(callsLeft = MONTH, signedIn = true)
+
+        compose.onNode(hasText("Delete account") and hasClickAction()).performScrollTo().performClick()
+
+        val delete = compose.onNode(hasText("Delete") and hasClickAction()).captureToImage().toPixelMap()
+        // The middle of the round end of the pill, clear of its label.
+        val middle = delete.height / 2
+        assertEquals("The colour of the button that deletes the account", errorColour, delete[middle, middle])
+    }
+
+    @Test
+    fun `the local currency takes three capitals, which the keyboard does not correct into a word`() {
+        show()
+        val field = compose.onNode(hasSetTextAction() and hasText("Local currency"))
+
+        field.performClick()
+        val keyboard = EditorInfo()
+        compose.runOnIdle { assertNotNull("The field started no input", view.onCreateInputConnection(keyboard)) }
+        assertTrue("Capitals were not asked for", keyboard.inputType and InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS != 0)
+        assertEquals("The keyboard may correct the code", 0, keyboard.inputType and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+
+        field.performTextReplacement("usdx")
+        field.assert(hasText("USD"))
+    }
+
+    @Test
     fun `the name field follows the stored name when deleting the phone's data forgets it`() {
         settings = settings.copy(myName = "Minh")
         show(signedIn = true)
@@ -204,7 +253,9 @@ class SettingsScreenTest {
     }
 
     private fun content() = compose.setContent {
+        view = LocalView.current
         SplitVibeTheme {
+            errorColour = MaterialTheme.colorScheme.error
             SettingsScreen(
                 settings = settings,
                 account = account,

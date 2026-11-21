@@ -1,30 +1,33 @@
 package com.dantech.splitvibe.ui.recurring
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
+import com.dantech.splitvibe.designsystem.components.SvQuietIconTile
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvTag
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.designsystem.tokens.amountSmall
+import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.domain.Frequency
 import com.dantech.splitvibe.domain.RecurrenceSchedule
 import com.dantech.splitvibe.domain.TEXT_LOCALE
@@ -41,9 +44,9 @@ class RecurringActions(val onPause: (String) -> Unit, val onResume: (String) -> 
 
 /**
  * The recurring bills, such as the rent, as items of the list of bills on its Recurring tab: each
- * with when it comes back and the day of its next draft, to pause, resume or delete. On each of those
- * days a draft of the bill is made for the user to check and finish. [onDelete] asks to delete one,
- * which [DeleteRecurringBillDialog] then confirms.
+ * a card of its own with when it comes back and the day of its next draft, to pause, resume or
+ * delete. On each of those days a draft of the bill is made for the user to check and finish.
+ * [onDelete] asks to delete one, which [DeleteRecurringBillDialog] then confirms.
  */
 internal fun LazyListScope.recurringBills(rows: List<RecurringRow>?, actions: RecurringActions, onDelete: (String) -> Unit) {
     when {
@@ -51,7 +54,7 @@ internal fun LazyListScope.recurringBills(rows: List<RecurringRow>?, actions: Re
 
         rows.isEmpty() -> item(key = "recurring-empty") {
             SvEmptyState(
-                icon = Icons.Default.DateRange,
+                icon = SvActionIcons.Repeat,
                 text = stringResource(R.string.recurring_none),
                 modifier = rowMotion(),
             )
@@ -63,11 +66,21 @@ internal fun LazyListScope.recurringBills(rows: List<RecurringRow>?, actions: Re
                     stringResource(R.string.recurring_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = rowMotion().padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
+                    modifier = rowMotion().padding(
+                        start = SvSpacing.screen,
+                        end = SvSpacing.screen,
+                        top = SvSpacing.xs,
+                        bottom = SvSpacing.md,
+                    ),
                 )
             }
-            itemsIndexed(rows, key = { _, row -> "recurring-${row.bill.id}" }) { index, row ->
-                RecurringBillRow(row, SvRowPosition.of(index, rows.size), actions, onDelete = { onDelete(row.bill.id) })
+            items(rows, key = { row -> "recurring-${row.bill.id}" }) { row ->
+                RecurringBillRow(
+                    row = row,
+                    actions = actions,
+                    onDelete = { onDelete(row.bill.id) },
+                    modifier = rowMotion().padding(bottom = SvSpacing.md),
+                )
             }
         }
     }
@@ -77,35 +90,48 @@ internal fun LazyListScope.recurringBills(rows: List<RecurringRow>?, actions: Re
 @Composable
 internal fun DeleteRecurringBillDialog(id: String, rows: List<RecurringRow>?, onDelete: (String) -> Unit, onDismiss: () -> Unit) {
     val name = rows?.firstOrNull { it.bill.id == id }?.bill?.name ?: stringResource(R.string.recurring_this_bill)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.history_delete_title, name)) },
-        text = { Text(stringResource(R.string.recurring_delete_text)) },
-        confirmButton = {
-            TextButton(onClick = {
-                onDelete(id)
-                onDismiss()
-            }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+    // No more drafts come of a deleted recurring bill, and it cannot be had back, so the button that deletes it is red.
+    SvDialog(
+        title = stringResource(R.string.history_delete_title, name),
+        text = stringResource(R.string.recurring_delete_text),
+        confirmLabel = stringResource(R.string.common_delete),
+        onConfirm = {
+            onDelete(id)
+            onDismiss()
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        dismissLabel = stringResource(R.string.common_cancel),
+        onDismiss = onDismiss,
+        irreversible = true,
     )
 }
 
+/**
+ * One recurring bill as a card of its own: what it is called and its total, when it comes back, and
+ * the day of its next draft, or a tag while it is paused, with a menu to pause, resume or delete it.
+ */
 @Composable
-private fun RecurringBillRow(row: RecurringRow, position: SvRowPosition, actions: RecurringActions, onDelete: () -> Unit) {
+private fun RecurringBillRow(row: RecurringRow, actions: RecurringActions, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     val bill = row.bill
-    SvListRow(position = position) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(bill.name, style = MaterialTheme.typography.bodyLarge)
+    SvListRow(position = SvRowPosition.Single, modifier = modifier) {
+        SvQuietIconTile(SvActionIcons.Repeat)
+        Spacer(Modifier.width(SvSpacing.md))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(bill.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLargeEmphasized)
+                Spacer(Modifier.width(SvSpacing.sm))
+                Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountMedium)
+            }
             Text(
                 describe(bill.schedule).resolve(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(detailOf(row).resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (bill.paused) {
+                SvTag(stringResource(R.string.recurring_paused))
+            } else {
+                Text(detailOf(row).resolve(), style = MaterialTheme.typography.bodySmallEmphasized)
+            }
         }
-        Spacer(Modifier.width(SvSpacing.md))
-        Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountSmall)
         SvOverflowMenu(
             label = stringResource(R.string.groups_more_for, bill.name),
             options = listOf(

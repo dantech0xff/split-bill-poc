@@ -84,16 +84,19 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * [maxLines], and scrolls beyond them.
  *
  * With [titleLabel] the label is as large as the title of a section, for the one field a part of a
- * screen is about, such as how a new split should be split.
+ * screen is about, such as how a new split should be split. Leave [label] out only for a field whose
+ * [placeholder] and [leadingIcon] say all it is for, such as the field that searches a list at the
+ * top of it: nothing then stands above the box, as the approved designs draw such a field.
  *
  * A screen reader reads the label, the placeholder and the supporting text with the field, so a test
- * can find the field by its label.
+ * can find the field by its label, or by its placeholder while nothing is typed in a field without a
+ * label.
  */
 @Composable
 fun SvTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isError: Boolean = false,
@@ -147,12 +150,14 @@ fun SvTextField(
         // tap on the label puts the cursor in the field.
         decorationBox = { innerTextField ->
             Column(verticalArrangement = Arrangement.spacedBy(if (titleLabel) TITLE_LABEL_GAP else LABEL_GAP)) {
-                Text(
-                    label,
-                    modifier = Modifier.then(TakesTheFieldsWidth),
-                    style = if (titleLabel) typography.titleLarge else typography.smallLabel,
-                    color = if (isError && enabled) colors.error else textColor,
-                )
+                if (label != null) {
+                    Text(
+                        label,
+                        modifier = Modifier.then(TakesTheFieldsWidth),
+                        style = if (titleLabel) typography.titleLarge else typography.smallLabel,
+                        color = if (isError && enabled) colors.error else textColor,
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -248,6 +253,12 @@ sealed interface SvFieldWidth {
             require(weight > 0f) { "A share must have a weight above 0, was $weight" }
         }
     }
+
+    /**
+     * As wide as all the child shows on one line, such as an amount beside a name, which is never
+     * broken in two: the shares take what it leaves.
+     */
+    data object Content : SvFieldWidth
 }
 
 /**
@@ -260,7 +271,8 @@ sealed interface SvFieldWidth {
  * field and what stands beside it, such as a currency, decide; a label longer than its field goes on
  * to more lines instead. So the row may change between the two while a number is typed in, but not
  * for a long name in a label. What is no field, such as a name, goes on to more lines beside the
- * fields, between words: a word or number of it too wide for its share decides as a field does.
+ * fields, between words: a word or number of it too wide for its share decides as a field does. A
+ * child as wide as its content, such as an amount beside a name, keeps its own width side by side.
  */
 @Composable
 fun SvFieldRow(
@@ -280,7 +292,11 @@ fun SvFieldRow(
         } else {
             measurables.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } + gaps
         }
-        val slots = slotsOf(widths, room = width - gaps)
+        // What a child as wide as its content needs, on one line.
+        val contents = measurables.mapIndexed { index, measurable ->
+            if (widths[index] == SvFieldWidth.Content) measurable.maxIntrinsicWidth(Constraints.Infinity) else 0
+        }
+        val slots = slotsOf(widths, room = width - gaps, contents = contents)
         val sideBySide = slots.all { it >= 0 } &&
             measurables.indices.all { index ->
                 // A field must hold all it shows on one line; what is no field may go on to more lines, but
@@ -319,12 +335,18 @@ fun SvFieldRow(
 }
 
 /**
- * The width of each child side by side, in pixels, out of [room]: the fixed ones first, then the
- * shares of what they leave, the last share taking what rounding left over. A width below 0 says
- * that the fixed widths alone do not fit.
+ * The width of each child side by side, in pixels, out of [room]: the fixed ones and those as wide
+ * as their [contents] first, then the shares of what they leave, the last share taking what rounding
+ * left over. A width below 0 says that the fixed widths alone do not fit.
  */
-private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int): List<Int> {
-    val fixed = widths.sumOf { (it as? SvFieldWidth.Fixed)?.width?.roundToPx() ?: 0 }
+private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int, contents: List<Int>): List<Int> {
+    val fixed = widths.indices.sumOf { index ->
+        when (val width = widths[index]) {
+            is SvFieldWidth.Fixed -> width.width.roundToPx()
+            SvFieldWidth.Content -> contents[index]
+            is SvFieldWidth.Share -> 0
+        }
+    }
     val left = room - fixed
     val weights = widths.sumOf { ((it as? SvFieldWidth.Share)?.weight ?: 0f).toDouble() }
     val lastShare = widths.indexOfLast { it is SvFieldWidth.Share }
@@ -332,6 +354,8 @@ private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int): List<Int> {
     return widths.mapIndexed { index, width ->
         when (width) {
             is SvFieldWidth.Fixed -> width.width.roundToPx()
+
+            SvFieldWidth.Content -> contents[index]
 
             is SvFieldWidth.Share -> {
                 val share = if (index == lastShare) left - given else (left * width.weight / weights).toInt()

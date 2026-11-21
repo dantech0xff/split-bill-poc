@@ -33,7 +33,7 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * Pass [color] for a card that carries meaning through colour, such as the accent container.
  * Without it the card takes the surface colour of its level. With [outlined] the card has an outline
  * in the colour of text, for the one card that waits for the user's answer, such as the changes the
- * AI proposes.
+ * AI proposes, or for the chosen one of a few cards to choose from, such as the plan to buy.
  */
 @Composable
 fun SvCard(

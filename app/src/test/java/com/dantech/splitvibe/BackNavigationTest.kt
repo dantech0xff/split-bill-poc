@@ -13,8 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
@@ -58,8 +57,11 @@ import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -431,14 +433,14 @@ class BackNavigationTest {
         shadowOf(ApplicationProvider.getApplicationContext<SplitVibeApp>()).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         keepTheRent()
         compose.onNodeWithText("See all").performClick()
-        compose.onNodeWithText("All bills").assertIsOn()
+        compose.onNodeWithText("All bills").assertIsSelected()
 
         compose.onNodeWithContentDescription("More for Rent").performClick()
         compose.onNodeWithText("Repeat this bill").performClick()
         compose.onNode(hasText("Repeat") and hasClickAction()).performClick()
 
-        compose.onNodeWithText("Recurring").assertIsOn()
-        compose.onNodeWithText("All bills").assertIsOff()
+        compose.onNodeWithText("Recurring").assertIsSelected()
+        compose.onNodeWithText("All bills").assertIsNotSelected()
         awaitState { compose.onAllNodesWithText(RECURRING_INTRO).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Rent").assertIsDisplayed()
         compose.onNodeWithText("Bills").assertIsDisplayed()
@@ -534,14 +536,24 @@ class BackNavigationTest {
      * before goes, and the session is kept.
      */
     private fun signIn() {
-        runBlocking { GlobalContext.get().get<ProxyCache>().clear() }
+        clearTheCache()
         accountStore().saveSession(Session("signed-session", GroupFixtures.FAR_FUTURE), signedInAs = "lan@example.com")
     }
 
     /** A sign-out, as Settings makes it: the session goes, and what was kept for the account. */
     private fun signOut() {
         accountStore().clearSession()
-        runBlocking { GlobalContext.get().get<ProxyCache>().clear() }
+        clearTheCache()
+    }
+
+    /**
+     * Empties what the phone kept of the account, off the main thread, which goes on running while the
+     * test waits. A fetch of the requests can hold the cache while it waits to go on on the main thread,
+     * so blocking the main thread until the cache is empty would wait for ever.
+     */
+    private fun clearTheCache() {
+        val clearing = CoroutineScope(Dispatchers.Default).launch { GlobalContext.get().get<ProxyCache>().clear() }
+        awaitState { clearing.isCompleted }
     }
 
     private fun accountStore(): AccountStore = GlobalContext.get().get()
@@ -608,7 +620,9 @@ class BackNavigationTest {
 
     /** Fails if the navigation bar, or its button in the middle, is anywhere on [screen]. */
     private fun assertNoNavigationBar(screen: String) {
-        assertTrue("$screen shows tabs", compose.onAllNodes(hasRole(Role.Tab)).fetchSemanticsNodes().isEmpty())
+        // A screen may have tabs of its own, such as the list of bills; those of the bar are named after the main screens.
+        val barTabs = NAVIGATION_TABS.flatMap { name -> compose.onAllNodes(tab(name, substring = true)).fetchSemanticsNodes() }
+        assertTrue("$screen shows tabs of the navigation bar", barTabs.isEmpty())
         val splitButtons = compose.onAllNodesWithContentDescription(SPLIT_A_BILL).fetchSemanticsNodes()
         assertTrue("$screen shows the button that starts a split", splitButtons.isEmpty())
     }
@@ -649,6 +663,9 @@ class BackNavigationTest {
 private val TAB_TITLES = listOf("Groups" to "Groups", "Requests" to "Requests", "Insights" to "Insights")
 private const val TAB_COUNT = 4
 
+/** Every tab of the navigation bar, by the name a screen reader reads, which may end in a count. */
+private val NAVIGATION_TABS = listOf("Home") + TAB_TITLES.map { (name, _) -> name }
+
 /** What the round button in the middle of the navigation bar says to a screen reader; it shows no text. */
 private const val SPLIT_A_BILL = "Split a bill"
 
@@ -660,8 +677,11 @@ private const val TOKEN = "AbCdEfGhIjKlMnOpQrStUv"
 
 private fun hasRole(role: Role) = SemanticsMatcher.expectValue(SemanticsProperties.Role, role)
 
-/** The tab of the navigation bar called [name], as opposed to the title of the screen it opens. */
-private fun tab(name: String) = hasContentDescription(name) and hasRole(Role.Tab)
+/**
+ * The tab of the navigation bar called [name], or with [substring] one whose name holds it, such as
+ * "Requests, 2", as opposed to the title of the screen it opens.
+ */
+private fun tab(name: String, substring: Boolean = false) = hasContentDescription(name, substring = substring) and hasRole(Role.Tab)
 
 /** Frames halfway through the fade from one screen to the next, which takes 400ms at 16ms a frame. */
 private const val HALFWAY_FRAMES = 12

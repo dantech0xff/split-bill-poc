@@ -25,11 +25,15 @@ import kotlin.math.min
  * unit, and part of a unit fills part of a segment; a [max] of more than ten is shared out over ten
  * segments. [description] says the same in words for a screen reader, such as "9 of 10 calls left",
  * as the meter itself is only drawn.
+ *
+ * On a card the empty segments take the card's quiet shade. On the page they are a shade darker than
+ * the page, as the white that a control takes there would hardly show in a meter this thin.
  */
 @Composable
 fun SvMeter(value: Float, max: Float, description: String, modifier: Modifier = Modifier) {
-    val filled = LocalSvGround.current.active
-    val empty = LocalSvGround.current.quiet
+    val ground = LocalSvGround.current
+    val filled = ground.active
+    val empty = if (ground == SvGround.Page) MaterialTheme.colorScheme.outlineVariant else ground.quiet
     // Nothing to count yet shows as one empty segment rather than as nothing at all.
     val segments = if (max <= 0f || max.isNaN()) 1 else min(ceil(max).toInt(), MAX_METER_SEGMENTS)
     val units = if (max <= 0f || max.isNaN()) 0f else value.coerceIn(0f, max) / max * segments

@@ -2,6 +2,7 @@ package com.dantech.splitvibe.ui.history
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,19 +13,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,15 +31,20 @@ import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.dayOf
-import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
+import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
+import com.dantech.splitvibe.designsystem.components.SvFieldRow
+import com.dantech.splitvibe.designsystem.components.SvFieldWidth
 import com.dantech.splitvibe.designsystem.components.SvIconTile
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvTabs
 import com.dantech.splitvibe.designsystem.components.SvTag
+import com.dantech.splitvibe.designsystem.components.SvTextField
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
@@ -75,7 +73,6 @@ private enum class BillsTab { ALL, RECURRING }
  * [recurringActions] pause, resume and delete. [today] is the first day a repeated bill can come
  * back on.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     listings: List<BillListing>?,
@@ -100,39 +97,45 @@ fun HistoryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.groups_bills)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
-            )
+            SvTopBar(title = stringResource(R.string.groups_bills), backLabel = stringResource(R.string.common_back), onBack = onBack)
         },
     ) { padding ->
-        // One list for both tabs, in which the choice of tab stays one and the same item, so a screen
-        // reader and the keyboard keep their place on it when the tab changes.
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
+        // One list for both tabs, in which the tabs stay one and the same item, so a screen reader and
+        // the keyboard keep their place on the tab just chosen.
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(top = SvSpacing.sm, bottom = SvSpacing.xl),
+        ) {
             // Searching finds bills only, so the Recurring tab has no field to search with.
             if (tab == BillsTab.ALL) {
                 item(key = "search") {
-                    OutlinedTextField(
+                    SvTextField(
                         value = typed,
                         onValueChange = {
                             typed = it
                             onQueryChanged(it)
                         },
+                        // The magnifier and the words in the field say what it is for, as the design draws it.
+                        label = null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
-                        placeholder = { Text(stringResource(R.string.history_search)) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        singleLine = true,
+                            .padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
+                        placeholder = stringResource(R.string.history_search),
+                        leadingIcon = Icons.Default.Search,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     )
                 }
             }
-            item(key = "tabs") { BillsTabs(selected = tab, onSelect = { tab = it }) }
+            item(key = "tabs") {
+                SvTabs(
+                    tabs = listOf(stringResource(R.string.history_all_bills), stringResource(R.string.history_recurring)),
+                    selected = tab.ordinal,
+                    onSelect = { tab = BillsTab.entries[it] },
+                    modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
+                )
+            }
             when (tab) {
                 BillsTab.ALL -> when {
                     listings == null -> item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
@@ -159,6 +162,7 @@ fun HistoryScreen(
                             today = today,
                             onDelete = { deleting = listing.id },
                             onRepeat = if (repeatable) ({ repeating = listing.id }) else null,
+                            withCategory = true,
                             modifier = rowMotion(),
                         )
                     }
@@ -193,37 +197,32 @@ fun HistoryScreen(
 
     deleting?.let { id ->
         val title = listings?.firstOrNull { it.id == id }?.let { titleOf(it) } ?: stringResource(R.string.history_this_bill)
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            title = { Text(stringResource(R.string.history_delete_title, title)) },
-            text = { Text(stringResource(R.string.history_delete_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(id)
-                    deleting = null
-                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+        // A deleted bill cannot be had back, so the button that deletes it is red.
+        SvDialog(
+            title = stringResource(R.string.history_delete_title, title),
+            text = stringResource(R.string.history_delete_text),
+            confirmLabel = stringResource(R.string.common_delete),
+            onConfirm = {
+                onDelete(id)
+                deleting = null
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissLabel = stringResource(R.string.common_cancel),
+            onDismiss = { deleting = null },
+            irreversible = true,
         )
     }
-}
-
-/** The choice between the two tabs of the list of bills, read by a screen reader as a choice of one. */
-@Composable
-private fun BillsTabs(selected: BillsTab, onSelect: (BillsTab) -> Unit) {
-    SvChoiceGroup(
-        options = listOf(stringResource(R.string.history_all_bills), stringResource(R.string.history_recurring)),
-        selected = selected.ordinal,
-        onSelect = { onSelect(BillsTab.entries[it]) },
-        modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm),
-    )
 }
 
 /**
  * One bill in a list of bills: what it was spent on as the tile of its category, where, when and with
  * whom, its total, and whether it is still a draft. Its day is written short, as of [today], when its
- * date can be read, and as the bill printed it when not. With [onDelete] it has a menu to delete it,
- * and to repeat it with [onRepeat].
+ * date can be read, and as the bill printed it when not. With [withCategory] the line under its name
+ * names the category in words too, as the list of all bills does.
+ *
+ * With [onDelete] it has a menu to delete it, and to repeat it with [onRepeat]. The menu then takes
+ * the end of the row, and the total moves up beside the name, so that the line under it keeps the
+ * width of the row; where a word of the name would not fit beside the total, as with large text, the
+ * total goes below the name.
  */
 @Composable
 internal fun BillListingRow(
@@ -234,15 +233,17 @@ internal fun BillListingRow(
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
     onRepeat: (() -> Unit)? = null,
+    withCategory: Boolean = false,
 ) {
     val title = titleOf(listing)
     val total = BillCurrency(listing.currency, listing.fractionDigits).format(listing.totalMinor)
     val category = BillCategory.fromWire(listing.category) ?: BillCategory.OTHER
+    val categoryName = stringResource(category.labelRes)
     val day = dayText(listing, today)
     val people = listing.people.takeIf { it.isNotBlank() }
     val draft = stringResource(R.string.history_draft).takeIf { listing.status == BillStatus.DRAFT.name }
     // The tile shows the category and the tag the draft; a screen reader hears both in words.
-    val spoken = listOfNotNull(day, stringResource(category.labelRes), people, draft).joinToString(" · ")
+    val spoken = listOfNotNull(day, categoryName, people, draft).joinToString(" · ")
     SvListRow(
         position = position,
         label = stringResource(R.string.history_row_label, title, total, spoken),
@@ -254,19 +255,31 @@ internal fun BillListingRow(
         SvIconTile(style.icon, style.color)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                Text(title, modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodyMediumEmphasized)
-                if (draft != null) SvTag(draft)
+            val name = @Composable {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                    Text(title, modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodyMediumEmphasized)
+                    if (draft != null) SvTag(draft)
+                }
+            }
+            if (onDelete == null) {
+                name()
+            } else {
+                // Beside the name while its longest word fits there, and below it when not, as with large text.
+                SvFieldRow(widths = NAME_AND_TOTAL, alignment = Alignment.CenterVertically) {
+                    name()
+                    Text(total, style = MaterialTheme.typography.amountSmall)
+                }
             }
             Text(
-                listOfNotNull(day, people).joinToString(" · "),
+                listOfNotNull(day, categoryName.takeIf { withCategory }, people).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.width(SvSpacing.md))
-        Text(total, style = MaterialTheme.typography.amountSmall)
-        if (onDelete != null) {
+        if (onDelete == null) {
+            Spacer(Modifier.width(SvSpacing.md))
+            Text(total, style = MaterialTheme.typography.amountSmall)
+        } else {
             SvOverflowMenu(
                 label = stringResource(R.string.groups_more_for, title),
                 options = listOfNotNull(
@@ -280,6 +293,9 @@ internal fun BillListingRow(
 
 @Composable
 private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_bill)
+
+/** The name of a bill, which goes on to more lines between words, and its total, which keeps its width. */
+private val NAME_AND_TOTAL = listOf(SvFieldWidth.Share(1f, mustFit = false), SvFieldWidth.Content)
 
 /**
  * The day of [listing] as a list of bills writes it: its date written short as of [today] when the

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -116,6 +117,7 @@ import com.dantech.splitvibe.designsystem.components.SvSmallAction
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.components.SvStatBar
 import com.dantech.splitvibe.designsystem.components.SvSwitch
+import com.dantech.splitvibe.designsystem.components.SvTabs
 import com.dantech.splitvibe.designsystem.components.SvTextAction
 import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.components.SvTile
@@ -168,6 +170,50 @@ class ComponentBehaviourTest {
         compose.onNodeWithText("By item")
             .assertIsOn()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+    }
+
+    @Test
+    fun `tabs read as tabs and say which one is selected, as the navigation bar does`() {
+        var selected by mutableIntStateOf(0)
+        compose.setContent {
+            SplitVibeTheme { SvTabs(tabs = listOf("All bills", "Recurring"), selected = selected, onSelect = { selected = it }) }
+        }
+
+        compose.onAllNodes(hasRole(Role.Tab)).assertCountEquals(2)
+        compose.onNode(hasText("All bills") and hasRole(Role.Tab)).assertIsSelected()
+        val recurring = compose.onNode(hasText("Recurring") and hasRole(Role.Tab)).assertIsNotSelected()
+        assertRoomForAFinger(recurring, "Recurring")
+        recurring.performClick()
+
+        assertEquals(1, selected)
+        recurring.assertIsSelected()
+        compose.onNode(hasText("All bills") and hasRole(Role.Tab)).assertIsNotSelected()
+    }
+
+    @Test
+    // How tall the box is depends on how its text is really laid out, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a field without a label is only its box, and reads as its placeholder while nothing is typed`() {
+        var search by mutableStateOf("")
+        compose.setContent {
+            SplitVibeTheme {
+                SvTextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    label = null,
+                    placeholder = "Search by place, item or person",
+                    leadingIcon = Icons.Default.Search,
+                )
+            }
+        }
+
+        val field = compose.onNode(hasSetTextAction() and hasText("Search by place, item or person"))
+        val bounds = field.getBoundsInRoot()
+        // As tall as the box of a field of one line, with nothing above it.
+        assertEquals(FIELD_BOX_HEIGHT, bounds.bottom - bounds.top)
+        field.performTextInput("Phở")
+        assertEquals("Phở", search)
     }
 
     @Test
@@ -1021,6 +1067,46 @@ class ComponentBehaviourTest {
     }
 
     @Test
+    // Whether a word fits depends on how wide its text really is, which only the native graphics measure.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `an amount beside a name keeps its width, and goes below the name once a word of the name would not fit beside it`() {
+        var fontScale by mutableStateOf(1f)
+        compose.setContent {
+            SplitVibeTheme {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
+                    SvFieldRow(
+                        widths = listOf(SvFieldWidth.Share(1f, mustFit = false), SvFieldWidth.Content),
+                        modifier = Modifier.width(NAME_AND_AMOUNT_WIDTH),
+                    ) {
+                        Text("Tops Market")
+                        Text("THB 412.50")
+                    }
+                }
+            }
+        }
+
+        val name = compose.onNodeWithText("Tops Market").getBoundsInRoot()
+        val amount = compose.onNodeWithText("THB 412.50").getBoundsInRoot()
+        assertTrue("The amount is not beside the name", amount.left >= name.right && amount.top < name.bottom)
+        assertEquals("The amount went on to a second line", 1, layoutOf(compose.onNodeWithText("THB 412.50")).lineCount)
+
+        fontScale = 2f
+        compose.waitForIdle()
+
+        val largeName = compose.onNodeWithText("Tops Market").getBoundsInRoot()
+        val largeAmount = compose.onNodeWithText("THB 412.50").getBoundsInRoot()
+        assertTrue("With large text the amount is not below the name", largeAmount.top >= largeName.bottom)
+        // With the amount below it, the name has the whole width, and no line of it ends inside a word.
+        val text = "Tops Market"
+        val nameLayout = layoutOf(compose.onNodeWithText(text))
+        val brokenAt = (0 until nameLayout.lineCount - 1).map { nameLayout.getLineEnd(it) }
+            .filter { end -> end in 1 until text.length && text[end - 1].isLetterOrDigit() && text[end].isLetterOrDigit() }
+        assertTrue("The name is broken inside a word at $brokenAt", brokenAt.isEmpty())
+    }
+
+    @Test
     // Whether a title takes one line or more depends on how wide it is drawn, which only the native graphics measure.
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     @Config(qualifiers = PHONE)
@@ -1260,6 +1346,12 @@ private const val MAX_NUMBER_CHARACTERS = 20
 
 /** A phone of common size, as the screen galleries draw. */
 private const val PHONE = "w412dp-h915dp-xhdpi"
+
+/** The box of a field of one line, as the approved designs draw it. */
+private val FIELD_BOX_HEIGHT = 52.dp
+
+/** As wide as the name and the total of a row of the list of bills, beside the tile and before the menu, on a phone 412dp wide. */
+private val NAME_AND_AMOUNT_WIDTH = 236.dp
 
 /** The kind of text a field asks for, without the flags that go with it. */
 private const val TYPE_AND_VARIATION = InputType.TYPE_MASK_CLASS or InputType.TYPE_MASK_VARIATION

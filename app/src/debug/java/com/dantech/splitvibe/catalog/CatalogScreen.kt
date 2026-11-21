@@ -107,6 +107,7 @@ import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvQuietIconTile
 import com.dantech.splitvibe.designsystem.components.SvRadio
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
@@ -115,6 +116,7 @@ import com.dantech.splitvibe.designsystem.components.SvSplitButton
 import com.dantech.splitvibe.designsystem.components.SvStatBar
 import com.dantech.splitvibe.designsystem.components.SvSuccessMark
 import com.dantech.splitvibe.designsystem.components.SvSwitch
+import com.dantech.splitvibe.designsystem.components.SvTabs
 import com.dantech.splitvibe.designsystem.components.SvTag
 import com.dantech.splitvibe.designsystem.components.SvTagKind
 import com.dantech.splitvibe.designsystem.components.SvTallyLine
@@ -193,7 +195,7 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader(
                     "Tiles and tags",
-                    hint = "SvTile in its three colours, SvTag, and SvIconTile with the style of each category.",
+                    hint = "SvTile in its three colours, SvTag, SvIconTile with the style of each category, and SvQuietIconTile.",
                 )
                 TileSamples()
             }
@@ -498,8 +500,8 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader(
                     "Choices",
-                    hint = "SvChoiceChips in one row across the screen, SvChoiceGroup, SvChoiceChips, with icons too, SvSplitButton " +
-                        "and SvOverflowMenu.",
+                    hint = "SvChoiceChips in one row across the screen, SvChoiceGroup, SvTabs, SvChoiceChips, with icons too, " +
+                        "SvSplitButton and SvOverflowMenu.",
                 )
                 var mode by remember { mutableIntStateOf(0) }
                 var way by remember { mutableIntStateOf(1) }
@@ -519,6 +521,8 @@ fun CatalogScreen() {
                     verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
                 ) {
                     SvChoiceGroup(options = listOf("Equally", "By item", "By amount"), selected = mode, onSelect = { mode = it })
+                    var tab by remember { mutableIntStateOf(0) }
+                    SvTabs(tabs = listOf("All bills", "Recurring"), selected = tab, onSelect = { tab = it })
                     SvChoiceChips(
                         options = listOf("Equally", "By item", "By shares", "By percent", "By amount"),
                         selected = way,
@@ -827,6 +831,12 @@ private fun TileSamples() {
                 SvIconTile(style.icon, style.color)
             }
         }
+        SvCard(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.padding(SvSpacing.lg), horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                SvQuietIconTile(SvActionIcons.Repeat)
+                SvQuietIconTile(SvActionIcons.None, size = 40.dp)
+            }
+        }
     }
 }
 
@@ -868,12 +878,13 @@ private fun FieldSamples() {
             prefix = "paypal.me/",
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
         )
+        // A field that searches a list shows no label: its magnifier and its words say what it is for.
         SvTextField(
             search,
             { search = it },
-            label = "Search",
+            label = null,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = "Find a bill",
+            placeholder = "Search by place, item or person",
             leadingIcon = Icons.Default.Search,
         )
         SvTextField(

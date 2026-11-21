@@ -281,6 +281,45 @@ class InsightsViewModelTest {
     }
 
     @Test
+    fun `the chart has a bar for every month of the period, and its bars add up to the total at the top`() {
+        val month = shown(InsightsPeriod.THIS_MONTH)
+        assertEquals(listOf(YearMonth.of(2026, 11)), monthBars(month).map { it.month })
+        assertEquals(month.insights.overall.totalMinor, monthBars(month).sumOf { it.totalMinor })
+
+        val year = shown(InsightsPeriod.LAST_12_MONTHS)
+        val months = monthBars(year)
+        assertEquals((0L until 12L).map { YearMonth.of(2025, 12).plusMonths(it) }, months.map { it.month })
+        assertEquals(year.insights.overall.totalMinor, months.sumOf { it.totalMinor })
+        // A month without bills is a bar of nothing, which the chart still shows.
+        assertEquals(0L, months.single { it.month == YearMonth.of(2026, 1) }.totalMinor)
+        assertEquals(9_762_024L, months.single { it.month == YearMonth.of(2026, 10) }.totalMinor)
+
+        // From the month of the first bill, November 2025, to this one.
+        val all = shown(InsightsPeriod.ALL_TIME)
+        assertEquals((0L until 13L).map { YearMonth.of(2025, 11).plusMonths(it) }, monthBars(all).map { it.month })
+        assertEquals(all.insights.overall.totalMinor, monthBars(all).sumOf { it.totalMinor })
+    }
+
+    @Test
+    fun `the chart says which months it runs over and which came to most, the later first of two equal months`() {
+        val year = shown(InsightsPeriod.LAST_12_MONTHS)
+        assertEquals(
+            "Spending by month from December 2025 to November 2026. November 2026 is the highest, then October 2026.",
+            chartDescription(monthBars(year)).english(),
+        )
+
+        val even = listOf(MonthBar(YearMonth.of(2026, 9), 500), MonthBar(YearMonth.of(2026, 10), 500), MonthBar(YearMonth.of(2026, 11), 0))
+        assertEquals(
+            "Spending by month from September 2026 to November 2026. October 2026 is the highest, then September 2026.",
+            chartDescription(even).english(),
+        )
+        val one = listOf(MonthBar(YearMonth.of(2026, 10), 0), MonthBar(YearMonth.of(2026, 11), 700))
+        assertEquals("Spending by month from October 2026 to November 2026. November 2026 is the highest.", chartDescription(one).english())
+        val none = listOf(MonthBar(YearMonth.of(2026, 10), 0), MonthBar(YearMonth.of(2026, 11), 0))
+        assertEquals("Spending by month from October 2026 to November 2026.", chartDescription(none).english())
+    }
+
+    @Test
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
 
