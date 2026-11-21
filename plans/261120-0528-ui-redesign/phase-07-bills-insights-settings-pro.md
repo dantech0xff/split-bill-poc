@@ -103,7 +103,9 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 
 - Nút "Export these bills" nằm dưới thanh điều hướng hoặc không cuộn tới được: phép kiểm ở bước 3 bắt lỗi này.
 - Biểu đồ cột khó đọc khi một tháng lớn gấp nhiều lần các tháng khác: cột có chiều cao tối thiểu và danh sách tháng bên dưới vẫn nêu số.
-- Thanh đo số lượt sai khi số lượt là số lẻ (0,2 lượt cho một lần sửa bằng câu): thanh làm tròn xuống theo đoạn, câu chữ vẫn nêu số chính xác.
+- Thanh đo số lượt sai khi số lượt là số lẻ (0,2 lượt cho một lần sửa bằng câu): đoạn đang dùng dở được tô một phần như các bảng vẽ, câu chữ vẫn nêu số chính xác. <!-- Updated: SvMeter theo bảng tô một phần đoạn, không làm tròn xuống -->
+- Một hóa đơn có ngày sai (gõ nhầm năm 2925, hay năm Phật lịch 2568 trên hóa đơn Thái) làm biểu đồ "All time" dài hàng nghìn tháng: quy tắc ngày dùng được và biểu đồ theo năm của "All time" trong phần kết quả chặn việc này. <!-- Updated: thêm theo review -->
+- Lời báo kết quả nằm xa nút đã bấm khi nút ở cuối trang dài (xuất file, đăng xuất, xóa tài khoản): lời báo hiện ngay trên nút, có vùng đọc tự động. <!-- Updated: thêm theo review -->
 - Luật cấm mới bắt nhầm một tên có đuôi giống tên bị cấm, hoặc bỏ sót một lời gọi viết khác kiểu: bài tự thử của `DesignSystemBoundaryTest` có mẫu cho cả hai trường hợp.
 - Một chuỗi mà `ProScreenTest` hoặc `SettingsScreenTest` tìm bị đổi khi dựng lại: giữ nguyên chuỗi; hai bài chạy trong cổng kiểm thử.
 
