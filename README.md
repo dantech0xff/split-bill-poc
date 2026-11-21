@@ -423,11 +423,12 @@ the design system components.
 The on-device tests cover what only a device can show: starting the app and going round its tabs,
 the real ML Kit recognizer on the sample bill, the proxy client reading a streamed answer on the
 Android runtime, the Keystore encryption of the session, how the phone's own data about regions
-writes dates and amounts, and splitting the sample bill from the photo to asking for the money. The
-end-to-end journeys run the real app against a fake proxy: the sample bill split through the AI, the
-AI turned down and the bill typed in by hand instead, a bill typed in by hand, a payment request,
-and typing with the on-screen keyboard open. On Android 14 and later, the taps of three of these
-tests also run Android's accessibility checks on the screen they are made on. They need no network.
+writes dates and amounts, and splitting the sample bill from the photo up to the step that asks for
+the money. The end-to-end journeys run the real app against a fake proxy: the sample bill split
+through the AI, the AI turned down and the bill typed in by hand instead, a bill typed in by hand, a
+payment request, and typing with the on-screen keyboard open. On Android 14 and later, the taps of
+two of these tests also run Android's accessibility checks on the screen they are made on, in CI as
+well, and those of a third only on a phone with an on-screen keyboard. They need no network.
 The command above lets Gradle download, start and stop its own Android 14 emulator;
 `./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
 [docs/testing.md](docs/testing.md) has the details.

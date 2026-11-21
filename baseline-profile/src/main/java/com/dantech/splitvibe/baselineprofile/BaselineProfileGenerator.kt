@@ -7,8 +7,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Records which code runs while the app starts and while a split begins. The release ships that
- * list, and Android compiles those paths ahead of time on install, so the first launch is faster.
+ * Records which code runs while the app starts, while the tabs of the navigation bar are gone round
+ * and while a split begins. The release ships that list, and Android compiles those paths ahead of
+ * time on install, so the first launch, and the first visit to each main screen, are faster.
  *
  *     ./gradlew :app:generateProdReleaseBaselineProfile
  */
@@ -19,12 +20,13 @@ class BaselineProfileGenerator {
     val rule = BaselineProfileRule()
 
     @Test
-    fun startupAndFirstStepsOfASplit() = rule.collect(
+    fun startupTabsAndFirstStepsOfASplit() = rule.collect(
         packageName = targetAppId,
         includeInStartupProfile = true,
     ) {
         pressHome()
         startActivityAndWait()
+        goRoundTheTabs()
         startASplit()
     }
 }

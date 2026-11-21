@@ -612,7 +612,7 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |
 | AI proxy | `npm ci`, `npm run bundle` (after `npm ci` in `web/`), `npm test` in `web/`, then `npm run typecheck` and `npm test` in `proxy/` | The Worker's routes, its calls, limits, holds and spend caps, the sign-in and the session, bill links with their claims and live updates, in the workers runtime against a fake model; the web pages' states, money, claims and live connection; and that the bundle a deploy uploads builds with the web pages in it |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
-| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, splitting the sample bill from the photo to the sent requests, and the end-to-end journeys against a fake proxy. The taps of three of these tests also run Android's accessibility checks on the screen they are made on ([testing.md](testing.md)). Nightly, on request, on a push that changes the app, and before every release. |
+| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, splitting the sample bill from the photo up to the step that asks for the money, and the end-to-end journeys against a fake proxy. On Android 14 and later the taps of two of these tests also run Android's accessibility checks on the screen they are made on, in CI as well, and those of a third only on a phone with an on-screen keyboard ([testing.md](testing.md)). Nightly, on request, on a push that changes the app, and before every release. |
 | Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly, on request and on a push that changes the app; the result is kept as a workflow artifact. |
 
 ### Secret scan
@@ -706,8 +706,8 @@ curl -sL https://plugins.gradle.org/m2/org/jetbrains/kotlin/plugin/serialization
 
 ### Performance
 
-The baseline profile lists the code that runs while the app starts and a split begins. A release
-that ships it has those paths compiled at install time. The recording runs on a Gradle-managed
+The baseline profile lists the code that runs while the app starts, while its four tabs are gone
+round, and while a split begins. A release that ships it has those paths compiled at install time. The recording runs on a Gradle-managed
 emulator, so its result does not depend on the machine.
 
 The benchmarks measure time, and an emulator's timings say little about a phone. Run them on a
