@@ -885,7 +885,7 @@ private fun FieldSamples() {
     var how by remember { mutableStateOf("Split with Minh and Lan. Minh had the beers.") }
     var quantity by remember { mutableStateOf("2") }
     var price by remember { mutableStateOf("165000") }
-    var details by remember { mutableStateOf("Vietcombank\nAccount 0123 4567 89") }
+    var details by remember { mutableStateOf("Vietcombank\nAccount 0000 0000 00") }
     Column(modifier = Modifier.padding(horizontal = SvSpacing.screen), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         SvTextField(
             where,

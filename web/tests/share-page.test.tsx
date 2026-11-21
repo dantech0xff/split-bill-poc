@@ -142,7 +142,7 @@ describe("the bill link's page", () => {
     expect(textOf(people[1] ?? null)).toContain("The amount, ₫86,500, is filled in for you.");
     const qr = people[2]?.querySelector('canvas[role="img"]');
     expect(qr?.getAttribute("aria-label")).toBe("QR code to pay ₫67,500");
-    expect(textOf(people[2] ?? null)).toContain("Account: 000000000");
+    expect(textOf(people[2] ?? null)).toMatch(/Account: 0{9}(?!0)/);
     expect(textOf(people[2] ?? null)).toContain("Type in the amount yourself: ₫67,500.");
     expect(all(page, "details").map((details) => (details as HTMLDetailsElement).open)).toEqual([false, false]);
   });
