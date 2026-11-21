@@ -204,5 +204,6 @@ jobs:
           path: |
             **/reports/androidTests/
             **/outputs/androidTest-results/
+            **/outputs/connected_android_test_additional_output/
           if-no-files-found: ignore
           retention-days: 14
