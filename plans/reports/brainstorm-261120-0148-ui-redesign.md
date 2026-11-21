@@ -149,3 +149,12 @@ trang web cho người nhận liên kết.
    làm theo, vì app đọc chữ trên máy và chỉ gửi chữ cho Claude, đúng như màn xin đồng ý và chính
    sách quyền riêng tư đang nói. Đang chờ chủ sản phẩm trả lời đề xuất thay thế: bỏ tên Claude
    khỏi dòng trạng thái, thẻ tóm tắt và câu giới thiệu, giữ nó ở màn xin đồng ý và chính sách.
+
+## Kết quả (21/11/2026)
+
+Bản thiết kế lại được làm xong trên nhánh `feat/ui-redesign` theo plan [`261120-0528-ui-redesign`](../261120-0528-ui-redesign/plan.md), qua mười giai đoạn, và đang chờ chủ sản phẩm cho merge. Bốn câu hỏi còn mở ở trên đã được trả lời:
+
+1. Màu thương hiệu tím và bốn mục Home, Groups, Requests, Insights được giữ, và chủ sản phẩm duyệt cả 37 bảng ngày 20/11/2026.
+2. Số tiền và ngày theo vùng của máy, ở app (giai đoạn 4) và ở trang web theo vùng của trình duyệt (giai đoạn 9).
+3. Các bảng được lưu cố định trong `boards/` và `boards/web/`; ảnh chụp màn hình thật của từng nhóm được chủ sản phẩm duyệt ngày 21/11/2026.
+4. Chủ sản phẩm chọn đề xuất thay thế: tên Claude được bỏ khỏi dòng trạng thái, thẻ tóm tắt và câu giới thiệu, và chỉ còn ở màn xin đồng ý, mục đồng ý trong Cài đặt và chính sách quyền riêng tư. Một bài kiểm thử giữ quy tắc này cho mọi chuỗi của app.

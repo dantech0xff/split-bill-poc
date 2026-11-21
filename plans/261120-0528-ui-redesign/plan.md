@@ -130,8 +130,8 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 | 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | Completed |
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | Completed |
 | 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | Completed, còn thử chuyển động trên máy thật |
-| 9 | [Trang web](./phase-09-web-pages.md) | 5d | In progress |
-| 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Pending |
+| 9 | [Trang web](./phase-09-web-pages.md) | 5d | Completed |
+| 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Done, chờ "ok merge" |
 
 ## Ngoài phạm vi
 
@@ -143,15 +143,15 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 
 ## Success Criteria
 
-- [ ] 37 bảng của app đều có màn hình tương ứng, và chủ sản phẩm duyệt ảnh chụp màn hình thật của từng nhóm.
+- [x] 37 bảng của app đều có màn hình tương ứng, và chủ sản phẩm duyệt ảnh chụp màn hình thật của từng nhóm (21/11/2026).
 - [ ] Mọi lệnh của `ci.yml` qua khi chạy tại chỗ ở cuối từng giai đoạn, và CI trên `main` xanh sau khi merge.
-- [ ] Kiểm thử trên máy ảo qua ở API 34 cùng kiểm tra trợ năng, và kết quả của các hành trình ở API 26, 30 và 36 được đọc từng việc một.
-- [ ] Ở cỡ chữ 200%, không chữ nào bị cắt trên trang chủ, màn thêm hóa đơn, màn kết quả và màn đòi tiền.
-- [ ] Trên máy đặt vùng Việt Nam, số tiền hiện kiểu "902.664 ₫" và ngày kiểu "13 Nov"; trên máy đặt vùng Mỹ, "₫902,664" và "Nov 13".
-- [ ] Ngoài màn xin đồng ý và mục đồng ý trong Cài đặt, app không còn chuỗi nào gọi tên Claude; các chuỗi `ai_consent_*` không đổi một chữ.
-- [ ] Ảnh tham chiếu được ghi lại một lần, không còn ảnh nào mà không bài kiểm thử nào ghi.
-- [ ] Các trang web khớp với bảng web đã duyệt, qua kiểm thử của web, và lần tải đầu không quá 150 KB nén.
-- [ ] Tài liệu hệ thiết kế, kiến trúc, bảng ảnh cho Google Play và ảnh trong README mô tả giao diện mới.
+- [x] Kiểm thử trên máy ảo qua ở API 34 cùng kiểm tra trợ năng, và kết quả của các hành trình ở API 26, 30 và 36 được đọc từng việc một.
+- [x] Ở cỡ chữ 200%, không chữ nào bị cắt trên trang chủ, màn thêm hóa đơn, màn kết quả và màn đòi tiền.
+- [x] Trên máy đặt vùng Việt Nam, số tiền hiện kiểu "902.664 ₫" và ngày kiểu "13 Nov"; trên máy đặt vùng Mỹ, "₫902,664" và "Nov 13".
+- [x] Ngoài màn xin đồng ý và mục đồng ý trong Cài đặt, app không còn chuỗi nào gọi tên Claude; các chuỗi `ai_consent_*` không đổi một chữ.
+- [x] Ảnh tham chiếu được ghi lại một lần, không còn ảnh nào mà không bài kiểm thử nào ghi.
+- [x] Các trang web khớp với bảng web đã duyệt, qua kiểm thử của web, và lần tải đầu không quá 150 KB nén.
+- [x] Tài liệu hệ thiết kế, kiến trúc, bảng ảnh cho Google Play và ảnh trong README mô tả giao diện mới.
 
 ## Tài liệu của plan
 
@@ -239,7 +239,7 @@ Câu hỏi về cách xử lý 15 điểm phản biện được ghi ở mục R
 #### Action Items
 - [x] Cập nhật ba chỗ chữ trên canvas và lưu 37 bảng vào `boards/`.
 - [x] Thêm giai đoạn 4 và giai đoạn 9, đánh số lại các giai đoạn.
-- [ ] Chủ sản phẩm duyệt các bảng web; sau đó lưu chúng vào `boards/web/` và chốt giai đoạn 9.
+- [x] Chủ sản phẩm duyệt các bảng web; sau đó lưu chúng vào `boards/web/` và chốt giai đoạn 9.
 
 #### Impact on Phases
 - Phase 1: bảng màu sửa theo điểm 5 và 15; phông có nguồn ghim; web giữ chữ cũ.

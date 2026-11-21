@@ -1,6 +1,6 @@
 ---
 title: "Phase 10: Tài liệu, ảnh cửa hàng và hoàn tất"
-status: pending
+status: in-progress
 phase: 10
 priority: P2
 effort: "2d"
@@ -91,14 +91,14 @@ Hoàn tất:
 
 ## Todo
 
-- [ ] `docs/design-system.md` viết lại, có nguồn gốc của phông
-- [ ] `docs/architecture.md`, `docs/testing.md`, `docs/web.md`, `README.md` và `docs/play-console.md` cập nhật
-- [ ] Ba tài liệu pháp lý đọc trọn, kết luận ghi cho từng tài liệu
-- [ ] Bảy ảnh cho Google Play soát theo ba quy tắc, bảng ghi lại, chủ sản phẩm duyệt; ảnh README thay
-- [ ] Review độc lập trên toàn bộ nhánh và sửa phát hiện
-- [ ] Hồ sơ khởi động ghi từ commit cuối của mã app, `headSha` đã kiểm
-- [ ] Mọi lệnh của `ci.yml` qua tại chỗ
-- [ ] Plan, tệp giai đoạn và bản ghi thiết kế lại cập nhật; nhật ký viết xong
+- [x] `docs/design-system.md` viết lại, có nguồn gốc của phông
+- [x] `docs/architecture.md`, `docs/testing.md`, `docs/web.md`, `README.md` và `docs/play-console.md` cập nhật
+- [x] Ba tài liệu pháp lý đọc trọn, kết luận ghi cho từng tài liệu
+- [ ] Bảy ảnh cho Google Play soát theo ba quy tắc, bảng ghi lại, chủ sản phẩm duyệt; ảnh README thay (đã soát, ghi bảng và thay ảnh README; chờ chủ sản phẩm duyệt bảy ảnh)
+- [x] Review độc lập trên toàn bộ nhánh và sửa phát hiện
+- [x] Hồ sơ khởi động ghi từ commit cuối của mã app, `headSha` đã kiểm
+- [x] Mọi lệnh của `ci.yml` qua tại chỗ
+- [x] Plan, tệp giai đoạn và bản ghi thiết kế lại cập nhật; nhật ký viết xong
 - [ ] Dừng chờ "ok merge", không mở pull request; đọc CI trên `main` sau khi merge
 
 ## Success Criteria
@@ -124,3 +124,34 @@ Hoàn tất:
 ## Rollback
 
 Đây là giai đoạn cuối, nên mốc không phải là giai đoạn kế tiếp mà là lúc nhánh được merge: trước đó hoàn lại các commit của giai đoạn là đủ, sau đó lỗi được sửa bằng commit mới. Commit hồ sơ khởi động không được hoàn lại riêng, vì việc đó đưa về hồ sơ của mã cũ; khi mã app đổi sau lúc ghi, hồ sơ được ghi lại. Giai đoạn này không triển khai gì, nên trang web đang chạy và bản trên Google Play không đổi cho tới bản phát hành kế tiếp.
+
+## Kết quả thực hiện
+
+Làm ngày 21/11/2026, trong các commit `a9e555b` (tài liệu và bảng ảnh cửa hàng), `fcf9b90`, `ebf182e`, `b4c9931`, `1e57b82`, `82586a4` và `f0d0786` (sửa theo review toàn nhánh), và `60a0fba` (hồ sơ khởi động).
+
+- Tài liệu:
+  - `docs/design-system.md` được viết lại theo mã: mọi token ở cả hai giao diện, ba họ phông cùng nguồn gốc của chúng, mọi thành phần và tệp chuyển động. Bảng thành phần khớp với thư mục theo từng tệp.
+  - `docs/architecture.md`, `docs/testing.md`, `README.md` và các bước cho người duyệt trong `docs/play-console.md` được cập nhật. `docs/web.md` do giai đoạn 9 cập nhật và đã được đối chiếu; `docs/proxy.md` trích đúng chính sách mới. Mọi liên kết và neo đều dẫn được.
+- Ba tài liệu pháp lý được đọc trọn và đối chiếu với bốn điểm hành vi mới; không tài liệu nào có câu sai, nên không tài liệu nào bị sửa:
+  - `docs/privacy-policy.md`: không câu nào hứa cho xem chữ đã gửi đi, không câu nào gắn việc tải yêu cầu với màn Requests, và dòng "Amount: …" nằm trong phần chi tiết đã khai. Văn bản nêu tên Anthropic; chữ "Claude" chỉ có trong địa chỉ privacy.claude.com.
+  - `docs/compliance.md` từ dòng 60: không câu nào sai.
+  - Mục "Data safety" của `docs/play-console.md`: không câu nào sai.
+- Bảy ảnh cho Google Play được chọn lại từ ảnh tham chiếu mới, cỡ 824 × 1830, và soát theo ba quy tắc. Bảng trong `docs/store-listing.md` được viết lại; hai quy tắc cũ giữ nguyên từng chữ, quy tắc mới đứng ngay sau. Ảnh mở đầu cũ, màn chụp hóa đơn, bị loại vì đọc được địa chỉ và số điện thoại của hóa đơn mẫu. `docs/screenshots/new-split.png` được thay bằng `02-new-split.png`. Bảy ảnh đã gửi chủ sản phẩm.
+- Đã sửa sau lượt [review độc lập trên toàn nhánh](./reports/review-branch.md):
+  - Lỗi đọc hóa đơn không còn hiện tên Claude. Một bài kiểm quét mọi chuỗi của app và của hệ thiết kế: chỉ các chuỗi xin đồng ý được gọi tên Claude.
+  - Bảng tỉ giá hiện ngay số tiền quy đổi khi gõ ("About …"), nên một tỉ giá gõ lệch nghìn lần, như "25.412" kiểu Việt Nam, lộ ra ngay.
+  - Khôi phục một ngăn xếp màn đã lưu có màn không còn tồn tại, như màn Recurring cũ, không còn làm app văng.
+  - Tên người đòi tiền giải mã mỗi nhóm một lần cho cả danh sách.
+  - `SvPersonChip`, không còn màn nào dùng, được bỏ; mô tả lỗi của ô nhập lấy từ tài nguyên chuỗi của hệ thiết kế.
+  - Hành trình ghi hồ sơ khởi động đi qua bốn tab.
+  - Tài liệu nói đúng điều các bài trên máy làm.
+- Hồ sơ khởi động: ghi bởi lượt `device-tests.yml` 44903279540 trên `f0d0786`, commit cuối của mã app. `headSha` đã được kiểm, và `git diff --stat f0d0786 HEAD -- app/src/main core baseline-profile app/build.gradle.kts gradle/libs.versions.toml` không in gì. Hai tệp được commit ở `60a0fba`. Trong cùng lượt, việc `android-14` qua; lượt `api-levels` 44903308183 trên cùng commit qua ở Android 8.0, 11 và 16.
+- Mọi lệnh của `ci.yml` qua tại chỗ trên `60a0fba`, ở chế độ so ảnh mặc định: 14 bước, gồm các bước của việc `checks` và của việc `proxy`.
+- Nhật ký: [`plans/journals/2026-11-21-ui-redesign-done-waiting-for-merge.md`](../journals/2026-11-21-ui-redesign-done-waiting-for-merge.md).
+- Bản phát hành đầu tiên sau khi merge cũng triển khai Worker, nên các trang web mới lên cùng lúc với nó, kể cả khi bản đó được cắt vì một lý do khác.
+- Còn mở:
+  - Chủ sản phẩm duyệt bảy ảnh cửa hàng. Ảnh 1 có hai hóa đơn mẫu tên "Phở Thìn" và "Grab", trông như doanh nghiệp thật.
+  - Biểu tượng app, màn chờ khởi động và trang Google Play vẫn dùng biểu tượng hóa đơn xanh lá cũ; biểu tượng không thuộc plan này.
+  - Số tài khoản mẫu của Vietcombank trong ảnh `10-requests-method-sheet` cần được chắc là không có thật.
+  - Còn phải thử tay trên điện thoại thật, Android 14 trở lên: chuyển động, TalkBack đọc nhóm gói Pro và lời báo đăng nhập, và VoiceOver trên trang web.
+  - Chờ chủ sản phẩm nói "ok merge"; sau khi merge, đọc lượt `ci.yml` trên `main`.
