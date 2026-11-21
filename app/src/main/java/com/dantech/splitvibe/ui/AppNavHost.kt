@@ -30,7 +30,6 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
@@ -147,7 +146,8 @@ const val SPLIT_SURFACE = "split"
  */
 @Composable
 fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
-    val backStack = rememberNavBackStack(HomeKey)
+    // Restored forgivingly: a screen an earlier version saved but this one no longer has is left out.
+    val backStack = rememberAppBackStack()
     // Scoped to the activity, so a split in progress survives a visit to Settings and rotation.
     val splitViewModel: SplitBillViewModel = koinViewModel()
     // Scoped to the activity too, so a bill made to recur from the list of bills is stored whatever is opened next.
