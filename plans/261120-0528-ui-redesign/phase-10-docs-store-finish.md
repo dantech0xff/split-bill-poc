@@ -1,6 +1,6 @@
 ---
 title: "Phase 10: Tài liệu, ảnh cửa hàng và hoàn tất"
-status: in-progress
+status: completed
 phase: 10
 priority: P2
 effort: "2d"
@@ -99,7 +99,7 @@ Hoàn tất:
 - [x] Hồ sơ khởi động ghi từ commit cuối của mã app, `headSha` đã kiểm
 - [x] Mọi lệnh của `ci.yml` qua tại chỗ
 - [x] Plan, tệp giai đoạn và bản ghi thiết kế lại cập nhật; nhật ký viết xong
-- [ ] Dừng chờ "ok merge", không mở pull request; đọc CI trên `main` sau khi merge
+- [x] Dừng chờ "ok merge", không mở pull request; đọc CI trên `main` sau khi merge
 
 ## Success Criteria
 
@@ -149,9 +149,11 @@ Làm ngày 21/11/2026, trong các commit `a9e555b` (tài liệu và bảng ảnh
 - Mọi lệnh của `ci.yml` qua tại chỗ trên `60a0fba`, ở chế độ so ảnh mặc định: 14 bước, gồm các bước của việc `checks` và của việc `proxy`.
 - Nhật ký: [`plans/journals/2026-11-21-ui-redesign-done-waiting-for-merge.md`](../journals/2026-11-21-ui-redesign-done-waiting-for-merge.md).
 - Theo yêu cầu của chủ sản phẩm, Worker cùng các trang web mới đã được deploy ngày 21/11/2026, trước khi merge, từ `33023c5` bằng đúng lệnh của quy trình phát hành (`wrangler deploy --durable-objects-code-update-mode immediate`); phiên bản `5d037b50`. Trước đó đã kiểm rằng nhánh không đổi API và không có migration chờ chạy, và bảy biến của Worker đang chạy giống hệt `proxy/wrangler.jsonc`. Sau khi deploy, sáu đường dẫn trang trả 200 với `font-src 'self'`, ba tệp phông trả `font/woff2` đúng kích thước, tệp lạ trong `/assets/` trả 404, và API vẫn trả lời như trước. Một bản phát hành cắt từ `main` trước khi merge nhánh này sẽ đưa trang web cũ trở lại. <!-- Updated: deploy theo yêu cầu của chủ sản phẩm -->
+- Merge: chủ sản phẩm cho merge ngày 21/11/2026. `main` được fast-forward từ `2550279` lên `47bd154`, không pull request. Trên `main`, lượt CI 44907816530 qua cả hai việc (kiểm mã, kiểm thử, lint và gói; proxy), lượt `device-tests.yml` 44907816572 qua bài trên máy ảo Android 14 và việc ghi hồ sơ khởi động, Security và Dependency checksums cũng qua. Lượt Dependency graph 44907816559 không qua vì dependency graph của repo chưa được bật; lỗi giống hệt lượt trên `2550279` trước khi merge, và việc bật nó là bước cài đặt một lần của chủ sản phẩm trong [`docs/release.md`](../../docs/release.md#the-dependency-graph).
+- Quyết định của chủ sản phẩm sau khi merge, làm trên nhánh `feat/app-icon`, ngoài plan này, và merge một lần khi xong:
+  - Biểu tượng mới: phương án B trong ba phương án vẽ từ dấu của app, dấu tròn tách đôi lớn hơn với hai nửa tách rõ trên nền tím. Biểu tượng thay luôn màn chờ của Android 12 trở lên, ảnh 512 px cho Google Play và biểu tượng nhỏ của thông báo.
+  - Số tài khoản mẫu: số Vietcombank trong ảnh `10-requests-method-sheet` thành số chỉ có chữ số 0, thứ không ngân hàng nào cấp. Số ACB mẫu, lấy từ ví dụ công khai của thư viện vietnam-qr-pay, cũng được đổi trong ảnh, dữ liệu mẫu và kiểm thử của app; riêng bài so mã QR với thư viện đó giữ nguyên để khớp ví dụ của họ.
 - Còn mở:
   - Chủ sản phẩm duyệt bảy ảnh cửa hàng. Ảnh 1 có hai hóa đơn mẫu tên "Phở Thìn" và "Grab", trông như doanh nghiệp thật.
-  - Biểu tượng app, màn chờ khởi động và trang Google Play vẫn dùng biểu tượng hóa đơn xanh lá cũ; biểu tượng không thuộc plan này.
-  - Số tài khoản mẫu của Vietcombank trong ảnh `10-requests-method-sheet` cần được chắc là không có thật.
   - Còn phải thử tay trên điện thoại thật, Android 14 trở lên: chuyển động, TalkBack đọc nhóm gói Pro và lời báo đăng nhập, và VoiceOver trên trang web.
-  - Chờ chủ sản phẩm nói "ok merge"; sau khi merge, đọc lượt `ci.yml` trên `main`.
+  - Bật dependency graph của repo, để lượt Dependency graph trên `main` qua.

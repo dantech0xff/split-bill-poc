@@ -1,7 +1,7 @@
 ---
 title: "Split Vibe: đưa giao diện mới vào app và trang web"
 description: "Mười giai đoạn đưa bản thiết kế lại đã duyệt vào app Android và các trang web: bảng màu, phông chữ, thành phần, thanh điều hướng dưới, tiền và ngày theo vùng của máy, từng nhóm màn hình, kiểm thử, trang web và tài liệu."
-status: in-progress
+status: completed
 priority: P1
 effort: "36d"
 branch: feat/ui-redesign
@@ -131,7 +131,7 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | Completed |
 | 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | Completed, còn thử chuyển động trên máy thật |
 | 9 | [Trang web](./phase-09-web-pages.md) | 5d | Completed |
-| 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Done, chờ "ok merge" |
+| 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Completed, merge vào `main` ngày 21/11/2026; còn chờ duyệt bảy ảnh cửa hàng |
 
 ## Ngoài phạm vi
 
@@ -144,7 +144,7 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 ## Success Criteria
 
 - [x] 37 bảng của app đều có màn hình tương ứng, và chủ sản phẩm duyệt ảnh chụp màn hình thật của từng nhóm (21/11/2026).
-- [ ] Mọi lệnh của `ci.yml` qua khi chạy tại chỗ ở cuối từng giai đoạn, và CI trên `main` xanh sau khi merge.
+- [x] Mọi lệnh của `ci.yml` qua khi chạy tại chỗ ở cuối từng giai đoạn, và CI trên `main` xanh sau khi merge (`47bd154`, 21/11/2026).
 - [x] Kiểm thử trên máy ảo qua ở API 34 cùng kiểm tra trợ năng, và kết quả của các hành trình ở API 26, 30 và 36 được đọc từng việc một.
 - [x] Ở cỡ chữ 200%, không chữ nào bị cắt trên trang chủ, màn thêm hóa đơn, màn kết quả và màn đòi tiền.
 - [x] Trên máy đặt vùng Việt Nam, số tiền hiện kiểu "902.664 ₫" và ngày kiểu "13 Nov"; trên máy đặt vùng Mỹ, "₫902,664" và "Nov 13".

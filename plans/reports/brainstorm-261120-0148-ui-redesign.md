@@ -152,7 +152,7 @@ trang web cho người nhận liên kết.
 
 ## Kết quả (21/11/2026)
 
-Bản thiết kế lại được làm xong trên nhánh `feat/ui-redesign` theo plan [`261120-0528-ui-redesign`](../261120-0528-ui-redesign/plan.md), qua mười giai đoạn, và đang chờ chủ sản phẩm cho merge. Bốn câu hỏi còn mở ở trên đã được trả lời:
+Bản thiết kế lại được làm xong trên nhánh `feat/ui-redesign` theo plan [`261120-0528-ui-redesign`](../261120-0528-ui-redesign/plan.md), qua mười giai đoạn, và được merge vào `main` ngày 21/11/2026 với CI xanh. Bốn câu hỏi còn mở ở trên đã được trả lời:
 
 1. Màu thương hiệu tím và bốn mục Home, Groups, Requests, Insights được giữ, và chủ sản phẩm duyệt cả 37 bảng ngày 20/11/2026.
 2. Số tiền và ngày theo vùng của máy, ở app (giai đoạn 4) và ở trang web theo vùng của trình duyệt (giai đoạn 9).
