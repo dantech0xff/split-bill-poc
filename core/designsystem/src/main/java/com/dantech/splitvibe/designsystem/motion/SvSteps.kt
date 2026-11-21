@@ -5,6 +5,8 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -21,12 +23,16 @@ import androidx.compose.ui.Modifier
  * only updates the step on screen. The name is part of the key under which the state saved inside
  * the step comes back after the system ends the app, so it is a plain text that is the same in
  * every run of the app.
+ *
+ * The steps lie on the colour of the page, so that between a step that faded out and the next one
+ * fading in the screen shows the page rather than the window behind the app, which is light in the
+ * dark theme too.
  */
 @Composable
 fun <S> SvSteps(step: S, stepOf: (S) -> String, modifier: Modifier = Modifier, content: @Composable (S) -> Unit) {
     val leave = SvMotion.stepFadeOut<Float>()
     val arrive = SvMotion.stepFadeIn<Float>()
-    SharedTransitionLayout(modifier) {
+    SharedTransitionLayout(modifier.background(MaterialTheme.colorScheme.background)) {
         AnimatedContent(
             targetState = step,
             transitionSpec = { fadeIn(arrive) togetherWith fadeOut(leave) },
