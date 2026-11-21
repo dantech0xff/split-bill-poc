@@ -7,11 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,6 +27,9 @@ import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.inputNumberText
@@ -65,11 +65,14 @@ fun AddToGroupSheet(
         supportingText = stringResource(R.string.groups_add_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            SvQuietButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f))
             if (group != null) {
-                Button(onClick = { viewModel.submit(saved) }, enabled = amounts != null && !state.working) {
-                    Text(stringResource(if (again) R.string.groups_update else R.string.groups_add_the_bill))
-                }
+                SvPrimaryButton(
+                    text = stringResource(if (again) R.string.groups_update else R.string.groups_add_the_bill),
+                    onClick = { viewModel.submit(saved) },
+                    modifier = Modifier.weight(1f),
+                    enabled = amounts != null && !state.working,
+                )
             }
         },
     ) {
@@ -77,7 +80,7 @@ fun AddToGroupSheet(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = SvSpacing.xl),
+                .padding(horizontal = SvSpacing.screen),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             state.message?.let {
@@ -165,25 +168,21 @@ private fun RateField(saved: SavedBill, rate: ExchangeRate?, groupCode: String, 
     // Shows the rate in use until the user types one of their own.
     var typed by rememberSaveable { mutableStateOf<String?>(null) }
     val from = saved.bill.currency.code
-    OutlinedTextField(
+    SvTextField(
         value = typed ?: rate?.rate?.stripTrailingZeros()?.let { inputNumberText(it) }.orEmpty(),
         onValueChange = { text ->
-            typed = text.take(RATE_LENGTH)
+            typed = text
             onRate(text)
         },
-        label = { Text(stringResource(R.string.groups_rate_label, groupCode, from)) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        supportingText = {
-            Text(
-                when {
-                    rate == null -> stringResource(R.string.groups_no_rate)
-                    rate.isByHand -> stringResource(R.string.groups_rate_typed)
-                    else -> stringResource(R.string.groups_rate_of_day, rate.source, rate.date.toString())
-                },
-            )
-        },
+        label = stringResource(R.string.groups_rate_label, groupCode, from),
         modifier = Modifier.fillMaxWidth(),
+        supportingText = when {
+            rate == null -> stringResource(R.string.groups_no_rate)
+            rate.isByHand -> stringResource(R.string.groups_rate_typed)
+            else -> stringResource(R.string.groups_rate_of_day, rate.source, rate.date.toString())
+        },
+        maxLength = RATE_LENGTH,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
     )
 }
 

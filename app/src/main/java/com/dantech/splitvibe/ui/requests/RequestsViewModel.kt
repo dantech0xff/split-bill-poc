@@ -15,11 +15,13 @@ import com.dantech.splitvibe.ui.common.ProxyErrors
 import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.ui.groups.ShareText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -42,6 +44,9 @@ class RequestsViewModel(private val repository: RequestRepository, private val g
      */
     val creditorNames: StateFlow<Map<String, String>> = repository.requests
         .map { list -> groups.creditorNamesOf(list.orEmpty()) }
+        // Naming them reads and decodes the groups the phone keeps, after every change to what it
+        // keeps: no work for the main thread.
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val signedIn: StateFlow<Boolean> = account.map { it.session != null }.stateIn(

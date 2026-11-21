@@ -514,6 +514,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
                             requests = requests,
                             signedIn = signedIn,
                             status = status,
+                            // What the requests add up to comes from the one holder that home and the navigation bar read too.
+                            totals = requestTotals,
+                            localCurrency = settings.localCurrency,
                             creditorNames = creditorNames,
                             actions = remember(requestsViewModel) {
                                 RequestActions(

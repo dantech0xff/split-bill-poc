@@ -1,23 +1,20 @@
 package com.dantech.splitvibe.ui.groups
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,10 +32,15 @@ import com.dantech.splitvibe.data.groups.GroupRepository
 import com.dantech.splitvibe.data.groups.Invitation
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvHero
+import com.dantech.splitvibe.designsystem.components.SvHeroKind
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvTextField
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.resolve
@@ -128,7 +131,11 @@ class JoinGroupViewModel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * An invite link: the group it is for, the name the user goes by in it, and the places kept for
+ * someone without the app, one of which the user may ask to be. The way in stands at the bottom of
+ * the screen, above the keyboard while the name is typed.
+ */
 @Composable
 fun JoinGroupScreen(
     state: JoinState,
@@ -142,16 +149,41 @@ fun JoinGroupScreen(
 ) {
     var name by rememberSaveable { mutableStateOf(myName) }
     var claiming by rememberSaveable { mutableStateOf<String?>(null) }
+    val invitation = state.invitation.takeIf { signedIn }
+    // A place someone else took meanwhile is no longer offered once the invite loads again.
+    val chosen = invitation?.placeholders?.firstOrNull { it.id == claiming }
     Scaffold(
+        // The name is typed in here, so the screen and its button end above the keyboard.
+        modifier = Modifier.imePadding(),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.groups_join_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
+            SvTopBar(
+                title = stringResource(R.string.groups_join_title),
+                backLabel = stringResource(R.string.common_back),
+                onBack = onBack,
             )
+        },
+        bottomBar = {
+            if (invitation != null && !state.waiting) {
+                // Where the floating bar puts its main action on other screens.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm, bottom = SvSpacing.xl),
+                ) {
+                    SvPrimaryButton(
+                        text = if (chosen ==
+                            null
+                        ) {
+                            stringResource(R.string.groups_join)
+                        } else {
+                            stringResource(R.string.groups_ask_to_be, chosen.name)
+                        },
+                        onClick = { if (chosen == null) onJoin(name) else onClaim(chosen.id, name) },
+                        enabled = name.isNotBlank() && !state.working,
+                    )
+                }
+            }
         },
     ) { padding ->
         Column(
@@ -159,69 +191,75 @@ fun JoinGroupScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(SvSpacing.lg),
+                .padding(vertical = SvSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
         ) {
+            val margins = Modifier.padding(horizontal = SvSpacing.screen)
             if (!signedIn) {
                 SvMessageCard(
                     text = stringResource(R.string.groups_join_sign_in),
                     isError = false,
                     action = stringResource(R.string.common_sign_in_in_settings),
                     onAction = onOpenSettings,
+                    modifier = margins,
                 )
                 return@Column
             }
             state.message?.let {
-                SvMessageCard(text = it.resolve(), isError = true, action = stringResource(R.string.common_try_again), onAction = onRetry)
+                SvMessageCard(
+                    text = it.resolve(),
+                    isError = true,
+                    action = stringResource(R.string.common_try_again),
+                    onAction = onRetry,
+                    modifier = margins,
+                )
             }
-            val invitation = state.invitation
             if (invitation == null) {
-                if (state.working) SvLoadingIndicator()
+                if (state.working) SvLoadingIndicator(modifier = margins)
                 return@Column
             }
-            SvCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                    Text(invitation.group.name, style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        stringResource(R.string.groups_balances_in, invitation.group.currency.code),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+            // A screen reader reads the block as one element.
+            SvHero(modifier = margins.semantics(mergeDescendants = true) {}, kind = SvHeroKind.Accent) {
+                Text(invitation.group.name, style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    stringResource(R.string.groups_balances_in, invitation.group.currency.code),
+                    style = MaterialTheme.typography.bodyMediumEmphasized,
+                )
             }
             if (state.waiting) {
-                SvMessageCard(
-                    text = stringResource(R.string.groups_join_asked),
-                    isError = false,
-                )
+                SvMessageCard(text = stringResource(R.string.groups_join_asked), isError = false, modifier = margins)
                 return@Column
             }
-            OutlinedTextField(
+            SvTextField(
                 value = name,
-                onValueChange = { name = it.take(NAME_LENGTH) },
-                label = { Text(stringResource(R.string.groups_your_name)) },
-                singleLine = true,
+                onValueChange = { name = it },
+                label = stringResource(R.string.groups_your_name),
+                modifier = margins.fillMaxWidth(),
+                maxLength = NAME_LENGTH,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth(),
             )
             if (invitation.placeholders.isNotEmpty()) {
-                Text(stringResource(R.string.groups_join_placeholders), style = MaterialTheme.typography.titleSmall)
                 Column {
-                    invitation.placeholders.forEach { placeholder ->
-                        SvPersonChoiceRow(
-                            name = placeholder.name,
-                            selected = claiming == placeholder.id,
-                            onSelect = { claiming = if (claiming == placeholder.id) null else placeholder.id },
-                        )
+                    SvSectionHeader(
+                        stringResource(R.string.groups_join_placeholders),
+                        hint = stringResource(R.string.groups_join_placeholders_hint),
+                    )
+                    // One choice out of the places kept, or none, for a screen reader too.
+                    SvCard(
+                        modifier = margins
+                            .fillMaxWidth()
+                            .selectableGroup(),
+                    ) {
+                        invitation.placeholders.forEach { placeholder ->
+                            SvPersonChoiceRow(
+                                name = placeholder.name,
+                                selected = claiming == placeholder.id,
+                                onSelect = { claiming = if (claiming == placeholder.id) null else placeholder.id },
+                            )
+                        }
                     }
                 }
             }
-            // A place someone else took meanwhile is no longer offered once the invite loads again.
-            val chosen = invitation.placeholders.firstOrNull { it.id == claiming }
-            SvPrimaryButton(
-                text = if (chosen == null) stringResource(R.string.groups_join) else stringResource(R.string.groups_ask_to_be, chosen.name),
-                onClick = { if (chosen == null) onJoin(name) else onClaim(chosen.id, name) },
-                enabled = name.isNotBlank() && !state.working,
-            )
         }
     }
 }

@@ -8,11 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -29,6 +26,9 @@ import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvChoiceChips
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.payments.PaymentMethod
 import com.dantech.splitvibe.domain.payments.VietQrBanks
@@ -86,15 +86,20 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
         supportingText = stringResource(R.string.payments_sheet_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            Button(onClick = { onSave(method) }, enabled = problem == null) { Text(stringResource(R.string.common_save)) }
+            SvQuietButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f))
+            SvPrimaryButton(
+                text = stringResource(R.string.common_save),
+                onClick = { onSave(method) },
+                modifier = Modifier.weight(1f),
+                enabled = problem == null,
+            )
         },
     ) {
         Column(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = SvSpacing.xl),
+                .padding(horizontal = SvSpacing.screen),
             verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             // A method keeps its kind once saved; another kind is another method.
@@ -105,7 +110,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
             when (chosen) {
                 MethodKind.VIETQR -> {
                     BankPicker(bankBin = bankBin, onPick = { bankBin = it })
-                    Field(stringResource(R.string.payments_account_number), first, { first = it }, keyboard = KeyboardType.Number)
+                    Field(stringResource(R.string.payments_account_number), first, { first = it }, keyboard = PRIVATE_KEYBOARD)
                     Field(
                         stringResource(R.string.payments_account_name),
                         second,
@@ -127,7 +132,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
                         stringResource(R.string.payments_upi_id),
                         first,
                         { first = it },
-                        keyboard = KeyboardType.Email,
+                        keyboard = PRIVATE_KEYBOARD,
                         hint = stringResource(R.string.payments_upi_hint),
                     )
                     Field(
@@ -151,6 +156,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
                         stringResource(R.string.payments_iban),
                         second,
                         { second = it },
+                        keyboard = PRIVATE_KEYBOARD,
                         capitalization = KeyboardCapitalization.Characters,
                     )
                     Field(stringResource(R.string.payments_bic), third, { third = it }, capitalization = KeyboardCapitalization.Characters)
@@ -223,6 +229,11 @@ private fun BankPicker(bankBin: String, onPick: (String) -> Unit) {
     }
 }
 
+/**
+ * A field of the sheet. The keyboard corrects none of what is typed, as what a method holds is a
+ * name or a number to be kept as typed, and every field, of one line or of more, takes up to
+ * [MAX_FIELD] characters, which the proxy checks again.
+ */
 @Composable
 private fun Field(
     label: String,
@@ -234,15 +245,15 @@ private fun Field(
     prefix: String? = null,
     hint: String? = null,
 ) {
-    OutlinedTextField(
+    SvTextField(
         value = value,
-        onValueChange = { onValueChange(it.take(MAX_FIELD)) },
+        onValueChange = onValueChange,
+        label = label,
         modifier = Modifier.fillMaxWidth(),
-        label = { Text(label) },
+        supportingText = hint,
+        prefix = prefix,
         singleLine = singleLine,
-        minLines = if (singleLine) 1 else 3,
-        prefix = prefix?.let { { Text(it) } },
-        supportingText = hint?.let { { Text(it) } },
+        maxLength = MAX_FIELD,
         keyboardOptions = KeyboardOptions(
             capitalization = capitalization,
             autoCorrectEnabled = false,
@@ -285,4 +296,12 @@ private fun secondFieldOf(method: PaymentMethod?): String = when (method) {
 private fun thirdFieldOf(method: PaymentMethod?): String = (method as? PaymentMethod.SepaQr)?.bic.orEmpty()
 
 private const val MATCHES = 6
+
+/** The most characters any field of the sheet takes. */
 private const val MAX_FIELD = 500
+
+/**
+ * The keyboard of an account number, an IBAN or a UPI ID, which a keyboard must not suggest from or
+ * learn: a password keyboard does neither. The field still shows what is typed, as it hides nothing.
+ */
+private val PRIVATE_KEYBOARD = KeyboardType.Password

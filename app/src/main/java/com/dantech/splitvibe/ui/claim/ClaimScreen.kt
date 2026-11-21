@@ -2,29 +2,23 @@ package com.dantech.splitvibe.ui.claim
 
 import android.content.ActivityNotFoundException
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,25 +31,36 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.SavedBill
 import com.dantech.splitvibe.data.bills.ShareLink.Companion.NEW_PERSON
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.data.share.ShareClaim
 import com.dantech.splitvibe.data.share.ShareView
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvDialog
+import com.dantech.splitvibe.designsystem.components.SvHero
+import com.dantech.splitvibe.designsystem.components.SvHeroKind
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvSplitButton
+import com.dantech.splitvibe.designsystem.components.SvTag
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.amountSmall
 import com.dantech.splitvibe.domain.dateOrderOf
 import com.dantech.splitvibe.domain.dateWithYearText
 import com.dantech.splitvibe.domain.regionLocale
@@ -100,25 +105,25 @@ private sealed interface Confirm {
 /**
  * The bill's link: everyone at the table opens it in a browser and taps what they had, and this
  * screen shows their picks as they come. The user says who each one is on the bill, stops the
- * picking, checks the split, and sends what each person owes to the page. The day the link is open
- * until is written in the order of [locale], the phone's region unless another is given.
+ * picking, checks the split, and sends what each person owes to the page. The block at the top is
+ * violet while people pick and takes the colour of the floating bar once picking is closed. The day
+ * the link is open until is written in the order of [locale], the phone's region unless another is
+ * given.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, actions: ClaimActions, locale: Locale = regionLocale()) {
     val share = state.share
     var confirming by rememberSaveable(stateSaver = ConfirmSaver) { mutableStateOf<Confirm?>(null) }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.claim_title)) },
-                navigationIcon = {
-                    IconButton(onClick = actions.onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
-                actions = {
-                    if (share != null) {
+            SvTopBar(
+                title = stringResource(R.string.claim_title),
+                backLabel = stringResource(R.string.common_back),
+                onBack = actions.onBack,
+                action = if (share == null) {
+                    null
+                } else {
+                    {
                         SvOverflowMenu(
                             label = stringResource(R.string.claim_more),
                             options = listOf(
@@ -135,76 +140,81 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
             }
         },
     ) { padding ->
+        // The list ends above the bar at the bottom, so nothing scrolls under it.
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(SvSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+            contentPadding = PaddingValues(top = SvSpacing.xs, bottom = SvSpacing.lg),
         ) {
+            // Each block apart from the next; the rows of a group of rows touch, so that they make one card.
+            val margins = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.xs)
             when {
-                state.needsSignIn -> item {
+                state.needsSignIn -> item(key = "sign-in") {
                     SvMessageCard(
                         text = stringResource(R.string.claim_sign_in),
                         isError = false,
                         action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = actions.onOpenSettings,
+                        modifier = margins,
                     )
                 }
 
-                state.cannotShare -> item {
+                state.cannotShare -> item(key = "cannot-share") {
                     SvMessageCard(
                         text = stringResource(R.string.claim_cannot_share),
                         isError = false,
+                        modifier = margins,
                     )
                 }
 
-                state.otherAccount -> item {
+                state.otherAccount -> item(key = "other-account") {
                     SvMessageCard(
                         text = stringResource(R.string.claim_other_account),
                         isError = false,
                         action = stringResource(R.string.claim_make_new_link),
                         onAction = actions.onMakeNewLink,
+                        modifier = margins,
                     )
                 }
             }
             state.message?.let { message ->
                 // Before the link exists, the message is about making it, which can be tried again.
                 val retry = share == null && !state.otherAccount
-                item {
+                item(key = "message") {
                     SvMessageCard(
                         text = message.resolve(),
                         isError = true,
                         action = stringResource(if (retry) R.string.common_try_again else R.string.common_dismiss),
                         onAction = if (retry) actions.onRetry else actions.onDismissMessage,
+                        modifier = margins,
                     )
                 }
             }
             if (share == null || saved == null) {
-                if (state.working) item { SvLoadingIndicator() }
+                if (state.working) item(key = "loading") { SvLoadingIndicator(modifier = margins) }
                 return@LazyColumn
             }
-            item { LinkCard(state, share, saved, locale) }
-            if (!share.isOpen) item { PaymentCard(share, saved, payment, actions) }
+            item(key = "link") { LinkHero(state, share, saved, locale, modifier = margins) }
+            if (!share.isOpen) item(key = "payment") { PaymentCard(share, saved, payment, actions, modifier = margins) }
             val claims = share.claims
             if (claims.isEmpty()) {
-                item {
+                item(key = "nobody-yet") {
                     Text(
                         stringResource(R.string.claim_nobody_yet),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = SvSpacing.md),
+                        modifier = margins.padding(vertical = SvSpacing.sm),
                     )
                 }
             } else {
-                item {
+                item(key = "picked") {
                     val hint = stringResource(if (share.isOpen) R.string.claim_names_typed_say_who else R.string.claim_names_typed)
                     SvSectionHeader(stringResource(R.string.claim_picked_so_far), hint = hint)
                 }
-                itemsIndexed(claims, key = { _, claim -> claim.id }) { index, claim ->
-                    ClaimRow(
+                items(claims, key = { claim -> claim.id }) { claim ->
+                    ClaimCard(
                         claim = claim,
-                        position = SvRowPosition.of(index, claims.size),
                         saved = saved,
                         share = share,
                         match = state.matches[claim.id],
@@ -216,17 +226,17 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
             val picked = claims.flatMap { it.itemIds }.toSet()
             val unpicked = share.bill.items.filter { it.id !in picked }
             if (unpicked.isNotEmpty() && claims.isNotEmpty()) {
-                item {
+                item(key = "unpicked") {
                     SvSectionHeader(stringResource(R.string.claim_nobody_picked), hint = stringResource(R.string.claim_nobody_picked_hint))
                 }
+                // One card for what nobody picked, its rows one after another.
                 itemsIndexed(unpicked, key = { _, item -> "item-${item.id}" }) { index, item ->
                     SvListRow(position = SvRowPosition.of(index, unpicked.size)) {
-                        Text(item.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Text(saved.bill.format(item.amountMinor), style = MaterialTheme.typography.bodyLarge)
+                        Text(item.name, style = MaterialTheme.typography.bodyMediumEmphasized, modifier = Modifier.weight(1f))
+                        Text(saved.bill.format(item.amountMinor), style = MaterialTheme.typography.amountSmall)
                     }
                 }
             }
-            item { Spacer(Modifier.height(SvSpacing.xxl)) }
         }
     }
     confirming?.let { asked ->
@@ -245,30 +255,27 @@ fun ClaimScreen(state: ClaimState, saved: SavedBill?, payment: ClaimPayment, act
     }
 }
 
+/**
+ * The block at the top: where the link stands, what to do with it, its address, and the ways to
+ * share and copy it. Violet while people pick, the colour of the floating bar once picking is closed.
+ */
 @Composable
-private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, locale: Locale) {
+private fun LinkHero(state: ClaimState, share: ShareView, saved: SavedBill, locale: Locale, modifier: Modifier) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val clipboard = LocalClipboardManager.current
     val url = state.url
-    SvCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Text(statusOf(share, locale).resolve(), style = MaterialTheme.typography.titleMedium)
-            if (share.isOpen && !state.connected) {
-                Text(
-                    stringResource(R.string.claim_reconnecting),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            Text(
-                stringResource(R.string.claim_send_link_hint),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (url != null) {
-                Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-                    FilledTonalButton(onClick = {
+    SvHero(modifier = modifier, kind = if (share.isOpen) SvHeroKind.Brand else SvHeroKind.Bar) {
+        Text(statusOf(share, locale).resolve(), style = MaterialTheme.typography.titleLarge)
+        if (share.isOpen && !state.connected) SvTag(stringResource(R.string.claim_reconnecting))
+        Text(stringResource(R.string.claim_send_link_hint))
+        if (url != null) {
+            // The whole address, which goes on to a second line rather than being cut off.
+            Text(url, style = MaterialTheme.typography.bodySmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+                SvPrimaryButton(
+                    text = stringResource(R.string.claim_share_link),
+                    onClick = {
                         val title = saved.bill.merchant?.takeIf { it.isNotBlank() }
                             ?: resources.getString(R.string.requests_message_the_bill)
                         try {
@@ -281,9 +288,11 @@ private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, loca
                         } catch (e: ActivityNotFoundException) {
                             // No app on this phone takes text; the link can still be copied.
                         }
-                    }) { Text(stringResource(R.string.claim_share_link)) }
-                    OutlinedButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text(stringResource(R.string.claim_copy)) }
-                }
+                    },
+                    icon = SvActionIcons.Share,
+                    compact = true,
+                )
+                SvQuietButton(stringResource(R.string.claim_copy), onClick = { clipboard.setText(AnnotatedString(url)) })
             }
         }
     }
@@ -291,8 +300,8 @@ private fun LinkCard(state: ClaimState, share: ShareView, saved: SavedBill, loca
 
 /** How the page asks people to pay, once picking is closed: with the user's method, or, when someone else is owed, not at all. */
 @Composable
-private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPayment, actions: ClaimActions) {
-    SvCard(modifier = Modifier.fillMaxWidth()) {
+private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPayment, actions: ClaimActions, modifier: Modifier) {
+    SvCard(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             val group = saved.group
             val payer = saved.plan.payments.singleOrNull()?.participantId?.let { id -> saved.plan.participants.firstOrNull { it.id == id } }
@@ -320,17 +329,25 @@ private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPaymen
                         stringResource(R.string.claim_add_method_hint),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    FilledTonalButton(onClick = actions.onAddMethod) { Text(stringResource(R.string.requests_add_method)) }
+                    SvQuietButton(stringResource(R.string.requests_add_method), onClick = actions.onAddMethod)
                 }
 
                 else -> {
                     val method = payment.chosen.method
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.claim_pay_you_by, method.title), style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+                        SvAvatar(method.title, size = AVATAR_SIZE)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics(mergeDescendants = true) {},
+                        ) {
+                            Text(
+                                stringResource(R.string.claim_pay_you_by, method.title),
+                                style = MaterialTheme.typography.bodyMediumEmphasized,
+                            )
                             Text(
                                 method.summary,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -359,10 +376,13 @@ private fun PaymentCard(share: ShareView, saved: SavedBill, payment: ClaimPaymen
     }
 }
 
+/**
+ * What one person picked, as a card of its own: the name they typed, what they had, and who they
+ * are on the bill. While people pick, its menu says who they are or takes them off the link.
+ */
 @Composable
-private fun ClaimRow(
+private fun ClaimCard(
     claim: ShareClaim,
-    position: SvRowPosition,
     saved: SavedBill,
     share: ShareView,
     match: String?,
@@ -380,9 +400,16 @@ private fun ClaimRow(
             stringResource(R.string.claim_on_bill_as, if (it.isMe) stringResource(R.string.claim_you_in_sentence) else it.name)
         } ?: addedAsNew
     }
-    SvListRow(position = position) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-            Text(claim.name, style = MaterialTheme.typography.bodyLarge)
+    SvListRow(position = SvRowPosition.Single, modifier = Modifier.padding(vertical = SvSpacing.xs)) {
+        SvAvatar(claim.name, size = AVATAR_SIZE)
+        Spacer(Modifier.width(SvSpacing.md))
+        // One element for a screen reader: who picked what, and who they are on the bill.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .semantics(mergeDescendants = true) {},
+        ) {
+            Text(claim.name, style = MaterialTheme.typography.bodyLargeEmphasized)
             Text(items, style = MaterialTheme.typography.bodyMedium)
             Text(onBill, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -400,20 +427,39 @@ private fun ClaimRow(
     }
 }
 
+/**
+ * What to do next at the bottom of the screen. While people pick, the one thing to do is to stop
+ * the picking, the main action of the screen where the floating bar puts its own. Once picking is
+ * closed the floating bar holds sending what everyone owes, or being done, with a menu for the rest.
+ */
 @Composable
 private fun ClaimBar(share: ShareView, working: Boolean, methodChanged: Boolean, actions: ClaimActions, onReopen: () -> Unit) {
     val morePicks = stringResource(R.string.claim_more_picks)
     val pickAgain = stringResource(R.string.claim_pick_again)
+    if (share.status == ShareView.OPEN) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm, bottom = SvSpacing.xl),
+        ) {
+            // While a call runs, nothing else can start.
+            if (working) {
+                SvPrimaryButton(text = stringResource(R.string.common_working), onClick = {}, enabled = false)
+            } else {
+                SvPrimaryButton(
+                    text = stringResource(R.string.claim_stop_picking),
+                    onClick = actions.onLock,
+                    enabled = share.claims.isNotEmpty(),
+                )
+            }
+        }
+        return
+    }
     SvBottomBar {
         when {
             // While a call runs, nothing else can start.
             working -> SvPrimaryButton(text = stringResource(R.string.common_working), onClick = {}, enabled = false)
-
-            share.status == ShareView.OPEN -> SvPrimaryButton(
-                text = stringResource(R.string.claim_stop_picking),
-                onClick = actions.onLock,
-                enabled = share.claims.isNotEmpty(),
-            )
 
             share.status == ShareView.LOCKING -> SvSplitButton(
                 text = stringResource(R.string.claim_send_amounts),
@@ -463,12 +509,15 @@ private fun ConfirmDialog(asked: Confirm, onConfirm: () -> Unit, onDismiss: () -
             stringResource(R.string.claim_remove_confirm),
         )
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(action) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    SvDialog(
+        title = title,
+        text = text,
+        confirmLabel = action,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        dismissLabel = stringResource(R.string.common_cancel),
+        // Ending the link and taking someone off it delete what was picked; picking again does not.
+        irreversible = asked != Confirm.Reopen,
     )
 }
 
@@ -491,6 +540,8 @@ private val ConfirmSaver = Saver<Confirm?, List<String>>(
         }
     },
 )
+
+private val AVATAR_SIZE = 44.dp
 
 /** Where the link stands, in one line: open until when, or what happens now. */
 private fun statusOf(share: ShareView, locale: Locale): UiText = when (share.status) {

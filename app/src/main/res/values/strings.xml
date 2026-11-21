@@ -628,8 +628,9 @@
         <item quantity="one">%d in the group</item>
         <item quantity="other">%d in the group</item>
     </plurals>
-    <string name="groups_owner">owner</string>
-    <string name="groups_no_app_yet">no app yet</string>
+    <!-- Tags beside a member's name. -->
+    <string name="groups_owner">Owner</string>
+    <string name="groups_no_app_yet">No app yet</string>
     <string name="groups_more_for">More for %1$s</string>
     <string name="groups_take_out_of_group">Take out of the group</string>
     <string name="groups_asks_to_be">%1$s asks to be %2$s</string>
@@ -684,7 +685,8 @@
     <string name="groups_join_sign_in">Sign in with Google to join this group. Groups are shared through Split Vibe\'s server.</string>
     <string name="groups_balances_in">Balances in %1$s</string>
     <string name="groups_join_asked">Asked. The group\'s owner decides whether you are that person; the group opens once they say yes.</string>
-    <string name="groups_join_placeholders">Are you one of these people? Bills already in the group may name you.</string>
+    <string name="groups_join_placeholders">Are you one of these people?</string>
+    <string name="groups_join_placeholders_hint">Bills already in the group may name you.</string>
     <string name="groups_join">Join the group</string>
     <string name="groups_ask_to_be">Ask to be %1$s</string>
 

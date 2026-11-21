@@ -6,30 +6,26 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,27 +37,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.requests.RequestStatus
 import com.dantech.splitvibe.data.requests.RequestView
+import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
-import com.dantech.splitvibe.designsystem.components.SvListRow
+import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
-import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
+import com.dantech.splitvibe.designsystem.components.SvSmallAction
+import com.dantech.splitvibe.designsystem.components.SvTag
+import com.dantech.splitvibe.designsystem.components.SvTagKind
+import com.dantech.splitvibe.designsystem.components.SvTile
+import com.dantech.splitvibe.designsystem.components.SvTileKind
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
+import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.payments.PaymentMethod
 import com.dantech.splitvibe.domain.payments.PaymentRequest
 import com.dantech.splitvibe.domain.payments.PaymentRequestBuilder
@@ -71,6 +80,8 @@ import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyWork
+import com.dantech.splitvibe.ui.home.Money
+import com.dantech.splitvibe.ui.home.OpenRequests
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -87,25 +98,34 @@ class RequestActions(
 )
 
 /**
- * The requests sent to the user, to pay, and those the user sent, to confirm. It is one of the main
- * screens, with the navigation bar the app passes as [bottomBar] and no back button.
+ * The requests sent to the user, to pay, and those the user sent, to confirm, each as a card with
+ * what can be done about it. Above them two tiles say what the user owes and what friends owe the
+ * user, as [totals] adds it up: the totals of the one holder that the home and the navigation bar
+ * read too, so that the screens never disagree. The tiles add nothing up themselves, and show only
+ * once the totals are known and there are requests. [localCurrency], a currency code, is the one
+ * whose total leads, as on the home.
+ *
+ * It is one of the main screens, with its large title, the navigation bar the app passes as
+ * [bottomBar] and no back button.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RequestsScreen(
     requests: List<RequestView>?,
     signedIn: Boolean,
     status: ProxyWork,
     actions: RequestActions,
+    totals: RequestTotals,
+    localCurrency: String,
     /** Who asked, by request id, as their group knows them; see [RequestsViewModel.creditorNames]. */
     creditorNames: Map<String, String> = emptyMap(),
     bottomBar: @Composable () -> Unit = {},
 ) {
     var paying by rememberSaveable { mutableStateOf<String?>(null) }
+    val tiles = RequestTiles.of(totals, requests, localCurrency)
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.requests_title)) },
+            SvLargeTopBar(
+                title = stringResource(R.string.requests_title),
                 actions = {
                     if (signedIn) {
                         SvOverflowMenu(
@@ -119,73 +139,76 @@ fun RequestsScreen(
         bottomBar = bottomBar,
     ) { padding ->
         // The list ends above the navigation bar, so no request, nor its buttons, ever passes under it half hidden.
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(top = SvSpacing.sm, bottom = SvSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+        ) {
             if (!signedIn) {
-                item {
+                item(key = "sign-in") {
                     SvMessageCard(
                         text = stringResource(R.string.requests_need_sign_in),
                         isError = false,
                         action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = actions.onOpenSettings,
-                        modifier = Modifier.padding(SvSpacing.lg),
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     )
                 }
             }
             status.message?.let {
-                item {
+                item(key = "message") {
                     SvMessageCard(
                         text = it.resolve(),
                         isError = true,
                         action = stringResource(R.string.common_ok),
                         onAction = actions.onDismissMessage,
-                        modifier = Modifier.padding(SvSpacing.lg),
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     )
                 }
             }
-            if (status.working && requests == null) item { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
+            tiles?.let { item(key = "tiles") { Tiles(it) } }
+            if (status.working && requests == null) item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
             val all = requests.orEmpty()
             if (signedIn && requests != null && all.isEmpty()) {
-                item {
+                item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.AutoMirrored.Filled.List,
                         text = stringResource(R.string.requests_empty),
                     )
                 }
             }
-            section(R.string.requests_to_pay, all.filter { !it.isMine }) { request, position ->
-                RequestRow(request, position, creditorNames[request.id]) {
+            section(R.string.requests_to_pay, all.filter { !it.isMine }) { request ->
+                val who = creditorNames[request.id] ?: request.creditorName ?: stringResource(R.string.common_someone)
+                RequestCard(request, who) {
                     if (request.status == RequestStatus.WAITING) {
-                        FilledTonalButton(onClick = { paying = request.id }) { Text(stringResource(R.string.requests_pay)) }
+                        SvPrimaryButton(stringResource(R.string.requests_pay), onClick = { paying = request.id }, compact = true)
                     }
                 }
             }
-            section(R.string.requests_you_asked_for, all.filter { it.isMine }) { request, position ->
-                RequestRow(request, position, null) {
+            section(R.string.requests_you_asked_for, all.filter { it.isMine }) { request ->
+                RequestCard(request, request.payerName) {
+                    if (request.status == RequestStatus.REPORTED_PAID) {
+                        SvSmallAction(stringResource(R.string.requests_confirm), onClick = { actions.onConfirmPaid(request.id) })
+                    }
                     if (request.status != RequestStatus.PAID) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                            if (request.status == RequestStatus.REPORTED_PAID) {
-                                FilledTonalButton(onClick = { actions.onConfirmPaid(request.id) }) {
-                                    Text(stringResource(R.string.requests_confirm))
+                        SvOverflowMenu(
+                            label = stringResource(R.string.requests_more_for, request.payerName),
+                            options = buildList {
+                                if (request.status == RequestStatus.WAITING) {
+                                    add(SvMenuOption(stringResource(R.string.requests_arrived)) { actions.onConfirmPaid(request.id) })
                                 }
-                            }
-                            SvOverflowMenu(
-                                label = stringResource(R.string.requests_more_for, request.payerName),
-                                options = buildList {
-                                    if (request.status == RequestStatus.WAITING) {
-                                        add(SvMenuOption(stringResource(R.string.requests_arrived)) { actions.onConfirmPaid(request.id) })
-                                    }
-                                    add(SvMenuOption(stringResource(R.string.requests_send_reminder)) { actions.onRemind(request) })
-                                    RequestView.REMINDER_DAYS.filter { it != request.remindEveryDays }.forEach { days ->
-                                        add(SvMenuOption(reminderLabel(days).resolve()) { actions.onSetReminders(request.id, days) })
-                                    }
-                                    add(SvMenuOption(stringResource(R.string.requests_delete)) { actions.onDelete(request.id) })
-                                },
-                            )
-                        }
+                                add(SvMenuOption(stringResource(R.string.requests_send_reminder)) { actions.onRemind(request) })
+                                RequestView.REMINDER_DAYS.filter { it != request.remindEveryDays }.forEach { days ->
+                                    add(SvMenuOption(reminderLabel(days).resolve()) { actions.onSetReminders(request.id, days) })
+                                }
+                                add(SvMenuOption(stringResource(R.string.requests_delete)) { actions.onDelete(request.id) })
+                            },
+                        )
                     }
                 }
             }
-            item { Spacer(Modifier.height(SvSpacing.xxl)) }
         }
     }
 
@@ -196,6 +219,8 @@ fun RequestsScreen(
         } else {
             PaySheet(
                 request = request,
+                // As the card it was opened from names them.
+                creditor = creditorNames[request.id] ?: request.creditorName,
                 onReportPaid = {
                     paying = null
                     actions.onReportPaid(id)
@@ -206,30 +231,152 @@ fun RequestsScreen(
     }
 }
 
-private fun LazyListScope.section(
-    @StringRes title: Int,
-    requests: List<RequestView>,
-    row: @Composable (RequestView, SvRowPosition) -> Unit,
-) {
-    if (requests.isEmpty()) return
-    item(key = "header-$title") { SvSectionHeader(stringResource(title)) }
-    itemsIndexed(requests, key = { _, request -> request.id }) { index, request -> row(request, SvRowPosition.of(index, requests.size)) }
-}
+/**
+ * What the two tiles of the requests screen show: [youOwe], what the user owes, and [owedToYou],
+ * what friends owe the user, each as [RequestTotals] adds it up.
+ */
+internal data class RequestTiles(val youOwe: Side, val owedToYou: Side) {
 
-@Composable
-private fun RequestRow(request: RequestView, position: SvRowPosition, groupName: String?, trailing: @Composable () -> Unit) {
-    val who = if (request.isMine) request.payerName else groupName ?: request.creditorName ?: stringResource(R.string.common_someone)
-    SvListRow(position = position) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(listOfNotNull(who, request.title).joinToString(" · "), style = MaterialTheme.typography.bodyLarge)
-            Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
-            Text(
-                statusText(request).resolve(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+    /**
+     * One side: its [total] in the user's own currency, or in the currency of the newest request when
+     * none is in it, and its totals in [others], the other currencies, which nothing converts.
+     */
+    data class Side(val total: Money, val others: List<Money>)
+
+    companion object {
+        /**
+         * The tiles for [totals], beside the [requests] the screen lists, for a user who counts in
+         * [localCurrency]. None while nothing is known of the totals, as nothing known is not nothing
+         * owed, nor while there is no request to list. A side without an open request comes to
+         * nothing in the user's own currency, which is then known.
+         */
+        fun of(totals: RequestTotals, requests: List<RequestView>?, localCurrency: String): RequestTiles? {
+            val loaded = totals as? RequestTotals.Loaded ?: return null
+            if (requests.isNullOrEmpty()) return null
+            val nothing = Side(Money(BillCurrency.resolve(localCurrency, printedDecimals = null, amounts = emptyList()), 0), emptyList())
+            fun side(open: OpenRequests?) = open?.let { Side(it.main, it.others) } ?: nothing
+            return RequestTiles(
+                youOwe = side(OpenRequests.of(loaded.youOwe, loaded.youOweCount, loaded.youOweTo, localCurrency)),
+                owedToYou = side(OpenRequests.of(loaded.owedToYou, loaded.owedToYouCount, loaded.owedBy, localCurrency)),
             )
         }
-        trailing()
+    }
+}
+
+/** What the user owes and what friends owe the user, side by side, as the home writes them. */
+@Composable
+private fun Tiles(tiles: RequestTiles) {
+    // Not stretched to one height by intrinsic measurement, which measures the values unshrunk.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SvSpacing.screen),
+        horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+    ) {
+        Tile(stringResource(R.string.home_you_owe), tiles.youOwe, SvTileKind.Ink, Modifier.weight(1f))
+        Tile(stringResource(R.string.home_friends_owe_you), tiles.owedToYou, SvTileKind.Brand, Modifier.weight(1f))
+    }
+}
+
+/** One side as a tile, which a screen reader reads as one element: its label, its total, and the other currencies below. */
+@Composable
+private fun Tile(label: String, side: RequestTiles.Side, kind: SvTileKind, modifier: Modifier) {
+    SvTile(
+        label = label,
+        value = side.total.text,
+        kind = kind,
+        modifier = modifier.semantics(mergeDescendants = true) {},
+        caption = side.others.takeIf { it.isNotEmpty() }?.joinToString(OTHERS_SEPARATOR) { it.text },
+    )
+}
+
+private fun LazyListScope.section(@StringRes title: Int, requests: List<RequestView>, card: @Composable (RequestView) -> Unit) {
+    if (requests.isEmpty()) return
+    item(key = "header-$title") { SvSectionHeader(stringResource(title)) }
+    items(requests, key = { request -> request.id }) { request -> card(request) }
+}
+
+/**
+ * One request as a card: who it is with, by their letters and name, what it is for, its amount, and
+ * how it stands, a request paid and confirmed with a tag that says so. [actions] stand at the end
+ * of its first line, or below it with larger text. A screen reader reads the card as one element,
+ * with its buttons apart.
+ */
+@Composable
+private fun RequestCard(request: RequestView, who: String, actions: @Composable RowScope.() -> Unit) {
+    SvCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SvSpacing.screen)
+            .semantics(mergeDescendants = true) {},
+    ) {
+        Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+                SvAvatar(who, size = AVATAR_SIZE)
+                TextsAndActions(
+                    modifier = Modifier.weight(1f),
+                    texts = {
+                        Column {
+                            Text(
+                                listOfNotNull(who, request.title).joinToString(" · "),
+                                style = MaterialTheme.typography.bodyMediumEmphasized,
+                            )
+                            Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
+                        }
+                    },
+                    actions = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(SvSpacing.xs),
+                            content = actions,
+                        )
+                    },
+                )
+            }
+            if (request.status == RequestStatus.PAID) {
+                SvTag(statusText(request).resolve(), kind = SvTagKind.Accent, icon = Icons.Default.Check)
+            } else {
+                Text(
+                    statusText(request).resolve(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * [texts] with [actions] at their end, while the actions leave the texts room for their longest
+ * word, as with text at its usual size; and the actions below the texts, at their end, when they do
+ * not, as with text at twice its size. A name or an amount is then never broken in the middle.
+ */
+@Composable
+private fun TextsAndActions(texts: @Composable () -> Unit, actions: @Composable () -> Unit, modifier: Modifier = Modifier) {
+    Layout(contents = listOf(texts, actions), modifier = modifier) { (textParts, actionParts), constraints ->
+        val text = textParts.single()
+        val action = actionParts.single()
+        val width = constraints.maxWidth
+        val gap = SvSpacing.md.roundToPx()
+        val actionsWidth = action.maxIntrinsicWidth(Constraints.Infinity)
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        if (actionsWidth == 0 || text.minIntrinsicWidth(Constraints.Infinity) + gap + actionsWidth <= width) {
+            val actionPlaced = action.measure(loose)
+            val textWidth = if (actionPlaced.width == 0) width else (width - actionPlaced.width - gap).coerceAtLeast(0)
+            val textPlaced = text.measure(loose.copy(minWidth = textWidth, maxWidth = textWidth))
+            val height = maxOf(textPlaced.height, actionPlaced.height)
+            layout(width, height) {
+                textPlaced.placeRelative(0, (height - textPlaced.height) / 2)
+                actionPlaced.placeRelative(width - actionPlaced.width, (height - actionPlaced.height) / 2)
+            }
+        } else {
+            val textPlaced = text.measure(loose.copy(minWidth = width))
+            val actionPlaced = action.measure(loose)
+            layout(width, textPlaced.height + gap + actionPlaced.height) {
+                textPlaced.placeRelative(0, 0)
+                actionPlaced.placeRelative(width - actionPlaced.width, textPlaced.height + gap)
+            }
+        }
     }
 }
 
@@ -264,27 +411,36 @@ private fun reminderLabel(days: Int): UiText = when (days) {
 
 /** How to pay a request: its code to scan, its link to open and its details to type, then a way to say it is paid. */
 @Composable
-private fun PaySheet(request: RequestView, onReportPaid: () -> Unit, onDismiss: () -> Unit) {
+private fun PaySheet(request: RequestView, creditor: String?, onReportPaid: () -> Unit, onDismiss: () -> Unit) {
     SvBottomSheet(
         title = stringResource(
             R.string.requests_pay_title,
-            request.creditorName ?: stringResource(R.string.requests_them),
+            creditor ?: stringResource(R.string.requests_them),
             request.bill.format(request.amountMinor),
         ),
         supportingText = stringResource(R.string.requests_pay_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.requests_not_yet)) }
-            Button(onClick = onReportPaid) { Text(stringResource(R.string.requests_i_have_paid)) }
+            SvQuietButton(stringResource(R.string.requests_not_yet), onClick = onDismiss, modifier = Modifier.weight(1f))
+            SvPrimaryButton(stringResource(R.string.requests_i_have_paid), onClick = onReportPaid, modifier = Modifier.weight(1f))
         },
     ) {
-        Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = SvSpacing.xl)) {
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = SvSpacing.screen),
+        ) {
             PayPanel(request)
         }
     }
 }
 
-/** The code, link and details of [request], built on this phone from the one payment method the request carries. */
+/**
+ * The code, link and details of [request], built on this phone from the one payment method the
+ * request carries: the code to scan on a card of its own, the way to open the link, and the details
+ * to type, line by line, with a button that copies them.
+ */
 @Composable
 fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
     val method = request.paymentMethod
@@ -298,31 +454,48 @@ fun PayPanel(request: RequestView, modifier: Modifier = Modifier) {
             )
             return@Column
         }
-        paying.qrPayload?.let { payload ->
-            // Drawn away from the main thread, then shown.
-            val code by produceState<ImageBitmap?>(null, payload) {
-                value = withContext(Dispatchers.Default) { runCatching { QrCodes.bitmap(payload, CODE_PX).asImageBitmap() }.getOrNull() }
-            }
-            SvCard(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                val drawn = code
-                if (drawn == null) {
-                    Spacer(Modifier.size(CODE_SIZE))
-                } else {
-                    Image(
-                        drawn,
-                        contentDescription = stringResource(R.string.requests_payment_code, method.title),
-                        modifier = Modifier.size(CODE_SIZE).padding(SvSpacing.sm),
-                    )
-                }
+        paying.qrPayload?.let { payload -> CodeCard(payload, method) }
+        paying.link?.takeIf { it != paying.qrPayload || method is PaymentMethod.Upi }?.let { link -> OpenLinkButton(link, method) }
+        DetailsCard(paying)
+    }
+}
+
+/**
+ * The payment code to scan, at the size it always had and with the white quiet zone around it that
+ * scanners need, which the image of the code carries itself; nothing rounds or cuts its edges.
+ */
+@Composable
+private fun CodeCard(payload: String, method: PaymentMethod) {
+    // Drawn away from the main thread, then shown.
+    val code by produceState<ImageBitmap?>(null, payload) {
+        value = withContext(Dispatchers.Default) { runCatching { QrCodes.bitmap(payload, CODE_PX).asImageBitmap() }.getOrNull() }
+    }
+    SvCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(SvSpacing.lg),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.sm),
+        ) {
+            val drawn = code
+            if (drawn == null) {
+                Spacer(Modifier.size(CODE_SIZE))
+            } else {
+                Image(
+                    drawn,
+                    contentDescription = stringResource(R.string.requests_payment_code, method.title),
+                    modifier = Modifier
+                        .size(CODE_SIZE)
+                        .padding(SvSpacing.sm),
+                )
             }
             Text(
                 stringResource(R.string.requests_scan_it),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
+                style = MaterialTheme.typography.bodyMediumEmphasized,
+                textAlign = TextAlign.Center,
             )
         }
-        paying.link?.takeIf { it != paying.qrPayload || method is PaymentMethod.Upi }?.let { link -> OpenLinkButton(link, method) }
-        DetailsCard(paying)
     }
 }
 
@@ -338,45 +511,98 @@ private fun OpenLinkButton(link: String, method: PaymentMethod) {
             // No app takes the link; the details below still work.
         }
     }
-    OutlinedButton(onClick = {
-        if (method is PaymentMethod.PastedLink) confirming = true else open()
-    }, modifier = Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.requests_open_method, method.title))
-    }
+    SvQuietButton(
+        text = stringResource(R.string.requests_open_method, method.title),
+        onClick = { if (method is PaymentMethod.PastedLink) confirming = true else open() },
+        modifier = Modifier.fillMaxWidth(),
+    )
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = {
-                val host = (method as? PaymentMethod.PastedLink)?.host ?: stringResource(R.string.requests_this_link)
-                Text(stringResource(R.string.requests_open_link_title, host))
+        val host = (method as? PaymentMethod.PastedLink)?.host ?: stringResource(R.string.requests_this_link)
+        SvDialog(
+            title = stringResource(R.string.requests_open_link_title, host),
+            text = stringResource(R.string.requests_pasted_link_warning),
+            confirmLabel = stringResource(R.string.common_open),
+            onConfirm = {
+                confirming = false
+                open()
             },
-            text = { Text(stringResource(R.string.requests_pasted_link_warning)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirming = false
-                        open()
-                    },
-                ) { Text(stringResource(R.string.common_open)) }
-            },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.common_cancel)) } },
+            onDismiss = { confirming = false },
+            dismissLabel = stringResource(R.string.common_cancel),
         )
     }
 }
 
+/**
+ * The details to pay by hand, one line each, with what each line is at its start, such as "Bank",
+ * and a button that copies them all as they are written.
+ */
 @Composable
 private fun DetailsCard(paying: PaymentRequest) {
     val clipboard = LocalClipboardManager.current
     SvCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
-            Text(paying.details, style = MaterialTheme.typography.bodyMedium)
-            if (!paying.amountFilledIn) Text(stringResource(R.string.requests_type_amount), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { clipboard.setText(AnnotatedString(paying.details)) }) {
-                Text(stringResource(R.string.requests_copy_details))
+        Column(modifier = Modifier.padding(start = SvSpacing.lg, end = SvSpacing.lg, top = SvSpacing.sm, bottom = SvSpacing.lg)) {
+            detailsOf(paying.details).forEach { detail -> DetailRow(detail) }
+            if (!paying.amountFilledIn) {
+                Text(
+                    stringResource(R.string.requests_type_amount),
+                    modifier = Modifier.padding(vertical = SvSpacing.sm),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
+            SvQuietButton(
+                text = stringResource(R.string.requests_copy_details),
+                onClick = { clipboard.setText(AnnotatedString(paying.details)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = SvSpacing.sm),
+            )
         }
+    }
+}
+
+/** One line of the details: what it is in quiet type at its start, and what to type at its end. */
+@Composable
+private fun DetailRow(detail: PaymentDetail) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = DETAIL_LINE_HEIGHT)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+    ) {
+        detail.label?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(
+            detail.value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMediumEmphasized,
+            textAlign = if (detail.label == null) TextAlign.Start else TextAlign.End,
+        )
+    }
+}
+
+/** A line of the details of a payment, such as "Account: 257678859": what it is, when it says, and its value. */
+internal data class PaymentDetail(val label: String?, val value: String)
+
+/**
+ * The lines of [details] as the builder of a payment writes them, one thing a line, each named
+ * before a colon, such as "Bank: ACB (970416)". A line that names nothing, such as one more line of
+ * details a person typed, is all value.
+ */
+internal fun detailsOf(details: String): List<PaymentDetail> = details.lines().filter { it.isNotBlank() }.map { line ->
+    val colon = line.indexOf(DETAIL_SEPARATOR)
+    if (colon > 0) {
+        PaymentDetail(line.substring(0, colon).trim(), line.substring(colon + DETAIL_SEPARATOR.length).trim())
+    } else {
+        PaymentDetail(null, line.trim())
     }
 }
 
 private const val CODE_PX = 480
 private val CODE_SIZE = 220.dp
+private val AVATAR_SIZE = 44.dp
+private val DETAIL_LINE_HEIGHT = 44.dp
+private const val DETAIL_SEPARATOR = ": "
+
+/** Between the totals in other currencies below a tile's own. */
+private const val OTHERS_SEPARATOR = " · "

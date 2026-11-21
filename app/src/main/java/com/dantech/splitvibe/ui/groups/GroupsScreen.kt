@@ -2,26 +2,22 @@ package com.dantech.splitvibe.ui.groups
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,24 +29,31 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.groups.GroupSummary
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
+import com.dantech.splitvibe.designsystem.components.SvLargeTopBar
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
-import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
+import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvTag
+import com.dantech.splitvibe.designsystem.components.SvTextField
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.ProxyWork
 
 /**
- * The user's groups, such as housemates or a trip, each with balances across its bills. It is one of
- * the main screens, with the navigation bar the app passes as [bottomBar] and no back button.
+ * The user's groups, such as housemates or a trip, each as a card with its name and the currency
+ * its balances are kept in, or that it still waits for its owner to let the user in. The list of
+ * groups carries no balance, so none shows here; a group shows its balances once it is opened. It
+ * is one of the main screens, with its large title, the navigation bar the app passes as
+ * [bottomBar] and no back button.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
     groups: List<GroupSummary>?,
@@ -66,63 +69,63 @@ fun GroupsScreen(
 ) {
     var creating by rememberSaveable { mutableStateOf(false) }
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.groups_title)) }) },
-        bottomBar = bottomBar,
-        floatingActionButton = {
-            if (signedIn) SvPrimaryFab(text = stringResource(R.string.groups_new), icon = Icons.Default.Add, onClick = { creating = true })
+        topBar = {
+            SvLargeTopBar(
+                title = stringResource(R.string.groups_title),
+                actions = {
+                    if (signedIn) {
+                        SvPrimaryButton(
+                            text = stringResource(R.string.groups_new),
+                            onClick = { creating = true },
+                            icon = SvActionIcons.Plus,
+                            compact = true,
+                        )
+                    }
+                },
+            )
         },
+        bottomBar = bottomBar,
     ) { padding ->
-        // The list ends above the navigation bar, so no row ever passes under it half hidden.
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // The list ends above the navigation bar, so no group ever passes under it half hidden.
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(top = SvSpacing.sm, bottom = SvSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
+        ) {
             if (!signedIn) {
-                item {
+                item(key = "sign-in") {
                     SvMessageCard(
                         text = stringResource(R.string.groups_need_sign_in),
                         isError = false,
                         action = stringResource(R.string.common_sign_in_in_settings),
                         onAction = onOpenSettings,
-                        modifier = Modifier.padding(SvSpacing.lg),
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     )
                 }
             }
             status.message?.let { message ->
-                item {
+                item(key = "message") {
                     SvMessageCard(
                         text = message.resolve(),
                         isError = true,
                         action = stringResource(R.string.common_ok),
                         onAction = onDismissMessage,
-                        modifier = Modifier.padding(SvSpacing.lg),
+                        modifier = Modifier.padding(horizontal = SvSpacing.screen),
                     )
                 }
             }
-            if (status.working && groups == null) item { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
+            if (status.working && groups == null) item(key = "loading") { SvLoadingIndicator(modifier = Modifier.padding(SvSpacing.xl)) }
             if (signedIn && groups?.isEmpty() == true) {
-                item {
+                item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.Default.Person,
                         text = stringResource(R.string.groups_empty),
                     )
                 }
             }
-            val list = groups.orEmpty()
-            itemsIndexed(list, key = { _, group -> group.id }) { index, group ->
-                val detail = if (group.isPending) stringResource(R.string.groups_waiting_for_owner) else group.currency.code
-                SvListRow(
-                    position = SvRowPosition.of(index, list.size),
-                    label = stringResource(R.string.groups_row_label, group.name, detail),
-                    onClickLabel = stringResource(R.string.common_open),
-                    onClick = { onOpen(group.id) },
-                ) {
-                    SvAvatar(group.name)
-                    Spacer(Modifier.width(SvSpacing.md))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(group.name, style = MaterialTheme.typography.bodyLarge)
-                        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            item { Spacer(Modifier.height(FAB_CLEARANCE)) }
+            items(groups.orEmpty(), key = { group -> group.id }) { group -> GroupCard(group = group, onOpen = { onOpen(group.id) }) }
         }
     }
 
@@ -139,6 +142,34 @@ fun GroupsScreen(
     }
 }
 
+/**
+ * One group as a card of its own: its letters, its name, and the currency its balances are kept in,
+ * or a tag that says it waits for its owner. A screen reader reads the card as one button.
+ */
+@Composable
+private fun GroupCard(group: GroupSummary, onOpen: () -> Unit) {
+    val detail = if (group.isPending) stringResource(R.string.groups_waiting_for_owner) else group.currency.code
+    SvListRow(
+        position = SvRowPosition.Single,
+        label = stringResource(R.string.groups_row_label, group.name, detail),
+        onClickLabel = stringResource(R.string.common_open),
+        onClick = onOpen,
+    ) {
+        SvAvatar(group.name, size = GROUP_AVATAR_SIZE)
+        Spacer(Modifier.width(SvSpacing.md))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
+            Text(group.name, style = MaterialTheme.typography.bodyLargeEmphasized)
+            if (group.isPending) {
+                SvTag(detail)
+            } else {
+                Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.width(SvSpacing.sm))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+    }
+}
+
 @Composable
 private fun NewGroupSheet(myName: String, localCurrency: String, onCreate: (String, String, String) -> Unit, onDismiss: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
@@ -150,40 +181,47 @@ private fun NewGroupSheet(myName: String, localCurrency: String, onCreate: (Stri
         supportingText = stringResource(R.string.groups_new_hint),
         onDismiss = onDismiss,
         actions = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            Button(onClick = { onCreate(name, currency, me) }, enabled = valid) { Text(stringResource(R.string.groups_make)) }
+            SvQuietButton(stringResource(R.string.common_cancel), onClick = onDismiss, modifier = Modifier.weight(1f))
+            SvPrimaryButton(
+                text = stringResource(R.string.groups_make),
+                onClick = { onCreate(name, currency, me) },
+                modifier = Modifier.weight(1f),
+                enabled = valid,
+            )
         },
     ) {
-        Column(modifier = Modifier.padding(horizontal = SvSpacing.xl), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
-            OutlinedTextField(
+        Column(modifier = Modifier.padding(horizontal = SvSpacing.screen), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
+            SvTextField(
                 value = name,
-                onValueChange = { name = it.take(NAME_LENGTH) },
-                label = { Text(stringResource(R.string.groups_name)) },
-                singleLine = true,
+                onValueChange = { name = it },
+                label = stringResource(R.string.groups_name),
+                modifier = Modifier.fillMaxWidth(),
+                maxLength = NAME_LENGTH,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            SvTextField(
                 value = currency,
-                onValueChange = { currency = it.uppercase().take(3) },
-                label = { Text(stringResource(R.string.editor_currency)) },
-                singleLine = true,
+                // In capitals and three letters long, also where a capital letter is longer than its small one.
+                onValueChange = { currency = it.uppercase().take(CURRENCY_LENGTH) },
+                label = stringResource(R.string.editor_currency),
+                modifier = Modifier.fillMaxWidth(),
                 isError = !BillCurrency.isKnownCode(currency),
-                supportingText = { Text(stringResource(R.string.groups_currency_hint)) },
+                supportingText = stringResource(R.string.groups_currency_hint),
+                maxLength = CURRENCY_LENGTH,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
+            SvTextField(
                 value = me,
-                onValueChange = { me = it.take(NAME_LENGTH) },
-                label = { Text(stringResource(R.string.groups_your_name)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                onValueChange = { me = it },
+                label = stringResource(R.string.groups_your_name),
                 modifier = Modifier.fillMaxWidth(),
+                maxLength = NAME_LENGTH,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             )
         }
     }
 }
 
 internal const val NAME_LENGTH = 60
-private val FAB_CLEARANCE = 88.dp
+private const val CURRENCY_LENGTH = 3
+private val GROUP_AVATAR_SIZE = 48.dp

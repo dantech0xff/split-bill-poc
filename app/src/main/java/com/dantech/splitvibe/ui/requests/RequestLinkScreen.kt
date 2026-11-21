@@ -8,30 +8,34 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.requests.RequestStatus
-import com.dantech.splitvibe.designsystem.components.SvCard
+import com.dantech.splitvibe.data.requests.RequestView
+import com.dantech.splitvibe.designsystem.components.SvAvatarStack
+import com.dantech.splitvibe.designsystem.components.SvHero
+import com.dantech.splitvibe.designsystem.components.SvHeroAmount
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
+import com.dantech.splitvibe.designsystem.components.SvQuietButton
+import com.dantech.splitvibe.designsystem.components.SvTag
+import com.dantech.splitvibe.designsystem.components.SvTagKind
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
-import com.dantech.splitvibe.designsystem.tokens.amountLarge
 import com.dantech.splitvibe.text.resolve
 
-/** A payment request someone sent as a link: what it is for, how to pay it, and a way to say it is paid. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * A payment request someone sent as a link: who asks, what for and how much, how it stands, how to
+ * pay it, and a way to say it is paid or to keep it for later.
+ */
 @Composable
 fun RequestLinkScreen(
     state: RequestLinkState,
@@ -44,13 +48,10 @@ fun RequestLinkScreen(
 ) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.requests_share_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
+            SvTopBar(
+                title = stringResource(R.string.requests_share_title),
+                backLabel = stringResource(R.string.common_back),
+                onBack = onBack,
             )
         },
     ) { padding ->
@@ -59,8 +60,8 @@ fun RequestLinkScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(SvSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(SvSpacing.lg),
+                .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm, bottom = SvSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
         ) {
             if (!signedIn) {
                 SvMessageCard(
@@ -79,28 +80,54 @@ fun RequestLinkScreen(
                 if (state.working) SvLoadingIndicator()
                 return@Column
             }
-            SvCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-                    Text(
-                        listOfNotNull(
-                            state.creditorName ?: request.creditorName ?: stringResource(R.string.common_someone),
-                            request.title,
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountLarge)
-                    Text(statusText(request.copy(role = "debtor")).resolve(), style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+            RequestHero(request, who = state.creditorName ?: request.creditorName ?: stringResource(R.string.common_someone))
             if (request.status == RequestStatus.WAITING) {
                 PayPanel(request)
                 SvPrimaryButton(stringResource(R.string.requests_i_have_paid), onClick = onReportPaid, enabled = !state.working)
                 if (!state.accepted) {
-                    OutlinedButton(onClick = onAccept, enabled = !state.working, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.requests_keep_for_later))
-                    }
+                    SvQuietButton(
+                        text = stringResource(R.string.requests_keep_for_later),
+                        onClick = onAccept,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.working,
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * The block at the top of the request: who asks, [who], and what for, the amount, and how the
+ * request stands for the one asked to pay it, a paid one with a tag that says so. A screen reader
+ * reads it as one element.
+ */
+@Composable
+private fun RequestHero(request: RequestView, who: String) {
+    // How it stands for the payer, whoever opened the link.
+    val status = statusText(request.copy(role = RequestView.DEBTOR)).resolve()
+    val parts = request.bill.formatParts(request.amountMinor)
+    SvHero(
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+        label = {
+            SvAvatarStack(listOf(who), size = AVATAR_SIZE)
+            Text(listOfNotNull(who, request.title).joinToString(" · "), modifier = Modifier.weight(1f))
+        },
+        amount = {
+            SvHeroAmount(
+                prefix = parts.prefix,
+                number = parts.number,
+                suffix = parts.suffix,
+                spokenText = request.bill.format(request.amountMinor),
+            )
+        },
+    ) {
+        if (request.status == RequestStatus.PAID) {
+            SvTag(status, kind = SvTagKind.Accent, icon = Icons.Default.Check)
+        } else {
+            SvTag(status)
+        }
+    }
+}
+
+private val AVATAR_SIZE = 32.dp

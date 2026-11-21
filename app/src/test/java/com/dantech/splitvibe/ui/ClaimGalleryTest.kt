@@ -25,13 +25,15 @@ import java.util.Locale
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Draws the screen of a bill's link with the fixtures' data, and compares it with the reference
- * images in `src/test/screenshots`. Record new images after an intended change with `-Pscreenshots=record`.
+ * Draws the screen of a bill's link with the fixtures' data, while people pick and once picking is
+ * closed, and compares it with the reference images in `src/test/screenshots`. Record new images
+ * after an intended change with `-Pscreenshots=record`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(AndroidJUnit4::class)
@@ -75,6 +77,18 @@ class ClaimGalleryTest {
     @Test
     fun `a bill's link once picking is closed`() = shot("29-bill-link-settling") {
         ClaimScreen(state(ShareView.LOCKING), saved, payment, NO_ACTIONS, Locale.US)
+    }
+
+    @Test
+    fun `a bill's link with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        shot("28-bill-link-large-text") { ClaimScreen(state(ShareView.OPEN), saved, payment, NO_ACTIONS, Locale.US) }
+    }
+
+    @Test
+    fun `a bill's link once picking is closed, with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        shot("29-bill-link-settling-large-text") { ClaimScreen(state(ShareView.LOCKING), saved, payment, NO_ACTIONS, Locale.US) }
     }
 
     private fun shot(name: String, content: @Composable () -> Unit) {

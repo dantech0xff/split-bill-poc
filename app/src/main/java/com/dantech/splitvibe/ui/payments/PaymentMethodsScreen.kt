@@ -9,16 +9,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,14 +27,18 @@ import androidx.lifecycle.viewModelScope
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.payments.PaymentMethodRepository
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
+import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
+import com.dantech.splitvibe.designsystem.components.SvIconTile
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
 import com.dantech.splitvibe.designsystem.components.SvPrimaryFab
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
+import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.domain.payments.PaymentMethod
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -63,8 +62,11 @@ class PaymentMethodsViewModel(private val repository: PaymentMethodRepository) :
     }
 }
 
-/** The ways the user gets paid back, kept on this phone; the main one goes with requests unless another is picked. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The ways the user gets paid back, kept on this phone, in one card: each with its letters, its name
+ * and its details, and a lime star on the main one, which goes with requests unless another is
+ * picked. A tap changes a way; its menu makes it the main one or removes it.
+ */
 @Composable
 fun PaymentMethodsScreen(
     methods: List<SavedPaymentMethod>?,
@@ -77,30 +79,32 @@ fun PaymentMethodsScreen(
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_payment_methods)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                    }
-                },
+            SvTopBar(
+                title = stringResource(R.string.settings_payment_methods),
+                backLabel = stringResource(R.string.common_back),
+                onBack = onBack,
             )
         },
         floatingActionButton = {
-            SvPrimaryFab(text = stringResource(R.string.common_add), icon = Icons.Default.Add, onClick = { editing = NEW })
+            SvPrimaryFab(text = stringResource(R.string.common_add), icon = SvActionIcons.Plus, onClick = { editing = NEW })
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            item {
+            item(key = "intro") {
                 Text(
                     stringResource(R.string.payments_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
+                    modifier = Modifier.padding(
+                        start = SvSpacing.screen,
+                        end = SvSpacing.screen,
+                        top = SvSpacing.sm,
+                        bottom = SvSpacing.lg,
+                    ),
                 )
             }
             if (methods?.isEmpty() == true) {
-                item {
+                item(key = "empty") {
                     SvEmptyState(
                         icon = Icons.Default.Add,
                         text = stringResource(R.string.payments_empty),
@@ -116,7 +120,7 @@ fun PaymentMethodsScreen(
                     onRemove = { onRemove(saved.id) },
                 )
             }
-            item { Spacer(Modifier.height(FAB_CLEARANCE)) }
+            item(key = "end") { Spacer(Modifier.height(FAB_CLEARANCE)) }
         }
     }
 
@@ -145,15 +149,14 @@ private fun MethodRow(
     val main = stringResource(R.string.payments_main).takeIf { saved.isMain }
     val label = listOfNotNull(method.title, method.summary, main).joinToString(", ")
     SvListRow(position = position, label = label, onClickLabel = stringResource(R.string.requests_change_method), onClick = onEdit) {
-        SvAvatar(method.title)
+        SvAvatar(method.title, size = METHOD_AVATAR_SIZE)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f)) {
-            Text(method.title, style = MaterialTheme.typography.bodyLarge)
-            Text(method.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(method.title, style = MaterialTheme.typography.bodyMediumEmphasized)
+            Text(method.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (saved.isMain) {
-            Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        }
+        // The row's label says which one is the main one; the star only shows it.
+        if (saved.isMain) SvIconTile(Icons.Default.Star, SvTheme.palette.accent, size = MAIN_MARK_SIZE)
         SvOverflowMenu(
             label = stringResource(R.string.groups_more_for, method.title),
             options = listOfNotNull(
@@ -168,3 +171,5 @@ private const val NEW = "new"
 
 /** Room below the last method, so the floating button never covers it. */
 private val FAB_CLEARANCE = 88.dp
+private val METHOD_AVATAR_SIZE = 44.dp
+private val MAIN_MARK_SIZE = 28.dp
