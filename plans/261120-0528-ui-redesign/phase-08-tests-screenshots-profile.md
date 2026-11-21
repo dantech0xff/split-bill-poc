@@ -77,12 +77,12 @@ Toàn bộ giao diện mới được kiểm một lượt cuối. Ảnh tham ch
 
 ## Todo
 
-- [ ] Các bài chụp còn thiếu, có lời khẳng định cho ảnh `vi-VN`
-- [ ] Ghi lại một lần vào thư mục đã dọn trống, sáu ảnh thừa bị xóa, không bài chụp nào bị mất
-- [ ] Chế độ so mặc định qua hai lần, lần hai ép chạy lại; ảnh được commit
-- [ ] Ảnh tối, cỡ chữ 200%, `en-XA` và `vi-VN` đã soát; các sửa gom vào một lượt ghi lại
+- [x] Các bài chụp còn thiếu, có lời khẳng định cho ảnh `vi-VN`
+- [x] Ghi lại một lần vào thư mục đã dọn trống, sáu ảnh thừa bị xóa, không bài chụp nào bị mất
+- [x] Chế độ so mặc định qua hai lần, lần hai ép chạy lại; ảnh được commit
+- [x] Ảnh tối, cỡ chữ 200%, `en-XA` và `vi-VN` đã soát; các sửa gom vào một lượt ghi lại
 - [ ] Chủ sản phẩm duyệt các bảng ảnh và các trạng thái không có bảng riêng
-- [ ] `AppLaunchTest` đi qua bốn tab
+- [x] `AppLaunchTest` đi qua bốn tab
 - [ ] Hai phông xem bằng mắt trên API 26, các chuyển động thử tay
 - [ ] Cổng kiểm thử ở chế độ so mặc định, review độc lập, sửa phát hiện
 - [ ] Token màu được chốt, mã commit ghi trong báo cáo
