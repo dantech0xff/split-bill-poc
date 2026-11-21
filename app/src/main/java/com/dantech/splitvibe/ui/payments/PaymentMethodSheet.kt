@@ -110,7 +110,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
             when (chosen) {
                 MethodKind.VIETQR -> {
                     BankPicker(bankBin = bankBin, onPick = { bankBin = it })
-                    Field(stringResource(R.string.payments_account_number), first, { first = it }, keyboard = PRIVATE_KEYBOARD)
+                    Field(stringResource(R.string.payments_account_number), first, { first = it }, sensitive = true)
                     Field(
                         stringResource(R.string.payments_account_name),
                         second,
@@ -132,7 +132,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
                         stringResource(R.string.payments_upi_id),
                         first,
                         { first = it },
-                        keyboard = PRIVATE_KEYBOARD,
+                        sensitive = true,
                         hint = stringResource(R.string.payments_upi_hint),
                     )
                     Field(
@@ -156,7 +156,7 @@ fun PaymentMethodSheet(editing: SavedPaymentMethod?, onSave: (PaymentMethod) -> 
                         stringResource(R.string.payments_iban),
                         second,
                         { second = it },
-                        keyboard = PRIVATE_KEYBOARD,
+                        sensitive = true,
                         capitalization = KeyboardCapitalization.Characters,
                     )
                     Field(stringResource(R.string.payments_bic), third, { third = it }, capitalization = KeyboardCapitalization.Characters)
@@ -233,6 +233,11 @@ private fun BankPicker(bankBin: String, onPick: (String) -> Unit) {
  * A field of the sheet. The keyboard corrects none of what is typed, as what a method holds is a
  * name or a number to be kept as typed, and every field, of one line or of more, takes up to
  * [MAX_FIELD] characters, which the proxy checks again.
+ *
+ * A [sensitive] field, such as an account number, an IBAN or a UPI ID, takes a password keyboard,
+ * which neither suggests from what is typed nor learns it, and takes no part in autofill, which the
+ * password keyboard would otherwise have it be a password to, offering to save the number as one.
+ * The field still shows what is typed, as it hides nothing. [keyboard] is left aside for it.
  */
 @Composable
 private fun Field(
@@ -240,6 +245,7 @@ private fun Field(
     value: String,
     onValueChange: (String) -> Unit,
     keyboard: KeyboardType = KeyboardType.Text,
+    sensitive: Boolean = false,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     singleLine: Boolean = true,
     prefix: String? = null,
@@ -257,9 +263,10 @@ private fun Field(
         keyboardOptions = KeyboardOptions(
             capitalization = capitalization,
             autoCorrectEnabled = false,
-            keyboardType = keyboard,
+            keyboardType = if (sensitive) KeyboardType.Password else keyboard,
             imeAction = if (singleLine) ImeAction.Next else ImeAction.Default,
         ),
+        autofill = !sensitive,
     )
 }
 
@@ -299,9 +306,3 @@ private const val MATCHES = 6
 
 /** The most characters any field of the sheet takes. */
 private const val MAX_FIELD = 500
-
-/**
- * The keyboard of an account number, an IBAN or a UPI ID, which a keyboard must not suggest from or
- * learn: a password keyboard does neither. The field still shows what is typed, as it hides nothing.
- */
-private val PRIVATE_KEYBOARD = KeyboardType.Password

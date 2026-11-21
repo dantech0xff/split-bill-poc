@@ -39,7 +39,6 @@ import com.dantech.splitvibe.ui.RequestsKey
 import com.dantech.splitvibe.ui.common.ProxyWork
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.home.HomeSummary
-import com.dantech.splitvibe.ui.home.Money
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -84,7 +83,10 @@ class RequestTilesTest {
     @Test
     fun `right after a sign-in, before the Requests tab was ever opened, its tiles show what home shows`() {
         val lists = AtomicInteger()
-        // The fetch of the Requests tab is held back, so that only the holder's fetch can be what its tiles show.
+        // Every fetch of the list after the first, the holder's, is held back, so the tab's own fetch is never
+        // answered while the test looks: what its tiles show comes from the holder's fetch. Whether they take
+        // the holder's totals or add up the list it kept cannot be told apart here, as both come from that
+        // fetch; the test of the tiles below, with totals from a longer list than the one shown, tells them apart.
         val tabFetch = CountDownLatch(1)
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -145,10 +147,10 @@ class RequestTilesTest {
             assertEquals(1, lists.get())
 
             onRequests = true
-            await { shown(YOU_OWE) }
+            // The tab's own fetch goes out through OkHttp on another thread, so it is waited for with the tiles.
+            await { shown(YOU_OWE) && lists.get() == 2 }
 
-            // The tab's own fetch has not come back: what the tiles show is what the holder fetched.
-            assertEquals(2, lists.get())
+            // That fetch has not come back: what the tiles show comes from the holder's fetch.
             compose.onNode(hasText(YOU_OWE) and hasText(owing)).assertIsDisplayed()
             compose.onNode(hasText(FRIENDS_OWE_YOU) and hasText(owed) and hasText(baht)).assertIsDisplayed()
             assertListEndsAboveTheBar()

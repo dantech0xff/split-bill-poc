@@ -33,6 +33,12 @@ class SvPalette internal constructor(
     val moneyIn: Color,
     /** Text for money someone owes: "owes". */
     val moneyOut: Color,
+    /**
+     * The bar that draws money coming back to someone beside the largest balance, such as on the
+     * balances of a group, the same green in both themes. The amount beside it says the same in
+     * words, in [moneyIn].
+     */
+    val moneyInBar: Color,
     /** The colours a person's initials sit on, in a fixed order. */
     val person: List<Color>,
     /** Text and icons on the bright colours: [person], [category] and [notice]. */
@@ -62,6 +68,7 @@ internal val LightPalette = with(Swatch) {
         barOutline = Ink,
         moneyIn = Forest,
         moneyOut = Rust,
+        moneyInBar = Emerald,
         person = PersonColors,
         onPerson = Ink,
         category = CategoryColors,
@@ -82,6 +89,7 @@ internal val DarkPalette = with(Swatch) {
         barOutline = Seam,
         moneyIn = Jade,
         moneyOut = Apricot,
+        moneyInBar = Emerald,
         person = PersonColors,
         onPerson = Ink,
         category = CategoryColors,

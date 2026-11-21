@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,20 +38,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.requests.RequestStatus
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.designsystem.components.SvAvatar
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvBottomSheet
 import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvDialog
@@ -80,8 +80,6 @@ import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.ProxyWork
-import com.dantech.splitvibe.ui.home.Money
-import com.dantech.splitvibe.ui.home.OpenRequests
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -313,9 +311,10 @@ private fun RequestCard(request: RequestView, who: String, actions: @Composable 
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
                 SvAvatar(who, size = AVATAR_SIZE)
-                TextsAndActions(
-                    modifier = Modifier.weight(1f),
-                    texts = {
+                // The actions keep their width; the texts wrap between words beside them, or take the
+                // whole width above them, so that a name or an amount is never broken in the middle.
+                SvBesideOrBelow(
+                    first = {
                         Column {
                             Text(
                                 listOfNotNull(who, request.title).joinToString(" · "),
@@ -324,13 +323,14 @@ private fun RequestCard(request: RequestView, who: String, actions: @Composable 
                             Text(request.bill.format(request.amountMinor), style = MaterialTheme.typography.amountMedium)
                         }
                     },
-                    actions = {
+                    second = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(SvSpacing.xs),
                             content = actions,
                         )
                     },
+                    modifier = Modifier.weight(1f),
                 )
             }
             if (request.status == RequestStatus.PAID) {
@@ -341,40 +341,6 @@ private fun RequestCard(request: RequestView, who: String, actions: @Composable 
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        }
-    }
-}
-
-/**
- * [texts] with [actions] at their end, while the actions leave the texts room for their longest
- * word, as with text at its usual size; and the actions below the texts, at their end, when they do
- * not, as with text at twice its size. A name or an amount is then never broken in the middle.
- */
-@Composable
-private fun TextsAndActions(texts: @Composable () -> Unit, actions: @Composable () -> Unit, modifier: Modifier = Modifier) {
-    Layout(contents = listOf(texts, actions), modifier = modifier) { (textParts, actionParts), constraints ->
-        val text = textParts.single()
-        val action = actionParts.single()
-        val width = constraints.maxWidth
-        val gap = SvSpacing.md.roundToPx()
-        val actionsWidth = action.maxIntrinsicWidth(Constraints.Infinity)
-        val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        if (actionsWidth == 0 || text.minIntrinsicWidth(Constraints.Infinity) + gap + actionsWidth <= width) {
-            val actionPlaced = action.measure(loose)
-            val textWidth = if (actionPlaced.width == 0) width else (width - actionPlaced.width - gap).coerceAtLeast(0)
-            val textPlaced = text.measure(loose.copy(minWidth = textWidth, maxWidth = textWidth))
-            val height = maxOf(textPlaced.height, actionPlaced.height)
-            layout(width, height) {
-                textPlaced.placeRelative(0, (height - textPlaced.height) / 2)
-                actionPlaced.placeRelative(width - actionPlaced.width, (height - actionPlaced.height) / 2)
-            }
-        } else {
-            val textPlaced = text.measure(loose.copy(minWidth = width))
-            val actionPlaced = action.measure(loose)
-            layout(width, textPlaced.height + gap + actionPlaced.height) {
-                textPlaced.placeRelative(0, 0)
-                actionPlaced.placeRelative(width - actionPlaced.width, textPlaced.height + gap)
             }
         }
     }
@@ -560,25 +526,35 @@ private fun DetailsCard(paying: PaymentRequest) {
     }
 }
 
-/** One line of the details: what it is in quiet type at its start, and what to type at its end. */
+/**
+ * One line of the details: what it is in quiet type at its start, and what to type at its end. The
+ * value is never hidden by its label: when the two do not fit side by side, as with a long label or
+ * text at twice its size, the value stands below its label, at the start. A screen reader reads the
+ * line as one element.
+ */
 @Composable
 private fun DetailRow(detail: PaymentDetail) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = DETAIL_LINE_HEIGHT)
-            .semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
-    ) {
-        detail.label?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Text(
-            detail.value,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMediumEmphasized,
-            textAlign = if (detail.label == null) TextAlign.Start else TextAlign.End,
-        )
+    val modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = DETAIL_LINE_HEIGHT)
+        .padding(vertical = SvSpacing.xs)
+        .semantics(mergeDescendants = true) {}
+    val label = detail.label
+    if (label == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.CenterStart) {
+            Text(detail.value, style = MaterialTheme.typography.bodyMediumEmphasized)
+        }
+        return
     }
+    SvBesideOrBelow(
+        first = { Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        // A value too long for the room beside its label wraps between words, at the end like the others.
+        second = { Text(detail.value, style = MaterialTheme.typography.bodyMediumEmphasized, textAlign = TextAlign.End) },
+        modifier = modifier,
+        firstKeepsItsWidth = true,
+        secondBelowAt = Alignment.Start,
+        stackedGap = SvSpacing.xs,
+    )
 }
 
 /** A line of the details of a payment, such as "Account: 257678859": what it is, when it says, and its value. */

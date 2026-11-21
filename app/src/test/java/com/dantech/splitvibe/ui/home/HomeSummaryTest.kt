@@ -9,6 +9,9 @@ import com.dantech.splitvibe.data.groups.SettlementDto
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.ui.groups.GroupStanding
+import com.dantech.splitvibe.ui.requests.Money
+import com.dantech.splitvibe.ui.requests.OpenRequests
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -133,6 +136,24 @@ class HomeSummaryTest {
 
         assertEquals(R.string.home_settled_up, settled.standing)
         assertEquals(baht(0), settled.amount)
+    }
+
+    @Test
+    fun `the group tile says where the user stands in the words and the amount of the group's own block`() {
+        val beyond = SettlementDto("s9", GroupFixtures.LAN, GroupFixtures.ME, Long.MAX_VALUE, GroupFixtures.ME, createdAt = 1)
+        val groups = listOf(
+            TRIP,
+            TRIP.copy(myMemberId = GroupFixtures.LAN),
+            TRIP.copy(bills = emptyList(), settlements = emptyList()),
+            TRIP.copy(settlements = listOf(beyond, beyond.copy(id = "s10"))),
+        )
+
+        for (group in groups) {
+            val block = GroupStanding.of(group)
+            val tile = GroupTile.of(group)
+            assertEquals("words of ${group.balances}", block?.label, tile?.standing)
+            assertEquals("amount of ${group.balances}", block?.amountMinor, tile?.amount?.minor)
+        }
     }
 
     @Test

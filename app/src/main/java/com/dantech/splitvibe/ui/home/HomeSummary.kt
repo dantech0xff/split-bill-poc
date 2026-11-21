@@ -1,14 +1,14 @@
 package com.dantech.splitvibe.ui.home
 
 import androidx.annotation.StringRes
-import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.groups.GroupState
-import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Insights
+import com.dantech.splitvibe.ui.groups.GroupStanding
+import com.dantech.splitvibe.ui.requests.Money
+import com.dantech.splitvibe.ui.requests.OpenRequests
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import java.time.YearMonth
-import kotlin.math.absoluteValue
 
 /**
  * What the home shows above its recent bills: its [main] block, and beside a block about the
@@ -69,23 +69,6 @@ sealed interface HomeBlock {
     data object Invitation : HomeBlock
 }
 
-/**
- * The open requests of one side, as the home shows them. [main] is their total in the user's own
- * currency, or when there is none in it, in the currency of the newest request; [others] are the
- * totals in the other currencies, which nothing converts. [count] is how many requests there are, and
- * [people] the people on the other side, each once, the newest first.
- */
-data class OpenRequests(val main: Money, val others: List<Money>, val count: Int, val people: List<String>) {
-    companion object {
-        /** The requests that add up to [totals], in the order of the requests; null when there are none. */
-        internal fun of(totals: Map<BillCurrency, Long>, count: Int, people: List<String>, localCurrency: String): OpenRequests? {
-            val amounts = totals.map { (currency, minor) -> Money(currency, minor) }
-            val main = amounts.firstOrNull { it.currency.code == localCurrency } ?: amounts.firstOrNull() ?: return null
-            return OpenRequests(main = main, others = amounts.filter { it !== main }, count = count, people = people)
-        }
-    }
-}
-
 /** What the user's own share of the finished bills of [month] comes to, in their own currency, over [bills] bills. */
 data class MonthSpending(val month: YearMonth, val myShare: Money, val bills: Int) {
     companion object {
@@ -101,30 +84,25 @@ data class MonthSpending(val month: YearMonth, val myShare: Money, val bills: In
  */
 data class GroupTile(val id: String, val name: String, val balance: Money) {
 
-    /** What the tile calls the balance: what the user gets back, what they owe, or that they are settled up. */
+    /**
+     * What the tile calls the balance: what the user gets back, what they owe, or that they are
+     * settled up, in the words the group's own screen says it in.
+     */
     @get:StringRes
-    val standing: Int
-        get() = when {
-            balance.minor > 0 -> R.string.home_you_get_back
-            balance.minor < 0 -> R.string.home_you_owe
-            else -> R.string.home_settled_up
-        }
+    val standing: Int get() = GroupStanding(balance.minor).label
 
     /** The balance without its sign, which [standing] says. */
-    val amount: Money get() = balance.copy(minor = balance.minor.absoluteValue)
+    val amount: Money get() = balance.copy(minor = GroupStanding(balance.minor).amountMinor)
 
     companion object {
-        /** The tile of [group]; null without a group, or when the group's numbers are beyond adding up, so the balance is not known. */
+        /**
+         * The tile of [group]; null without a group, or where the group's own screen shows no
+         * standing either, as when its numbers are beyond adding up, so the balance is not known.
+         */
         fun of(group: GroupState?): GroupTile? {
             if (group == null) return null
-            val balance = group.balances?.get(group.myMemberId) ?: return null
-            return GroupTile(id = group.group.id, name = group.group.name, balance = Money(group.currency, balance))
+            val standing = GroupStanding.of(group) ?: return null
+            return GroupTile(id = group.group.id, name = group.group.name, balance = Money(group.currency, standing.balanceMinor))
         }
     }
-}
-
-/** An amount of money: [minor] units of [currency]. */
-data class Money(val currency: BillCurrency, val minor: Long) {
-    /** The amount as the phone's region writes it, such as "₫651,671", read when it is shown. */
-    val text: String get() = currency.format(minor)
 }

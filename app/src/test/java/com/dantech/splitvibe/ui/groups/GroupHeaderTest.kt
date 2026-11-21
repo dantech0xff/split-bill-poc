@@ -27,6 +27,8 @@ import org.robolectric.annotation.Config
  * without its sign: what they get back on lime, what they owe in the colour of the floating bar,
  * and that they are settled up on violet. Where the group's numbers cannot be added up there is no
  * block, as nothing is known of the balance then, and the title of the balances says what they are in.
+ * Nor does any member show a standing then, and Settle up says that the payments cannot be worked
+ * out, not that everyone is square.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w412dp-h915dp-xhdpi")
@@ -72,7 +74,7 @@ class GroupHeaderTest {
     }
 
     @Test
-    fun `numbers beyond adding up show no block, and the balances say what they are in`() {
+    fun `numbers beyond adding up show no block, no member's standing and no payments, and the balances say what they are in`() {
         // Two payments back as large as a number can be, which no sum can hold.
         val huge = SettlementDto("s9", GroupFixtures.AN, GroupFixtures.ME, Long.MAX_VALUE, GroupFixtures.ME, createdAt = 1_763_190_000_000)
         val beyond = trip.copy(settlements = trip.settlements + huge + huge.copy(id = "s10"))
@@ -81,8 +83,13 @@ class GroupHeaderTest {
         assertNull(GroupStanding.of(beyond))
         show(beyond)
         assertNoOtherStanding(but = null)
+        // Nothing is known of anyone's balance, which is not the same as being settled up.
+        for (words in listOf(GETS_BACK, OWES)) compose.onAllNodesWithText(words, substring = true, ignoreCase = true).assertCountEquals(0)
+        compose.onAllNodesWithText(EVERYONE_IS_SQUARE, substring = true, ignoreCase = true).assertCountEquals(0)
         compose.onNodeWithText("These numbers are too large to add up.").assertExists()
         compose.onNodeWithText(CURRENCY_HINT).assertExists()
+        // Settle up comes after every member's balance, so finding it shows that all of them were drawn.
+        compose.onNodeWithText(PAYMENTS_UNKNOWN).assertExists()
     }
 
     @Test
@@ -96,10 +103,13 @@ class GroupHeaderTest {
 
     private fun show(state: GroupState) = compose.setContent { SplitVibeTheme { GroupScreen(state, ProxyWork(), NO_ACTIONS) } }
 
-    /** Fails if the screen says the user stands any other way than [but], or any way at all when it is null. */
+    /**
+     * Fails if the screen says the user stands any other way than [but], or any way at all when it is
+     * null, in any case and in any longer text, as a member's "settled up" is.
+     */
     private fun assertNoOtherStanding(but: String?) {
         for (words in listOf(YOU_GET_BACK, YOU_OWE, SETTLED_UP).filter { it != but }) {
-            compose.onAllNodesWithText(words).assertCountEquals(0)
+            compose.onAllNodesWithText(words, substring = true, ignoreCase = true).assertCountEquals(0)
         }
     }
 
@@ -107,6 +117,10 @@ class GroupHeaderTest {
         const val YOU_GET_BACK = "You get back"
         const val YOU_OWE = "You owe"
         const val SETTLED_UP = "Settled up"
+        const val GETS_BACK = "gets back"
+        const val OWES = "owes"
+        const val EVERYONE_IS_SQUARE = "Everyone is square."
+        const val PAYMENTS_UNKNOWN = "The payments that settle the group cannot be worked out yet."
         const val CURRENCY_HINT = "In THB, across every bill and payment back."
         val THB = BillCurrency("THB", 2)
 

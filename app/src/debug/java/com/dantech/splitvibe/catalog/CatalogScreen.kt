@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvAccountButton
@@ -65,6 +66,7 @@ import com.dantech.splitvibe.designsystem.components.SvAiMark
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvBillPhoto
 import com.dantech.splitvibe.designsystem.components.SvBillPhotoPlaceholder
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
@@ -131,6 +133,7 @@ import com.dantech.splitvibe.designsystem.components.SvWorkingRow
 import com.dantech.splitvibe.designsystem.motion.SvAmount
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.designsystem.tokens.amountLarge
 import com.dantech.splitvibe.designsystem.tokens.amountMedium
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
@@ -204,7 +207,8 @@ fun CatalogScreen() {
                 SvSectionHeader(
                     "Top bars",
                     hint = "SvBrandTopBar of the home with SvAccountButton, with a name and without one, SvLargeTopBar of a main " +
-                        "screen, SvTopBar of a screen opened from another: with a title that wraps, one kept to one line, and none.",
+                        "screen, with a menu and with a button, which goes below the title when it leaves it too little room, " +
+                        "SvTopBar of a screen opened from another: with a title that wraps, one kept to one line, and none.",
                 )
                 SvBrandTopBar(
                     name = "Split Vibe",
@@ -220,6 +224,11 @@ fun CatalogScreen() {
                     title = "Requests",
                     windowInsets = WindowInsets(0),
                     actions = { SvOverflowMenu(label = "More for the requests", options = listOf(SvMenuOption("Refresh") {})) },
+                )
+                SvLargeTopBar(
+                    title = "Groups",
+                    windowInsets = WindowInsets(0),
+                    actions = { SvPrimaryButton(text = "New group", onClick = {}, icon = SvActionIcons.Plus, compact = true) },
                 )
                 SvTopBar(
                     title = "Edit bill",
@@ -311,6 +320,15 @@ fun CatalogScreen() {
             }
 
             item {
+                SvSectionHeader(
+                    "Side by side or one below the other",
+                    hint = "SvBesideOrBelow: a label and its value side by side while they fit, and the value below its label " +
+                        "when they do not, as with a long label or large text. No word is broken in the middle.",
+                )
+                BesideOrBelowSamples()
+            }
+
+            item {
                 SvSectionHeader("Messages", hint = "SvMessageCard on the page, and on a card, where it turns grey.")
                 Column(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen),
@@ -384,8 +402,9 @@ fun CatalogScreen() {
                 SvSectionHeader(
                     "Fields",
                     hint = "SvTextField with the marks of Vietnamese capitals, a placeholder, a suffix, a prefix, an icon, " +
-                        "buttons at its end, labels as large as a title, an error, a field that is off and one of more lines, " +
-                        "and SvFieldRow, whose fields go one above the other when their numbers do not fit side by side.",
+                        "buttons at its end, labels as large as a title, an account number that autofill leaves alone, an error, " +
+                        "a field that is off and one of more lines, and SvFieldRow, whose fields go one above the other when " +
+                        "their numbers do not fit side by side.",
                 )
                 FieldSamples()
             }
@@ -841,11 +860,36 @@ private fun TileSamples() {
 }
 
 @Composable
+private fun BesideOrBelowSamples() {
+    SvCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SvSpacing.screen),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)) {
+            listOf("Account" to "257678859", "Reference to write on the transfer" to "SPLIT-0042").forEach { (label, value) ->
+                SvBesideOrBelow(
+                    first = { Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    second = { Text(value, style = MaterialTheme.typography.bodyMediumEmphasized, textAlign = TextAlign.End) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = SvSpacing.sm),
+                    firstKeepsItsWidth = true,
+                    secondBelowAt = Alignment.Start,
+                    stackedGap = SvSpacing.xs,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun FieldSamples() {
     var where by remember { mutableStateOf("Ẳ QUÁN ỐC BA MIỂN") }
     var date by remember { mutableStateOf("") }
     var total by remember { mutableStateOf("902664") }
     var handle by remember { mutableStateOf("minhtran") }
+    var account by remember { mutableStateOf("257678859") }
     var search by remember { mutableStateOf("") }
     var change by remember { mutableStateOf("") }
     var how by remember { mutableStateOf("Split with Minh and Lan. Minh had the beers.") }
@@ -877,6 +921,16 @@ private fun FieldSamples() {
             modifier = Modifier.fillMaxWidth(),
             prefix = "paypal.me/",
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+        )
+        // A password keyboard, which learns nothing typed, and no part in autofill, which would take the
+        // number for a password and offer to save it. What is typed still shows.
+        SvTextField(
+            account,
+            { account = it },
+            label = "Account number",
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+            autofill = false,
         )
         // A field that searches a list shows no label: its magnifier and its words say what it is for.
         SvTextField(
@@ -1004,6 +1058,8 @@ private fun MeasureSamples() {
                     Text(category.label, style = MaterialTheme.typography.bodyMediumEmphasized)
                     SvStatBar(fraction = share, description = null, color = category.style.color)
                 }
+                Text("Minh gets back", style = MaterialTheme.typography.bodyMediumEmphasized)
+                SvStatBar(fraction = 1f, description = null, color = SvTheme.palette.moneyInBar)
                 Text("Lan owes", style = MaterialTheme.typography.bodyMediumEmphasized)
                 SvStatBar(fraction = 0.84f, description = "Lan owes 84% of the most anyone owes", fromEnd = true)
             }

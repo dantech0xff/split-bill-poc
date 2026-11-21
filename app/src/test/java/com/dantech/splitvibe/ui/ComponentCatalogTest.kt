@@ -26,7 +26,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 // Tall enough for the whole catalog at once, with the last section clear of the bottom bar and the
 // floating button. The pictures are drawn at 1x: one this tall at 2x does not fit in the memory of the test.
-@Config(sdk = [34], qualifiers = "w412dp-h11400dp-mdpi")
+@Config(sdk = [34], qualifiers = "w412dp-h12000dp-mdpi")
 class ComponentCatalogTest {
 
     @get:Rule
@@ -44,7 +44,7 @@ class ComponentCatalogTest {
      * buttons that lie beyond the 16,384 pixels a surface it draws into can have.
      */
     @Test
-    @Config(qualifiers = "w412dp-h19000dp-ldpi")
+    @Config(qualifiers = "w412dp-h19400dp-ldpi")
     fun `every component with text at twice the size`() {
         RuntimeEnvironment.setFontScale(2f)
         capture("catalog-large-text", darkTheme = false)

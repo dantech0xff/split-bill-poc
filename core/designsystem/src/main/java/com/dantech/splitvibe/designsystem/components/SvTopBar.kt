@@ -49,8 +49,10 @@ import com.dantech.splitvibe.designsystem.tokens.SvTheme
 
 /**
  * The top bar of a main screen, one that the navigation bar leads to: its large title, and at the
- * end what can be done on the screen as a whole, such as opening the settings. The title wraps
- * onto more lines rather than being cut off.
+ * end what can be done on the screen as a whole, such as opening the settings or making a group.
+ * The title wraps onto more lines rather than being cut off, and only between words: when the
+ * actions would leave it too little room for a word, as with text at twice its size, they stand
+ * below the title, at the end.
  *
  * It stays in place while the content scrolls under it, and keeps clear of the status bar by
  * [windowInsets]; pass `WindowInsets(0)` where something around it already does.
@@ -63,14 +65,14 @@ fun SvLargeTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     BarRow(modifier = modifier, windowInsets = windowInsets, top = SvSpacing.md) {
-        Text(
-            title,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { heading() },
-            style = MaterialTheme.typography.displaySmall,
+        SvBesideOrBelow(
+            first = {
+                Text(title, modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.displaySmall)
+            },
+            second = { Row(verticalAlignment = Alignment.CenterVertically, content = actions) },
+            modifier = Modifier.weight(1f),
+            stackedGap = SvSpacing.sm,
         )
-        Row(verticalAlignment = Alignment.CenterVertically, content = actions)
     }
 }
 

@@ -628,6 +628,7 @@
     <string name="groups_settle_up">Settle up</string>
     <string name="groups_square">Everyone is square.</string>
     <string name="groups_fewest_payments">The fewest payments that settle the group.</string>
+    <string name="groups_settle_up_unknown">The payments that settle the group cannot be worked out yet.</string>
     <string name="groups_pays">%1$s pays %2$s</string>
     <string name="groups_can_send_request">%1$s can send you a request with how to pay.</string>
     <string name="groups_ask">Ask</string>

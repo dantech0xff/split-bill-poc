@@ -3,6 +3,8 @@ package com.dantech.splitvibe.ui.payments
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.ui.autofill.ContentDataType
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -28,7 +31,9 @@ import org.robolectric.shadows.ShadowDialog
  * What a payment method holds, such as an account number, an IBAN or a UPI ID, is kept as it is
  * typed and out of the keyboard's memory: the keyboard corrects none of the sheet's fields, offers a
  * password keyboard, which neither suggests nor learns, for the three that are private, and still
- * shows what is typed. Every field, of one line or of more, takes the 500 characters the proxy takes.
+ * shows what is typed. Those three take no part in autofill either, which the password keyboard
+ * would otherwise have them be passwords to, so that no password manager offers to save a number
+ * as a password. Every field, of one line or of more, takes the 500 characters the proxy takes.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w412dp-h915dp-xhdpi")
@@ -43,11 +48,12 @@ class PaymentMethodSheetTest {
     }
 
     @Test
-    fun `an account number gets a password keyboard that corrects nothing, and is cut at its longest`() {
+    fun `an account number gets a password keyboard that corrects nothing, no autofill, and is cut at its longest`() {
         // VietQR, the first kind the sheet offers.
         val account = keyboardOf(field("Account number"))
 
         assertPrivate("the account number", account)
+        assertNoAutofill("the account number", field("Account number"))
         field("Account number").performTextInput("1".repeat(LONGEST + 20))
         assertEquals(LONGEST, textOf(field("Account number")).length)
         // The password keyboard does not hide the number: the field shows it as typed.
@@ -55,31 +61,36 @@ class PaymentMethodSheetTest {
     }
 
     @Test
-    fun `an IBAN gets a password keyboard in capitals that corrects nothing`() {
+    fun `an IBAN gets a password keyboard in capitals that corrects nothing, and no autofill`() {
         compose.onNodeWithText("SEPA").performClick()
 
         val iban = keyboardOf(field("IBAN"))
 
         assertPrivate("the IBAN", iban)
+        assertNoAutofill("the IBAN", field("IBAN"))
         assertTrue("Capitals were not asked for", iban.inputType and InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS != 0)
         field("IBAN").performTextInput("DE89 3704 0044 0532 0130 00")
         assertEquals("DE89 3704 0044 0532 0130 00", textOf(field("IBAN")))
     }
 
     @Test
-    fun `a UPI ID gets a password keyboard that corrects nothing`() {
+    fun `a UPI ID gets a password keyboard that corrects nothing, and no autofill`() {
         compose.onNodeWithText("UPI").performClick()
 
         assertPrivate("the UPI ID", keyboardOf(field("UPI ID")))
+        assertNoAutofill("the UPI ID", field("UPI ID"))
     }
 
     @Test
-    fun `the name on the account is corrected by no keyboard either, and keeps its capitals`() {
+    fun `the name on the account is corrected by no keyboard either, keeps its capitals, and can be autofilled`() {
         val name = keyboardOf(field("Name on the account"))
 
         assertEquals(InputType.TYPE_CLASS_TEXT, name.inputType and TYPE_AND_VARIATION)
         assertEquals("The keyboard may correct the name", 0, name.inputType and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
         assertTrue("Capitals were not asked for", name.inputType and InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS != 0)
+        // A name is no secret: autofill may fill it in.
+        val semantics = field("Name on the account").fetchSemanticsNode().config
+        assertEquals(ContentDataType.Text, semantics.getOrNull(SemanticsProperties.ContentDataType))
     }
 
     @Test
@@ -104,6 +115,17 @@ class PaymentMethodSheetTest {
             keyboard.inputType and TYPE_AND_VARIATION,
         )
         assertEquals("The keyboard may correct $what", 0, keyboard.inputType and InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+    }
+
+    /**
+     * Fails unless [field], of [what], takes no part in autofill: marked as no data autofill fills in,
+     * which keeps every autofill service away from it, and not a password, which a password manager
+     * would offer to save.
+     */
+    private fun assertNoAutofill(what: String, field: SemanticsNodeInteraction) {
+        val semantics = field.fetchSemanticsNode().config
+        assertEquals("Autofill may fill in $what", ContentDataType.None, semantics.getOrNull(SemanticsProperties.ContentDataType))
+        assertNotEquals("$what is a password to autofill", ContentType.Password, semantics.getOrNull(SemanticsProperties.ContentType))
     }
 
     /**

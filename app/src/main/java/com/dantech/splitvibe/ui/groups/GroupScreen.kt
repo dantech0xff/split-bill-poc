@@ -1,6 +1,5 @@
 package com.dantech.splitvibe.ui.groups
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -50,7 +49,6 @@ import com.dantech.splitvibe.designsystem.components.SvCard
 import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvHero
 import com.dantech.splitvibe.designsystem.components.SvHeroAmount
-import com.dantech.splitvibe.designsystem.components.SvHeroKind
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
 import com.dantech.splitvibe.designsystem.components.SvMenuOption
@@ -264,42 +262,6 @@ fun GroupScreen(
     }
 }
 
-/**
- * Where the user stands in a group as a whole, from their own balance in it: above zero what the
- * group owes them, below zero what they owe it, and at zero settled up. There is none where the
- * group's numbers are beyond adding up, as nothing is known of the balance then.
- */
-internal data class GroupStanding(val balanceMinor: Long) {
-
-    /** The words that say where the user stands, as the home's tile of a group says them. */
-    @get:StringRes
-    val label: Int
-        get() = when {
-            balanceMinor > 0 -> R.string.home_you_get_back
-            balanceMinor < 0 -> R.string.home_you_owe
-            else -> R.string.home_settled_up
-        }
-
-    /**
-     * The colour of the block: lime when the user gets money back, the colour of the floating bar
-     * when they owe it, and violet when they are settled up. The words say the same.
-     */
-    val kind: SvHeroKind
-        get() = when {
-            balanceMinor > 0 -> SvHeroKind.Accent
-            balanceMinor < 0 -> SvHeroKind.Bar
-            else -> SvHeroKind.Brand
-        }
-
-    /** The balance without its sign, which [label] says. */
-    val amountMinor: Long get() = balanceMinor.absoluteValue
-
-    companion object {
-        /** Where the user stands in [state]; null when its balances cannot be added up. */
-        fun of(state: GroupState): GroupStanding? = state.balances?.get(state.myMemberId)?.let(::GroupStanding)
-    }
-}
-
 /** The block at the top of the group that says where the user stands in it, and what its balances are in. */
 @Composable
 private fun StandingHero(standing: GroupStanding, currency: BillCurrency, modifier: Modifier) {
@@ -344,7 +306,8 @@ private fun LazyListScope.balances(state: GroupState, saysTheCurrency: Boolean) 
     itemsIndexed(state.members, key = { _, member -> "balance-${member.id}" }) { index, member ->
         BalanceRow(
             name = state.nameOf(member.id).resolve(),
-            balance = balances?.get(member.id) ?: 0L,
+            // Not known while the numbers cannot be added up, which is not the same as settled up.
+            balance = balances?.get(member.id),
             largest = largest,
             currency = state.currency,
             position = SvRowPosition.of(index, state.members.size),
@@ -355,10 +318,19 @@ private fun LazyListScope.balances(state: GroupState, saysTheCurrency: Boolean) 
 /**
  * A member's balance: their name, what they get back or owe in words with the amount, and a bar of
  * it beside the largest balance in the group, which fills from the start for what they get back and
- * from the end for what they owe. The words say it all; the bar only draws it.
+ * from the end for what they owe. The words say it all; the bar only draws it. While the [balance] is
+ * not known, as when the group's numbers cannot be added up, the row shows the name alone.
  */
 @Composable
-private fun BalanceRow(name: String, balance: Long, largest: Long, currency: BillCurrency, position: SvRowPosition) {
+private fun BalanceRow(name: String, balance: Long?, largest: Long, currency: BillCurrency, position: SvRowPosition) {
+    if (balance == null) {
+        SvListRow(position = position) {
+            SvAvatar(name)
+            Spacer(Modifier.width(SvSpacing.md))
+            Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+        }
+        return
+    }
     val palette = SvTheme.palette
     val amount = currency.format(balance.absoluteValue)
     val said = when {
@@ -394,7 +366,8 @@ private fun BalanceRow(name: String, balance: Long, largest: Long, currency: Bil
             SvStatBar(
                 fraction = if (largest > 0) balance.absoluteValue.toFloat() / largest else 0f,
                 description = null,
-                color = if (balance > 0) palette.moneyIn else MaterialTheme.colorScheme.onSurface,
+                // The boards' green for what comes back, the same in both themes; its words take moneyIn.
+                color = if (balance > 0) palette.moneyInBar else MaterialTheme.colorScheme.onSurface,
                 fromEnd = balance < 0,
             )
         }
@@ -410,11 +383,16 @@ private fun withStyledPart(text: String, part: String, style: SpanStyle?): Annot
 
 private fun LazyListScope.settleUp(state: GroupState, working: Boolean, onMarkReceived: (Transfer) -> Unit, onAskFor: (Transfer) -> Unit) {
     val transfers = state.suggestedTransfers
+    val hint = when {
+        // No payments are suggested then either, but nobody is known to be square.
+        state.balances == null -> R.string.groups_settle_up_unknown
+
+        transfers.isEmpty() -> R.string.groups_square
+
+        else -> R.string.groups_fewest_payments
+    }
     item(key = "settle-up") {
-        SvSectionHeader(
-            stringResource(R.string.groups_settle_up),
-            hint = stringResource(if (transfers.isEmpty()) R.string.groups_square else R.string.groups_fewest_payments),
-        )
+        SvSectionHeader(stringResource(R.string.groups_settle_up), hint = stringResource(hint))
     }
     itemsIndexed(transfers, key = { _, transfer -> "${transfer.fromMemberId}>${transfer.toMemberId}" }) { index, transfer ->
         TransferRow(

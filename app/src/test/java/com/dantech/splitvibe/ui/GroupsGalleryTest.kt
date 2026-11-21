@@ -6,18 +6,25 @@ import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.DpRect
 import androidx.navigation3.runtime.NavKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.GroupFixtures
@@ -26,6 +33,7 @@ import com.dantech.splitvibe.data.groups.GroupState
 import com.dantech.splitvibe.data.groups.GroupSummary
 import com.dantech.splitvibe.data.groups.Invitation
 import com.dantech.splitvibe.data.groups.MemberDto
+import com.dantech.splitvibe.data.groups.SettlementDto
 import com.dantech.splitvibe.data.payments.SavedPaymentMethod
 import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestView
@@ -45,6 +53,7 @@ import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.dantech.splitvibe.ui.requests.RequestsScreen
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -83,13 +92,31 @@ class GroupsGalleryTest {
         // The list of a main screen ends above the navigation bar: its own frame does, not only its
         // last card, which padding at the end of the list would lift above the bar while every other
         // card still passed under it.
-        assertListEndsAboveTheBar(lastRow = hasText("Flat 3B") and hasClickAction())
+        assertListEndsAboveTheBar(lastRow = hasText(PENDING))
+        // A group the user is in opens; one that still waits for its owner is a plain card, as there is
+        // nothing to open until the owner lets the user in.
+        compose.onNode(hasText("Chiang Mai trip") and hasClickAction()).assertExists()
+        compose.onNode(hasText(PENDING)).assertHasNoClickAction()
     }
 
     @Test
     fun `the list of groups with text at twice the size`() {
         RuntimeEnvironment.setFontScale(2f)
         shot("22-groups-large-text") { Groups() }
+
+        assertTitleWhole()
+    }
+
+    /** On a narrower phone the button leaves the large title too little room, so it goes below the title. */
+    @Test
+    @Config(sdk = [34], qualifiers = "w360dp-h1600dp-xhdpi")
+    fun `the list of groups on a narrow phone with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        shot("22-groups-large-text-narrow") { Groups() }
+
+        val title = assertTitleWhole()
+        val button = compose.onNode(hasText(NEW_GROUP) and hasClickAction()).getBoundsInRoot()
+        assertTrue("The button at $button is not below the title at $title", button.top >= title.bottom)
     }
 
     @Test
@@ -110,6 +137,13 @@ class GroupsGalleryTest {
     fun `a group in which the user is settled up`() = shot("23-group-settled-up") {
         val bao = MemberDto("m-bao", "Bao", hasAccount = true, isOwner = false, joinedAt = 1_763_190_500_000)
         GroupScreen(group.copy(myMemberId = bao.id, members = group.members + bao, claims = emptyList()), ProxyWork(), NO_GROUP_ACTIONS)
+    }
+
+    /** Payments back too large to add up: nobody's standing is known, so no member shows one, and no payment is suggested. */
+    @Test
+    fun `a group whose numbers are beyond adding up`() = shot("23-group-beyond-adding-up") {
+        val huge = SettlementDto("s9", GroupFixtures.AN, GroupFixtures.ME, Long.MAX_VALUE, GroupFixtures.ME, createdAt = 1_763_190_000_000)
+        GroupScreen(group.copy(settlements = group.settlements + huge + huge.copy(id = "s10")), ProxyWork(), NO_GROUP_ACTIONS)
     }
 
     @Test
@@ -199,7 +233,7 @@ class GroupsGalleryTest {
     private fun Groups() = GroupsScreen(
         groups = listOf(
             GroupSummary(GroupFixtures.GROUP_ID, "Chiang Mai trip", group.group.currency, 9, GroupFixtures.ME, "member"),
-            GroupSummary("g2", "Flat 3B", group.group.currency, 2, null, "pending"),
+            GroupSummary("g2", PENDING, group.group.currency, 2, null, "pending"),
         ),
         signedIn = true,
         status = ProxyWork(),
@@ -277,6 +311,21 @@ class GroupsGalleryTest {
         AppNavBar(selected = tab, requests = RequestTotals.of(signedIn = true, requests), onSelect = {}, onSplitBill = {})
 
     /**
+     * Fails unless the large title of the groups shows on one line, as a title of one word must: it
+     * is never broken in the middle beside the button that makes a group. Returns where it lies.
+     */
+    private fun assertTitleWhole(): DpRect {
+        val title = compose.onNode(hasText("Groups") and isHeading())
+        val layouts = mutableListOf<TextLayoutResult>()
+        checkNotNull(title.fetchSemanticsNode().config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action) {
+            "The title has no text layout"
+        }.invoke(layouts)
+        assertEquals("The title breaks onto ${layouts.single().lineCount} lines", 1, layouts.single().lineCount)
+        compose.onNode(hasText(NEW_GROUP) and hasClickAction()).assertIsDisplayed()
+        return title.getBoundsInRoot()
+    }
+
+    /**
      * Fails unless the list of the main screen ends above its navigation bar, and the row that
      * [lastRow] finds, its last, still shows whole above the bar once the list is scrolled to it.
      */
@@ -343,3 +392,7 @@ class GroupsGalleryTest {
 }
 
 private fun tab(name: String) = hasContentDescription(name) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+
+/** The group that still waits for its owner to let the user in. */
+private const val PENDING = "Flat 3B"
+private const val NEW_GROUP = "New group"

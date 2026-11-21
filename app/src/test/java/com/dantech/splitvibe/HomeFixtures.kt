@@ -8,8 +8,8 @@ import com.dantech.splitvibe.data.proxy.ProxyCache
 import com.dantech.splitvibe.data.requests.RequestView
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.ui.home.GroupTile
-import com.dantech.splitvibe.ui.home.Money
 import com.dantech.splitvibe.ui.home.MonthSpending
+import com.dantech.splitvibe.ui.requests.Money
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import java.time.LocalDate
 import java.time.YearMonth

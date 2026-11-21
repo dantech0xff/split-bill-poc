@@ -32,6 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentDataType
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -44,6 +46,8 @@ import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDataType
+import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -74,6 +78,11 @@ import com.dantech.splitvibe.designsystem.tokens.surface
  * account number, asks for a password keyboard (`KeyboardType.Password`), which keyboards neither
  * suggest for nor learn from. The field still shows what is typed, as it applies no visual
  * transformation.
+ *
+ * A password keyboard also makes the field a password to autofill, so a password manager would offer
+ * to save what is typed in it, or to fill a password in. With [autofill] off the field takes no part
+ * in autofill at all: no autofill service fills it, offers to fill it, or is given what was typed in
+ * it to save. Turn it off for a value that belongs in no password manager, such as an account number.
  *
  * [placeholder] shows while the field is empty, such as an example of what to type. [prefix] and
  * [suffix] stand before and after what is typed, such as "paypal.me/" or a currency code, and
@@ -113,6 +122,7 @@ fun SvTextField(
     keyboardOptions: KeyboardOptions = if (singleLine) SingleLineKeyboard else MultiLineKeyboard,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     titleLabel: Boolean = false,
+    autofill: Boolean = true,
 ) {
     require(maxLength > 0) { "maxLength must be at least 1, was $maxLength" }
     require(singleLine || maxLines >= minLines) { "maxLines ($maxLines) must be at least minLines ($minLines)" }
@@ -136,7 +146,15 @@ fun SvTextField(
     BasicTextField(
         value = value,
         onValueChange = { entered -> onValueChange(entered.cutAt(maxLength)) },
-        modifier = modifier.semantics { if (isError) error(ERROR_DESCRIPTION) },
+        modifier = modifier.semantics {
+            if (isError) error(ERROR_DESCRIPTION)
+            if (!autofill) {
+                // The text field's own semantics make it a text to autofill, and a password with a
+                // password keyboard; these come after them on the same node, so they take both back.
+                contentDataType = ContentDataType.None
+                contentType = NotForAutofill
+            }
+        },
         enabled = enabled,
         textStyle = textStyle,
         keyboardOptions = keyboardOptions,
@@ -472,6 +490,12 @@ private const val MULTI_LINE_MIN_LINES = 3
 
 /** What a screen reader says of a field whose text cannot be used, as Material's own fields say. */
 private const val ERROR_DESCRIPTION = "Invalid input"
+
+/**
+ * The autofill hint of a field that is not eligible for autofill, the one androidx.autofill's
+ * `HintConstants.AUTOFILL_HINT_NOT_APPLICABLE` names from version 1.2; the app has an older one.
+ */
+private val NotForAutofill = ContentType("notApplicable")
 
 private val FIELD_HEIGHT = 52.dp
 

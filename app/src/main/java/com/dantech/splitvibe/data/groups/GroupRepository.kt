@@ -9,7 +9,9 @@ import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.ExchangeRate
 import com.dantech.splitvibe.domain.GroupAmounts
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -214,10 +216,15 @@ class GroupRepository(private val api: ProxyApi, private val cache: ProxyCache, 
     /**
      * Keeps the group state a change answered with, so the screen shows it at once. The phone keeps
      * each bill's name and amounts but not its whole document, so a group of any size stays small.
+     * The state is read and cut down away from the main thread, and the cache writes it away from it.
      */
     private suspend fun state(answer: Answer): GroupState {
-        val state = ProxyCache.json.decodeFromJsonElement(GroupState.serializer(), checkNotNull(answer.body) { "The proxy sent no group" })
-        cache.put(groupKey(state.group.id), GroupState.serializer(), state.withoutDocuments(), answer.since)
+        val body = checkNotNull(answer.body) { "The proxy sent no group" }
+        val (state, kept) = withContext(Dispatchers.Default) {
+            val state = ProxyCache.json.decodeFromJsonElement(GroupState.serializer(), body)
+            state to state.withoutDocuments()
+        }
+        cache.put(groupKey(state.group.id), GroupState.serializer(), kept, answer.since)
         return state
     }
 

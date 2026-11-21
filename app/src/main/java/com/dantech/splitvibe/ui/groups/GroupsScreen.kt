@@ -3,6 +3,7 @@ package com.dantech.splitvibe.ui.groups
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +26,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
@@ -144,29 +147,45 @@ fun GroupsScreen(
 
 /**
  * One group as a card of its own: its letters, its name, and the currency its balances are kept in,
- * or a tag that says it waits for its owner. A screen reader reads the card as one button.
+ * or a tag that says it waits for its owner. A screen reader reads the card as one button that
+ * opens the group. A group that still waits for its owner has nothing to open until the owner lets
+ * the user in, so its card is a plain one, which a screen reader reads as one element.
  */
 @Composable
 private fun GroupCard(group: GroupSummary, onOpen: () -> Unit) {
     val detail = if (group.isPending) stringResource(R.string.groups_waiting_for_owner) else group.currency.code
-    SvListRow(
-        position = SvRowPosition.Single,
-        label = stringResource(R.string.groups_row_label, group.name, detail),
-        onClickLabel = stringResource(R.string.common_open),
-        onClick = onOpen,
-    ) {
-        SvAvatar(group.name, size = GROUP_AVATAR_SIZE)
-        Spacer(Modifier.width(SvSpacing.md))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-            Text(group.name, style = MaterialTheme.typography.bodyLargeEmphasized)
-            if (group.isPending) {
-                SvTag(detail)
-            } else {
+    val label = stringResource(R.string.groups_row_label, group.name, detail)
+    if (group.isPending) {
+        SvListRow(
+            position = SvRowPosition.Single,
+            modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = label },
+        ) {
+            GroupCardText(group.name) { SvTag(detail) }
+        }
+    } else {
+        SvListRow(
+            position = SvRowPosition.Single,
+            label = label,
+            onClickLabel = stringResource(R.string.common_open),
+            onClick = onOpen,
+        ) {
+            GroupCardText(group.name) {
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Spacer(Modifier.width(SvSpacing.sm))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
-        Spacer(Modifier.width(SvSpacing.sm))
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+    }
+}
+
+/** The group's letters and its [name], with the [detail] below the name. */
+@Composable
+private fun RowScope.GroupCardText(name: String, detail: @Composable () -> Unit) {
+    SvAvatar(name, size = GROUP_AVATAR_SIZE)
+    Spacer(Modifier.width(SvSpacing.md))
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
+        Text(name, style = MaterialTheme.typography.bodyLargeEmphasized)
+        detail()
     }
 }
 

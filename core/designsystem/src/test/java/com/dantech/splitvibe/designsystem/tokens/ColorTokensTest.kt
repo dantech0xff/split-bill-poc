@@ -3,6 +3,7 @@ package com.dantech.splitvibe.designsystem.tokens
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,6 +24,12 @@ class ColorTokensTest {
 
     @Test
     fun `the colours of Split Vibe's own palette are readable in the dark theme`() = DarkPalette.assertReadable(DarkColors)
+
+    @Test
+    fun `the bar of money coming back is the boards' green in both themes`() {
+        assertEquals("light", BOARDS_GREEN, LightPalette.moneyInBar)
+        assertEquals("dark", BOARDS_GREEN, DarkPalette.moneyInBar)
+    }
 
     private fun ColorScheme.surfaces() = listOf(
         "surface" to surface,
@@ -71,7 +78,8 @@ class ColorTokensTest {
     }
 
     // barOutline is left out on purpose: it is a thin decorative edge from the approved dark design,
-    // and the bar is recognisable without it by its own colour, text and icons.
+    // and the bar is recognisable without it by its own colour, text and icons. moneyInBar is left out
+    // too: the bar only draws an amount that the words beside it say, in moneyIn, which is checked.
     private fun SvPalette.assertReadable(scheme: ColorScheme) {
         val textPairs = buildList {
             add(Triple("onBrand on brand", onBrand, brand))
@@ -104,4 +112,7 @@ class ColorTokensTest {
 }
 
 private const val TEXT_CONTRAST = 4.5f
+
+/** The green of the bars of what comes back on the approved boards, light and dark alike. */
+private val BOARDS_GREEN = Color(0xFF17B383)
 private const val OUTLINE_CONTRAST = 3f

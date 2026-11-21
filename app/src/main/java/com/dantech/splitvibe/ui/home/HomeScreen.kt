@@ -46,6 +46,8 @@ import com.dantech.splitvibe.domain.monthText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.history.BillListingRow
+import com.dantech.splitvibe.ui.requests.Money
+import com.dantech.splitvibe.ui.requests.OpenRequests
 import java.time.LocalDate
 
 /**

@@ -118,8 +118,10 @@ class PaymentRequestJourneyTest {
         compose.awaitNode(hasText("Not paid yet"))
         compose.onNodeWithText("You asked for").assertIsDisplayed()
         compose.onNodeWithText("Minh · Pho 24").assertIsDisplayed()
-        // The amount stands on the request's card, which is one element; the tile of what friends owe shows the total too.
+        // The amount stands on the request's card, which is one element, and on the tile of what friends
+        // owe, also one element, as the total of the one request open.
         compose.onNode(hasText("Minh · Pho 24") and hasText(owed)).assertIsDisplayed()
+        compose.onNode(hasText("Friends owe you") and hasText(owed)).assertIsDisplayed()
         compose.onAllNodesWithText("Not opened in the app yet").assertCountEquals(0)
         // A call that failed would show its message in a card with an OK button, the only one here.
         compose.onAllNodesWithText("OK").assertCountEquals(0)

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -51,13 +52,24 @@ class ProxyCache(private val dao: ProxyCacheDao, private val clock: () -> Long =
         .catch { emit(null) }
         .flowOn(Dispatchers.Default)
 
-    suspend fun <T> get(key: String, serializer: KSerializer<T>): T? = runCatching {
-        dao.get(key)
-    }.getOrNull()?.let { decode(it, serializer) }
+    /**
+     * What is kept under [key], decoded away from the main thread, as a group's state can be large;
+     * null when nothing usable is, as when the database cannot read the row back.
+     */
+    suspend fun <T> get(key: String, serializer: KSerializer<T>): T? {
+        val entry = runCatching { dao.get(key) }.getOrNull() ?: return null
+        return withContext(Dispatchers.Default) { decode(entry, serializer) }
+    }
 
-    /** Keeps [value] under [key], unless the cache was emptied since [since], when it belongs to whoever was signed in then. */
-    suspend fun <T> put(key: String, serializer: KSerializer<T>, value: T, since: Long) = lock.withLock {
-        if (since == generation) dao.put(ProxyCacheEntity(key, json.encodeToString(serializer, value), clock()))
+    /**
+     * Keeps [value] under [key], unless the cache was emptied since [since], when it belongs to whoever
+     * was signed in then. It is encoded away from the main thread, before the cache is locked.
+     */
+    suspend fun <T> put(key: String, serializer: KSerializer<T>, value: T, since: Long) {
+        val document = withContext(Dispatchers.Default) { json.encodeToString(serializer, value) }
+        lock.withLock {
+            if (since == generation) dao.put(ProxyCacheEntity(key, document, clock()))
+        }
     }
 
     suspend fun remove(key: String) = dao.remove(key)

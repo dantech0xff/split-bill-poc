@@ -62,6 +62,9 @@ internal object Swatch {
     val Jade = Color(0xFF5BE3B0)
     val Apricot = Color(0xFFFF9B5E)
 
+    // The bar that draws money coming back, the same in both themes.
+    val Emerald = Color(0xFF17B383)
+
     // The bright colours of people and categories. Ink text sits on all of them, in both themes.
     val Pink = Color(0xFFFF6FB5)
     val Orange = Color(0xFFFF8A3D)
