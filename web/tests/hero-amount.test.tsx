@@ -19,9 +19,9 @@ describe("the amount in a page's head", () => {
     vi.spyOn(navigator, "languages", "get").mockReturnValue(["vi-VN"]);
     const amount = mount(<HeroAmount amountMinor={231_000} currency={VND} />).querySelector(".hero__amount");
 
-    expect(amount?.textContent).toBe("231.000 ₫");
+    expect(amount?.textContent).toBe("231.000\u00a0₫");
     expect(Array.from(amount?.querySelectorAll(".hero__currency") ?? [], (part) => [part.className, part.textContent])).toEqual([
-      ["hero__currency", " ₫"],
+      ["hero__currency", "\u00a0₫"],
     ]);
   });
 

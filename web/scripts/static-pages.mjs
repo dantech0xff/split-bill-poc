@@ -124,6 +124,14 @@ export function renderLegalMarkdown(markdown, source) {
         problems.push(`shows an image (${href}); the legal pages show none`);
         return "";
       },
+      // A list's markers are drawn by the stylesheet, and Safari reads a list without markers of
+      // its own as a list only when it says it is one.
+      list(token) {
+        const type = token.ordered ? "ol" : "ul";
+        const start = token.ordered && token.start !== 1 ? ` start="${token.start}"` : "";
+        const items = token.items.map((item) => this.listitem(item)).join("");
+        return `<${type} role="list"${start}>\n${items}</${type}>\n`;
+      },
       html({ text }) {
         return escapeHtml(text);
       },

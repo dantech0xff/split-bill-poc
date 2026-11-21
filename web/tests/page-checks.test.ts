@@ -151,7 +151,11 @@ describe("the files under assets/, which the build and the proxy's embed script 
     ["a way out of the folder", "../index.js"],
     ["a name with a space", "index AbC.js"],
     ["an ending in capitals", "index-AbC123.JS"],
-    ["a name that is only an ending", ".woff2x"],
+    ["an ending it does not serve", "font.woff2x"],
+    ["a name that is only an ending", ".woff2"],
+    ["a name that starts with a dot", "..woff2"],
+    ["a name that starts with a dash", "-.css"],
+    ["a name that starts with an underscore", "_index.js"],
   ])("refuse %s", (_label, name) => {
     expect(assetType(name)).toBeNull();
   });
@@ -163,8 +167,9 @@ describe("the checks of the built stylesheet", () => {
     '@font-face{font-family:"Bricolage Grotesque";src:url(/assets/bricolage-grotesque-800-Gh78.woff2)format("woff2")}' +
     "@font-face{font-family:Be Vietnam Pro;src:url('/assets/be-vietnam-pro-400-Ij90.woff2') format(\"woff2\")}";
 
-  it("find the files a stylesheet loads, quoted or not", () => {
+  it("find the files a stylesheet loads, quoted or not, each address whole", () => {
     expect(stylesheetUrls(fonts)).toEqual(["/assets/bricolage-grotesque-800-Gh78.woff2", "/assets/be-vietnam-pro-400-Ij90.woff2"]);
+    expect(stylesheetUrls(`a{b:url("/x)y.png")}c{d:url('/z w.png')}`)).toEqual(["/x)y.png", "/z w.png"]);
   });
 
   it("take a stylesheet that loads only fonts of its own that are under assets/", () => {
@@ -178,6 +183,10 @@ describe("the checks of the built stylesheet", () => {
     ["an image", ".hero{background:url(/assets/x.png)}"],
     ["an image inline as data", ".hero{background:url(data:image/png;base64,AAAA)}"],
     ["another stylesheet", '@import "/assets/other.css";'],
+    ["an image from another origin through image-set()", '.hero{background:image-set("https://evil.example/x.png" 1x)}'],
+    ["an image through -webkit-image-set()", '.hero{background:-webkit-image-set("/assets/x.png" 1x)}'],
+    ["a url() its name hides behind an escape", ".hero{background:u\\72l(https://evil.example/x.png)}"],
+    ["a quoted url() with a parenthesis in it", '.hero{background:url("https://evil.example/a)b.png")}'],
   ])("refuse a stylesheet that loads %s", (_label, css) => {
     expect(stylesheetProblems(`${fonts}${css}`, assets)).toHaveLength(1);
   });

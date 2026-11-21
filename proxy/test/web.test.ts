@@ -228,6 +228,9 @@ describe("every page", () => {
   });
 });
 
+/** Whether the Worker holds the placeholder page the proxy embeds while web/ is not built, instead of the web app. */
+const PLACEHOLDER = WEB_ASSETS.has("placeholder.css");
+
 /** The bytes the Worker answers a GET of [path] with, and its headers. */
 async function getBytes(path: string): Promise<{ status: number; headers: Headers; bytes: Uint8Array }> {
   const ctx = createExecutionContext();
@@ -260,13 +263,13 @@ describe("the page's scripts, styles and fonts", () => {
     }
   });
 
-  it("serve as WOFF2 bytes, cached for a year, the fonts the stylesheet loads, at most three of them", async () => {
+  // The placeholder the proxy embeds while web/ is not built has no font, so there is nothing to check.
+  it.skipIf(PLACEHOLDER)("serve the three fonts the built web app's stylesheet loads, as WOFF2 bytes cached for a year (skipped without the web app)", async () => {
     const loaded = [...WEB_ASSETS.values()]
       .filter((asset) => asset.type === "text/css; charset=utf-8" && typeof asset.body === "string")
       .flatMap((asset) => [...String(asset.body).matchAll(/url\(\s*["']?\/assets\/([^"')]+)["']?\s*\)/g)].map((match) => match[1]));
     const fonts = [...WEB_ASSETS].filter(([, asset]) => typeof asset.body !== "string");
-    // The placeholder the proxy embeds without the web app has no font.
-    if (!WEB_ASSETS.has("placeholder.css")) expect(fonts).toHaveLength(3);
+    expect(fonts).toHaveLength(3);
     expect(fonts.map(([name]) => name).sort()).toEqual([...new Set(loaded)].sort());
 
     for (const [name, asset] of fonts) {

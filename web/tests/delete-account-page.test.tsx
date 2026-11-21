@@ -85,6 +85,8 @@ describe("the page to delete an account", () => {
     expect(textOf(play)).toBe("Manage your subscriptions on Google Play");
     expect(play?.rel).toBe("noopener noreferrer");
     expect(all(page, ".steps li").map(textOf)).toEqual(["Open Split Vibe on your phone.", "Go to Settings.", "Tap Delete account."]);
+    // The stylesheet draws the lists' markers, so each list says it is one, for Safari.
+    expect(all(page, "ul.bullets, ol.steps").map((list) => `${list.tagName} ${list.getAttribute("role")}`)).toEqual(["UL list", "UL list", "OL list"]);
     expect(all(page, "footer a").map((link) => [textOf(link), link.getAttribute("href"), link.getAttribute("aria-current")])).toEqual([
       ["Privacy policy", "/privacy", null],
       ["Terms of use", "/terms", null],

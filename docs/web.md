@@ -150,8 +150,9 @@ npm run size      # the initial download gzipped, against its 150 KB budget, and
 `npm run build` writes `web/dist/index.html` and hashed scripts, styles and fonts under
 `web/dist/assets/`, then `delete-account.html`, `privacy.html` and `terms.html` beside
 `index.html`, which the proxy's `npm run build:web` embeds into the Worker. Nothing else is served:
-the build, and the embedding too, stop on any other kind of file under `assets/` and on a
-stylesheet that loads anything but a font there.
+the build, and the embedding too, stop on any other kind of file under `assets/`, and on a
+stylesheet with a `url()` to anything but a WOFF2 font there, an `@import`, an `image-set()` or a
+backslash, with which an escape could hide a `url()`.
 
 `npm run size` counts `index.html` and the scripts and styles it loads, gzipped, against a budget
 of 150 KB, and the fonts the stylesheet loads, as they are, since WOFF2 is compressed already,

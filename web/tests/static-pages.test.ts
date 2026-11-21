@@ -45,7 +45,14 @@ describe("the legal pages", () => {
     expect(html).toContain('<h2 id="deleting-your-account">Deleting your account</h2>');
     expect(html).toContain("<th>For how long</th>");
     expect(html).toContain("<td>Until the month ends</td>");
-    expect(html).toMatch(/<li>Bills stay on your phone\.<ul>\s*<li>Photos never leave it\.<\/li>/);
+    expect(html).toMatch(/<li>Bills stay on your phone\.<ul role="list">\s*<li>Photos never leave it\.<\/li>/);
+  });
+
+  it("say each list is a list, as the stylesheet draws their markers and Safari reads one without them as a list only then", () => {
+    const lists = [privacyFixture, termsFixture].flatMap((markdown) => [...renderLegalMarkdown(markdown, "terms.md").matchAll(/<(ul|ol)\b[^>]*>/g)].map((match) => match[0]));
+
+    expect(lists).toEqual(['<ul role="list">', '<ul role="list">', '<ol role="list">']);
+    expect(renderLegalMarkdown("3. Three\n4. Four\n", "terms.md")).toContain('<ol role="list" start="3">');
   });
 
   it("link the other legal page, sections, the Worker's own pages, the web and addresses", () => {

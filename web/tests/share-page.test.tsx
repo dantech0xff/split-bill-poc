@@ -66,6 +66,15 @@ describe("the bill link's page", () => {
     expect(input?.maxLength).toBe(40);
   });
 
+  it("writes the total and the date as a browser set to Vietnam writes them", () => {
+    vi.spyOn(navigator, "languages", "get").mockReturnValue(["vi-VN"]);
+    const page = mount(<ShareView state={stateOf(shareOpen)} actions={actions()} />);
+
+    expect(page.querySelector(".hero__amount")?.textContent).toBe("231.000\u00a0₫");
+    expect(textOf(page.querySelector(".hero"))).toContain("14 Nov 2026 · 3 items");
+    expect(textOf(page.querySelector('[aria-labelledby="totals-title"]'))).toBe("Charges and total Service charge 21.000 ₫ Total 231.000 ₫");
+  });
+
   it("passes taps and typing on to the page's controller", () => {
     const on = actions();
     const page = mount(<ShareView state={stateOf(shareOpen)} actions={on} />);

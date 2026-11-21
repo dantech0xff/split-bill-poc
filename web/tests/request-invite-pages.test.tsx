@@ -134,6 +134,8 @@ describe("the group invite's page", () => {
     expect(textOf(page.querySelector("h1"))).toBe("Chiang Mai trip");
     expect(textOf(page.querySelector(".hero"))).toBe("You are invited to join Chiang Mai trip Balances in THB");
     expect(textOf(page.querySelector(".steps"))).toContain("Get Split Vibe from Google Play on your Android phone.");
+    // The stylesheet draws the steps' numbers, so the list says it is one, for Safari.
+    expect(page.querySelector("ol.steps")?.getAttribute("role")).toBe("list");
     const open = Array.from(page.querySelectorAll("a")).find((link) => textOf(link) === "Open in Split Vibe");
     expect(open?.getAttribute("href")).toMatch(new RegExp(`^intent://proxy\\.example\\.workers\\.dev/g/#${TOKEN}#Intent;`));
   });

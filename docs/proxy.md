@@ -1122,15 +1122,15 @@ The live connection:
     takes the same addresses and no others, so that nothing in one changes what its `mailto:` link
     does.
 - The link pages' headers, with `<host>` the host the page was asked at:
-  - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
+  - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
   - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`
   - `cache-control: no-store`
 - `GET /privacy` and `GET /terms` answer the privacy policy and the terms of use, which
   `npm run build` in `web/` renders from [`docs/privacy-policy.md`](privacy-policy.md) and
   [`docs/terms.md`](terms.md) into static pages, so the Worker parses no Markdown. They run no
-  script and load nothing but the link pages' stylesheet. Their headers are those of the link
-  pages, with the policy `default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri
-  'none'; form-action 'none'; frame-ancestors 'none'`.
+  script and load nothing but the link pages' stylesheet and the fonts it loads. Their headers are
+  those of the link pages, with the policy `default-src 'none'; style-src 'self'; font-src 'self';
+  img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`.
 - `GET /delete-account` answers the page where someone deletes their account by signing in with
   Google, which the web app's script draws ([web.md](web.md)). The Worker fills its
   `<meta name="sv-google-client-id">` with `GOOGLE_CLIENT_ID` while sign-in works, that is with
@@ -1138,7 +1138,7 @@ The live connection:
   client ID (letters, digits, `.`, `_` and `-`, then `.apps.googleusercontent.com`) leaves it empty
   too, and is logged. With the tag empty, the page says that deleting on the web is not available
   yet, and how to delete in the app. Its headers are those of the link pages, but for:
-  - `content-security-policy: default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`:
+  - `content-security-policy: default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`:
     the origins Google's guide asks for Google Identity Services, its library, its stylesheet, the
     iframe of its button and its endpoints, and no more. No other page may load it.
   - `referrer-policy: strict-origin-when-cross-origin`, which Google recommends: Google Identity
@@ -1148,13 +1148,14 @@ The live connection:
 - These three, like the link pages, answer GET and HEAD at their paths as written only. HEAD gets
   the status and headers GET gets, without the body, for link checkers and uptime monitors.
   `/privacy/` or `/terms.html` is 404, and any other method 405.
-- `GET /assets/<name>` serves the pages' scripts and styles with `cache-control: public,
-  max-age=31536000, immutable` and `x-content-type-options: nosniff`; any other name is 404.
+- `GET /assets/<name>` serves the pages' scripts, stylesheets and WOFF2 fonts (`font/woff2`) with
+  `cache-control: public, max-age=31536000, immutable` and `x-content-type-options: nosniff`; any
+  other name is 404.
 - The web app is built from [`web/`](../web) and put into the Worker's bundle, as the module
   `proxy/src/web-assets.generated.ts` that
   [`proxy/scripts/embed-web.mjs`](../proxy/scripts/embed-web.mjs) writes from what `npm run build`
   in `web/` leaves in `web/dist`: `index.html`, `delete-account.html`, `privacy.html` and
-  `terms.html`, and the `.js` and `.css` files of its `assets/`. Git ignores the module.
+  `terms.html`, and the `.js`, `.css` and `.woff2` files of its `assets/`. Git ignores the module.
   `npm run build:web` in `proxy/` builds `web/` and writes the module; the proxy's typecheck, tests
   and `npm run dev` write it too, from `web/dist` as it is, with a placeholder for each page it
   lacks, as while `web/` is not built. With `REQUIRE_WEB=1` in its environment, or `--require`, the
@@ -1166,9 +1167,10 @@ The live connection:
   makes too: a script or a style that is not under `/assets/`, a reference with a scheme or to
   another origin, but for the links of a legal page, an inline script or style, a `style`
   attribute or an inline event handler, which the page's policy would block, a script or an image
-  on a legal page, or a page without the meta tags above; and on any other kind of file in
-  `assets/`. Workers Static Assets are not used, since the Worker is deployed through the
-  Cloudflare API.
+  on a legal page, or a page without the meta tags above; on a stylesheet with a `url()` to
+  anything but a WOFF2 font in `assets/`, an `@import`, an `image-set()` or a backslash, with which
+  an escape could hide a `url()`; and on any other kind of file in `assets/`. Workers Static
+  Assets are not used, since the Worker is deployed through the Cloudflare API.
 - `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
   app where it is installed, and the page elsewhere.
 

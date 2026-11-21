@@ -110,6 +110,13 @@ input {
   color: inherit;
 }
 
+/* Text set strong takes the heavier of the two faces of Be Vietnam Pro, rather than a bold the pages have no face for. */
+strong,
+b,
+th {
+  font-weight: var(--sv-type-body-large-emphasized-weight);
+}
+
 a {
   color: var(--sv-primary);
   font-weight: var(--sv-type-body-medium-emphasized-weight);
@@ -339,12 +346,13 @@ a {
   margin-top: var(--sv-space-lg);
 }
 
+/* Opaque, so that its text keeps 4.5:1 where it lies over the circle. */
 .hero__status {
   align-self: flex-start;
   margin-top: var(--sv-space-sm);
   padding: 5px var(--sv-space-md);
   border-radius: var(--sv-shape-medium);
-  background: color-mix(in srgb, var(--sv-on-brand) 16%, transparent);
+  background: color-mix(in srgb, var(--sv-on-brand) 16%, var(--sv-brand));
   font: var(--sv-type-body-small-emphasized-weight) var(--sv-type-body-small-emphasized-size) / var(--sv-type-body-small-emphasized-line-height)
     var(--sv-type-body-small-emphasized-family);
   letter-spacing: var(--sv-type-body-small-emphasized-tracking);
@@ -1084,7 +1092,8 @@ a {
   margin-top: calc(-1 * var(--sv-space-sm));
 }
 
-/* Steps, numbered in lime */
+/* Steps, numbered in lime; a screen reader says the number with its step. The list draws its own
+   numbers, so its markup says it is a list, which Safari would not read it as otherwise. */
 
 .steps {
   counter-reset: step;
@@ -1106,7 +1115,6 @@ a {
 
 .steps > li::before {
   content: counter(step);
-  content: counter(step) / "";
   position: absolute;
   top: var(--sv-space-lg);
   inset-inline-start: var(--sv-space-lg);
@@ -1252,7 +1260,6 @@ h2[tabindex="-1"]:focus {
 /* The number a list's own counter gives, which follows a list's start. */
 .prose ol > li::before {
   content: counter(list-item);
-  content: counter(list-item) / "";
   position: absolute;
   top: 0;
   inset-inline-start: 0;

@@ -20,7 +20,7 @@ export function InviteDetails({ group, link, userAgent }: { group: InvitePreview
         <h2 id="join-title" class="type-title-medium">
           How to join
         </h2>
-        <ol class="steps type-body-large">
+        <ol class="steps type-body-large" role="list">
           <li>Get Split Vibe from Google Play on your Android phone.</li>
           <li>Open this invite link again on that phone, or tap Open in Split Vibe there.</li>
           <li>Choose the name the group knows you by, and join.</li>

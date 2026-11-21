@@ -2,15 +2,15 @@
 // page of the links, and the pages scripts/static-pages.mjs writes beside it, each loading only
 // /assets/ files, with no inline script, inline style, style attribute or inline event handler, no
 // reference to another origin but a legal page's links, and with the meta tags the Worker fills;
-// and that assets/ holds only scripts, stylesheets and the fonts they load, a stylesheet loading
-// nothing but those fonts. The checks are those of scripts/page-checks.mjs, which the proxy's embed
-// script makes too. Exits with 1 and says what is wrong otherwise.
+// and that assets/ holds only scripts, stylesheets and fonts, a stylesheet's `url()`s leading only
+// to those fonts, with no `@import`, `image-set()` or backslash. The checks are those of
+// scripts/page-checks.mjs, which the proxy's embed script makes too. Exits with 1 and says what is
+// wrong otherwise.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { OUTPUT_DIRECTORY } from "./build-output.mjs";
 import { PAGE_FILES, assetType, pageProblems, stylesheetProblems } from "./page-checks.mjs";
-
-const problems = [];
 
 function filesUnder(directory, prefix = "") {
   return readdirSync(directory).flatMap((name) => {
@@ -19,33 +19,43 @@ function filesUnder(directory, prefix = "") {
   });
 }
 
-const pages = new Set(PAGE_FILES.map((page) => page.file));
-const files = filesUnder(OUTPUT_DIRECTORY);
-const assets = new Set();
-for (const file of files) {
-  if (pages.has(file)) continue;
-  const name = /^assets\/([^/]+)$/.exec(file)?.[1];
-  if (name === undefined || assetType(name) === null) problems.push(`unexpected file in the build: ${file}`);
-  else assets.add(name);
-}
-for (const name of assets) {
-  if (!name.endsWith(".css")) continue;
-  const css = readFileSync(join(OUTPUT_DIRECTORY, "assets", name), "utf8");
-  problems.push(...stylesheetProblems(css, assets).map((problem) => `assets/${name}: ${problem}`));
-}
-
-for (const { file, kind } of PAGE_FILES) {
-  const path = join(OUTPUT_DIRECTORY, file);
-  if (!existsSync(path)) {
-    problems.push(`no ${file}`);
-    continue;
+/**
+ * What is wrong with the build in [directory], web/dist unless given, one sentence for each, and
+ * the names of the files under its assets/; the problems are empty when nothing is wrong.
+ */
+export function buildProblems(directory = OUTPUT_DIRECTORY) {
+  const problems = [];
+  const pages = new Set(PAGE_FILES.map((page) => page.file));
+  const assets = new Set();
+  for (const file of filesUnder(directory)) {
+    if (pages.has(file)) continue;
+    const name = /^assets\/([^/]+)$/.exec(file)?.[1];
+    if (name === undefined || assetType(name) === null) problems.push(`unexpected file in the build: ${file}`);
+    else assets.add(name);
   }
-  problems.push(...pageProblems(readFileSync(path, "utf8"), kind).map((problem) => `${file}: ${problem}`));
+  for (const name of assets) {
+    if (!name.endsWith(".css")) continue;
+    const css = readFileSync(join(directory, "assets", name), "utf8");
+    problems.push(...stylesheetProblems(css, assets).map((problem) => `assets/${name}: ${problem}`));
+  }
+  for (const { file, kind } of PAGE_FILES) {
+    const path = join(directory, file);
+    if (!existsSync(path)) {
+      problems.push(`no ${file}`);
+      continue;
+    }
+    problems.push(...pageProblems(readFileSync(path, "utf8"), kind).map((problem) => `${file}: ${problem}`));
+  }
+  return { problems, assets };
 }
 
-if (problems.length > 0) {
-  console.error(`The build does not fit the pages' CSPs:\n- ${problems.join("\n- ")}`);
-  process.exit(1);
+// Run as a script; imported, it only lends its check.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { problems, assets } = buildProblems();
+  if (problems.length > 0) {
+    console.error(`The build does not fit the pages' CSPs:\n- ${problems.join("\n- ")}`);
+    process.exit(1);
+  }
+  console.log(`The build fits the pages' CSPs: ${PAGE_FILES.length} pages and ${assets.size} files under /assets/.`);
+  if (process.argv.includes("--show")) console.log(readFileSync(join(OUTPUT_DIRECTORY, "index.html"), "utf8"));
 }
-console.log(`The build fits the pages' CSPs: ${PAGE_FILES.length} pages and ${assets.size} files under /assets/.`);
-if (process.argv.includes("--show")) console.log(readFileSync(join(OUTPUT_DIRECTORY, "index.html"), "utf8"));

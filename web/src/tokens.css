@@ -94,7 +94,7 @@
   --sv-type-title-medium-emphasized-family: var(--sv-font-text);
   --sv-type-title-medium-emphasized-size: 16px;
   --sv-type-title-medium-emphasized-line-height: 22px;
-  --sv-type-title-medium-emphasized-weight: 700;
+  --sv-type-title-medium-emphasized-weight: 600;
   --sv-type-title-medium-emphasized-tracking: 0;
   --sv-type-title-small-family: var(--sv-font-text);
   --sv-type-title-small-size: 14px;
@@ -151,7 +151,7 @@
   --sv-type-amount-small-family: var(--sv-font-display);
   --sv-type-amount-small-size: 15px;
   --sv-type-amount-small-line-height: 20px;
-  --sv-type-amount-small-weight: 700;
+  --sv-type-amount-small-weight: 800;
   --sv-type-amount-small-tracking: 0;
   --sv-type-amount-small-features: "tnum";
   --sv-shape-extra-small: 8px;

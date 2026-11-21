@@ -17,22 +17,33 @@ function supportedCurrencies(): ReadonlySet<string> | null {
   return knownCurrencies;
 }
 
-/** A format of [locale] for amounts of [code] with [fractionDigits] decimals, or for plain numbers without [code]; null when the browser has none. */
-function numberFormat(locale: string, code: string | null, fractionDigits: number): Intl.NumberFormat | null {
-  const id = `${locale}|${code ?? ""}|${fractionDigits}`;
-  const cached = formats.get(id);
-  if (cached) return cached;
+/** A new format, or null when the browser refuses [options]. */
+function formatOrNull(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat | null {
   try {
-    const format = new Intl.NumberFormat(locale, {
-      ...(code === null ? {} : { style: "currency", currency: code }),
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    });
-    formats.set(id, format);
-    return format;
+    return new Intl.NumberFormat(locale, options);
   } catch {
     return null;
   }
+}
+
+/**
+ * A format of [locale] for amounts of [code] with [fractionDigits] decimals, or for plain numbers
+ * without [code]; null when the browser has none. With [narrow], the currency is shown by its
+ * narrow symbol, such as "€" where Mexico writes "EUR", where the browser can.
+ */
+function numberFormat(locale: string, code: string | null, fractionDigits: number, narrow = false): Intl.NumberFormat | null {
+  const id = `${locale}|${code ?? ""}|${fractionDigits}|${narrow}`;
+  const cached = formats.get(id);
+  if (cached) return cached;
+  const options: Intl.NumberFormatOptions = {
+    ...(code === null ? {} : { style: "currency", currency: code }),
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  };
+  // A browser that does not know the narrow symbol refuses the option; it writes the currency its usual way.
+  const format = (narrow && code !== null ? formatOrNull(locale, { ...options, currencyDisplay: "narrowSymbol" }) : null) ?? formatOrNull(locale, options);
+  if (format !== null) formats.set(id, format);
+  return format;
 }
 
 /** The symbol the page's English writes [code] with, such as "₫" for VND, "$" for USD and "THB" for THB. */
@@ -54,8 +65,8 @@ function withSymbol(parts: readonly Intl.NumberFormatPart[], symbol: string): st
   return parts
     .map((part, index) => {
       if (part.type !== "currency") return part.value;
-      const before = isDigits(parts[index - 1]) && /^\p{L}/u.test(symbol) ? " " : "";
-      const after = isDigits(parts[index + 1]) && /\p{L}$/u.test(symbol) ? " " : "";
+      const before = isDigits(parts[index - 1]) && /^\p{L}/u.test(symbol) ? "\u00a0" : "";
+      const after = isDigits(parts[index + 1]) && /\p{L}$/u.test(symbol) ? "\u00a0" : "";
       return `${before}${symbol}${after}`;
     })
     .join("");
@@ -91,7 +102,9 @@ export function formatMoney(amountMinor: number, currency: Currency, region: Reg
   const locale = localeOf(region);
   const decimal = decimalOf(amountMinor, fractionDigits);
   const known = supportedCurrencies();
-  const currencyFormat = known === null || known.has(code) ? numberFormat(locale, code, fractionDigits) : null;
+  // The region's parts with its narrow symbol, so that no space is kept that the region puts only
+  // beside a code of letters, such as Mexico's "EUR 1,234.50" for the "€1,234.50" the app writes.
+  const currencyFormat = known === null || known.has(code) ? numberFormat(locale, code, fractionDigits, true) : null;
   if (currencyFormat) return withSymbol(currencyFormat.formatToParts(decimal), englishSymbol(code));
   const plain = numberFormat(locale, null, fractionDigits);
   return `${plain ? plain.format(decimal) : decimal} ${code}`;

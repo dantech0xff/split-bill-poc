@@ -7,7 +7,7 @@ const KWD = { code: "KWD", fractionDigits: 3 };
 const THB = { code: "THB", fractionDigits: 2 };
 
 /** The space that does not break, which several regions put between an amount and its symbol. */
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 describe("formatMoney in the United States", () => {
   it("writes dong without decimals", () => {
@@ -79,6 +79,33 @@ describe("formatMoney by the browser's region, as the app writes amounts by the 
 
   it("writes the digits 0 to 9 where the browser asks for other digits", () => {
     expect(formatMoney(123_450, USD, "ar-EG-u-nu-arab").replace(/[^0-9]/g, "")).toBe("123450");
+  });
+
+  it("keeps no space beside the English sign where the region spaces only its own code", () => {
+    // Mexico writes "EUR 1,234.50" and Malaysia "USD 1,234.50", spaced because the code ends in a letter; the app writes the sign against the number.
+    expect(formatMoney(123_450, { code: "EUR", fractionDigits: 2 }, "es-MX")).toBe("€1,234.50");
+    expect(formatMoney(123_450, USD, "ms-MY")).toBe("$1,234.50");
+    expect(formatMoney(123_450, { code: "CNY", fractionDigits: 2 }, "ja-JP")).toBe("CN¥1,234.50");
+  });
+
+  it("writes the currency as the region usually does in a browser that has no narrow symbols", async () => {
+    // Such a browser refuses currencyDisplay "narrowSymbol"; the English sign then takes the place of the region's usual one, space and all.
+    const NumberFormat = Intl.NumberFormat;
+    vi.spyOn(Intl, "NumberFormat").mockImplementation(
+      class extends NumberFormat {
+        constructor(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions) {
+          if (options?.currencyDisplay === "narrowSymbol") throw new RangeError("Invalid currencyDisplay: narrowSymbol");
+          super(locales, options);
+        }
+      },
+    );
+    // A fresh module, whose formats were not made before the browser was changed.
+    vi.resetModules();
+    const older = await import("../src/money");
+
+    expect(older.formatMoney(123_450, USD, "en-US")).toBe("$1,234.50");
+    expect(older.formatMoney(23_100_000, VND, "vi-VN")).toBe(`23.100.000${NBSP}₫`);
+    expect(older.formatMoney(123_450, { code: "EUR", fractionDigits: 2 }, "es-MX")).toBe(`€${NBSP}1,234.50`);
   });
 
   it("keeps a space that does not break between a code and a digit where the region's own symbol touched it", () => {

@@ -21,8 +21,9 @@
 // `npm run build` in `web/` makes (a script or style not under `/assets/`, a reference with a
 // scheme or to another origin but the links of a legal page, an inline script or style, a `style`
 // attribute or an inline event handler, which the page's Content-Security-Policy would block, or a
-// missing meta tag); a script or style it refers to that is not in `assets/`; a stylesheet that
-// loads anything but a font that is in `assets/`; or any other kind of file in `assets/`.
+// missing meta tag); a script or style it refers to that is not in `assets/`; a stylesheet with a
+// `url()` to anything but a WOFF2 font that is in `assets/`, an `@import`, an `image-set()` or a
+// backslash; or any other kind of file in `assets/`.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -111,10 +112,10 @@ export function checkPage(page, assets, kind = PAGES.link.kind, file = PAGES.lin
 
 /**
  * The pages' scripts, styles and fonts in [directory], by name: a script or a style as its text, a
- * font as its bytes. Stops on any other kind of file, and on a stylesheet that loads anything but a
- * font among them.
+ * font as its bytes. Stops on any other kind of file, and on a stylesheet with a `url()` to
+ * anything but a font among them, an `@import`, an `image-set()` or a backslash.
  */
-async function assetsIn(directory) {
+export async function assetsIn(directory) {
   const assets = new Map();
   if (!existsSync(directory)) return assets;
   for (const entry of await readdir(directory, { withFileTypes: true })) {

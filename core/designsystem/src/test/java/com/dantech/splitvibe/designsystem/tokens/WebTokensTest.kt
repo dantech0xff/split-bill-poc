@@ -18,7 +18,9 @@ import org.junit.Test
  * The web pages that people open from a link use the app's design: its colours and those of its
  * palette, its type, the corners of its shapes, its spacing and its shadows, as CSS variables in
  * `web/src/tokens.css`. Of the type, the palette and the shapes, the file holds only what
- * `web/src/app.css` uses; the colours of Material's roles are all there.
+ * `web/src/app.css` uses; the colours of Material's roles are all there. The weight of a style is
+ * that of the face the pages load nearest to the app's, so that the pages ask only for a face they
+ * have.
  * This test writes that file from the tokens here, and fails when the file and the tokens differ.
  * After changing a token, write the file again:
  *
@@ -53,7 +55,7 @@ class WebTokensTest {
             appendLine("  --sv-type-$name-family: var(--sv-font-${familyOf(name, style.fontFamily)});")
             appendLine("  --sv-type-$name-size: ${px(style.fontSize.value)};")
             appendLine("  --sv-type-$name-line-height: ${px(style.lineHeight.value)};")
-            appendLine("  --sv-type-$name-weight: ${style.fontWeight?.weight ?: NORMAL_WEIGHT};")
+            appendLine("  --sv-type-$name-weight: ${webWeight(name, style)};")
             appendLine("  --sv-type-$name-tracking: ${length(style.letterSpacing)};")
             style.fontFeatureSettings?.let { appendLine("  --sv-type-$name-features: \"$it\";") }
         }
@@ -185,6 +187,41 @@ class WebTokensTest {
         else -> error("$name is set in a family the web pages do not load: $family")
     }
 
+    /**
+     * The weight the pages draw the style [name] at: of the weights `web/src/app.css` loads a face of
+     * for its family, the one a browser would draw the app's weight with. Be Vietnam Pro has faces at
+     * 400 and 600, so the app's 700 is drawn at 600; Bricolage Grotesque has one at 800 only.
+     */
+    private fun webWeight(name: String, style: TextStyle): Int {
+        val faces = if (familyOf(name, style.fontFamily) == "display") DISPLAY_FACES else TEXT_FACES
+        return nearestFace(style.fontWeight?.weight ?: NORMAL_WEIGHT, faces)
+    }
+
+    /**
+     * The weight of [faces] a browser draws [weight] with, by the matching of CSS Fonts 4: the weight
+     * itself when there is a face of it; otherwise, for a weight from 400 to 500, the heavier faces up
+     * to 500, then the lighter ones from the nearest, then the heavier ones; for a weight under 400, the
+     * lighter faces from the nearest, then the heavier ones; and above 500, the heavier faces from the
+     * nearest, then the lighter ones.
+     */
+    private fun nearestFace(weight: Int, faces: List<Int>): Int {
+        val heavier = faces.filter { it > weight }.sorted()
+        val lighter = faces.filter { it < weight }.sortedDescending()
+        val order = when {
+            weight in faces -> listOf(weight)
+
+            weight in NORMAL_WEIGHT..MEDIUM_WEIGHT -> {
+                val (upToMedium, beyond) = heavier.partition { it <= MEDIUM_WEIGHT }
+                upToMedium + lighter + beyond
+            }
+
+            weight < NORMAL_WEIGHT -> lighter + heavier
+
+            else -> heavier + lighter
+        }
+        return order.first()
+    }
+
     /** The corners of the app's shape scale, from its smallest step to its largest. */
     private fun shapes(): List<Pair<String, Float>> = with(SvShapeScale) {
         listOf(
@@ -232,7 +269,14 @@ class WebTokensTest {
         /** From `core/designsystem`, where the module's tests run. */
         const val TOKENS_FILE = "../../web/src/tokens.css"
         const val NORMAL_WEIGHT = 400
+        const val MEDIUM_WEIGHT = 500
         const val LARGE_SHAPE = 1000f
+
+        /** The weights of the faces of Be Vietnam Pro that `web/src/app.css` loads from `web/src/fonts`. */
+        val TEXT_FACES = listOf(400, 600)
+
+        /** The weights of the faces of Bricolage Grotesque that `web/src/app.css` loads: the ExtraBold of the 14pt cut. */
+        val DISPLAY_FACES = listOf(800)
 
         /** Bricolage Grotesque, then, until its file has loaded, a heavy face of the system's of about its width. */
         const val DISPLAY_FONT = "\"Bricolage Grotesque\", \"Arial Black\", system-ui, sans-serif"

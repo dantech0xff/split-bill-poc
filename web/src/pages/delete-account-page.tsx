@@ -73,7 +73,7 @@ function WhatHappens() {
         <h2 id="deleted-title" class="type-title-medium">
           What is deleted
         </h2>
-        <ul class="bullets type-body-large">
+        <ul class="bullets type-body-large" role="list">
           <li>Your account, your Pro plan as Split Vibe knows it, and your purchase history at RevenueCat, which handles Pro purchases for Split Vibe.</li>
           <li>Your place in groups. You show as "Former member", and every amount stays as it was, so nobody else's balance changes. A group you own passes to another member.</li>
           <li>How to pay you, on the payment requests you made that are not confirmed yet.</li>
@@ -89,7 +89,7 @@ function WhatHappens() {
         <h2 id="kept-title" class="type-title-medium">
           What stays
         </h2>
-        <ul class="bullets type-body-large">
+        <ul class="bullets type-body-large" role="list">
           <li>
             Bills, people and payment methods on your phone stay on your phone. To delete them too, delete your account in the app and tick "Also delete the bills,
             people and payment methods on this phone", or uninstall Split Vibe.
@@ -113,7 +113,7 @@ function InTheApp() {
       <h2 id="in-app-title" class="type-title-medium">
         Delete it in the app
       </h2>
-      <ol class="steps steps--compact type-body-large">
+      <ol class="steps steps--compact type-body-large" role="list">
         <li>Open Split Vibe on your phone.</li>
         <li>Go to Settings.</li>
         <li>Tap Delete account.</li>
