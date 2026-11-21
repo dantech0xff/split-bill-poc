@@ -14,7 +14,7 @@
     "metrics": "node scripts/metrics.mjs"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.8.2",
+    "@cloudflare/vitest-plugin": "1.8.5",
     "@msw/cloudflare": "0.2.0",
     "msw": "3.0.7",
     "typescript": "5.9.3",
