@@ -22,7 +22,7 @@ class PaymentMethodRepositoryTest {
     private var now = 1_000L
     private val methods = PaymentMethodRepository(storage.database) { now++ }
 
-    private val vietQr = PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")
+    private val vietQr = PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")
     private val payPal = PaymentMethod.PayPalMe("DanaN")
     private val sepa = PaymentMethod.SepaQr("Dana Nguyen", "DE89370400440532013000")
 

@@ -206,7 +206,7 @@ class GroupsGalleryTest {
         shot("26-request-link", waitFor = "Payment code for VietQR") { RequestLink() }
 
         // The details to type, line by line, each with what it is.
-        compose.onNode(hasText("Account") and hasText("257678859")).assertExists()
+        compose.onNode(hasText("Account") and hasText("000000000")).assertExists()
         compose.onNode(hasText("Bank") and hasText("ACB (970416)")).assertExists()
     }
 
@@ -372,7 +372,7 @@ class GroupsGalleryTest {
     @Composable
     private fun PaymentMethods() = PaymentMethodsScreen(
         methods = listOf(
-            SavedPaymentMethod("1", PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"), isMain = true),
+            SavedPaymentMethod("1", PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN"), isMain = true),
             SavedPaymentMethod("2", PaymentMethod.PromptPay("081-234-5678"), isMain = false),
             SavedPaymentMethod("3", PaymentMethod.SepaQr("Dana Nguyen", "DE89370400440532013000"), isMain = false),
             SavedPaymentMethod("4", PaymentMethod.PastedLink("https://revolut.me/dana"), isMain = false),

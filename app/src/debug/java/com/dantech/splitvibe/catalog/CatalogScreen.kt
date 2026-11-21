@@ -857,7 +857,7 @@ private fun BesideOrBelowSamples() {
             .padding(horizontal = SvSpacing.screen),
     ) {
         Column(modifier = Modifier.padding(horizontal = SvSpacing.lg, vertical = SvSpacing.sm)) {
-            listOf("Account" to "257678859", "Reference to write on the transfer" to "SPLIT-0042").forEach { (label, value) ->
+            listOf("Account" to "000000000", "Reference to write on the transfer" to "SPLIT-0042").forEach { (label, value) ->
                 SvBesideOrBelow(
                     first = { Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     second = { Text(value, style = MaterialTheme.typography.bodyMediumEmphasized, textAlign = TextAlign.End) },
@@ -879,7 +879,7 @@ private fun FieldSamples() {
     var date by remember { mutableStateOf("") }
     var total by remember { mutableStateOf("902664") }
     var handle by remember { mutableStateOf("minhtran") }
-    var account by remember { mutableStateOf("257678859") }
+    var account by remember { mutableStateOf("000000000") }
     var search by remember { mutableStateOf("") }
     var change by remember { mutableStateOf("") }
     var how by remember { mutableStateOf("Split with Minh and Lan. Minh had the beers.") }

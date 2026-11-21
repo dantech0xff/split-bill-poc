@@ -305,7 +305,7 @@ class RegionFormatsTest {
     fun `in every region a request carries the same codes and links, and its details the region's amount`() {
         val requests = listOf(
             Triple(PaymentMethod.PromptPay("0801234567"), THB, 42_250L),
-            Triple(PaymentMethod.VietQr("970416", "257678859", "NGUYEN VAN A"), VND, 902_664L),
+            Triple(PaymentMethod.VietQr("970416", "000000000", "NGUYEN VAN A"), VND, 902_664L),
             Triple(PaymentMethod.Upi("asha.rao@okaxis", "Asha Rao"), INR, 125_050L),
             Triple(PaymentMethod.PayPalMe("DiaRusso"), USD, 1_250L),
             Triple(PaymentMethod.SepaQr("Red Cross of Belgium", "BE72000000001616"), EUR, 12_345L),

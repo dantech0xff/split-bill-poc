@@ -59,7 +59,7 @@ class RequestsViewModelTest {
 
         val text = viewModel.share.value!!.text.english()
         assertTrue(text, text.startsWith("Hi Minh, a reminder about the ₫150,000 for Pho 24."))
-        assertTrue(text, text.contains("Account: 257678859"))
+        assertTrue(text, text.contains("Account: 000000000"))
         assertTrue(viewModel.share.value!!.paying!!.qrPayload!!.startsWith("000201"))
     }
 

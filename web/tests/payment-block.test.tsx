@@ -19,9 +19,9 @@ describe("PaymentBlock", () => {
   it("copies the details to the clipboard", async () => {
     const writeText = vi.fn(async () => undefined);
     vi.spyOn(navigator, "clipboard", "get").mockReturnValue({ writeText } as unknown as Clipboard);
-    const page = mount(<PaymentBlock payment={{ link: null, qrPayload: null, details: "Bank: ACB\nAccount: 257678859", amountFilledIn: false }} amountMinor={67500} currency={VND} />);
+    const page = mount(<PaymentBlock payment={{ link: null, qrPayload: null, details: "Bank: ACB\nAccount: 000000000", amountFilledIn: false }} amountMinor={67500} currency={VND} />);
     await click(page.querySelector(".details-card button"));
-    expect(writeText).toHaveBeenCalledWith("Bank: ACB\nAccount: 257678859");
+    expect(writeText).toHaveBeenCalledWith("Bank: ACB\nAccount: 000000000");
     await vi.waitFor(() => expect(textOf(page.querySelector('[role="status"]'))).toBe("Copied."));
   });
 
@@ -31,12 +31,12 @@ describe("PaymentBlock", () => {
         throw new DOMException("Denied", "NotAllowedError");
       },
     } as unknown as Clipboard);
-    const page = mount(<PaymentBlock payment={{ link: null, qrPayload: null, details: "Account: 257678859", amountFilledIn: false }} amountMinor={67500} currency={VND} />);
+    const page = mount(<PaymentBlock payment={{ link: null, qrPayload: null, details: "Account: 000000000", amountFilledIn: false }} amountMinor={67500} currency={VND} />);
     await click(page.querySelector(".details-card button"));
     await vi.waitFor(() =>
       expect(textOf(page.querySelector('[role="status"]'))).toBe("The details are selected: copy them from your browser's menu."),
     );
-    expect(window.getSelection()?.toString()).toBe("Account: 257678859");
+    expect(window.getSelection()?.toString()).toBe("Account: 000000000");
   });
 
   it("draws the QR code on its canvas, one pixel per module with a quiet zone", () => {

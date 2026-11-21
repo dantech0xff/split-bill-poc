@@ -68,7 +68,7 @@ class PaymentDetailsTest {
         show(RequestFixtures.view(GroupFixtures.request(role = RequestView.DEBTOR)))
 
         val name = compose.onNode(hasText("Account"), useUnmergedTree = true).getBoundsInRoot()
-        val value = compose.onNode(hasText("257678859"), useUnmergedTree = true).getBoundsInRoot()
+        val value = compose.onNode(hasText("000000000"), useUnmergedTree = true).getBoundsInRoot()
         assertTrue("The value at $value is not beside the name at $name", value.overlapsVertically(name) && value.left > name.right)
     }
 

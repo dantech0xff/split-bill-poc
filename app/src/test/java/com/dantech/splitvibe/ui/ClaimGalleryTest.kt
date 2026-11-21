@@ -145,7 +145,7 @@ class ClaimGalleryTest {
     }
 
     private companion object {
-        val main = SavedPaymentMethod("m1", PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"), isMain = true)
+        val main = SavedPaymentMethod("m1", PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN"), isMain = true)
 
         val NO_ACTIONS = ClaimActions(
             onMatch = { _, _ -> },

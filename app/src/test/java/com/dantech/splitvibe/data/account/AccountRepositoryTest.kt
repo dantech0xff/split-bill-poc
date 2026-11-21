@@ -391,7 +391,7 @@ class AccountRepositoryTest {
         storage.bills.save(lunch.copy(pages = listOf(page)))
         storage.bills.save(lunch.copy(id = "draft", status = BillStatus.DRAFT))
         recurring.create(lunch, "Lunch", RecurrenceSchedule(Frequency.MONTHLY, LocalDate.of(2026, 11, 14)), LocalDate.of(2026, 12, 14))
-        methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"))
+        methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN"))
         cache.put("groups", ListSerializer(String.serializer()), listOf("kept"), cache.generation)
         SHARED_FILES.forEach { path -> File(context.cacheDir, path).apply { parentFile?.mkdirs() }.writeText("shared") }
         settings.saveName("Minh")

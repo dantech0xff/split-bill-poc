@@ -899,14 +899,14 @@ class ScreenGalleryTest {
     /**
      * Gives the step of the requests what a signed-in user has there: two bank accounts to be paid back
      * on, the first of them the main one, and their name for the requests. Only that step is signed in.
-     * The second account number is all zeros, which no bank gives as an account number, so it cannot be
+     * Both account numbers are all zeros, which no bank gives as an account number, so neither can be
      * anyone's account.
      */
     private fun signInForTheRequests() {
         val signedIn = TestProxy(server, context).apply { account.saveSession(Session("gallery-session", expiresAt = Long.MAX_VALUE)) }
         val methods = PaymentMethodRepository(storage.database)
         runBlocking {
-            methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"))
+            methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN"))
             methods.add(PaymentMethod.VietQr("970436", "0000000000", "DANA NGUYEN"))
         }
         loadKoinModules(

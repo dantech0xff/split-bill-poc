@@ -52,6 +52,8 @@ class PaymentRequestBuilderTest {
 
     @Test
     fun `VietQR codes match vietnam-qr-pay with and without an amount`() {
+        // The ACB account and its three codes are the examples of vietnam-qr-pay's documentation, kept so
+        // that the codes stay those of that library.
         val acb = PaymentMethod.VietQr("970416", "257678859", "NGUYEN VAN A")
 
         assertEquals(

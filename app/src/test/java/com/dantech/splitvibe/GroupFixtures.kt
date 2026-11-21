@@ -14,7 +14,7 @@ object GroupFixtures {
     const val FAR_FUTURE = 4_102_444_800_000L
 
     /** Dana's VietQR account, the way to pay that requests carry unless a test gives another. */
-    const val VIETQR = """{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}"""
+    const val VIETQR = """{"type":"vietqr","bankBin":"970416","account":"000000000","accountName":"DANA NGUYEN"}"""
 
     fun groupState(
         myMemberId: String = ME,

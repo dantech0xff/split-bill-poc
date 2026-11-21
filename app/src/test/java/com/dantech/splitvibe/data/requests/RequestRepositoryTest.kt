@@ -33,7 +33,7 @@ class RequestRepositoryTest {
     private val storage = TestStorage(context)
     private lateinit var requests: RequestRepository
 
-    private val vietQr = PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")
+    private val vietQr = PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")
     private val newRequest = NewRequest(
         id = "r1",
         amountMinor = 150_000,
@@ -67,7 +67,7 @@ class RequestRepositoryTest {
 
         val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
         assertEquals(
-            """{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}""",
+            """{"type":"vietqr","bankBin":"970416","account":"000000000","accountName":"DANA NGUYEN"}""",
             body["method"].toString(),
         )
         assertEquals("Dana", body["creditorName"]!!.jsonPrimitive.content)

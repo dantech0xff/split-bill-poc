@@ -65,7 +65,7 @@ class RequestMoneyViewModelTest {
     fun setUp() {
         server.start()
         proxy = TestProxy(server, context)
-        runBlocking { methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")) }
+        runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
     }
 
     @After
@@ -87,7 +87,7 @@ class RequestMoneyViewModelTest {
 
             Pay with VietQR: scan the code in your banking app, or use these details.
             Bank: ACB (970416)
-            Account: 257678859
+            Account: 000000000
             Name: DANA NGUYEN
             Amount: ₫150,000
             Note: Pho 24
@@ -134,18 +134,20 @@ class RequestMoneyViewModelTest {
 
         // The account number had a typo; the same method is corrected in Settings.
         val method = methods.all.first().single()
-        methods.replace(method.id, PaymentMethod.VietQr("970416", "257678860", "DANA NGUYEN"))
-        awaitOnMain { (viewModel.method.value?.method as? PaymentMethod.VietQr)?.account == "257678860" }
+        methods.replace(method.id, PaymentMethod.VietQr("970416", "0000000000", "DANA NGUYEN"))
+        awaitOnMain { (viewModel.method.value?.method as? PaymentMethod.VietQr)?.account == "0000000000" }
         val second = viewModel.prepare(saved, request, name = "Dana")
 
         val posts = mutableListOf<RecordedRequest>()
         repeat(server.requestCount) { posts += server.takeRequest() }
         assertEquals(listOf("POST", "POST", "DELETE"), posts.map { it.method })
-        assertTrue(posts[1].body.readUtf8().contains("257678860"))
+        // The account field itself, since a number of only zeros could also be part of another value.
+        val corrected = Json.parseToJsonElement(posts[1].body.readUtf8()).jsonObject["method"]!!.jsonObject
+        assertEquals("0000000000", corrected["account"]!!.jsonPrimitive.content)
         val firstId = first.text.english().substringAfter("#token-")
         assertEquals("/v1/requests/$firstId", posts[2].path)
         val secondText = second.text.english()
-        assertTrue(secondText, secondText.contains("Account: 257678860"))
+        assertTrue(secondText, secondText.contains("Account: 0000000000"))
         assertFalse(secondText.contains(firstId))
     }
 

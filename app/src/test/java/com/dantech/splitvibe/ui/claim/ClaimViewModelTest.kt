@@ -236,7 +236,7 @@ class ClaimViewModelTest {
 
     @Test
     fun `sending marks the bill finished first, then sends what the calculator gives, asking for the user's method`() {
-        runBlocking { methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")) }
+        runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
         val viewModel = viewModel()
         awaitOnMain { viewModel.state.value.share != null && viewModel.method.value != null }
 
@@ -254,12 +254,12 @@ class ClaimViewModelTest {
         assertEquals("\"me\"", sent["paidBy"].toString())
         assertEquals("No claim was matched before picking closed", "null", sent["matches"].toString())
         awaitOnMain { host.bill.value?.share?.settled == true }
-        assertEquals(fingerprintOf(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")), host.bill.value?.share?.method)
+        assertEquals(fingerprintOf(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")), host.bill.value?.share?.method)
     }
 
     @Test
     fun `when someone else paid the whole bill, the page asks nobody to pay the user and names who paid`() {
-        runBlocking { methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")) }
+        runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
         host.bill.value = ShareFixtures.saved.copy(plan = ShareFixtures.saved.plan.withPayments(Payments.single("p1", 154_000)))
         val viewModel = viewModel()
         awaitOnMain { viewModel.state.value.share != null && viewModel.method.value != null }
@@ -274,7 +274,7 @@ class ClaimViewModelTest {
 
     @Test
     fun `a bill in a group asks nobody to pay on its page, as people settle up in the group`() {
-        runBlocking { methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")) }
+        runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
         host.bill.value = ShareFixtures.saved.copy(group = GroupLink("g1", "Chiang Mai trip", 1, emptyMap()))
         val viewModel = viewModel()
         awaitOnMain { viewModel.state.value.share != null && viewModel.method.value != null }
@@ -289,7 +289,7 @@ class ClaimViewModelTest {
 
     @Test
     fun `a payment method changed since the amounts went is noticed`() {
-        runBlocking { methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN")) }
+        runBlocking { methods.add(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")) }
         linked(
             ShareLink(
                 ShareFixtures.SHARE_ID,
@@ -297,7 +297,7 @@ class ClaimViewModelTest {
                 EXPIRES_AT,
                 CREATED_AT,
                 settled = true,
-                method = fingerprintOf(PaymentMethod.VietQr("970416", "000000000", "DANA NGUYEN")),
+                method = fingerprintOf(PaymentMethod.VietQr("970416", "0000000000", "DANA NGUYEN")),
             ),
         )
 

@@ -52,9 +52,9 @@ class PaymentMethodTest {
         assertNotNull(PaymentMethod.PromptPay("+0812345678").problem())
         assertNotNull(PaymentMethod.PromptPay("0812345678x").problem())
 
-        assertNull(PaymentMethod.VietQr("970416", "257678859", "NGUYEN VAN A").problem())
+        assertNull(PaymentMethod.VietQr("970416", "000000000", "NGUYEN VAN A").problem())
         assertNotNull(PaymentMethod.VietQr("970416", "257 678", "NGUYEN VAN A").problem())
-        assertNotNull(PaymentMethod.VietQr("123456", "257678859", "NGUYEN VAN A").problem())
+        assertNotNull(PaymentMethod.VietQr("123456", "000000000", "NGUYEN VAN A").problem())
 
         assertNull(PaymentMethod.SepaQr("Red Cross of Belgium", "be72 0000 0000 1616", "bpotbeb1").problem())
         assertNotNull(PaymentMethod.SepaQr("Red Cross of Belgium", "BE72000000001617").problem())
@@ -75,12 +75,12 @@ class PaymentMethodTest {
 
     @Test
     fun `a method is saved and sent with its kind`() {
-        val method: PaymentMethod = PaymentMethod.VietQr("970416", "257678859", "NGUYEN VAN A")
+        val method: PaymentMethod = PaymentMethod.VietQr("970416", "000000000", "NGUYEN VAN A")
 
         val json = Json.encodeToString(method)
 
-        assertEquals("""{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"NGUYEN VAN A"}""", json)
+        assertEquals("""{"type":"vietqr","bankBin":"970416","account":"000000000","accountName":"NGUYEN VAN A"}""", json)
         assertEquals(method, Json.decodeFromString<PaymentMethod>(json))
-        assertEquals("ACB · 257678859", method.summary)
+        assertEquals("ACB · 000000000", method.summary)
     }
 }

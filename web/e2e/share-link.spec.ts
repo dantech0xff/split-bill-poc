@@ -30,8 +30,8 @@ const AMOUNTS = {
     amountMinor: 67500,
     payment: {
       link: null,
-      qrPayload: "00020101021238540010A00000072701240006970416011025767885902080208QRIBFTTA53037045405675005802VN62070803Pho6304B1C2",
-      details: "Bank: ACB (970416)\nAccount: 257678859\nName: LAN NGUYEN\nAmount: ₫67,500",
+      qrPayload: "00020101021238540010A00000072701240006970416011000000000002080208QRIBFTTA53037045405675005802VN62070803Pho6304B1C2",
+      details: "Bank: ACB (970416)\nAccount: 000000000\nName: LAN NGUYEN\nAmount: ₫67,500",
       amountFilledIn: false,
     },
   },
@@ -202,7 +202,7 @@ test("everyone at the table picks live, then sees what to pay and how, until the
       expect(drawn.modules).toBeGreaterThanOrEqual(21);
       expect(drawn.dark).toBeGreaterThan(0);
     }
-    await expect(page.getByText("Account: 257678859")).toBeVisible();
+    await expect(page.getByText("Account: 000000000")).toBeVisible();
     await expect(page.getByText("Type in the amount yourself: ₫67,500.")).toBeVisible();
     // Each way to pay says who wrote it, that Split Vibe does not check it, and where to report abuse.
     const notices = page.locator(".payment > p:first-child");

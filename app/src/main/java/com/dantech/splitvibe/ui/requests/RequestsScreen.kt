@@ -557,7 +557,7 @@ private fun DetailRow(detail: PaymentDetail) {
     )
 }
 
-/** A line of the details of a payment, such as "Account: 257678859": what it is, when it says, and its value. */
+/** A line of the details of a payment, such as "Account: 000000000": what it is, when it says, and its value. */
 internal data class PaymentDetail(val label: String?, val value: String)
 
 /**

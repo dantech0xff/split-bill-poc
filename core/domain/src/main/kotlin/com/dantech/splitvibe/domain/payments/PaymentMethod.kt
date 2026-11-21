@@ -19,7 +19,7 @@ sealed interface PaymentMethod {
     /** What the method is called, such as "PromptPay". */
     val title: String
 
-    /** Which account it is, such as "ACB · 257678859". */
+    /** Which account it is, such as "ACB · 000000000". */
     val summary: String
 
     /** What is wrong with the method as entered, or null when money can be sent to it. */
