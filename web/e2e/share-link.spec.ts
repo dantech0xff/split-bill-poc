@@ -104,6 +104,8 @@ test("everyone at the table picks live, then sees what to pay and how, until the
   const answer = await minh.page.goto(`/s/#${link.token}`);
   expect(answer).not.toBeNull();
   expectPageHeaders(answer?.headers() ?? {}, HOST);
+  // The amounts below are written as a browser set to the United States writes them.
+  expect(await minh.page.evaluate(() => navigator.languages)).toEqual(["en-US"]);
   await an.page.goto(`/s/#${link.token}`);
   for (const { page } of [minh, an]) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Pho 24");

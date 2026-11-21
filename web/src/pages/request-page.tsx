@@ -1,7 +1,7 @@
 import { viewRequest } from "../api";
 import type { RequestView } from "../contract";
-import { formatMoney } from "../money";
 import { pageProblemOf } from "../page-problem";
+import { HeroAmount } from "../ui/hero-amount";
 import { OpenInApp } from "../ui/open-in-app";
 import { PaymentBlock } from "../ui/payment-block";
 import { Loading, ProblemView } from "../ui/problem-view";
@@ -20,14 +20,13 @@ function statusText(request: RequestView): string {
 }
 
 export function RequestDetails({ request, link, userAgent }: { request: RequestView; link: AppLink; userAgent: string }) {
-  const amount = formatMoney(request.amountMinor, request.currency);
   return (
     <>
       <section class="hero" aria-labelledby="request-title">
-        <h1 id="request-title" class="type-title-medium hero__title">
+        <h1 id="request-title" class="type-title-medium hero__title hero__title--small">
           {`${request.creditorName} asks ${request.payerName} for`}
         </h1>
-        <p class="type-display-small hero__amount">{amount}</p>
+        <HeroAmount amountMinor={request.amountMinor} currency={request.currency} />
         {request.title !== null && request.title !== "" && <p class="type-body-large">{`For ${request.title}`}</p>}
         <p class="type-title-small hero__status">{statusText(request)}</p>
       </section>

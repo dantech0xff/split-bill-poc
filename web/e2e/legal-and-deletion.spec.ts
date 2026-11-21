@@ -3,10 +3,10 @@ import { expectHeadersOfPage, watchForCspViolations } from "./local-proxy";
 
 const ORIGIN = "http://127.0.0.1:8797";
 
-const LEGAL_POLICY = "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const LEGAL_POLICY = "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const DELETION_POLICY =
   "default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; " +
-  "img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; " +
+  "font-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; " +
   "base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 /** An ID token for person@example.com, unsigned: the page only reads its payload, and the proxy's route is faked below. */
@@ -53,9 +53,14 @@ test("the privacy policy and the terms are static pages that run no script and l
   await expect(page).toHaveTitle("Privacy policy · Split Vibe");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/privacy policy/i);
   await expect(footerLink("Privacy policy")).toHaveAttribute("aria-current", "page");
-  // The link pages' stylesheet lays it out, and nothing else loads.
+  // The link pages' stylesheet lays it out, with the fonts it loads, and nothing else loads.
   await expect(page.locator("main.page")).toHaveCSS("display", "flex");
-  expect(requests).toEqual(["/privacy", expect.stringMatching(/^\/assets\/[^/]+\.css$/)]);
+  await page.evaluate(() => document.fonts.ready);
+  expect(requests[0]).toBe("/privacy");
+  expect(requests.filter((path) => /^\/assets\/[^/]+\.css$/.test(path))).toHaveLength(1);
+  const fonts = requests.filter((path) => /^\/assets\/[^/]+\.woff2$/.test(path));
+  expect(fonts.length).toBeGreaterThan(0);
+  expect(requests).toHaveLength(2 + fonts.length);
   expect(await page.locator("script").count()).toBe(0);
 
   await footerLink("Terms of use").click();

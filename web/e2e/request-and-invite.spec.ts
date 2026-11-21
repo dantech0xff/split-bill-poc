@@ -86,16 +86,29 @@ test("a group invite shows the group and how to get the app to join", async ({ p
   expect(violations).toEqual([]);
 });
 
-test("the page's scripts and styles are served from /assets/ to be cached for good", async ({ page }) => {
-  const assets: Array<{ url: string; cache: string | undefined }> = [];
+test("the page's scripts, styles and fonts are served from /assets/ to be cached for good", async ({ page }) => {
+  const assets: Array<{ url: string; cache: string | undefined; type: string | undefined }> = [];
   page.on("response", (response) => {
-    if (new URL(response.url()).pathname.startsWith("/assets/")) assets.push({ url: response.url(), cache: response.headers()["cache-control"] });
+    const headers = response.headers();
+    if (new URL(response.url()).pathname.startsWith("/assets/")) assets.push({ url: response.url(), cache: headers["cache-control"], type: headers["content-type"] });
   });
+  const violations = await watchForCspViolations(page, ORIGIN);
   await page.goto("/g/#AAAAAAAAAAAAAAAAAAAAAA");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link does not exist");
+  // The faces the page shows have loaded from the Worker, under the page's policy.
+  const loaded = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter((face) => face.status === "loaded").map((face) => `${face.family.replace(/"/g, "")} ${face.weight}`);
+  });
+  expect(loaded).toEqual(expect.arrayContaining(["Bricolage Grotesque 800", "Be Vietnam Pro 400"]));
   const paths = assets.map((asset) => new URL(asset.url).pathname);
-  expect(paths).toHaveLength(2);
   expect(paths.filter((path) => /^\/assets\/[^/]+\.js$/.test(path))).toHaveLength(1);
   expect(paths.filter((path) => /^\/assets\/[^/]+\.css$/.test(path))).toHaveLength(1);
+  const fonts = assets.filter((asset) => /^\/assets\/[^/]+\.woff2$/.test(new URL(asset.url).pathname));
+  expect(fonts.length).toBeGreaterThanOrEqual(2);
+  expect(fonts.length).toBeLessThanOrEqual(3);
+  expect(paths).toHaveLength(2 + fonts.length);
+  for (const font of fonts) expect(font.type).toBe("font/woff2");
   for (const asset of assets) expect(asset.cache).toBe("public, max-age=31536000, immutable");
+  expect(violations).toEqual([]);
 });

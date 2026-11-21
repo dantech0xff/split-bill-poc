@@ -116,7 +116,7 @@ export class Account {
 export function expectPageHeaders(headers: Record<string, string>, host: string): void {
   expectHeadersOfPage(
     headers,
-    "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; " +
+    "default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; font-src 'self'; img-src 'self' data:; " +
       `connect-src 'self' wss://${host}; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   );
 }

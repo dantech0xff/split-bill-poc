@@ -122,6 +122,8 @@ describe("the page to delete an account", () => {
     );
     expect(document.activeElement).toBe(page.querySelector("#action-title"));
     expect(deleteAccount).not.toHaveBeenCalled();
+    // Google's button, which Google draws into the page itself, goes with the step of signing in.
+    expect(all(page, '[aria-labelledby="action-title"] button').map((button) => textOf(button))).toEqual(["Delete my account", "Cancel"]);
   });
 
   it("deletes the account once confirmed, and says so, and that Pro must be cancelled on Google Play", async () => {

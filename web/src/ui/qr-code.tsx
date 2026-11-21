@@ -6,7 +6,8 @@ const LIGHT = [255, 255, 255, 255] as const;
 
 /**
  * [payload] as a QR code, drawn pixel by pixel on a canvas: one pixel per module, black on white
- * with the quiet zone included in any theme, scaled up by CSS without smoothing.
+ * with the quiet zone included in any theme, scaled up by CSS without smoothing. The canvas sits on
+ * a tile of its own, which the dark theme makes white around it.
  */
 export function QrCode({ payload, label }: { payload: string; label: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -26,5 +27,9 @@ export function QrCode({ payload, label }: { payload: string; label: string }) {
   if (failed) {
     return <p class="type-body-medium supporting">The QR code could not be drawn here. Use the details below.</p>;
   }
-  return <canvas ref={canvas} class="qr" role="img" aria-label={label} width={1} height={1} />;
+  return (
+    <div class="qr-tile">
+      <canvas ref={canvas} class="qr" role="img" aria-label={label} width={1} height={1} />
+    </div>
+  );
 }

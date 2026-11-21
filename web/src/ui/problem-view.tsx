@@ -1,5 +1,7 @@
+import type { VNode } from "preact";
 import type { PageKind } from "../links";
 import type { PageProblem } from "../page-problem";
+import { AlertIcon, ClockIcon, HourglassIcon, LinkOffIcon, OfflineIcon } from "./icons";
 
 const GONE: Record<PageKind, string> = {
   share: "The person who shared the bill turned the link off, or its 30 days are over.",
@@ -31,6 +33,22 @@ export function problemCopy(problem: PageProblem, kind: PageKind): { title: stri
   }
 }
 
+/** The icon above the title of [problem]: what became of the link, or why the page could not show it. */
+function problemIcon(problem: PageProblem): VNode {
+  switch (problem.kind) {
+    case "not_found":
+      return <LinkOffIcon />;
+    case "gone":
+      return <ClockIcon />;
+    case "rate_limited":
+      return <HourglassIcon />;
+    case "network":
+      return <OfflineIcon />;
+    case "unexpected":
+      return <AlertIcon />;
+  }
+}
+
 interface ProblemViewProps {
   problem: PageProblem;
   kind: PageKind;
@@ -41,6 +59,9 @@ export function ProblemView({ problem, kind, onRetry }: ProblemViewProps) {
   const copy = problemCopy(problem, kind);
   return (
     <section class="problem" aria-labelledby="problem-title">
+      <span class="problem__icon" aria-hidden="true">
+        {problemIcon(problem)}
+      </span>
       <h1 id="problem-title" class="type-headline-small">
         {copy.title}
       </h1>

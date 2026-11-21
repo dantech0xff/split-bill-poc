@@ -2,22 +2,23 @@ package com.dantech.splitvibe.designsystem.tokens
 
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.Shapes
-import androidx.compose.material3.Typography
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * The web pages that people open from a link use the app's colours, spacing and shadows, as CSS
- * variables in `web/src/tokens.css`. Their type and corners still follow Material's own scales,
- * which the app used before its redesign, until the pages get a redesign of their own.
+ * The web pages that people open from a link use the app's design: its colours and those of its
+ * palette, its type, the corners of its shapes, its spacing and its shadows, as CSS variables in
+ * `web/src/tokens.css`. Of the type, the palette and the shapes, the file holds only what
+ * `web/src/app.css` uses; the colours of Material's roles are all there.
  * This test writes that file from the tokens here, and fails when the file and the tokens differ.
  * After changing a token, write the file again:
  *
@@ -42,14 +43,19 @@ class WebTokensTest {
         appendLine("/* Written from the app's design system by WebTokensTest in core/designsystem. Do not edit by hand. */")
         appendLine(":root {")
         appendLine("  color-scheme: light dark;")
-        // The pages carry no font of their own: a browser uses the system's own sans-serif face.
-        appendLine("  --sv-font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif;")
+        // The two families the app ships, which the pages load from files of their own; until a file
+        // has loaded, a browser shows the text in the face that follows.
+        appendLine("  --sv-font-display: $DISPLAY_FONT;")
+        appendLine("  --sv-font-text: $TEXT_FONT;")
         colors(LightColors).forEach { (name, color) -> appendLine("  --sv-$name: ${hex(color)};") }
+        palette(LightPalette).forEach { (name, color) -> appendLine("  --sv-$name: ${hex(color)};") }
         typeScale().forEach { (name, style) ->
+            appendLine("  --sv-type-$name-family: var(--sv-font-${familyOf(name, style.fontFamily)});")
             appendLine("  --sv-type-$name-size: ${px(style.fontSize.value)};")
             appendLine("  --sv-type-$name-line-height: ${px(style.lineHeight.value)};")
             appendLine("  --sv-type-$name-weight: ${style.fontWeight?.weight ?: NORMAL_WEIGHT};")
-            appendLine("  --sv-type-$name-tracking: ${px(style.letterSpacing.value)};")
+            appendLine("  --sv-type-$name-tracking: ${length(style.letterSpacing)};")
+            style.fontFeatureSettings?.let { appendLine("  --sv-type-$name-features: \"$it\";") }
         }
         shapes().forEach { (name, corner) -> appendLine("  --sv-shape-$name: ${px(corner)};") }
         spacing().forEach { (name, space) -> appendLine("  --sv-space-$name: ${px(space.value)};") }
@@ -64,6 +70,7 @@ class WebTokensTest {
         appendLine("@media (prefers-color-scheme: dark) {")
         appendLine("  :root {")
         colors(DarkColors).forEach { (name, color) -> appendLine("    --sv-$name: ${hex(color)};") }
+        palette(DarkPalette).forEach { (name, color) -> appendLine("    --sv-$name: ${hex(color)};") }
         val darkSurfaces = listOf("surface-container-low", "surface-container", "surface-container-high", "surface-container-highest")
         SvElevation.entries.forEachIndexed { index, _ ->
             appendLine("    --sv-elevation-${index + 1}: none;")
@@ -126,40 +133,66 @@ class WebTokensTest {
         )
     }
 
-    /** Material's own type scale, not the app's: the pages keep their type until they are redesigned. */
-    private fun typeScale(): List<Pair<String, TextStyle>> = with(Typography()) {
+    /**
+     * The colours of [SvPalette] the pages use: the violet block of a page's head, the lime of its
+     * tags and ticks, the ink of a closed bill's banner, the yellow behind a notice's icon, and the
+     * colours of people, in the order a person's colour is picked from.
+     */
+    private fun palette(palette: SvPalette): List<Pair<String, Color>> = with(palette) {
         listOf(
-            "display-large" to displayLarge,
-            "display-medium" to displayMedium,
+            "brand" to brand,
+            "on-brand" to onBrand,
+            "accent" to accent,
+            "on-accent" to onAccent,
+            "bar" to bar,
+            "on-bar" to onBar,
+            "notice" to notice,
+            "on-person" to onPerson,
+        ) + person.mapIndexed { index, color -> "person-$index" to color }
+    }
+
+    /** The styles of the app's type scale that the pages use, those of the classes their markup carries among them. */
+    private fun typeScale(): List<Pair<String, TextStyle>> = with(SvTypography) {
+        listOf(
             "display-small" to displaySmall,
-            "headline-large" to headlineLarge,
             "headline-medium" to headlineMedium,
             "headline-small" to headlineSmall,
             "title-large" to titleLarge,
             "title-medium" to titleMedium,
+            "title-medium-emphasized" to titleMediumEmphasized,
             "title-small" to titleSmall,
             "body-large" to bodyLarge,
+            "body-large-emphasized" to bodyLargeEmphasized,
             "body-medium" to bodyMedium,
+            "body-medium-emphasized" to bodyMediumEmphasized,
             "body-small" to bodySmall,
-            "label-large" to labelLarge,
+            "body-small-emphasized" to bodySmallEmphasized,
             "label-medium" to labelMedium,
-            "label-small" to labelSmall,
+            "amount-hero" to amountHero,
+            "amount-medium" to amountMedium,
+            "amount-small" to amountSmall,
         )
     }
 
     /**
-     * The corners of Material's default shape scale and the corners of a group of rows as they were
-     * before the app's redesign, so the pages keep their shapes until they are redesigned.
+     * Which of the two families of the pages sets the style [name] in [family]: `display` for
+     * Bricolage Grotesque, of which the pages have the cut for text sizes only, and `text` for Be
+     * Vietnam Pro.
      */
-    private fun shapes(): List<Pair<String, Float>> = with(Shapes()) {
+    private fun familyOf(name: String, family: FontFamily?): String = when (family) {
+        DisplayFamily, DisplayHeroFamily -> "display"
+        TextFamily -> "text"
+        else -> error("$name is set in a family the web pages do not load: $family")
+    }
+
+    /** The corners of the app's shape scale, from its smallest step to its largest. */
+    private fun shapes(): List<Pair<String, Float>> = with(SvShapeScale) {
         listOf(
             "extra-small" to corner(extraSmall),
             "small" to corner(small),
             "medium" to corner(medium),
             "large" to corner(large),
             "extra-large" to corner(extraLarge),
-            "group-outer" to WEB_GROUP_OUTER_CORNER,
-            "group-inner" to WEB_GROUP_INNER_CORNER,
         )
     }
 
@@ -170,6 +203,7 @@ class WebTokensTest {
         "lg" to SvSpacing.lg,
         "xl" to SvSpacing.xl,
         "xxl" to SvSpacing.xxl,
+        "screen" to SvSpacing.screen,
     )
 
     /** A corner in dp, read at a density of 1 on a shape large enough that no corner is cut short. */
@@ -183,6 +217,13 @@ class WebTokensTest {
 
     private fun hex(color: Color): String = "#%06X".format(color.toArgb() and 0xFFFFFF)
 
+    /** A length of type, such as the tracking of a style: in em when the style gives em, else in px, as sp are at a density of 1. */
+    private fun length(value: TextUnit): String = when {
+        value.value == 0f -> "0"
+        value.isEm -> "${number(value.value)}em"
+        else -> px(value.value)
+    }
+
     private fun px(value: Float): String = if (value == 0f) "0" else "${number(value)}px"
 
     private fun number(value: Float): String = value.toBigDecimal().stripTrailingZeros().toPlainString()
@@ -192,7 +233,11 @@ class WebTokensTest {
         const val TOKENS_FILE = "../../web/src/tokens.css"
         const val NORMAL_WEIGHT = 400
         const val LARGE_SHAPE = 1000f
-        const val WEB_GROUP_OUTER_CORNER = 20f
-        const val WEB_GROUP_INNER_CORNER = 4f
+
+        /** Bricolage Grotesque, then, until its file has loaded, a heavy face of the system's of about its width. */
+        const val DISPLAY_FONT = "\"Bricolage Grotesque\", \"Arial Black\", system-ui, sans-serif"
+
+        /** Be Vietnam Pro, then, until its file has loaded, the system's own face. */
+        const val TEXT_FONT = "\"Be Vietnam Pro\", system-ui, sans-serif"
     }
 }

@@ -16,7 +16,8 @@ import {
   statusSentence,
   UNNAMED_OWNER,
 } from "../share-state";
-import { CheckIcon, ExpandIcon } from "../ui/icons";
+import { HeroAmount } from "../ui/hero-amount";
+import { AlertIcon, CheckIcon, ExpandIcon, LockIcon, NoticeIcon } from "../ui/icons";
 import { PaymentBlock } from "../ui/payment-block";
 import { waitText } from "../ui/problem-view";
 
@@ -38,14 +39,21 @@ export function BillHeader({ bill }: { bill: BillProjection }) {
       </h1>
       <p class="type-body-medium">{facts}</p>
       <p class="type-title-small hero__label">Bill total</p>
-      <p class="type-display-small hero__amount">{formatMoney(bill.totalMinor, bill.currency)}</p>
+      <HeroAmount amountMinor={bill.totalMinor} currency={bill.currency} />
     </section>
   );
 }
 
 export function StatusBanner({ share }: { share: PublicShare }) {
   if (share.status === "open") return null;
-  return <p class="banner type-body-large">{statusSentence(share.status, share.bill)}</p>;
+  return (
+    <p class="banner type-body-large">
+      <span class="banner__icon" aria-hidden="true">
+        {share.status === "locking" ? <LockIcon /> : <CheckIcon />}
+      </span>
+      {statusSentence(share.status, share.bill)}
+    </p>
+  );
 }
 
 /** Why a pick was not saved, in words; [owner] is the bill's owner as a sentence names them. */
@@ -125,10 +133,16 @@ export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
         Type your name, then tap what you had. Everyone with this link sees your picks.
       </p>
       {!state.persistent && (
-        <p class="notice type-body-medium">Your picks are kept only while this page stays open. Keep it open until the bill is settled.</p>
+        <p class="notice type-body-medium">
+          <NoticeIcon />
+          Your picks are kept only while this page stays open. Keep it open until the bill is settled.
+        </p>
       )}
       {state.removedByOwner && (
-        <p class="notice type-body-medium">{`${capitalized(owner)} took your picks off the bill. Tap what you had to pick again.`}</p>
+        <p class="notice type-body-medium">
+          <NoticeIcon />
+          {`${capitalized(owner)} took your picks off the bill. Tap what you had to pick again.`}
+        </p>
       )}
       <div class="human-check" ref={humanCheckSlot} />
       <p class="type-body-medium supporting claim-progress">
@@ -136,6 +150,7 @@ export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
       </p>
       {problem !== null && (
         <p id="claim-problem" class="error-text type-body-medium" role="alert">
+          <AlertIcon />
           {claimProblemText(problem, owner)}
         </p>
       )}
@@ -145,6 +160,20 @@ export function ClaimForm({ state, actions, humanCheckSlot }: ClaimFormProps) {
 
 function quantityPrefix(quantity: string | null): string {
   return quantity === null || quantity === "1" ? "" : `${quantity} × `;
+}
+
+/** How many colours people have, as in the app's palette, which tokens.css writes as `--sv-person-0` to `--sv-person-6`. */
+const PERSON_COLORS = 7;
+
+/**
+ * Which of the colours of people the person named [name] has: the one the app gives the same name,
+ * which picks it by the hash Java's `String.hashCode` gives the name, so that a person has one colour
+ * in the app and on the page.
+ */
+export function personColorOf(name: string): number {
+  let hash = 0;
+  for (let index = 0; index < name.length; index += 1) hash = (Math.imul(31, hash) + name.charCodeAt(index)) | 0;
+  return ((hash % PERSON_COLORS) + PERSON_COLORS) % PERSON_COLORS;
 }
 
 /** The chip that marks what is this browser's own: it says so in words, not by its colour alone. */
@@ -174,7 +203,7 @@ function ItemContent({ item, currency, mine, others }: ItemContentProps) {
           <span class="chips" aria-hidden="true">
             {mine && <YouChip />}
             {others.map((name, index) => (
-              <span key={index} class="chip type-label-medium">
+              <span key={index} class={`chip chip--person-${personColorOf(name)} type-label-medium`}>
                 {name}
               </span>
             ))}

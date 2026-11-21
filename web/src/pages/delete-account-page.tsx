@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { type DeletionError, deleteAccountWithGoogle } from "../api";
 import { type GoogleButtonOptions, type GoogleCredential, type GoogleIdApi, emailOf, loadGoogleSignIn } from "../google-sign-in";
+import { AlertIcon, NoticeIcon } from "../ui/icons";
 import { waitText } from "../ui/problem-view";
 import { SiteFooter } from "../ui/site-footer";
 
@@ -112,7 +113,7 @@ function InTheApp() {
       <h2 id="in-app-title" class="type-title-medium">
         Delete it in the app
       </h2>
-      <ol class="steps type-body-large">
+      <ol class="steps steps--compact type-body-large">
         <li>Open Split Vibe on your phone.</li>
         <li>Go to Settings.</li>
         <li>Tap Delete account.</li>
@@ -185,12 +186,13 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
   switch (step.kind) {
     case "sign_in":
       return (
-        <section class="section" aria-labelledby="action-title">
+        <section class="section section--card" aria-labelledby="action-title">
           <h2 id="action-title" class="type-title-medium" ref={heading} tabIndex={-1}>
             Delete your account
           </h2>
           {step.expired && (
             <p class="error-text type-body-medium" role="alert">
+              <AlertIcon />
               Your sign-in with Google ran out before the account was deleted. Sign in again.
             </p>
           )}
@@ -199,6 +201,7 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
           {google.state === "failed" && (
             <>
               <p class="error-text type-body-medium" role="alert">
+                <AlertIcon />
                 Sign in with Google could not be loaded. Check your connection, then try again, or delete your account in the app.
               </p>
               <button type="button" class="button button--tonal" onClick={() => setLoads((count) => count + 1)}>
@@ -206,14 +209,15 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
               </button>
             </>
           )}
-          <div class="google-button" ref={slot} />
+          {/* Keyed, so that the next step never takes it over with the button Google drew into it. */}
+          <div key="google-button" class="google-button" ref={slot} />
         </section>
       );
     case "confirm":
     case "deleting": {
       const deleting = step.kind === "deleting";
       return (
-        <section class="section" aria-labelledby="action-title" aria-busy={deleting}>
+        <section class="section section--card" aria-labelledby="action-title" aria-busy={deleting}>
           <h2 id="action-title" class="type-title-medium" ref={heading} tabIndex={-1}>
             Delete this account?
           </h2>
@@ -234,11 +238,14 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
     }
     case "failed":
       return (
-        <section class="section" aria-labelledby="action-title">
+        <section class="section section--card" aria-labelledby="action-title">
           <h2 id="action-title" class="type-title-medium" ref={heading} tabIndex={-1}>
             Your account was not deleted
           </h2>
-          <p class="error-text type-body-medium">{failureText(step.error)}</p>
+          <p class="error-text type-body-medium">
+            <AlertIcon />
+            {failureText(step.error)}
+          </p>
           <div class="actions">
             <button type="button" class="button button--tonal" onClick={() => remove(step.idToken, step.email)}>
               Try again
@@ -251,7 +258,7 @@ function Deletion({ clientId, services }: { clientId: string; services: Deletion
       );
     case "deleted":
       return (
-        <section class="section" aria-labelledby="action-title">
+        <section class="section section--card" aria-labelledby="action-title">
           <h2 id="action-title" class="type-title-medium" ref={heading} tabIndex={-1}>
             Your account is deleted
           </h2>
@@ -286,11 +293,14 @@ export function DeleteAccountPage({ clientId, services = BROWSER }: { clientId: 
       <main class="page">
         <WhatHappens />
         {clientId === "" ? (
-          <section class="section" aria-labelledby="action-title">
+          <section class="section section--card" aria-labelledby="action-title">
             <h2 id="action-title" class="type-title-medium">
               Delete your account
             </h2>
-            <p class="notice type-body-large">Deleting your account on the web is not available yet. You can delete it in the app, as below.</p>
+            <p class="notice type-body-large">
+              <NoticeIcon />
+              Deleting your account on the web is not available yet. You can delete it in the app, as below.
+            </p>
           </section>
         ) : (
           <Deletion clientId={clientId} services={services} />

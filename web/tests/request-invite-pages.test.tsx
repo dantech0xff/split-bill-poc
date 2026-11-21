@@ -37,7 +37,9 @@ const inviteLink = { host: "proxy.example.workers.dev", path: "/g/", token: TOKE
 describe("the payment request's page", () => {
   it("shows who asks whom, how much, what for, and how to pay", () => {
     const page = mount(<RequestPageView loaded={{ state: "done", result: request(requestOpen) }} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
-    expect(textOf(page.querySelector(".hero"))).toBe("Lan asks Minh for ₫150,000 For Hot pot Not paid yet");
+    // The symbol is a piece of its own, set smaller beside the number; the amount's text is whole.
+    expect(textOf(page.querySelector(".hero"))).toBe("Lan asks Minh for ₫ 150,000 For Hot pot Not paid yet");
+    expect(page.querySelector(".hero__amount")?.textContent).toBe("₫150,000");
     const pay = page.querySelector<HTMLAnchorElement>(".payment a");
     expect(textOf(pay)).toBe("Pay with a UPI app");
     expect(pay?.getAttribute("href")).toBe("upi://pay?pa=lan@okbank&pn=Lan&am=1500.00&cu=INR");
@@ -81,7 +83,8 @@ describe("the payment request's page", () => {
 
   it("says when the payer reported it paid, and how to pay without details", () => {
     const page = mount(<RequestPageView loaded={{ state: "done", result: request(requestReported) }} link={requestLink} userAgent={IPHONE} onRetry={vi.fn()} />);
-    expect(textOf(page.querySelector(".hero"))).toBe("Lan asks Minh for $42.50 Minh says it is paid. Lan has yet to confirm it.");
+    expect(textOf(page.querySelector(".hero"))).toBe("Lan asks Minh for $ 42.50 Minh says it is paid. Lan has yet to confirm it.");
+    expect(page.querySelector(".hero__amount")?.textContent).toBe("$42.50");
     expect(textOf(page)).toContain("Ask Lan how to pay.");
     expect(page.querySelector(".payment")).toBeNull();
   });

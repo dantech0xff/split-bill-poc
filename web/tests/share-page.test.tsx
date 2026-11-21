@@ -1,7 +1,7 @@
 import { type Mock, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseOpenAnswer } from "../src/contract";
 import { ShareView } from "../src/pages/share-page";
-import type { ShareActions } from "../src/pages/share-sections";
+import { type ShareActions, personColorOf } from "../src/pages/share-sections";
 import type { ShareState } from "../src/share-controller";
 import { ReportAbuse } from "../src/ui/payment-block";
 import shareLocked from "./fixtures/share-locked.json";
@@ -53,7 +53,8 @@ describe("the bill link's page", () => {
     const page = mount(<ShareView state={stateOf(shareOpen)} actions={actions()} />);
     expect(textOf(page.querySelector("h1"))).toBe("Pho 24");
     expect(textOf(page.querySelector(".hero"))).toContain("Nov 14, 2026 · 3 items");
-    expect(textOf(page.querySelector(".hero__amount"))).toBe("₫231,000");
+    // The symbol is a piece of its own, set smaller beside the number; the amount's text is whole.
+    expect(page.querySelector(".hero__amount")?.textContent).toBe("₫231,000");
     const items = all(page, "button[aria-pressed]");
     expect(items.map((item) => item.getAttribute("aria-pressed"))).toEqual(["false", "false", "false"]);
     expect(textOf(items[0] ?? null)).toBe("2 × Pho bo ₫130,000 , picked by Minh and An Minh An");
@@ -296,5 +297,26 @@ describe("the bill link's page", () => {
       .find((button) => textOf(button) === "OK")
       ?.click();
     expect(on.dismissBillUpdate).toHaveBeenCalled();
+  });
+});
+
+describe("the colours of people on the bill link's page", () => {
+  it("gives a person the colour the app gives the same name, by the hash Java gives it", () => {
+    // String.hashCode in Java: 76153, 2398326, 2125, Integer.MIN_VALUE, -393679897 and 927946354, then Math.floorMod by 7.
+    expect(["Lan", "Minh", "An", "polygenelubricants", "Nguyễn Thị Hồng", "😀 Kim"].map(personColorOf)).toEqual([0, 0, 4, 5, 5, 6]);
+  });
+
+  it("draws each other person's chip in their colour, and this browser's own in lime as You", () => {
+    const chipsOf = (state: ShareState) =>
+      all(all(mount(<ShareView state={state} actions={actions()} />), ".item")[0] ?? document.body, ".chip").map((chip) => [chip.className, textOf(chip)]);
+
+    expect(chipsOf(stateOf(shareOpen))).toEqual([
+      ["chip chip--person-0 type-label-medium", "Minh"],
+      ["chip chip--person-4 type-label-medium", "An"],
+    ]);
+    expect(chipsOf(stateOf(shareOpen, { you: "c-minh", name: "Minh" }))).toEqual([
+      ["chip chip--you type-label-medium", "You"],
+      ["chip chip--person-4 type-label-medium", "An"],
+    ]);
   });
 });

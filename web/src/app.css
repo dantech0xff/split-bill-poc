@@ -1,7 +1,60 @@
 /*
- * The pages' look, from the app's design tokens in tokens.css only: colours, type, shapes,
- * spacing and elevation. Mobile first; the content keeps to one readable column on wide screens.
+ * The pages' look, as the approved web designs draw it, from the app's design tokens in
+ * tokens.css: colours and the palette, type, shapes, spacing and elevation. Mobile first; the
+ * content keeps to one column of at most 600px on wide screens. What belongs to one component
+ * alone, such as the size of an icon's tile or the steps of a large amount, is set with it here.
  */
+
+/*
+ * The pages' two families, from the files in fonts/, which the Worker serves itself. Until a file
+ * has loaded, the text shows at once in the face that follows it in tokens.css.
+ */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("./fonts/bricolage-grotesque-800.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/be-vietnam-pro-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/be-vietnam-pro-600.woff2") format("woff2");
+}
+
+/* Roles of the pages that take another token in the dark theme than in the light one. */
+:root {
+  /* A quiet fill, a step up from a card or the page: a picked item, the total, the details to copy, a quiet button, an icon's tile. */
+  --web-quiet: var(--sv-surface-container);
+  /* The line of a field and of a box that is not ticked. */
+  --web-line: var(--sv-outline);
+  /* A ticked box, and its tick: ink with a lime tick, or lime with an ink tick in the dark. */
+  --web-tick: var(--sv-on-surface);
+  --web-on-tick: var(--sv-accent);
+  /* The links of the footer. */
+  --web-footer-link: var(--sv-on-surface-variant);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --web-quiet: var(--sv-surface-container-high);
+    --web-line: var(--sv-on-surface-variant);
+    --web-tick: var(--sv-accent);
+    --web-on-tick: var(--sv-on-accent);
+    --web-footer-link: var(--sv-primary);
+  }
+}
 
 *,
 *::before,
@@ -19,10 +72,7 @@ body {
   min-width: 320px;
   background: var(--sv-surface);
   color: var(--sv-on-surface);
-  font-family: var(--sv-font-family);
-  font-size: var(--sv-type-body-large-size);
-  line-height: var(--sv-type-body-large-line-height);
-  font-weight: var(--sv-type-body-large-weight);
+  font: var(--sv-type-body-large-weight) var(--sv-type-body-large-size) / var(--sv-type-body-large-line-height) var(--sv-type-body-large-family);
   letter-spacing: var(--sv-type-body-large-tracking);
   overflow-wrap: anywhere;
 }
@@ -36,10 +86,15 @@ body {
 
 h1,
 h2,
+h3,
+h4,
+h5,
+h6,
 p,
 ol,
 ul,
-figure {
+figure,
+blockquote {
   margin: 0;
 }
 
@@ -57,6 +112,9 @@ input {
 
 a {
   color: var(--sv-primary);
+  font-weight: var(--sv-type-body-medium-emphasized-weight);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 :focus-visible {
@@ -64,75 +122,50 @@ a {
   outline-offset: 2px;
 }
 
-/* Type scale */
+/* The type of the markup's classes, each the style of the app's scale it names */
 
 .type-display-small {
-  font-size: var(--sv-type-display-small-size);
-  line-height: var(--sv-type-display-small-line-height);
-  font-weight: var(--sv-type-display-small-weight);
+  font: var(--sv-type-display-small-weight) var(--sv-type-display-small-size) / var(--sv-type-display-small-line-height) var(--sv-type-display-small-family);
   letter-spacing: var(--sv-type-display-small-tracking);
 }
 
 .type-headline-small {
-  font-size: var(--sv-type-headline-small-size);
-  line-height: var(--sv-type-headline-small-line-height);
-  font-weight: var(--sv-type-headline-small-weight);
+  font: var(--sv-type-headline-small-weight) var(--sv-type-headline-small-size) / var(--sv-type-headline-small-line-height) var(--sv-type-headline-small-family);
   letter-spacing: var(--sv-type-headline-small-tracking);
 }
 
 .type-title-large {
-  font-size: var(--sv-type-title-large-size);
-  line-height: var(--sv-type-title-large-line-height);
-  font-weight: var(--sv-type-title-large-weight);
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
   letter-spacing: var(--sv-type-title-large-tracking);
 }
 
 .type-title-medium {
-  font-size: var(--sv-type-title-medium-size);
-  line-height: var(--sv-type-title-medium-line-height);
-  font-weight: var(--sv-type-title-medium-weight);
+  font: var(--sv-type-title-medium-weight) var(--sv-type-title-medium-size) / var(--sv-type-title-medium-line-height) var(--sv-type-title-medium-family);
   letter-spacing: var(--sv-type-title-medium-tracking);
 }
 
 .type-title-small {
-  font-size: var(--sv-type-title-small-size);
-  line-height: var(--sv-type-title-small-line-height);
-  font-weight: var(--sv-type-title-small-weight);
+  font: var(--sv-type-title-small-weight) var(--sv-type-title-small-size) / var(--sv-type-title-small-line-height) var(--sv-type-title-small-family);
   letter-spacing: var(--sv-type-title-small-tracking);
 }
 
 .type-body-large {
-  font-size: var(--sv-type-body-large-size);
-  line-height: var(--sv-type-body-large-line-height);
-  font-weight: var(--sv-type-body-large-weight);
+  font: var(--sv-type-body-large-weight) var(--sv-type-body-large-size) / var(--sv-type-body-large-line-height) var(--sv-type-body-large-family);
   letter-spacing: var(--sv-type-body-large-tracking);
 }
 
 .type-body-medium {
-  font-size: var(--sv-type-body-medium-size);
-  line-height: var(--sv-type-body-medium-line-height);
-  font-weight: var(--sv-type-body-medium-weight);
+  font: var(--sv-type-body-medium-weight) var(--sv-type-body-medium-size) / var(--sv-type-body-medium-line-height) var(--sv-type-body-medium-family);
   letter-spacing: var(--sv-type-body-medium-tracking);
 }
 
 .type-body-small {
-  font-size: var(--sv-type-body-small-size);
-  line-height: var(--sv-type-body-small-line-height);
-  font-weight: var(--sv-type-body-small-weight);
+  font: var(--sv-type-body-small-weight) var(--sv-type-body-small-size) / var(--sv-type-body-small-line-height) var(--sv-type-body-small-family);
   letter-spacing: var(--sv-type-body-small-tracking);
 }
 
-.type-label-large {
-  font-size: var(--sv-type-label-large-size);
-  line-height: var(--sv-type-label-large-line-height);
-  font-weight: var(--sv-type-label-large-weight);
-  letter-spacing: var(--sv-type-label-large-tracking);
-}
-
 .type-label-medium {
-  font-size: var(--sv-type-label-medium-size);
-  line-height: var(--sv-type-label-medium-line-height);
-  font-weight: var(--sv-type-label-medium-weight);
+  font: var(--sv-type-label-medium-weight) var(--sv-type-label-medium-size) / var(--sv-type-label-medium-line-height) var(--sv-type-label-medium-family);
   letter-spacing: var(--sv-type-label-medium-tracking);
 }
 
@@ -158,7 +191,7 @@ a {
   height: 24px;
 }
 
-/* Frame */
+/* Frame: the brand's bar, the page's column and the footer */
 
 .app-bar,
 .page,
@@ -166,15 +199,19 @@ a {
   width: 100%;
   max-width: 600px;
   margin-inline: auto;
-  padding-inline: var(--sv-space-lg);
+  padding-inline: var(--sv-space-screen);
 }
 
 .app-bar {
-  padding-block: var(--sv-space-lg) 0;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
 }
 
 .app-bar__brand {
-  color: var(--sv-primary);
+  color: var(--sv-on-surface);
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
+  letter-spacing: var(--sv-type-title-large-tracking);
 }
 
 .page {
@@ -182,17 +219,23 @@ a {
   display: flex;
   flex-direction: column;
   gap: var(--sv-space-xl);
-  padding-block: var(--sv-space-lg) var(--sv-space-xxl);
+  padding-block: var(--sv-space-lg) 0;
 }
 
 .footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sv-space-xs);
-  padding-block: var(--sv-space-lg) var(--sv-space-xxl);
+  padding-block: var(--sv-space-xl) calc(var(--sv-space-xxl) + var(--sv-space-sm));
   color: var(--sv-on-surface-variant);
   text-align: center;
+}
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: var(--sv-space-sm);
 }
 
 .footer__link {
@@ -200,7 +243,17 @@ a {
   align-items: center;
   min-height: 48px;
   padding-inline: var(--sv-space-sm);
+  color: var(--web-footer-link);
+  font-weight: var(--sv-type-body-small-weight);
 }
+
+.footer__link[aria-current="page"] {
+  color: var(--sv-on-surface);
+  font-weight: var(--sv-type-body-small-emphasized-weight);
+  text-decoration: none;
+}
+
+/* Sections and their headings */
 
 .section {
   display: flex;
@@ -208,95 +261,315 @@ a {
   gap: var(--sv-space-md);
 }
 
-/* Cards and messages */
+.section > h2 {
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
+  letter-spacing: var(--sv-type-title-large-tracking);
+}
+
+/* A section that is a card of its own, such as a step of deleting an account. */
+.section--card {
+  padding: var(--sv-space-screen);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
+}
+
+/* The main action of a section spans it, as the way to get the app does. */
+.section > .button {
+  align-self: stretch;
+}
+
+/* The violet head of a page, with its decorative circle in the corner */
 
 .hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--sv-space-xs);
   padding: var(--sv-space-xl);
   border-radius: var(--sv-shape-extra-large);
-  background: var(--sv-primary-container);
-  color: var(--sv-on-primary-container);
-  box-shadow: var(--sv-elevation-1);
+  background: var(--sv-brand);
+  color: var(--sv-on-brand);
 }
 
-.hero__label {
-  margin-top: var(--sv-space-md);
+.hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -48px;
+  inset-inline-end: -40px;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  background: var(--sv-on-brand);
+  opacity: 0.1;
 }
 
 .hero__title {
-  margin: 0;
+  font: var(--sv-type-headline-medium-weight) var(--sv-type-headline-medium-size) / var(--sv-type-headline-medium-line-height) var(--sv-type-headline-medium-family);
+  letter-spacing: var(--sv-type-headline-medium-tracking);
+}
+
+/* A title that leads in to the amount below it: "Lan asks Minh for". */
+.hero__title--small {
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
+  letter-spacing: var(--sv-type-title-large-tracking);
+}
+
+/* A title that is what the page is about, such as the group an invite is to. */
+.hero__title--large {
+  font: var(--sv-type-display-small-weight) var(--sv-type-display-small-size) / var(--sv-type-display-small-line-height) var(--sv-type-display-small-family);
+  letter-spacing: var(--sv-type-display-small-tracking);
+}
+
+.hero__title + .type-body-large {
+  margin-top: var(--sv-space-xs);
+}
+
+/* A little quieter than the title; still 4.5:1 where it runs over the circle on a narrow screen. */
+.hero__label {
+  font: var(--sv-type-body-small-emphasized-weight) var(--sv-type-body-small-emphasized-size) / var(--sv-type-body-small-emphasized-line-height)
+    var(--sv-type-body-small-emphasized-family);
+  letter-spacing: var(--sv-type-body-small-emphasized-tracking);
+  opacity: 0.9;
+}
+
+.hero__label:not(:first-child) {
+  margin-top: var(--sv-space-lg);
 }
 
 .hero__status {
+  align-self: flex-start;
   margin-top: var(--sv-space-sm);
+  padding: 5px var(--sv-space-md);
+  border-radius: var(--sv-shape-medium);
+  background: color-mix(in srgb, var(--sv-on-brand) 16%, transparent);
+  font: var(--sv-type-body-small-emphasized-weight) var(--sv-type-body-small-emphasized-size) / var(--sv-type-body-small-emphasized-line-height)
+    var(--sv-type-body-small-emphasized-family);
+  letter-spacing: var(--sv-type-body-small-emphasized-tracking);
 }
 
-.banner,
-.notice {
-  padding: var(--sv-space-lg) var(--sv-space-xl);
-  border-radius: var(--sv-shape-extra-large);
-  background: var(--sv-tertiary-container);
-  color: var(--sv-on-tertiary-container);
+/*
+ * The amount a head is about, its symbol smaller beside it, as the app's hero amount. A longer
+ * amount takes a smaller step, which shrinks further with the width of the head, so that it stays
+ * on one line down to 20px; the longest go on to a second line rather than be cut.
+ */
+.hero__amount {
+  font-family: var(--sv-type-amount-hero-family);
+  font-weight: var(--sv-type-amount-hero-weight);
+  font-size: var(--sv-type-amount-hero-size);
+  /* 60px at the 56px of the amount, as in the app, and as much more than its size once it is smaller. */
+  line-height: 1.07;
+  letter-spacing: var(--sv-type-amount-hero-tracking);
+  font-feature-settings: var(--sv-type-amount-hero-features);
 }
+
+.hero__amount--long {
+  font-size: 44px;
+}
+
+.hero__amount--longer {
+  font-size: 36px;
+}
+
+.hero__amount--longest {
+  font-size: 24px;
+}
+
+.hero__currency {
+  font-size: 0.54em;
+}
+
+.hero__currency--before {
+  margin-inline-end: 0.13em;
+}
+
+@supports (container-type: inline-size) {
+  .hero {
+    container-type: inline-size;
+  }
+
+  .hero__amount {
+    white-space: nowrap;
+    font-size: min(var(--sv-type-amount-hero-size), 100cqi / 4.3);
+  }
+
+  .hero__amount--long {
+    font-size: min(var(--sv-type-amount-hero-size), 100cqi / 5);
+  }
+
+  .hero__amount--longer {
+    font-size: min(var(--sv-type-amount-hero-size), 100cqi / 6.4);
+  }
+
+  .hero__amount--longest {
+    white-space: normal;
+    font-size: max(20px, min(var(--sv-type-amount-hero-size), 100cqi / 11.5));
+  }
+}
+
+/* Messages: the banner of a closed bill, notices and errors */
 
 .banner {
-  background: var(--sv-secondary-container);
-  color: var(--sv-on-secondary-container);
-}
-
-.notice--action {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sv-space-sm);
-  padding-block: var(--sv-space-sm);
+  gap: var(--sv-space-md);
+  padding: var(--sv-space-lg);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-bar);
+  color: var(--sv-on-bar);
 }
 
-.notice--action p {
-  flex: 1 1 12rem;
-  padding-block: var(--sv-space-sm);
+.banner__icon,
+.notice__icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--sv-shape-small);
 }
 
-.notice--action .button {
-  color: var(--sv-on-tertiary-container);
+.banner__icon {
+  background: var(--sv-accent);
+  color: var(--sv-on-accent);
+}
+
+.banner__icon .icon,
+.notice__icon .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-md);
+  padding: var(--sv-space-lg);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
+  color: var(--sv-on-surface);
+}
+
+.notice__icon {
+  background: var(--sv-notice);
+  color: var(--sv-on-person);
+}
+
+.notice--action > p {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice--action > .button--text {
+  flex: none;
+  align-self: center;
+  min-width: 48px;
+}
+
+/* On a card, a notice is the card's own text. */
+.section--card .notice {
+  padding: 0;
+  background: none;
 }
 
 .error-text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sv-space-sm);
   padding: var(--sv-space-md) var(--sv-space-lg);
-  border-radius: var(--sv-shape-large);
-  background: var(--sv-error-container);
-  color: var(--sv-on-error-container);
+  border-radius: var(--sv-shape-medium);
+  background: var(--sv-elevation-1-surface);
+  color: var(--sv-error);
+  font-weight: var(--sv-type-body-medium-emphasized-weight);
 }
 
-.problem,
+.error-text > .icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+/* On a card, an error is a line of the card's own. */
+.section--card .error-text {
+  padding: 0;
+  background: none;
+  font-weight: var(--sv-type-body-medium-weight);
+}
+
+/* A page that cannot show its link, and one that is opening it */
+
+.problem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sv-space-sm);
+  padding: var(--sv-space-screen);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
+}
+
+.problem__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--sv-space-xs);
+  border-radius: var(--sv-shape-medium);
+  background: var(--web-quiet);
+  color: var(--sv-on-surface);
+}
+
+.problem > .button {
+  margin-top: var(--sv-space-sm);
+}
+
 .loading {
   display: flex;
   flex-direction: column;
   gap: var(--sv-space-lg);
-  padding-block: var(--sv-space-xl);
+  padding-block: var(--sv-space-sm);
 }
 
+.loading > h1 {
+  font: var(--sv-type-headline-small-weight) var(--sv-type-headline-small-size) / var(--sv-type-headline-small-line-height) var(--sv-type-headline-small-family);
+  letter-spacing: var(--sv-type-headline-small-tracking);
+}
+
+/* A track with a stretch of violet to lime running along it, which stands still when motion is turned off. */
 .loading__bar {
-  height: 4px;
-  border-radius: var(--sv-shape-extra-small);
-  background: linear-gradient(90deg, var(--sv-primary) 0 30%, var(--sv-secondary-container) 30% 100%);
-  background-size: 200% 100%;
-  animation: loading 1.2s linear infinite;
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--web-quiet);
+}
+
+.loading__bar::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 45%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--sv-brand), var(--sv-accent));
+  transform: translateX(40%);
+  animation: loading 1.4s ease-in-out infinite;
 }
 
 @keyframes loading {
   from {
-    background-position: 100% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: -100% 0;
+    transform: translateX(225%);
   }
 }
 
-/* Buttons */
+/* Buttons, all with round ends */
 
 .button {
   display: inline-flex;
@@ -304,17 +577,29 @@ a {
   justify-content: center;
   gap: var(--sv-space-sm);
   min-height: 48px;
-  padding: var(--sv-space-md) var(--sv-space-xl);
+  padding: var(--sv-space-sm) var(--sv-space-xl);
   border: 0;
-  border-radius: var(--sv-shape-extra-large);
-  font-size: var(--sv-type-label-large-size);
-  line-height: var(--sv-type-label-large-line-height);
-  font-weight: var(--sv-type-label-large-weight);
-  letter-spacing: var(--sv-type-label-large-tracking);
+  border-radius: 999px;
+  font: var(--sv-type-body-medium-emphasized-weight) var(--sv-type-body-medium-emphasized-size) / var(--sv-type-body-medium-emphasized-line-height)
+    var(--sv-type-body-medium-emphasized-family);
+  letter-spacing: var(--sv-type-body-medium-emphasized-tracking);
   text-align: center;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 150ms ease, box-shadow 150ms ease;
+  transition: background-color 150ms ease;
+}
+
+.button .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.button--filled,
+.button--danger {
+  min-height: 56px;
+  font: var(--sv-type-title-medium-emphasized-weight) var(--sv-type-title-medium-emphasized-size) / var(--sv-type-title-medium-emphasized-line-height)
+    var(--sv-type-title-medium-emphasized-family);
+  letter-spacing: var(--sv-type-title-medium-emphasized-tracking);
 }
 
 .button--filled {
@@ -322,31 +607,50 @@ a {
   color: var(--sv-on-primary);
 }
 
-.button--filled:hover {
-  box-shadow: var(--sv-elevation-1);
+.button--danger {
+  background: var(--sv-error);
+  color: var(--sv-on-error);
 }
 
 .button--tonal {
-  background: var(--sv-secondary-container);
-  color: var(--sv-on-secondary-container);
-}
-
-.button--tonal:hover {
-  box-shadow: var(--sv-elevation-1);
+  background: var(--web-quiet);
+  color: var(--sv-on-surface);
 }
 
 .button--text {
   align-self: flex-start;
-  padding-inline: var(--sv-space-md);
-  background: transparent;
-  color: var(--sv-primary);
+  padding-inline: var(--sv-space-xs);
+  background: none;
+  color: var(--sv-on-surface);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-.button--text:hover {
-  background: var(--sv-surface-container-high);
+.button--text .icon {
+  width: 18px;
+  height: 18px;
 }
 
-/* Text field */
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+@media (hover: hover) {
+  .button--filled:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--sv-primary), var(--sv-on-primary) 12%);
+  }
+
+  .button--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--sv-error), var(--sv-on-error) 12%);
+  }
+
+  .button--tonal:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--web-quiet), var(--sv-on-surface) 6%);
+  }
+}
+
+/* The name field */
 
 .text-field {
   display: flex;
@@ -355,23 +659,24 @@ a {
 }
 
 .text-field__label {
-  color: var(--sv-on-surface-variant);
+  color: var(--sv-on-surface);
+  font: var(--sv-type-body-small-emphasized-weight) var(--sv-type-body-small-emphasized-size) / var(--sv-type-body-small-emphasized-line-height)
+    var(--sv-type-body-small-emphasized-family);
+  letter-spacing: var(--sv-type-body-small-emphasized-tracking);
 }
 
 .text-field__input {
   width: 100%;
-  min-height: 56px;
-  padding: var(--sv-space-lg);
-  border: 1px solid var(--sv-outline);
-  border-radius: var(--sv-shape-extra-small);
-  background: transparent;
+  min-height: 52px;
+  padding: 0 var(--sv-space-lg);
+  border: 1px solid var(--web-line);
+  border-radius: var(--sv-shape-medium);
+  background: var(--sv-elevation-1-surface);
   color: var(--sv-on-surface);
 }
 
 .text-field__input:focus {
-  outline: none;
-  border-color: var(--sv-primary);
-  box-shadow: inset 0 0 0 1px var(--sv-primary);
+  border-color: var(--sv-on-surface);
 }
 
 .text-field__input[aria-invalid="true"] {
@@ -379,118 +684,138 @@ a {
   box-shadow: inset 0 0 0 1px var(--sv-error);
 }
 
-.claim-progress:empty {
-  display: none;
+.claim-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-sm);
 }
 
+/* The ring that turns while a pick is checked or saved; a still quarter when motion is turned off. */
+.claim-progress::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--sv-outline-variant);
+  border-top-color: var(--sv-primary);
+  border-radius: 50%;
+  transform: rotate(45deg);
+  animation: turn 0.9s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(405deg);
+  }
+}
+
+.claim-progress:empty,
 .human-check:empty {
   display: none;
 }
 
-/* Grouped rows */
+/* Lists of rows: a card with a quiet fill on the rows that stand out */
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sv-space-sm);
+  padding: var(--sv-space-sm);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
 }
 
 .group__item {
-  overflow: hidden;
-  border-radius: var(--sv-shape-group-inner);
-  background: var(--sv-surface-container);
-}
-
-.group__item:first-child {
-  border-top-left-radius: var(--sv-shape-group-outer);
-  border-top-right-radius: var(--sv-shape-group-outer);
-}
-
-.group__item:last-child {
-  border-bottom-left-radius: var(--sv-shape-group-outer);
-  border-bottom-right-radius: var(--sv-shape-group-outer);
+  border-radius: var(--sv-shape-medium);
 }
 
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sv-space-lg);
+  gap: var(--sv-space-md);
   min-height: 56px;
-  padding: var(--sv-space-md) var(--sv-space-xl);
+  padding: var(--sv-space-lg);
 }
 
 .row > :last-child {
   flex: none;
   text-align: end;
+  font: var(--sv-type-amount-small-weight) var(--sv-type-amount-small-size) / var(--sv-type-amount-small-line-height) var(--sv-type-amount-small-family);
+  letter-spacing: var(--sv-type-amount-small-tracking);
+  font-feature-settings: var(--sv-type-amount-small-features);
 }
 
 .row--total {
-  background: var(--sv-surface-container-high);
+  background: var(--web-quiet);
 }
 
-/* Items */
+.row--total > :last-child {
+  font: var(--sv-type-amount-medium-weight) var(--sv-type-amount-medium-size) / var(--sv-type-amount-medium-line-height) var(--sv-type-amount-medium-family);
+  letter-spacing: var(--sv-type-amount-medium-tracking);
+  font-feature-settings: var(--sv-type-amount-medium-features);
+}
+
+/* Items, which a person ticks while picks are open, with who picked each */
 
 .item {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "name amount"
     "claimers claimers";
-  align-items: center;
-  column-gap: var(--sv-space-lg);
-  row-gap: var(--sv-space-xs);
+  align-items: baseline;
+  column-gap: var(--sv-space-md);
   width: 100%;
-  min-height: 64px;
-  padding: var(--sv-space-md) var(--sv-space-xl);
+  min-height: 56px;
+  padding: var(--sv-space-lg);
   border: 0;
+  border-radius: var(--sv-shape-medium);
   background: transparent;
+  color: var(--sv-on-surface);
   text-align: start;
 }
 
 .item--toggle {
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   grid-template-areas:
     "check name amount"
-    "check claimers claimers";
-  padding-inline-start: var(--sv-space-lg);
+    ". claimers claimers";
   cursor: pointer;
   transition: background-color 150ms ease;
 }
 
-.item--toggle:hover {
-  background: var(--sv-surface-container-high);
-}
-
 .item--toggle[aria-pressed="true"] {
-  background: var(--sv-secondary-container);
-  color: var(--sv-on-secondary-container);
+  background: var(--web-quiet);
 }
 
-.item--toggle:focus-visible {
-  outline-offset: -3px;
+@media (hover: hover) {
+  .item--toggle:hover:not([aria-pressed="true"]) {
+    background: color-mix(in srgb, var(--web-quiet) 50%, transparent);
+  }
 }
 
 .item__check {
   grid-area: check;
-  display: inline-flex;
+  align-self: start;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--sv-outline);
-  border-radius: var(--sv-shape-small);
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--web-line);
+  border-radius: var(--sv-shape-extra-small);
 }
 
 [aria-pressed="true"] > .item__check {
-  border-color: var(--sv-primary);
-  background: var(--sv-primary);
-  color: var(--sv-on-primary);
+  border-color: var(--web-tick);
+  background: var(--web-tick);
+  color: var(--web-on-tick);
 }
 
 .item__check .icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .item__name {
@@ -499,12 +824,15 @@ a {
 
 .item__amount {
   grid-area: amount;
-  text-align: end;
   white-space: nowrap;
+  font: var(--sv-type-amount-small-weight) var(--sv-type-amount-small-size) / var(--sv-type-amount-small-line-height) var(--sv-type-amount-small-family);
+  letter-spacing: var(--sv-type-amount-small-tracking);
+  font-feature-settings: var(--sv-type-amount-small-features);
 }
 
 .item__claimers {
   grid-area: claimers;
+  margin-top: var(--sv-space-sm);
 }
 
 .chips {
@@ -513,32 +841,77 @@ a {
   gap: var(--sv-space-xs);
 }
 
+/* A person's name in their colour, as the app colours them; this browser's own in lime and "You". */
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 var(--sv-space-sm);
-  border: 1px solid var(--sv-outline-variant);
-  border-radius: var(--sv-shape-small);
-  color: var(--sv-on-surface-variant);
+  min-height: 28px;
+  padding: var(--sv-space-xs) var(--sv-space-md);
+  border-radius: var(--sv-shape-medium);
+  background: var(--web-quiet);
+  color: var(--sv-on-surface);
+  font: var(--sv-type-body-small-emphasized-weight) var(--sv-type-body-small-emphasized-size) / var(--sv-type-body-small-emphasized-line-height)
+    var(--sv-type-body-small-emphasized-family);
+  letter-spacing: var(--sv-type-body-small-emphasized-tracking);
 }
 
-[aria-pressed="true"] .chip {
-  border-color: var(--sv-outline);
-  color: var(--sv-on-secondary-container);
+.chip--you {
+  background: var(--sv-accent);
+  color: var(--sv-on-accent);
 }
 
-.chip--you,
-[aria-pressed="true"] .chip--you {
-  border-color: var(--sv-primary);
-  background: var(--sv-primary);
-  color: var(--sv-on-primary);
+.chip--person-0,
+.chip--person-1,
+.chip--person-2,
+.chip--person-3,
+.chip--person-4,
+.chip--person-5,
+.chip--person-6 {
+  color: var(--sv-on-person);
 }
 
-/* People and how they pay */
+.chip--person-0 {
+  background: var(--sv-person-0);
+}
+
+.chip--person-1 {
+  background: var(--sv-person-1);
+}
+
+.chip--person-2 {
+  background: var(--sv-person-2);
+}
+
+.chip--person-3 {
+  background: var(--sv-person-3);
+}
+
+.chip--person-4 {
+  background: var(--sv-person-4);
+}
+
+.chip--person-5 {
+  background: var(--sv-person-5);
+}
+
+.chip--person-6 {
+  background: var(--sv-person-6);
+}
+
+/* What each person pays, and how */
+
+/* A person's row, rounded within the list, and filled when it is this browser's own. */
+.person {
+  border-radius: var(--sv-shape-medium);
+}
+
+.person--you {
+  background: var(--web-quiet);
+}
 
 .person__details > summary {
   list-style: none;
+  border-radius: var(--sv-shape-medium);
   cursor: pointer;
 }
 
@@ -550,24 +923,29 @@ a {
   display: flex;
   align-items: center;
   gap: var(--sv-space-md);
-  min-height: 64px;
-  padding: var(--sv-space-md) var(--sv-space-lg) var(--sv-space-md) var(--sv-space-xl);
+  min-height: 56px;
+  padding: var(--sv-space-lg);
 }
 
-.person__details > summary:focus-visible {
-  outline-offset: -3px;
+.person__name,
+.claimer__name {
+  font: var(--sv-type-body-large-emphasized-weight) var(--sv-type-body-large-emphasized-size) / var(--sv-type-body-large-emphasized-line-height)
+    var(--sv-type-body-large-emphasized-family);
+  letter-spacing: var(--sv-type-body-large-emphasized-tracking);
 }
 
 .person__name {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* The amount of the participant this browser's claim was matched to; its "You" chip says so in words. */
-.person--you {
-  background: var(--sv-secondary-container);
-  color: var(--sv-on-secondary-container);
+/* What a row without a way to pay says under the name, such as "Paid the bill". */
+.person__note {
+  color: var(--sv-on-surface-variant);
+  font: var(--sv-type-body-medium-weight) var(--sv-type-body-medium-size) / var(--sv-type-body-medium-line-height) var(--sv-type-body-medium-family);
+  letter-spacing: var(--sv-type-body-medium-tracking);
 }
 
 /* A name and the chip that may mark it as this browser's own, wrapping under it on a narrow screen. */
@@ -580,22 +958,49 @@ a {
 }
 
 .person__amount {
+  flex: none;
   white-space: nowrap;
+  font: var(--sv-type-amount-medium-weight) var(--sv-type-amount-medium-size) / var(--sv-type-amount-medium-line-height) var(--sv-type-amount-medium-family);
+  letter-spacing: var(--sv-type-amount-medium-tracking);
+  font-feature-settings: var(--sv-type-amount-medium-features);
 }
 
 .person__expand {
-  display: inline-flex;
-  color: var(--sv-on-surface-variant);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--sv-on-surface);
   transition: transform 150ms ease;
+}
+
+.person__expand .icon {
+  width: 20px;
+  height: 20px;
 }
 
 .person__details[open] .person__expand {
   transform: rotate(180deg);
 }
 
-.person__details[open] > .payment {
-  padding: 0 var(--sv-space-lg) var(--sv-space-xl);
+.person__details > .payment {
+  padding: 0 var(--sv-space-lg) var(--sv-space-lg);
 }
+
+/* Who picked, and who each of them is on the bill */
+
+.claimer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: var(--sv-space-lg);
+}
+
+/* How to pay: who wrote it, the link, the code to scan and the details to copy */
 
 .payment {
   display: flex;
@@ -607,21 +1012,49 @@ a {
   align-self: stretch;
 }
 
+/* Inside a person's row the link to report abuse is in the text's colour. */
+.person .payment > p a {
+  color: var(--sv-on-surface);
+}
+
 .qr-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sv-space-md);
   padding: var(--sv-space-xl);
-  border-radius: var(--sv-shape-extra-large);
+  border-radius: var(--sv-shape-large);
   background: var(--sv-elevation-1-surface);
-  box-shadow: var(--sv-elevation-1);
   text-align: center;
+}
+
+/* On a person's card the code's card has a line around it. */
+.person .qr-card {
+  padding: var(--sv-space-screen);
+  border: 1px solid var(--sv-outline-variant);
+}
+
+/*
+ * The code is black on white with its quiet zone in every theme, at most 240px across: on the dark
+ * card it lies on a white tile of its own, in the white the code is drawn on. Neither the code nor
+ * its canvas is rounded, coloured or shadowed.
+ */
+.qr-tile {
+  width: min(100%, 240px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .qr-tile {
+    width: min(100%, 240px + 2 * var(--sv-space-md));
+    padding: var(--sv-space-md);
+    border-radius: var(--sv-shape-small);
+    background: #ffffff;
+  }
 }
 
 .qr {
   display: block;
-  width: min(100%, 240px);
+  width: 100%;
   height: auto;
   aspect-ratio: 1;
   image-rendering: pixelated;
@@ -631,10 +1064,9 @@ a {
   display: flex;
   flex-direction: column;
   gap: var(--sv-space-sm);
-  padding: var(--sv-space-xl);
-  border-radius: var(--sv-shape-extra-large);
-  background: var(--sv-elevation-1-surface);
-  box-shadow: var(--sv-elevation-1);
+  padding: var(--sv-space-lg);
+  border-radius: var(--sv-shape-medium);
+  background: var(--web-quiet);
 }
 
 .details-card__text {
@@ -642,22 +1074,67 @@ a {
   user-select: text;
 }
 
+/* The copy button's text lines up with the details above it. */
+.details-card > .button--text {
+  margin-inline-start: calc(-1 * var(--sv-space-xs));
+}
+
+/* The copy's outcome takes no room until it says something, and stays where a screen reader hears it. */
+.details-card > [role="status"]:empty {
+  margin-top: calc(-1 * var(--sv-space-sm));
+}
+
+/* Steps, numbered in lime */
+
 .steps {
+  counter-reset: step;
   display: flex;
   flex-direction: column;
   gap: var(--sv-space-sm);
-  padding-inline-start: var(--sv-space-xl);
+  padding: var(--sv-space-sm) 0;
+  list-style: none;
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
 }
 
-/* Who picked, and who each of them is on the bill */
-
-.claimer {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--sv-space-xs);
+.steps > li {
+  counter-increment: step;
+  position: relative;
   min-height: 64px;
-  padding: var(--sv-space-md) var(--sv-space-xl);
+  padding: calc(var(--sv-space-lg) + var(--sv-space-xs)) var(--sv-space-lg) var(--sv-space-lg) calc(var(--sv-space-lg) + 32px + var(--sv-space-md));
+}
+
+.steps > li::before {
+  content: counter(step);
+  content: counter(step) / "";
+  position: absolute;
+  top: var(--sv-space-lg);
+  inset-inline-start: var(--sv-space-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sv-accent);
+  color: var(--sv-on-accent);
+  font: var(--sv-type-amount-small-weight) var(--sv-type-amount-small-size) / 1 var(--sv-type-amount-small-family);
+  font-feature-settings: var(--sv-type-amount-small-features);
+}
+
+/* The way to get the app after the steps stands apart from them. */
+.steps + .button {
+  margin-top: var(--sv-space-md);
+}
+
+/* Steps of one line each, their numbers centred on the line. */
+.steps--compact > li {
+  min-height: 56px;
+  padding-top: var(--sv-space-lg);
+}
+
+.steps--compact > li::before {
+  top: var(--sv-space-md);
 }
 
 /* The deletion page */
@@ -665,35 +1142,47 @@ a {
 .bullets {
   display: flex;
   flex-direction: column;
-  gap: var(--sv-space-sm);
-  padding-inline-start: var(--sv-space-xl);
-  list-style: disc;
+  gap: var(--sv-space-md);
+  padding: var(--sv-space-screen);
+  border-radius: var(--sv-shape-large);
+  background: var(--sv-elevation-1-surface);
+}
+
+.bullets > li {
+  position: relative;
+  padding-inline-start: var(--sv-space-screen);
+}
+
+.bullets > li::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sv-primary);
 }
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--sv-space-sm);
+  margin-top: var(--sv-space-xs);
 }
 
-.button--danger {
-  background: var(--sv-error);
-  color: var(--sv-on-error);
+.actions > .button {
+  align-self: stretch;
 }
 
-.button--danger:hover {
-  box-shadow: var(--sv-elevation-1);
-}
-
-.button:disabled {
-  cursor: default;
-  box-shadow: none;
-  opacity: 0.6;
+.actions > .button--text {
+  align-self: center;
 }
 
 /* Google's button keeps its height while it loads, so the page does not jump. */
 .google-button {
   min-height: 44px;
+  margin-top: var(--sv-space-xs);
 }
 
 /* A heading that takes the focus when its step is shown; it is not something to act on. */
@@ -701,38 +1190,22 @@ h2[tabindex="-1"]:focus {
   outline: none;
 }
 
-/* The footer of the legal pages and the deletion page */
-
-.footer__links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  column-gap: var(--sv-space-md);
-}
-
-.footer__link[aria-current="page"] {
-  color: var(--sv-on-surface-variant);
-  text-decoration: none;
-}
-
 /* The legal pages: Markdown from docs/, rendered when the page is built */
 
 .prose {
   gap: var(--sv-space-md);
+  /* Lines of reading a little further apart, as the legal pages' design sets them. */
+  line-height: 26px;
 }
 
 .prose h1 {
-  font-size: var(--sv-type-headline-small-size);
-  line-height: var(--sv-type-headline-small-line-height);
-  font-weight: var(--sv-type-headline-small-weight);
-  letter-spacing: var(--sv-type-headline-small-tracking);
+  font: var(--sv-type-display-small-weight) var(--sv-type-display-small-size) / var(--sv-type-display-small-line-height) var(--sv-type-display-small-family);
+  letter-spacing: var(--sv-type-display-small-tracking);
 }
 
 .prose h2 {
-  margin-top: var(--sv-space-lg);
-  font-size: var(--sv-type-title-large-size);
-  line-height: var(--sv-type-title-large-line-height);
-  font-weight: var(--sv-type-title-large-weight);
+  margin-top: var(--sv-space-screen);
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
   letter-spacing: var(--sv-type-title-large-tracking);
 }
 
@@ -740,10 +1213,8 @@ h2[tabindex="-1"]:focus {
 .prose h4,
 .prose h5,
 .prose h6 {
-  margin: var(--sv-space-sm) 0 0;
-  font-size: var(--sv-type-title-medium-size);
-  line-height: var(--sv-type-title-medium-line-height);
-  font-weight: var(--sv-type-title-medium-weight);
+  margin-top: var(--sv-space-sm);
+  font: var(--sv-type-title-medium-weight) var(--sv-type-title-medium-size) / var(--sv-type-title-medium-line-height) var(--sv-type-title-medium-family);
   letter-spacing: var(--sv-type-title-medium-tracking);
 }
 
@@ -751,28 +1222,66 @@ h2[tabindex="-1"]:focus {
 .prose ol {
   display: flex;
   flex-direction: column;
-  gap: var(--sv-space-xs);
-  padding-inline-start: var(--sv-space-xl);
+  gap: var(--sv-space-sm);
+  padding: 0;
+  list-style: none;
 }
 
-.prose ul {
-  list-style: disc;
+.prose ul > li {
+  position: relative;
+  padding-inline-start: var(--sv-space-screen);
 }
 
-.prose ol {
-  list-style: decimal;
+.prose ul > li::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  inset-inline-start: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sv-primary);
+}
+
+.prose ol > li {
+  position: relative;
+  min-height: 26px;
+  padding-inline-start: calc(26px + var(--sv-space-md));
+}
+
+/* The number a list's own counter gives, which follows a list's start. */
+.prose ol > li::before {
+  content: counter(list-item);
+  content: counter(list-item) / "";
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sv-accent);
+  color: var(--sv-on-accent);
+  font: var(--sv-type-amount-small-weight) var(--sv-type-body-small-size) / 1 var(--sv-type-amount-small-family);
+  font-feature-settings: var(--sv-type-amount-small-features);
 }
 
 .prose li > ul,
 .prose li > ol {
-  margin-top: var(--sv-space-xs);
+  margin-top: var(--sv-space-sm);
 }
 
 .prose blockquote {
-  margin: 0;
-  padding-inline-start: var(--sv-space-lg);
-  border-inline-start: 4px solid var(--sv-outline-variant);
-  color: var(--sv-on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-sm);
+  padding: var(--sv-space-lg) var(--sv-space-lg) var(--sv-space-lg) var(--sv-space-screen);
+  border-inline-start: 4px solid var(--sv-primary);
+  border-start-end-radius: var(--sv-shape-medium);
+  border-end-end-radius: var(--sv-shape-medium);
+  background: var(--web-quiet);
 }
 
 .prose table {
@@ -791,13 +1300,13 @@ h2[tabindex="-1"]:focus {
 }
 
 .prose th {
-  background: var(--sv-surface-container-high);
+  background: var(--web-quiet);
 }
 
 .prose code {
   padding: 0 var(--sv-space-xs);
   border-radius: var(--sv-shape-extra-small);
-  background: var(--sv-surface-container);
+  background: var(--web-quiet);
   font-family: ui-monospace, monospace;
   font-size: 0.9em;
 }
@@ -807,7 +1316,7 @@ h2[tabindex="-1"]:focus {
   padding: var(--sv-space-md) var(--sv-space-lg);
   overflow-x: auto;
   border-radius: var(--sv-shape-medium);
-  background: var(--sv-surface-container);
+  background: var(--web-quiet);
 }
 
 .prose pre code {

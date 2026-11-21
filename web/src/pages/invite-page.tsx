@@ -11,7 +11,7 @@ export function InviteDetails({ group, link, userAgent }: { group: InvitePreview
     <>
       <section class="hero" aria-labelledby="invite-title">
         <p class="type-title-small hero__label">You are invited to join</p>
-        <h1 id="invite-title" class="type-headline-small hero__title">
+        <h1 id="invite-title" class="type-headline-small hero__title hero__title--large">
           {group.name}
         </h1>
         <p class="type-body-medium">{`Balances in ${group.currency.code}`}</p>

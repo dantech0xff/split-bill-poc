@@ -4,6 +4,7 @@ import { browserLiveEnvironment, liveUrl } from "../live";
 import { ShareController, type ShareState } from "../share-controller";
 import { claimOf } from "../share-state";
 import { TurnstileCheck } from "../turnstile";
+import { NoticeIcon, RefreshIcon } from "../ui/icons";
 import { Loading, ProblemView } from "../ui/problem-view";
 import {
   AmountsSection,
@@ -39,6 +40,9 @@ export function ShareView({ state, actions, humanCheckSlot }: ShareViewProps) {
         <StatusBanner share={share} />
         {state.billUpdated && (
           <div class="notice notice--action">
+            <NoticeIcon>
+              <RefreshIcon />
+            </NoticeIcon>
             <p class="type-body-medium">The bill was updated. Check that your picks are still right.</p>
             <button type="button" class="button button--text" onClick={() => actions.dismissBillUpdate()}>
               OK

@@ -35,8 +35,25 @@ in a URL, in storage or in a log.
 
 Preact and TypeScript, built with Vite. Colours, type, shapes, spacing and elevation come from
 `web/src/tokens.css`, which `WebTokensTest` in `core/designsystem` writes from the app's design
-system: do not edit it by hand. Every page, the static ones too, uses the one stylesheet built from
-it and from `web/src/app.css`.
+system: do not edit it by hand. Besides Material's colour roles it holds what `web/src/app.css`
+takes of the app's palette (the violet head of a page, the lime of tags and ticks, the colours of
+people), of its type scale and of its shapes. Every page, the static ones too, uses the one
+stylesheet built from it and from `web/src/app.css`, which draws the pages as the approved web
+designs do.
+
+The pages set their text in the app's two families, Bricolage Grotesque for titles and amounts
+and Be Vietnam Pro for the rest, from three WOFF2 files in [`web/src/fonts/`](../web/src/fonts),
+cut from the font files the app ships to Latin and Vietnamese; `make-fonts.sh` beside them makes them
+again, and `font-checksums.sha256` holds their hashes. The Worker serves them under `/assets/` like
+the scripts and styles, so every page's policy allows `font-src 'self'` and no font from elsewhere.
+With `font-display: swap`, text shows at once in the browser's own face while they load.
+
+Amounts and dates follow the browser's region, `navigator.languages`, by the app's rules for the
+phone's region: the marks between thousands and before decimals, the side of the currency symbol
+and the order of a date are the region's, while the digits are 0 to 9 and the symbols and month
+names those of the page's English. A browser set to Vietnam reads "231.000 ₫" and "14 Nov 2026",
+one set to the United States "₫231,000" and "Nov 14, 2026". The "Amount: …" line of how to pay is
+as the sender's phone wrote it.
 
 ## Deleting an account on the web
 
@@ -70,8 +87,8 @@ app.
 
 It is the one page that may load Google Identity Services, and its headers say so:
 
-- `content-security-policy: default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
-  exactly what [Google's guide](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
+- `content-security-policy: default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+  the page's own fonts and exactly what [Google's guide](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
   asks for its library, its stylesheet, the iframe of its button and its endpoints. The link
   pages' policy does not allow it, so no other page can load it.
 - `referrer-policy: strict-origin-when-cross-origin`, with the same in the page's meta tag, as
@@ -99,7 +116,8 @@ Google's popup, and such a token signs in to that person's account or deletes it
 [`docs/terms.md`](terms.md), which `npm run build` renders into `privacy.html` and `terms.html`
 with [`scripts/static-pages.mjs`](../web/scripts/static-pages.mjs), so the Worker parses no
 Markdown. To change a page, change its Markdown, then build and deploy. The pages run no script and
-load nothing but the stylesheet; the Worker serves them with a policy that allows nothing else.
+load nothing but the stylesheet and its fonts; the Worker serves them with a policy that allows
+nothing else.
 
 - The Markdown is GitHub's. Every heading gets the id GitHub gives it, so a link to `#a-section`
   works on the page as on GitHub.
@@ -126,19 +144,27 @@ npm ci
 ```bash
 npm test          # unit tests, Vitest with happy-dom
 npm run build     # typecheck, build into dist/, write the other pages, and check them against their CSPs
-npm run size      # gzipped size of the initial download, against its 150 KB budget
+npm run size      # the initial download gzipped, against its 150 KB budget, and the fonts against their cap
 ```
 
-`npm run build` writes `web/dist/index.html` and hashed scripts and styles under `web/dist/assets/`,
-then `delete-account.html`, `privacy.html` and `terms.html` beside `index.html`, which the proxy's
-`npm run build:web` embeds into the Worker. Nothing else is served.
+`npm run build` writes `web/dist/index.html` and hashed scripts, styles and fonts under
+`web/dist/assets/`, then `delete-account.html`, `privacy.html` and `terms.html` beside
+`index.html`, which the proxy's `npm run build:web` embeds into the Worker. Nothing else is served:
+the build, and the embedding too, stop on any other kind of file under `assets/` and on a
+stylesheet that loads anything but a font there.
+
+`npm run size` counts `index.html` and the scripts and styles it loads, gzipped, against a budget
+of 150 KB, and the fonts the stylesheet loads, as they are, since WOFF2 is compressed already,
+against a cap of their own: at most three files and 120 KB together. It fails when either is over.
+KB here is 1000 bytes.
 
 ## End-to-end tests
 
-`npm run e2e` runs Playwright in a phone viewport against `wrangler dev`, which it starts from
-`proxy/` on port 8797 (devtools on 9339) and stops at the end. Before that it builds the web app,
-embeds it with the proxy's `npm run build:web`, and gives a fresh local D1 database under
-`web/.e2e/` the proxy's migrations: every local request counts as one address, so the hourly
+`npm run e2e` runs Playwright in a phone viewport set to the United States, as the amounts and
+dates the tests read are written for the browser's region, against `wrangler dev`, which it
+starts from `proxy/` on port 8797 (devtools on 9339) and stops at the end. Before that it builds
+the web app, embeds it with the proxy's `npm run build:web`, and gives a fresh local D1 database
+under `web/.e2e/` the proxy's migrations: every local request counts as one address, so the hourly
 limits of an earlier run would otherwise carry over. Turnstile runs for real with Cloudflare's
 always-pass test keys, so the browser and the Worker both need to reach
 `challenges.cloudflare.com`; behind an HTTPS proxy, the browser uses `HTTPS_PROXY`. The tests of
