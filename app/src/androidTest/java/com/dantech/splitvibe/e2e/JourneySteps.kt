@@ -13,8 +13,10 @@ import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -92,6 +94,19 @@ fun ComposeTestRule.answerTheAiConsent(button: String) {
     awaitNode(answer)
     onNode(answer).tap()
     awaitNoNode(isDialog())
+}
+
+/**
+ * From the home: the bundled sample bill, read through the AI once the consent to it is given, up to
+ * its split, which shows the bill's total and what each person pays.
+ */
+fun ComposeTestRule.readTheSampleBill() {
+    onNodeWithContentDescription("Split a bill").performClick()
+    onNodeWithText("Use the sample bill").performScrollTo().performClick()
+    awaitNode(hasText("Read and split the bill") and isEnabled())
+    onNodeWithText("Read and split the bill").tap()
+    answerTheAiConsent("Agree")
+    awaitNode(hasText("Bill total"))
 }
 
 /**

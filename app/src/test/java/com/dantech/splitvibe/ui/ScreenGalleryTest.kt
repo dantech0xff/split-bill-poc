@@ -30,8 +30,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
@@ -51,6 +49,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.Fixtures
 import com.dantech.splitvibe.HomeFixtures
 import com.dantech.splitvibe.R
+import com.dantech.splitvibe.TestClock
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
 import com.dantech.splitvibe.assistant.SplitAssistant
@@ -72,6 +71,9 @@ import com.dantech.splitvibe.testSplitViewModel
 import com.dantech.splitvibe.ui.history.HistoryScreen
 import com.dantech.splitvibe.ui.home.HomeScreen
 import com.dantech.splitvibe.ui.home.HomeSummary
+import com.dantech.splitvibe.ui.home.MonthSpending
+import com.dantech.splitvibe.ui.insights.InsightsPeriod
+import com.dantech.splitvibe.ui.insights.insightsOf
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.dantech.splitvibe.ui.settings.AccountActions
@@ -86,6 +88,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import java.math.BigDecimal
+import java.time.YearMonth
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -174,6 +177,9 @@ class ScreenGalleryTest {
     }
 
     private var screen by mutableStateOf(Screen.HOME)
+
+    /** This month's spending, which [Screen.HOME] shows once a bill is kept, as the home's view model adds it up. */
+    private var homeMonth: MonthSpending? by mutableStateOf(null)
 
     /** Added to every file name of a walk, so the dark and large-text images sit beside the light ones. */
     private var suffix = ""
@@ -306,7 +312,13 @@ class ScreenGalleryTest {
         shot("20-edit-bill")
     }
 
-    /** The four main screens on a phone set to Vietnam, whose amounts are written "902.664 ₫": the texts stay English. */
+    /**
+     * The four main screens on a phone set to Vietnam, whose amounts are written "902.664 ₫" and days
+     * "13 Nov": the texts stay English. Home comes last, once the split bill is kept, so that it shows
+     * an amount and a day too. Before each picture is taken, the test checks that the screen writes the
+     * sample bill's total that way and nowhere as a phone in the United States does, so that a picture
+     * of the wrong region is never recorded as a reference.
+     */
     @Test
     @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
     fun `the four main screens on a phone set to Vietnam`() {
@@ -315,22 +327,38 @@ class ScreenGalleryTest {
         assertEquals("the phone's region", Locale.forLanguageTag("vi-VN"), Locale.getDefault(Locale.Category.FORMAT))
         assertEquals(VIETNAMESE_TOTAL, BillCurrency("VND", 0).format(902_664))
         val viewModel = start(answerDelaySeconds = 0)
-        shot("01-home")
 
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        // The photo and the instruction show no amount yet, so only the American way of writing it is looked for.
+        assertNoTotalWrittenTheAmericanWay()
         shot("03-photo-and-instruction")
 
         compose.onNodeWithText("Read and split the bill").performClick()
         awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
         assertNull(viewModel.state.value.error)
+        val result = checkNotNull(viewModel.state.value.result)
         // The total of the bill, and the line below the shares that they add up to it.
-        compose.onAllNodesWithText(VIETNAMESE_TOTAL).onFirst().assertExists()
+        assertTheTotalWrittenTheVietnameseWay()
         shot("05-result-top")
 
+        // The ticket of the whole split carries the total.
         compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        assertTheTotalWrittenTheVietnameseWay()
         shot("10-requests-sent")
+
+        // Home once the split is kept: this month's spending, and the bill with its amount and its day.
+        awaitState { runBlocking { storage.bills.get(result.saved.id) }?.status == BillStatus.FINAL }
+        val kept = checkNotNull(runBlocking { storage.bills.get(result.saved.id) })
+        val month = insightsOf(listOf(kept), settings.localCurrency, InsightsPeriod.THIS_MONTH, TestClock(HomeFixtures.today))
+        homeMonth = MonthSpending.of(YearMonth.from(HomeFixtures.today), month.insights)
+        show(Screen.HOME)
+        val shop = checkNotNull(result.bill.merchant)
+        awaitState { compose.onAllNodes(hasText(shop, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasText(VIETNAMESE_BILL_DAY, substring = true)).assertExists()
+        assertTheTotalWrittenTheVietnameseWay()
+        shot("01-home")
     }
 
     /**
@@ -359,9 +387,12 @@ class ScreenGalleryTest {
     @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
     fun `home with what friends owe, on a phone set to Vietnam`() {
         suffix = "-vi-vn"
-        homeStates(listOf(HomeState.OWED))
-        // The total and the currency on the side a phone set to Vietnam puts it.
-        compose.onNodeWithContentDescription("651.671 ₫").assertExists()
+        homeStates(listOf(HomeState.OWED)) {
+            // The sample bill is the first of the recent bills.
+            assertTheTotalWrittenTheVietnameseWay()
+            // What friends owe, and the currency on the side a phone set to Vietnam puts it.
+            compose.onNodeWithContentDescription("651.671 ₫").assertExists()
+        }
     }
 
     private fun everyScreen() {
@@ -574,8 +605,11 @@ class ScreenGalleryTest {
         shot("32-settings-speech-service")
     }
 
-    /** Draws home in each of [states], named after it, with the navigation bar counting the requests of that state. */
-    private fun homeStates(states: List<HomeState>) {
+    /**
+     * Draws home in each of [states], named after it, with the navigation bar counting the requests of
+     * that state, and runs [beforeEachShot] on each before its picture is taken.
+     */
+    private fun homeStates(states: List<HomeState>, beforeEachShot: () -> Unit = {}) {
         var state by mutableStateOf(states.first())
         compose.setContent {
             CompositionLocalProvider(LocalRippleConfiguration provides null) {
@@ -601,6 +635,8 @@ class ScreenGalleryTest {
         }
         for (each in states) {
             state = each
+            compose.waitForIdle()
+            beforeEachShot()
             shot("01-home-${each.shot}")
         }
         // The list of home ends above the navigation bar, so none of its rows ever passes under the bar.
@@ -608,6 +644,26 @@ class ScreenGalleryTest {
         val list = compose.onNode(hasScrollToIndexAction()).getBoundsInRoot()
         assertTrue("Home's list runs on to ${list.bottom}, under the top of the navigation bar at ${bar.top}", list.bottom <= bar.top)
     }
+
+    /**
+     * Fails unless the screen shows the sample bill's total as a phone set to Vietnam writes it,
+     * "902.664 ₫", and nowhere as a phone set to the United States does, "₫902,664". An amount in large
+     * type shows in parts and is said whole, so both what nodes show and what they say are read.
+     */
+    private fun assertTheTotalWrittenTheVietnameseWay() {
+        val vietnamese = compose.onAllNodes(writes(VIETNAMESE_TOTAL), useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("The screen does not write the total as $VIETNAMESE_TOTAL", vietnamese.isNotEmpty())
+        assertNoTotalWrittenTheAmericanWay()
+    }
+
+    /** Fails if any node of the screen shows or says the sample bill's total as a phone set to the United States writes it. */
+    private fun assertNoTotalWrittenTheAmericanWay() {
+        val american = compose.onAllNodes(writes(AMERICAN_TOTAL), useUnmergedTree = true).fetchSemanticsNodes()
+        assertTrue("The screen writes the total as $AMERICAN_TOTAL, as a phone in the United States does", american.isEmpty())
+    }
+
+    /** A node that shows or says [text], also within more. */
+    private fun writes(text: String) = hasText(text, substring = true) or hasContentDescription(text, substring = true)
 
     private fun wholeResultPage() {
         val viewModel = start(answerDelaySeconds = 0)
@@ -655,7 +711,7 @@ class ScreenGalleryTest {
                 SplitVibeTheme {
                     when (screen) {
                         Screen.HOME -> HomeScreen(
-                            summary = HomeSummary.of(RequestTotals.SignedOut, bills, month = null, settings.localCurrency),
+                            summary = HomeSummary.of(RequestTotals.SignedOut, bills, homeMonth, settings.localCurrency),
                             group = null,
                             bills = bills,
                             onOpenBill = {},
@@ -781,6 +837,12 @@ private const val SAMPLE_BILL_DAY = "Nov 13 · "
 
 /** The sample bill's total as a phone set to Vietnam writes it, with a space that does not break before the symbol. */
 private const val VIETNAMESE_TOTAL = "902.664\u00A0₫"
+
+/** The sample bill's total as a phone set to the United States writes it, which no picture of a phone set to Vietnam may show. */
+private const val AMERICAN_TOTAL = "₫902,664"
+
+/** The day of the sample bill as a list of bills writes it in the year it is of, on a phone set to Vietnam. */
+private const val VIETNAMESE_BILL_DAY = "13 Nov · "
 
 /** Tall enough to show the whole result list at once, with a little room above the bottom bar. */
 private const val TALL = "w412dp-h2080dp-xhdpi"
