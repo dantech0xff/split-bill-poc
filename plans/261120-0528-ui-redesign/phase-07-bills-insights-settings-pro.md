@@ -1,6 +1,6 @@
 ---
 title: "Phase 7: Hóa đơn, thống kê, cài đặt và Pro"
-status: pending
+status: completed
 phase: 7
 priority: P1
 effort: "3d"
@@ -88,7 +88,7 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 - [x] Hai màn Pro
 - [x] Mười một lời gọi thẳng thành phần Material; luật cấm trong `DesignSystemBoundaryTest`
 - [x] Kiểm thử của các màn này và nơi gọi của màn đổi chữ ký
-- [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
+- [x] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -112,3 +112,42 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 8 chưa bắt đầu; sau đó lỗi của giai đoạn này được sửa bằng commit mới, vì các giai đoạn sau đã dựng trên nó. Hóa đơn định kỳ và mọi dữ liệu lưu không đổi dạng.
+
+## Kết quả thực hiện
+
+Làm ngày 21/11/2026, trong các commit `565e8ec` (hóa đơn, thống kê, cài đặt và Pro), `2201c71` (sửa theo review) và `7031bb7` (thẻ kết quả xuất file hiện trọn, ảnh "All time").
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare` trên `7031bb7`: 699 bài kiểm thử đơn vị của `:app`, cùng các bài của `:core:domain` và `:core:designsystem`, ktlint, lint, các gói, bản dựng kiểm thử trên máy và kiểm tra gói phát hành. `git status --porcelain app/src/test/screenshots` rỗng.
+- Trong `app/src/main` và `app/src/debug` không còn lời gọi thẳng nào tới sáu thành phần bị cấm. `DesignSystemBoundaryTest` cấm chúng theo ranh giới từ, có mẫu ở cả hai phía của ranh giới, và đòi có tệp trong từng cây mà nó quét.
+- Tổng của biểu đồ bằng tổng của khối đầu trang ở cả ba kỳ, kể cả "All time" theo năm, và `InsightsViewModelTest` khẳng định điều đó.
+- Kết quả trên máy:
+  - Trên `565e8ec`, lượt `device-tests.yml` 44853783766 (Android 14 và hồ sơ khởi động) và 44853782265 (Android 8.0, 11 và 16) đều qua.
+  - Trên `7031bb7`, lượt 44867974668 (Android 14 và hồ sơ khởi động) và 44867974119 (Android 8.0, 11 và 16) đều qua.
+  - TalkBack chưa được thử trên máy thật. Nhóm nút chọn gói của Pro ("1 of 2") và lời báo đăng nhập xong mới được kiểm bằng bài kiểm thử trên cây ngữ nghĩa.
+- Đã sửa sau lượt [review độc lập](./reports/review-phase-07.md); mỗi bài kiểm mới hay được sửa đều được cho chạy hỏng một lần:
+  - Kết quả của việc xuất file hiện ngay trên nút "Export these bills", và danh sách cuộn để thấy trọn thẻ cùng nút, ngay lập tức khi tắt chuyển động. Tiến trình và kết quả của đăng xuất và xóa tài khoản hiện ngay trên nút Sign out. Cả hai được đọc tự động khi hiện.
+  - Lời báo đăng nhập nằm trong một phần tử duy nhất đổi chữ tại chỗ, nên TalkBack đọc người vừa đăng nhập như trước.
+  - Hai gói của Pro là một nhóm nút chọn một với trình đọc màn hình. Nút chọn một (`SvRadio`) tròn như bảng `Pro`: chấm chanh có dấu tích khi chọn, vòng xám khi chưa. Hàng chọn người (`SvPersonChoiceRow`) cũng là nút chọn một nên dùng dấu tròn này; màn tham gia nhóm, bảng chọn người trả, bảng thêm vào nhóm, bảng cách nhận tiền và màn đòi tiền đổi theo.
+  - Ngày của hóa đơn chỉ được dùng khi nằm từ 1/1/2000 tới hôm nay. Ngoài khoảng đó, như khi gõ nhầm năm hay hóa đơn ghi năm Phật lịch, hóa đơn được tính vào ngày lưu, và lời nhắc về các hóa đơn này đếm cả chúng, ở mọi kỳ và trong file xuất.
+  - "All time" vẽ một cột mỗi năm, từ năm đầu có hóa đơn tới năm nay, và danh sách dưới biểu đồ theo năm. Kỳ nào chỉ có một cột thì không vẽ biểu đồ.
+  - Quay lại thẻ "All bills" thì ô tìm lại ở đầu danh sách: ô tìm và hai thẻ là một phần tử của danh sách.
+  - Hàng của Recurring và các hàng của Insights đưa số tiền xuống dưới tên khi chữ dài nhất của tên không vừa bên cạnh, như hàng của All bills, qua `SvBesideOrBelow`.
+  - Ô "No group" và vòng của nút chọn một có token màu riêng, `blankTile` và `radioRing`. Các liên kết pháp lý của Cài đặt dùng lại `PageLinks`.
+  - Bài kiểm điều hướng cuộn tới Sign out trước khi bấm, và báo lỗi khi việc xóa bộ nhớ đệm hỏng.
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện hoặc người điều phối chọn:
+  - Thành phần mới hoặc mở rộng mà giai đoạn không liệt kê: `SvTabs`, nhãn không bắt buộc của `SvTextField`, `SvQuietIconTile` với ba biểu tượng Repeat, Export và None, `SvTextAction(destructive)`. Đoạn trống của `SvMeter` trên nền trang dùng `outlineVariant` như bảng `ProMember`; `SvBarChart` làm mảnh cột và bỏ bớt nhãn khi có nhiều cột.
+  - Số tổng của khối đầu trang Insights đứng yên như mọi khối đầu trang khác, không còn đếm lên khi đổi kỳ.
+  - Hàng hóa đơn của màn Bills ghi tên danh mục bằng chữ như bảng `Bills`; hàng của trang chủ không đổi.
+  - Cài đặt có hàng hồ sơ khi đã đăng nhập; Sign out và Delete account nằm cuối trang; "Get Pro" màu tím chỉ khi đã đăng nhập mà chưa có Pro; các liên kết quyền riêng tư và điều khoản thành hàng trong thẻ. Một lần xóa tài khoản bắt đầu ở lần mở trước, hay bị đóng app giữa chừng, hiện ở thẻ đầu trang, nơi người dùng thấy đầu tiên khi mở Cài đặt.
+  - Pro: thanh đo chỉ hiện với người đã mua; các liên kết pháp lý vẫn giữ dù bảng không vẽ; giá gói dùng `amountMedium` (19sp) thay vì 22sp của bảng.
+  - Ô tìm của Bills giữ giới hạn 80 ký tự của `SvTextField`; trước đây ô này không có giới hạn.
+  - `RepeatBillSheet` vẫn gọi `DatePickerDialog` của Material, vì hệ thiết kế không có bộ chọn ngày và luật cấm chỉ nêu sáu thành phần.
+  - Chuỗi mới: "By year", "Spending by year from %1$s to %2$s.", ba chuỗi `insights_chart*` và hai chuỗi số nhiều `settings_calls_meter_*`. Lời nhắc về hóa đơn không có ngày đổi thành "%d bill has no date that can be used, so it is counted on the day it was saved." cùng dạng số nhiều.
+- Còn mở, chờ chủ sản phẩm duyệt qua ảnh:
+  - Kỳ "This month" không có biểu đồ, chỉ còn danh sách một tháng (`40-insights-this-month`).
+  - "All time" theo năm thay vì theo tháng (`40-insights-all-time`).
+  - Chữ mới của lời nhắc về hóa đơn không có ngày dùng được.
+  - Số tổng không còn đếm lên khi đổi kỳ; tên danh mục chỉ ghi ở màn Bills, không ở trang chủ; đoạn trống đậm hơn của thanh đo trên nền trang.
+  - Dấu chọn tròn ở các màn của giai đoạn 5 và 6 dùng hàng chọn người.
+  - Ở cỡ chữ 200%, địa chỉ email trong Cài đặt bị bẻ giữa chữ vì nó là một chữ dài, và ba nút kỳ của Insights xuống hai dòng.
+  - Khi người dùng cuộn lên trong lúc file còn đang lưu, danh sách vẫn cuộn xuống cuối khi thẻ kết quả hiện.
