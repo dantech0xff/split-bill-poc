@@ -80,14 +80,14 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 
 ## Todo
 
-- [ ] Màn Bills hai thẻ theo bảng
-- [ ] Bảng lặp lại hóa đơn
-- [ ] `Insights` với biểu đồ, thanh tỉ lệ và nút xuất nằm trong nội dung; phép kiểm thanh che
-- [ ] Bảng xuất file
-- [ ] `Settings`, bốn trạng thái tài khoản, hộp thoại xóa tài khoản
-- [ ] Hai màn Pro
-- [ ] Mười một lời gọi thẳng thành phần Material; luật cấm trong `DesignSystemBoundaryTest`
-- [ ] Kiểm thử của các màn này và nơi gọi của màn đổi chữ ký
+- [x] Màn Bills hai thẻ theo bảng
+- [x] Bảng lặp lại hóa đơn
+- [x] `Insights` với biểu đồ, thanh tỉ lệ và nút xuất nằm trong nội dung; phép kiểm thanh che
+- [x] Bảng xuất file
+- [x] `Settings`, bốn trạng thái tài khoản, hộp thoại xóa tài khoản
+- [x] Hai màn Pro
+- [x] Mười một lời gọi thẳng thành phần Material; luật cấm trong `DesignSystemBoundaryTest`
+- [x] Kiểm thử của các màn này và nơi gọi của màn đổi chữ ký
 - [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
