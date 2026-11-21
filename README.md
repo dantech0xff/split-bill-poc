@@ -27,12 +27,17 @@ flowchart LR
     G --> H[Bills kept on the phone]
 ```
 
-<img src="docs/screenshots/new-split.png" alt="New split screen with the sample bill and an instruction" width="300">
+<img src="docs/screenshots/new-split.png" alt="The New split screen: scan, photograph or pick the bill, use the sample bill or type it in by hand, and say how to split it" width="300">
 
 ## What the app does
 
-1. **Home** shows the latest bills and a "Split a bill" entry. **See all** opens every bill kept on
-   the phone, to search by place, item or person, open again or delete.
+1. **Home** leads with what friends owe you and what you owe, or else with your share of this
+   month's bills, or, before the first bill, with an invitation to split one. Tiles show this month's
+   spending, when the top is about requests, and the group the phone updated last, and below them
+   come the latest bills. **See all** opens every bill kept on the phone, to search by place, item or
+   person, open again or delete, with the recurring bills on a tab of their own. A bar at the bottom
+   of the main screens leads to **Home**, **Groups**, **Requests** and **Insights**, and its round
+   button in the middle, "Split a bill", starts a new split.
 2. **New split** takes the bill and an instruction such as `Split with Minh and Lan. Minh had the
    beers.` or `We are 3, I didn't drink.` The bill comes from Google's document scanner, which finds
    its edges, straightens it and takes up to five pages; from the camera or the photo picker; from a
@@ -64,25 +69,30 @@ flowchart LR
    a browser, without the app. They type their name and tap what they had, and the picks show live.
    You say who each person is on the bill, close the picking, and send what everyone owes, which the
    page then shows with how to pay.
-8. **Groups** (from the home screen) keep the bills of a trip or a shared flat in one currency: each
+8. **Groups**, a tab of the bar, keep the bills of a trip or a shared flat in one currency: each
    member's balance, the fewest payments that settle the group, the people and places kept for
    those without the app, the bills and what changed. A split is added to a group from its result
    screen, matching people to members and converting the total once at the day's rate; from then on
    it is settled in the group, not asked for person by person. Invite links let people join, or ask
    for a place kept under their name, which the group's owner decides; the owner can also take
    someone out of the group, keeping what they paid and owe.
-9. **Requests** lists what you have to pay, with its code and details, and what you asked for, to
-   confirm once the money arrived, remind by hand or on a schedule, or delete.
-10. **Insights** (from the home screen) shows what the finished bills came to by month, category,
-    person and group, in your own currency and with your own share. A period exports as three CSV
-    files (bills, items and shares) or a PDF summary.
+9. **Requests**, a tab of the bar, adds up what you owe and what friends owe you, and lists what you
+   have to pay, with its code and details, and what you asked for, to confirm once the money
+   arrived, remind by hand or on a schedule, or delete. Its tab counts the requests that wait for
+   you.
+10. **Insights**, a tab of the bar, shows what the finished bills came to this month, over the last
+    12 months or over all time, by month or year, category, person and group, in your own currency
+    and with your own share. A period exports as three CSV files (bills, items and shares) or a PDF
+    summary.
 11. **Recurring bills:** a finished bill can repeat every week or month. On its day the app makes a
-    draft to check and finish, and says so in a notice.
-12. **Settings** also holds your name in groups and on requests, and the **ways to get paid**:
-    bank accounts by VietQR or SEPA, PromptPay, UPI, PayPal.Me, a link made in another payment app
-    (Revolut, Wise, Venmo, Cash App) or plain details such as a Zelle address. They stay on the phone.
-    It links to the privacy policy and the terms of use, which the proxy serves, and deletes the
-    account, with the option to also delete the bills, people and payment methods on the phone.
+    draft to check and finish, and says so in a notice. They are listed on the Recurring tab of the
+    bills.
+12. **Settings**, behind the round button at the top of Home, also holds your name in groups and on
+    requests, and the **ways to get paid**: bank accounts by VietQR or SEPA, PromptPay, UPI,
+    PayPal.Me, a link made in another payment app (Revolut, Wise, Venmo, Cash App) or plain details
+    such as a Zelle address. They stay on the phone. It links to the privacy policy and the terms of
+    use, which the proxy serves, and deletes the account, with the option to also delete the bills,
+    people and payment methods on the phone.
 13. **Pro** (from Settings, or from the notice when the AI calls run out) is a Google Play
     subscription, monthly or yearly, that gives 300 AI calls a month instead of 10. Everything else
     stays free. The screen shows Google Play's prices and any offer, how the plan renews and where to
@@ -160,11 +170,12 @@ Google (`/delete-account`). Settings and the Pro screen link the first two, and 
 proxy's address hides those links.
 
 Without signing in, each install gets 3 free calls to Claude: reading a bill takes a whole call, and
-changing a split by a sentence takes 0.2. **Settings** (gear icon) shows the calls left with the plan
-they count against, and offers "Sign in with Google" for 10 calls a month, **Pro** for 300 a month,
-signing out and deleting the account. When a sign-in runs out, the app asks to sign in again and
-never falls back to the phone's free calls on its own; signing out does that. It also holds the
-app's **local currency**, which defaults to the currency of the phone's region.
+changing a split by a sentence takes 0.2. **Settings** (the round button at the top of Home) shows
+the calls left with the plan they count against, and offers "Sign in with Google" for 10 calls a
+month, **Pro** for 300 a month, signing out and deleting the account. When a sign-in runs out, the
+app asks to sign in again and never falls back to the phone's free calls on its own; signing out
+does that. It also holds the app's **local currency**, which defaults to the currency of the phone's
+region.
 
 Without a real bill at hand, tap **Use the sample bill** on the new-split screen.
 
@@ -351,7 +362,7 @@ docs/                         the documents below
 | [proxy.md](docs/proxy.md) | The AI proxy: its routes, its limits, what it keeps, and how to run and deploy it |
 | [web.md](docs/web.md) | The web pages that links open |
 | [pro-subscription.md](docs/pro-subscription.md) | Setting up Pro in Play Console, RevenueCat and the Worker |
-| [testing.md](docs/testing.md) | The tests on a device, the end-to-end journeys and their fake proxy |
+| [testing.md](docs/testing.md) | Running the checks before a merge, the screenshot modes, and the tests on a device with their journeys and fake proxy |
 | [release.md](docs/release.md) | How a release is built, signed, uploaded and deployed |
 | [release-checklist.md](docs/release-checklist.md) | The gates and the owner's steps up to 100% on Google Play |
 | [runbook.md](docs/runbook.md) | Running the service: switches, limits, outages, backups, secrets, support |
@@ -373,11 +384,12 @@ shares must add up to the total, and payments that must too), group balances (2,
 up to six currencies, whose balances must add up to zero and settle in fewer payments than members,
 and a trip worked out by hand), the payment codes (PromptPay, VietQR and SEPA against published
 examples, character for character), the payment methods and the links they accept, editing a bill,
-currency handling and exchange rates, name matching, split planning, row layout of one page or
-several, answer parsing, the bills kept on the phone and their revisions, the proxy client, groups,
-requests and their copy kept on the phone, the request step, invite and request links, push
-registration, the account and sign-in, Pro, the UI flow, app startup, navigation, the dependency
-wiring, the text contrast of the colour palette, the motion, and the design system components.
+currency handling and exchange rates, amounts and dates as eight regions write them, name matching,
+split planning, row layout of one page or several, answer parsing, the bills kept on the phone and
+their revisions, the proxy client, groups, requests and their copy kept on the phone, the request
+step, invite and request links, push registration, the account and sign-in, Pro, the UI flow, app
+startup, navigation, the dependency wiring, the text contrast of the colour palette, the motion, and
+the design system components.
 
 - The proxy client tests run the real client against a local server that answers as the proxy does.
   They pin down the request, which must match the shared fixture the proxy's tests send, and every
@@ -391,30 +403,34 @@ wiring, the text contrast of the colour palette, the motion, and the design syst
   three items typed in by hand, an item corrected, a draft brought back after the system ends the
   app, a bill in dollars shown in dong, a copy saved elsewhere, a finished split broken by a change,
   and the cases where a bill must not be overwritten or lose a photo.
-- `ScreenGalleryTest` draws every screen in the light and the dark theme, and the four main screens
-  with text at twice its size, and compares each with the reference image in
-  `app/src/test/screenshots`. After an intended visual change, record new images with
-  `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record` and review them like code.
+- `ScreenGalleryTest` and the other gallery tests draw every screen, sheet and dialog in the light
+  theme, many screens in the dark theme too, and the main ones also with text at twice its size, in
+  the pseudolocale `en-XA` and on a phone set to Vietnam, and compare each with its reference image
+  in `app/src/test/screenshots`. After an intended visual change, record new images with
+  `./gradlew :app:testProdDebugUnitTest -Pscreenshots=record` and review them like code;
+  [docs/testing.md](docs/testing.md#screenshot-tests) has the other modes.
 - `AppStartupTest` and `BackNavigationTest` start the real application and activity: moving between
-  the screens, restoring them after the activity is recreated, the back swipe preview, and back
-  cancelling running work before it leaves the split screen.
+  the screens and the tabs of the navigation bar, restoring them after the activity is recreated, the
+  back swipe preview, and back cancelling running work before it leaves the split screen.
 - `AmountAnimationTest`, `ReducedMotionTest` and `ComponentBehaviourTest` check the motion and the
   components: an amount that changes mid-run, nothing moving with animations switched off, and what
-  the choice group, the menus and the person chips do when they are tapped and how a screen reader
-  reads them.
+  the components do when they are tapped and how a screen reader reads them.
 
 ```bash
 ./gradlew :app:pixel6Api34ProdDebugAndroidTest
 ```
 
-The on-device tests cover what only a device can show: starting the app, the real ML Kit recognizer
-on the sample bill, the proxy client reading a streamed answer on the Android runtime, the Keystore
-encryption of the session, and splitting the sample bill from the photo to the sent requests. The
-end-to-end journeys run the real app against a fake proxy: the sample bill split through the AI, a
-bill typed in by hand, and a payment request. Every tap in them also runs Android's accessibility
-checks on the screen it lands on. They need no network. The command above lets Gradle download,
-start and stop its own Android 14 emulator; `./gradlew :app:connectedProdDebugAndroidTest` uses a
-device that is already connected. [docs/testing.md](docs/testing.md) has the details.
+The on-device tests cover what only a device can show: starting the app and going round its tabs,
+the real ML Kit recognizer on the sample bill, the proxy client reading a streamed answer on the
+Android runtime, the Keystore encryption of the session, how the phone's own data about regions
+writes dates and amounts, and splitting the sample bill from the photo to asking for the money. The
+end-to-end journeys run the real app against a fake proxy: the sample bill split through the AI, the
+AI turned down and the bill typed in by hand instead, a bill typed in by hand, a payment request,
+and typing with the on-screen keyboard open. On Android 14 and later, the taps of three of these
+tests also run Android's accessibility checks on the screen they are made on. They need no network.
+The command above lets Gradle download, start and stop its own Android 14 emulator;
+`./gradlew :app:connectedProdDebugAndroidTest` uses a device that is already connected.
+[docs/testing.md](docs/testing.md) has the details.
 
 The other checks, all of which also run in GitHub Actions for every pull request and every push to `main`:
 

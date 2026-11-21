@@ -83,24 +83,26 @@ repeated keywords and unattributed testimonials. Recount after any change, for e
 ## Screenshots
 
 From the reference images in [`app/src/test/screenshots/`](../app/src/test/screenshots), which the
-screenshot tests draw from the real screens with the sample bill, in this order:
+screenshot tests draw from the real screens with the sample bill and other sample data, in this
+order:
 
 | # | File | Size (px) | Shows |
 |---|---|---|---|
-| 1 | `03-photo-and-instruction.png` | 824 × 1830 | A scanned bill and the instruction "Split with Minh and Lan. Minh had the beers." |
-| 2 | `05-result-top.png` | 824 × 1830 | The bill read: its total, what the AI understood, who is on it and the ways to split |
-| 3 | `06-result-shares.png` | 824 × 1830 | Each person's share, adding up to the bill total |
+| 1 | `01-home-owed.png` | 824 × 1830 | The home: what friends owe you and what you owe, this month's spending, a group's balance, the latest bills (the sample bill, "Phở Thìn" and "Grab") and the navigation bar |
+| 2 | `02-new-split.png` | 824 × 1830 | A new split: scan the bill, take a photo, pick one, use the sample bill or type it in by hand, and say how to split it |
+| 3 | `05-result-top.png` | 824 × 1830 | The sample bill read: its total, what Split Vibe understood, and what each of the three people pays |
 | 4 | `31-assistant-proposal.png` | 824 × 1830 | A change by a sentence, with each share before and after |
-| 5 | `10-requests-sent.png` | 824 × 1830 | Asking each person for the money |
-| 6 | `23-group.png` | 824 × 3200, crop to the top 824 × 1830 | A group's balances and the payments that settle it |
-| 7 | `40-insights.png` | 824 × 4000, crop to the top 824 × 1830 | What the bills came to, by month and category. Its top also shows two notices, about bills without a rate or a date, which a new recording could leave out. |
+| 5 | `10-requests-sent.png` | 824 × 1830 | Asking for the money: the split as a ticket to share as a picture, and a notice to add a way to get paid |
+| 6 | `23-group.png` | 824 × 3200, crop to the top 824 × 1830 | A group: what you get back, each member's balance, and the payments that settle it |
+| 7 | `40-insights.png` | 824 × 5200, crop to the top 824 × 1830 | What the bills of the last 12 months came to, and by month. Its top also shows two notices, about bills without a rate or without a date that can be used. |
 
-The light theme is shown; each has a dark twin (`-dark.png`) if the owner prefers it.
+The light theme is shown; each has a dark twin (`-dark.png`), cropped the same way, if the owner
+prefers it.
 
 How they meet Play's rules:
 
 - Play takes 2 to 8 phone screenshots, PNG or JPEG up to 8 MB each, each side between 320 and
-  3,840 px, the long side at most 2.3 times the short one. The 824 × 1830 images, about 120 to 240
+  3,840 px, the long side at most 2.3 times the short one. The 824 × 1830 images, about 70 to 150
   KB each, meet all of this. The taller whole-page images do not, which is why 6 and 7 are cropped
   to the same height.
 - For the app to be shown in Play's recommendations, Play asks for at least 4 screenshots of at
@@ -113,6 +115,8 @@ How they meet Play's rules:
 - Left out on purpose: `28-bill-link.png` and `29-bill-link-settling.png` show the test address
   `https://proxy.example/s/#AAAA…`, a closing date of 1 January 2100 and an example account number,
   which do not belong on a store page without new recordings.
+- No image with a QR code, an email address, an account number, or the sample bill's address or
+  phone number.
 
 ## Other assets
 

@@ -29,7 +29,7 @@ flowchart LR
 |---|---|---|
 | `:app` | Android application | Compose screens, `AppNavHost`, the Koin module, `MlKitBillTextRecognizer`, `DocumentScanner`, `GatewayBillAnalyzer` and `ProxyApi` (the proxy's routes over OkHttp), the bills kept on the phone (`SplitVibeDatabase`, `BillRepository`, `BillPages`), the people split with before (`PeopleRepository`, `ContactNames`), the exchange rates (`FxRepository`), the account (install id, encrypted session, Google sign-in through Credential Manager), settings storage, the ways to get paid (`PaymentMethodRepository`), groups and requests (`GroupRepository`, `RequestRepository`, `ProxyCache`), sharing (`QrCodes`, `ShareCardRenderer`), push (`Push`, `DeviceRegistrar`, `PushService`), app links (`AppLink`), bill links (`ShareRepository`, `ClaimViewModel`), changing a split by a sentence (`SplitAssistant`, `VoiceInput`, `ProxyModelCall`), insights and export (`InsightsViewModel`, `Exporter`, `CsvExport`, `PdfSummary`), recurring bills (`RecurringBillRepository`, `RecurringDrafts`, `RecurringBillWorker`), Pro (`Billing`, `RevenueCatBilling`, `BillingRepository`, `ProViewModel`), the texts in `res/values/strings.xml` with `UiText` and `ContentWords`, deleting what only the phone keeps (`PhoneData`) |
 | `:core:domain` | Kotlin JVM library | `Bill`, `BillCurrency`, `BillEditor`, `BillReconciler`, `ExchangeRate`, `Participant`, `Person`, `Payment`, `SplitMode`, `SplitCalculator`, `SplitPlan`, `NameMatcher`, `Balances`, `DebtSimplifier`, `GroupConversion`, `ClaimSplit`, `BillCategory`, `SplitEdit` and `SplitEdits`, `Insights`, `Recurrence`, `payments` (`PaymentMethod`, `PaymentRequestBuilder`, `EmvQr`, `VietQrBanks`), `OcrResult`, `OcrLayoutEncoder`, `BillAnalyzer`, `BillAnalysisParser`, `SplitRevisionParser`, `SplitRevisionRequest` |
-| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive, violet palette, light and dark); the colour, type, spacing, shape and elevation tokens; the components (`Sv…`); the motion pieces (`SvAmount`, `SvSteps`, `sharedSurface` and others) |
+| `:core:designsystem` | Android library | `SplitVibeTheme` (Material 3 Expressive with the app's colours, bundled fonts and shapes, light and dark); the colour, palette, type, spacing, shape and elevation tokens; the components (`Sv…`), the navigation bar among them; the motion pieces (`SvAmount`, `SvSteps`, `SvScreenLayer`, `sharedSurface` and others) |
 | `:baseline-profile` | Android test module | `BaselineProfileGenerator`, `StartupBenchmark`, `SplitFlowBenchmark` |
 | `proxy/` | Cloudflare Worker, TypeScript | the prompt and answer schema, the calls per install and per Google account, the limits per address, the daily spend caps, the Google ID token check and the proxy's own session, groups, payment requests, devices and their permissions in D1, push through FCM, App Links, bill links with what people claim on them and their live updates (`ShareRoom`), the web pages, edits of a split by a sentence, calls counted in hundredths so that an edit weighs 0.2; described in [proxy.md](proxy.md) |
 | `web/` | Web pages, TypeScript | the pages a bill link, a payment request link and a group invite open (`/s/`, `/r/`, `/g/`), with Vite and Preact; built into the Worker, so the proxy serves them from its own address; described in [web.md](web.md) |
@@ -44,15 +44,17 @@ between them does not change any import.
 [design-system.md](design-system.md) lists the tokens and components. These rules in that module
 are worth knowing before changing it:
 
-- Every colour role takes a fixed lightness step of one of five ramps, so text and its background
-  always differ enough to read. `ColorTokensTest` fails when a changed value breaks that.
-- Depth is `SvElevation`. In the light theme a level is a soft violet-tinted shadow; in the dark
-  theme it is a lighter surface and no shadow is drawn. The only part of a shadow that may be
-  animated is its strength, which moves opacity and offset. The blur radius is fixed per level
-  because changing it every frame is expensive.
-- Screens decide nothing about the look themselves: no theme, no colour value, no shadow, no
-  animation timing, and no experimental Expressive API outside this module.
-  `DesignSystemBoundaryTest` fails when a screen does, and names the line.
+- Every colour is declared once, by name, and both Material's colour roles and the app's own
+  palette (`SvPalette`) point at it. `ColorTokensTest` fails when a changed value leaves text too
+  faint to read on what it lies on.
+- Depth is `SvElevation`. In the light theme cards lie flat, and only what floats over the content
+  casts a soft ink shadow; in the dark theme a level is a lighter surface and no shadow is drawn.
+  The only part of a shadow that may be animated is its strength, which moves opacity and offset.
+  The blur radius is fixed per level because changing it every frame is expensive.
+- Screens decide nothing about the look themselves: no theme, no colour value, no font family, no
+  shadow, no animation timing, and no experimental Expressive API outside this module, and they use
+  the module's fields, tick boxes, radio buttons, switches, dialogs and quiet buttons rather than
+  Material's. `DesignSystemBoundaryTest` fails when a screen does, and names the line.
 
 ## Inside the app
 
@@ -64,7 +66,7 @@ string, with numbered arguments, wherever a sentence is built from parts, and an
 the grammar is more than a plural can hold, such as the ending of an ordinal ("the 31st",
 `selectordinal`, read through `UiText.Message`). v1.0 is in English only. A new language is a new
 `values-xx/strings.xml`, and also needs code changed: where text stays in code, and `TEXT_LOCALE`,
-which sets English for numbers.
+which sets English for the app's words.
 
 - Screens read their texts with `stringResource`, and through `UiText` every text that holds a
   count and every plural.
@@ -76,15 +78,29 @@ which sets English for numbers.
   `Context` for it.
 - A failed call to the model carries its text as the cause of the domain's `BillAnalyzerException`
   (`ModelCallFailure`), as that exception holds only a message for developers; `e.text` reads it.
-- Numbers are written as English writes them, whatever the phone's language or region: the digits 0
-  to 9, "." before decimals and "," between thousands, as the counts, the calls left and the
-  ordinals of the texts always were. `TEXT_LOCALE` in `:core:domain` is that locale. `UiText` fills a
-  text's placeholders in it, where `Resources.getString` would use the phone's locale and so, on a
-  phone set to Persian or Arabic, its digits; `NumbersInTextsTest` fails when a text with a count, or
-  a plural, is read another way. Money (`BillCurrency.format`), exchange rates, the payment details a
-  request carries, the domain's own sentences and dates (`dateText`, with English month and day
-  names) are written in `TEXT_LOCALE` too. Only the CSV files follow the phone's locale, for the
-  spreadsheet app that opens them.
+- Amounts, other numbers and dates follow the phone's region, while their words stay English.
+  `regionLocale()` in `:core:domain` (`TextLocale.kt`) is the region the phone is set to, always with
+  the digits 0 to 9. `BillCurrency.format` writes an amount with that region's marks and on its side
+  of the symbol, with the currency's English symbol or code: "902.664 ₫" on a phone set to Vietnam,
+  "₫902,664" on one set to the United States. Exchange rates, percentages, quantities and the calls
+  left take the region's marks too. A date takes the order in which the region writes a date with
+  the month's name (`dateOrderOf` in `DateOrder.kt`) and the English names of the months
+  (`DateTexts.kt`): "13 Nov" in Vietnam, "Nov 13" in the United States, and with its year when it
+  is not in the current one. A field shows a number to edit with the region's decimal mark and no
+  grouping, and what is typed is read with either "." or "," before the decimals. `RegionFormatsTest`
+  checks eight regions on the build machine, and `DateOrderOnDeviceTest` the order and the amounts as
+  Android's own data about regions writes them ([testing.md](testing.md)).
+- `TEXT_LOCALE` in `:core:domain` is the locale of the app's words: English. `UiText` fills a text's
+  placeholders in it, so a count is "300" on a phone set to Persian too, and takes the form of a
+  plural by the rules of English on every phone, so a phone set to Vietnamese reads "1 bill" and
+  "2 bills". Only that choice of form is English: the phone's own words, and the amounts and dates
+  that go into a text, stay as the phone and its region write them. `NumbersInTextsTest` fails when
+  a text with a count, or a plural, is read another way.
+- What the app sends is written the way the sender's phone writes it: the messages that ask for
+  money, the share card and the PDF summary, and the "Amount: …" line of the payment details a
+  request carries, which the request's web page shows as it is. The amount inside a payment link or
+  QR code is written without the region's marks, so it is the same from every phone. The CSV files
+  follow the phone's locale, for the spreadsheet app that opens them.
 - What the app writes into what it keeps or sends, rather than shows, comes from `ContentWords`,
   read from the resources once when the app starts: the user as "You" in the stored list of a
   bill's people, the name of a recurring bill without one, the lines and people without a name on a
@@ -99,9 +115,10 @@ which sets English for numbers.
 
 Debug builds carry the pseudolocales `en-XA`, which makes every text of the resources longer and
 accented, and `ar-XB`, which writes them right to left. Text that is cut off, overlaps or is not in
-the resources shows up in them; `PseudoLocaleGalleryTest` draws four main screens and the bill
-editor, whose fields are the narrowest, in `en-XA`. A field's label that is longer than its field
-ends in "…", and a screen reader reads it whole.
+the resources shows up in them; `PseudoLocaleGalleryTest` draws the home, a split's result, Settings,
+the Pro screen and the bill editor, whose fields are the narrowest, in `en-XA`, and
+`AiConsentGalleryTest` the consent to the AI. A field's label that is longer than its field goes on
+to more lines rather than pushing the field off its row.
 
 ### Deleting the account
 
@@ -153,20 +170,39 @@ the real application and activity. A wiring mistake fails the checks instead of 
 
 ### Navigation
 
-`ui/AppNavHost.kt` uses Navigation 3. The back stack is a list of keys (`HomeKey`, `SplitKey`,
+`ui/AppNavHost.kt` uses Navigation 3. The back stack is one list of keys (`HomeKey`, `SplitKey`,
 `HistoryKey`, `SettingsKey`, `PaymentMethodsKey`, `GroupsKey`, `GroupKey(id)`,
 `JoinGroupKey(token)`, `RequestsKey`, `RequestLinkKey(token)`, `ClaimKey`, `InsightsKey`,
-`RecurringKey`, `ProKey`) that the screen code owns directly:
+`ProKey`) that the screen code owns directly:
 
+- Home, Groups, Requests and Insights are the main screens. Each draws the navigation bar
+  (`ui/AppNavBar.kt`) at its bottom, and no other screen has it. The stack is one stack, not one per
+  tab: Home is always at its bottom, and at most one other main screen stands right above Home.
+  Choosing a tab makes the stack Home alone, or Home and that screen, in one change
+  (`ui/TabNavigation.kt`), and back from a main screen other than Home goes to Home. As the bar
+  shows only on the main screens, a tab never has a history of its own to keep, and a main screen
+  does not keep where it was scrolled once another tab is chosen.
+- The round button in the middle of the bar starts a new split above the main screen it was
+  tapped on, so back returns there.
+- The count on the Requests tab, and the totals that Home and Requests show, come from one holder
+  for the whole activity (`RequestOverviewViewModel`), so the screens cannot disagree. It fetches
+  the payment requests when the app opens with someone signed in and after every sign-in, quietly:
+  a failure leaves what the phone kept. The tab shows no count while nobody is signed in, while the
+  list has not arrived, or when nothing waits for the user.
+- When the account leaves, by signing out, being deleted, or another account signing in in its
+  place, the screens opened for it close (`stackAfterAccountLeft`): Home stays, and so do Settings,
+  where that was done, and what was opened from it. Without Settings in the stack, Home stays alone.
+- The list of bills and the recurring bills are two tabs of one screen (`HistoryKey`). The tab is
+  the screen's own state, and repeating a bill switches to the Recurring tab in place.
 - The keys are `@Serializable`, so the list is saved with the activity and the open screens come
   back after the system recreates it.
 - A screen closes itself by name (`backStack.remove(SettingsKey)`) instead of popping whatever is on
   top. A double tap on a back arrow is therefore harmless.
 - The system back gesture is handled by `NavDisplay`, which also draws the preview of the previous
-  screen while the finger is down. The split screen grows out of the button that opens it and
-  shrinks back into it during that preview (`Modifier.sharedSurface`). A screen that needs back for something else declares a
-  `BackHandler`, and that one wins while it is enabled. `SplitScreen` uses this to cancel running
-  work before it lets the user leave.
+  screen while the finger is down. The split screen grows out of the round button in the middle of
+  the navigation bar and shrinks back into it during that preview (`Modifier.sharedSurface`). A
+  screen that needs back for something else declares a `BackHandler`, and that one wins while it is
+  enabled. `SplitScreen` uses this to cancel running work before it lets the user leave.
 - Inside the split screen the four steps (photo, editor, result, the request step) follow from the view
   model's state and fade into each other through `SvSteps`. Each step carries the state it shows,
   so a step that is being left is drawn unchanged while it fades out, and back always belongs to
@@ -332,8 +368,9 @@ flowchart LR
   them, and `scripts/embed-web.mjs` writes `src/web-assets.generated.ts`, which is not committed.
   `npm run bundle -- <directory>` then writes the bundle a deploy uploads, and refuses to bundle
   without the pages.
-  Their colours and type come from the design system: `WebTokensTest` writes `web/src/tokens.css`
-  when run with `-PwebTokens=write`, and otherwise fails when the file no longer matches the tokens.
+  Their tokens come from the design system: `WebTokensTest` writes `web/src/tokens.css` when run
+  with `-PwebTokens=write`, and otherwise fails when the file no longer matches the tokens; the test
+  says which tokens the pages take.
   [proxy.md](proxy.md#bill-links-and-the-web-pages) describes the routes, the limits and the pages.
 
 ### Changing a split by a sentence
@@ -381,7 +418,9 @@ flowchart LR
 - Each bill is converted with the rate saved with it: the day's rate the result screen showed, saved
   when the split was finished, or a rate the user typed. A bill in another currency without a rate
   is left out of the sums, and the screen says how many there are and how to add a rate. A bill
-  without a readable date counts on the day it was saved.
+  counts on its own date only when that is a day from 1 January 2000 to today; one whose date cannot
+  be read, or lies outside those days as a misread or mistyped year does, counts on the day it was
+  saved, and the screen says how many do.
 - People are told apart by their name, without case, accents or punctuation, which is how the phone
   tells the people it remembers apart; groups by their id.
 - `Exporter` writes a period as three CSV files (`bills.csv`, `items.csv`, `shares.csv`) or a PDF
@@ -549,12 +588,17 @@ Only a release workflow that a maintainer approves may set them. That workflow d
 
 ## Checks
 
-Two workflows in `.github/workflows` run the checks, and every action in them is pinned to a commit.
-A third, `checksums.yml`, is described under dependency checksums below.
-`ci.yml` runs for every pull request, including one from a fork, and for every push to `main`. It
-reads no secret and never signs or deploys, so untrusted code can run it safely.
-`device-tests.yml` runs every night, on request, and when a push to this repository changes the
-device tests, the profile module or the dependencies.
+Three workflows in `.github/workflows` run the checks, and every action in them is pinned to a
+commit. `checksums.yml` is described under dependency checksums below.
+`ci.yml` runs for every pull request, including one from a fork, and for every push to `main`.
+`security.yml` runs the secret scan for every push and every pull request, and the dependency review
+for every pull request. Neither reads a secret, signs or deploys, so untrusted code can run them
+safely. `ci.yml` does not run for a push to another branch: there, run its commands on the computer
+before asking for a merge ([testing.md](testing.md#before-a-merge)).
+`device-tests.yml` runs every night, on request, and when a push changes the app's code or build
+file, the core modules, the device tests, the data they share with the local tests, the profile
+module, the dependencies or the workflow. `release.yml` runs `ci.yml` and the tests on an Android 14
+emulator again on the commit of a release, before anything is signed ([release.md](release.md)).
 
 For the checks to guard `main`, the repository has to require them: in the branch protection of
 `main`, require the status checks "Style, tests, lint and packages", "AI proxy" and "Secret scan".
@@ -568,39 +612,53 @@ For the checks to guard `main`, the repository has to require them: in the branc
 | Packages | `./gradlew :app:assembleProdDebug :app:assembleProdRelease :app:bundleProdRelease` | The debug package, the shrunk release package and the app bundle all build, and none of them, nor the dev package, holds a class of `com.anthropic` |
 | AI proxy | `npm ci`, `npm run bundle` (after `npm ci` in `web/`), `npm test` in `web/`, then `npm run typecheck` and `npm test` in `proxy/` | The Worker's routes, its calls, limits, holds and spend caps, the sign-in and the session, bill links with their claims and live updates, in the workers runtime against a fake model; the web pages' states, money, claims and live connection; and that the bundle a deploy uploads builds with the web pages in it |
 | Secret scan | gitleaks over the whole history | A key or token that was ever committed |
-| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, and splitting the sample bill from the photo to the sent requests. Every tap also runs Android's accessibility checks on the screen it lands on. Nightly, and when those tests change. |
-| Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly; the result is kept as a workflow artifact. |
+| Device tests | `./gradlew :app:pixel6Api34ProdDebugAndroidTest` | Starting the app, the keystore, ML Kit and the HTTP client on a real Android runtime, splitting the sample bill from the photo to the sent requests, and the end-to-end journeys against a fake proxy. The taps of three of these tests also run Android's accessibility checks on the screen they are made on ([testing.md](testing.md)). Nightly, on request, on a push that changes the app, and before every release. |
+| Baseline profile | `./gradlew :app:generateProdReleaseBaselineProfile` | The recording still works. Nightly, on request and on a push that changes the app; the result is kept as a workflow artifact. |
 
 ### Secret scan
 
-gitleaks reads every commit with its default rules. It is a net for accidents: a key pasted into a
-file, a token left in a test. It honours a `.gitleaks.toml`, a `.gitleaksignore` and inline
-`gitleaks:allow` markers in the repository, which is how a false positive is silenced. A pull
-request that adds or changes any of those switches part of the scan off, so review such a change
-like code.
+gitleaks reads every commit of the history, with its default rules and the additions in
+`.github/gitleaks.toml`. It is a net for accidents: a key pasted into a file, a token left in a test.
+It reads that file and `.github/gitleaksignore`, the findings it ignores, as they are on `main`, or
+for a pull request on the branch it merges into, never from the commits it scans, and it ignores
+`gitleaks:allow` comments. So a commit cannot switch off the scan of itself: a false positive is
+silenced by a change to those two files, which applies once it is merged. Review such a change like
+code.
 
 ### Screenshot tests
 
-`ScreenGalleryTest` and `BackNavigationTest` draw the real screens on the build machine and compare
-them with the reference images. Every screen has a light and a dark image, and the four main
-screens have one more with text at twice its size, where nothing may be cut off. Home, a split's
-result, Settings, the Pro screen and the bill editor also have one in the pseudolocale `en-XA`.
-`ComponentCatalogTest` does the same for the catalog of design system components, so a change to
-a token or a component shows up even when no screen uses it yet.
+The gallery tests in `app/src/test/java/com/dantech/splitvibe/ui/` (`ScreenGalleryTest` and the
+others named `…GalleryTest`) and `BackNavigationTest` draw the real screens on the build machine and
+compare them with the reference images in `app/src/test/screenshots`, one image for each name a test
+draws:
 
-A picture has to be the same on every run, so two things that move with real time are kept out of
-it. Touch ripples are switched off in the gallery, because the platform draws them on its own clock.
-And the working state, which shows an endless animation, is captured with the animation clock
-stopped at a fixed moment. After an intended visual change, record new images and review them
-in the pull request like code:
+- Every screen, sheet and dialog has a light image, and many screens have a dark one too
+  (`-dark`).
+- The home, the steps of a split up to asking for the money, the consent to the AI and many other
+  screens have one with text at twice its size (`-large-text`), where nothing may be cut off.
+- Home, a split's result, Settings, the Pro screen, the bill editor and the consent to the AI have
+  one in the pseudolocale `en-XA` (`-en-xa`).
+- The home and the split of the sample bill have one on a phone set to Vietnam (`-vi-vn`), where
+  amounts read "902.664 ₫" and dates put the day first, as in "13 Nov". Before each capture that
+  shows the total, the test checks that it is written that way, so that a picture in the American
+  way is never recorded as the Vietnamese one.
 
-```bash
-./gradlew :app:testProdDebugUnitTest -Pscreenshots=record
-```
+`ComponentCatalogTest` does the same for the catalog of design system components, in the light and
+the dark theme and with text at twice its size, so a change to a token or a component shows up even
+where no screen uses it yet.
 
-When a comparison fails, the test writes a side-by-side image of the old and the new version to
-the `outputs/roborazzi` folder of the app's output directory. The workflow keeps those images in the
-`reports` artifact of the failed run.
+A test that names no region runs as a phone set to the United States, whatever the machine is set
+to, so amounts read "₫902,664" and dates "Nov 13", as on the approved boards. A picture has to be the
+same on every run, so what moves with real time is kept out of it. Touch ripples are switched off in
+the gallery, because the platform draws them on its own clock. The working state, which shows an
+endless animation, and the moment between two steps of a split are captured with the animation clock
+stopped at a fixed moment. And the day the tests take as today is fixed, as a date of the current
+year is written without its year.
+
+[testing.md](testing.md#screenshot-tests) has the commands that compare, record and review the
+images. When a comparison fails, the test writes a side-by-side image of the old and the new version
+to the `outputs/roborazzi` folder of the app's output directory. The workflow keeps those images in
+the `reports` artifact of the failed run.
 
 ### Dependency checksums
 
