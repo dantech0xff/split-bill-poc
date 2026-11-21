@@ -13,6 +13,9 @@ object GroupFixtures {
     const val AN = "m-an"
     const val FAR_FUTURE = 4_102_444_800_000L
 
+    /** Dana's VietQR account, the way to pay that requests carry unless a test gives another. */
+    const val VIETQR = """{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}"""
+
     fun groupState(
         myMemberId: String = ME,
         ownerMemberId: String = ME,
@@ -62,7 +65,7 @@ object GroupFixtures {
         role: String = "creditor",
         reportedPaidAt: Long? = null,
         confirmedPaidAt: Long? = null,
-        method: String = """{"type":"vietqr","bankBin":"970416","account":"257678859","accountName":"DANA NGUYEN"}""",
+        method: String = VIETQR,
     ): String = """{"id":"$id","role":"$role","amountMinor":150000,"currency":{"code":"VND","fractionDigits":0},""" +
         """"payerName":"Minh","creditorName":"Dana","title":"Pho 24","method":$method,"groupId":null,"toMemberId":null,""" +
         """"billId":"bill-1","createdAt":1763190000000,"reportedPaidAt":${reportedPaidAt ?: "null"},""" +

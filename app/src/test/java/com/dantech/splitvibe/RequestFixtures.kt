@@ -14,6 +14,18 @@ object RequestFixtures {
     /** The one request the user is to pay, which Dana sent to the user, who goes by Dana too, as on the design. */
     val toPay: String = request("r1", RequestView.DEBTOR, 150_000, payer = "Dana", title = "Pho 24")
 
+    /** The same request to pay, by a link that Dana pasted in place of her bank account. */
+    val toPayByLink: RequestView = view(
+        request(
+            "r1",
+            RequestView.DEBTOR,
+            150_000,
+            payer = "Dana",
+            title = "Pho 24",
+            method = """{"type":"link","url":"https://revolut.me/dana"}""",
+        ),
+    )
+
     /** The requests the user made, the paid one last. */
     val asked: List<String> = listOf(
         request("r2", RequestView.CREDITOR, 400_680, payer = "Minh", title = QUAN_OC, reportedPaidAt = REPORTED_AT),
@@ -54,7 +66,8 @@ object RequestFixtures {
         reportedPaidAt: Long? = null,
         confirmedAt: Long? = null,
         currency: String = """{"code":"VND","fractionDigits":0}""",
-    ): String = GroupFixtures.request(id = id, role = role, reportedPaidAt = reportedPaidAt, confirmedPaidAt = confirmedAt)
+        method: String = GroupFixtures.VIETQR,
+    ): String = GroupFixtures.request(id = id, role = role, reportedPaidAt = reportedPaidAt, confirmedPaidAt = confirmedAt, method = method)
         .replace("\"amountMinor\":150000", "\"amountMinor\":$amountMinor")
         .replace("\"currency\":{\"code\":\"VND\",\"fractionDigits\":0}", "\"currency\":$currency")
         .replace("\"payerName\":\"Minh\"", "\"payerName\":\"$payer\"")

@@ -35,6 +35,7 @@ import com.dantech.splitvibe.ui.insights.InsightsState
 import com.dantech.splitvibe.ui.insights.insightsOf
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.recurring.RecurringRow
+import com.dantech.splitvibe.ui.recurring.RepeatBillSheet
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
@@ -51,8 +52,9 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Draws the screens of what the bills add up to, their export and the recurring bills, and the
  * bills' categories in the editor and the list of bills, with the fixtures' data, in the light and
- * the dark theme, the insights of this month and of all time, and the insights, the recurring bills
- * and the list of bills with text at twice the size, and compares them with the reference images in
+ * the dark theme, the insights of this month and of all time, the insights, the recurring bills and
+ * the list of bills with text at twice the size, and the dialogs that delete a bill and a recurring
+ * bill and pick the day of a first draft, and compares them with the reference images in
  * `src/test/screenshots`. Record new images after an intended change with `-Pscreenshots=record`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,6 +154,36 @@ class SpendingGalleryTest {
         shot("45-history-categories-large-text") { History() }
     }
 
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `deleting a bill from the list of bills`() = shot("45-delete-bill", menu = RENT_MENU, open = DELETE) { History() }
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `deleting a recurring bill`() = shot(
+        "42-delete-recurring-bill",
+        open = RECURRING,
+        then = {
+            compose.onAllNodesWithContentDescription(RENT_MENU).onFirst().performClick()
+            compose.onNode(hasText(DELETE) and hasClickAction()).performClick()
+        },
+    ) { Recurring() }
+
+    /**
+     * The calendar in which the day of the first draft of a recurring bill is picked, for a rent of a
+     * year gone by. Material rings today in the calendar by the clock of the computer the test runs on,
+     * so a calendar of the month the test runs in would change the picture on that day; no month of a
+     * year gone by holds the day a test runs on.
+     */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `picking the day of the first draft of a recurring bill`() = shot(
+        "43-repeat-bill-first-draft",
+        then = { compose.onNode(hasText("Change") and hasClickAction()).performClick() },
+    ) {
+        RepeatBillSheet(name = "Rent", date = "2025-11-01", today = LocalDate.of(2025, 11, 16), onRepeat = { _, _, _ -> }, onDismiss = {})
+    }
+
     @Composable
     private fun Insights(state: InsightsState = insights) = InsightsScreen(
         state = state,
@@ -223,15 +255,16 @@ class SpendingGalleryTest {
     private fun Editor() = BillEditorContent(bill = ExportFixtures.bills.first().bill, onEdit = {}, onDone = {})
 
     /**
-     * Draws [content], opens the menu labelled [menu] and then taps [open] when they are given, and
-     * compares the screen with the reference image [name]. With [scrollFirst] the list is scrolled to
-     * [open] before the tap, as a lazy list holds only what is on the screen.
+     * Draws [content], opens the menu labelled [menu] and then taps [open] when they are given, does
+     * [then], and compares the screen with the reference image [name]. With [scrollFirst] the list is
+     * scrolled to [open] before the tap, as a lazy list holds only what is on the screen.
      */
     private fun shot(
         name: String,
         menu: String? = null,
         open: String? = null,
         scrollFirst: Boolean = false,
+        then: () -> Unit = {},
         content: @Composable () -> Unit,
     ) {
         compose.setContent {
@@ -245,6 +278,7 @@ class SpendingGalleryTest {
             if (scrollFirst) compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(it))
             compose.onNode(hasText(it) and hasClickAction()).performClick()
         }
+        then()
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
         captureScreenRoboImage(File("src/test/screenshots/$name.png"))
@@ -266,9 +300,12 @@ class SpendingGalleryTest {
         const val REPEAT = "Repeat this bill"
         const val RECURRING = "Recurring"
         const val EXPORT = "Export these bills"
+        const val DELETE = "Delete"
     }
 }
 
+/** A phone screen, as large as a dialog shows on. */
+private const val PHONE = "w412dp-h915dp-xhdpi"
 private const val TALL = "w412dp-h1200dp-xhdpi"
 private const val TALL_AT_NIGHT = "w412dp-h1200dp-night-xhdpi"
 

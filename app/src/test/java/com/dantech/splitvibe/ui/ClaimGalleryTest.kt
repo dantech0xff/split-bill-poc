@@ -5,7 +5,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.data.bills.ShareLink
 import com.dantech.splitvibe.data.bills.ShareLink.Companion.NEW_PERSON
@@ -32,8 +38,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Draws the screen of a bill's link with the fixtures' data, while people pick and once picking is
- * closed, and compares it with the reference images in `src/test/screenshots`. Record new images
- * after an intended change with `-Pscreenshots=record`.
+ * closed, with its dialogs, and compares it with the reference images in `src/test/screenshots`.
+ * Record new images after an intended change with `-Pscreenshots=record`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(AndroidJUnit4::class)
@@ -91,16 +97,51 @@ class ClaimGalleryTest {
         shot("29-bill-link-settling-large-text") { ClaimScreen(state(ShareView.LOCKING), saved, payment, NO_ACTIONS, Locale.US) }
     }
 
-    private fun shot(name: String, content: @Composable () -> Unit) {
+    /** The link's owner stops sharing it, which ends it for everyone who has it. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `stopping the sharing of a bill's link`() = shot(
+        "28-bill-link-stop-sharing",
+        then = { pick("More for the link", "Stop sharing the link") },
+    ) { ClaimScreen(state(ShareView.OPEN), saved, payment, NO_ACTIONS, Locale.US) }
+
+    /** What minh picked is taken off the link. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `taking someone off a bill's link`() = shot(
+        "28-bill-link-take-off",
+        then = {
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasContentDescription("Who is minh"))
+            pick("Who is minh", "Take minh off the link")
+        },
+    ) { ClaimScreen(state(ShareView.OPEN), saved, payment, NO_ACTIONS, Locale.US) }
+
+    /** Once picking is closed, people may be let pick again. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `letting people pick again once picking is closed`() = shot(
+        "29-bill-link-pick-again",
+        then = { pick("More for the picks", "Let people pick again") },
+    ) { ClaimScreen(state(ShareView.LOCKING), saved, payment, NO_ACTIONS, Locale.US) }
+
+    /** Draws [content], does [then] on it, such as opening a dialog, and compares the screen with the reference image [name]. */
+    private fun shot(name: String, then: () -> Unit = {}, content: @Composable () -> Unit) {
         compose.setContent {
             SplitVibeTheme {
                 // Rippling is left out, so the pictures do not depend on where a test last touched.
                 CompositionLocalProvider(LocalRippleConfiguration provides null) { content() }
             }
         }
+        then()
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
         captureScreenRoboImage(File("src/test/screenshots/$name.png"))
+    }
+
+    /** Opens the menu described as [menu] and picks its [option]. */
+    private fun pick(menu: String, option: String) {
+        compose.onNodeWithContentDescription(menu).performClick()
+        compose.onNodeWithText(option).performClick()
     }
 
     private companion object {
@@ -123,3 +164,6 @@ class ClaimGalleryTest {
         )
     }
 }
+
+/** A phone screen, as large as a dialog shows on. */
+private const val PHONE = "w412dp-h915dp-xhdpi"

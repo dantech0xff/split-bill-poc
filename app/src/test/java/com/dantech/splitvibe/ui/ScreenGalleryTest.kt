@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -30,6 +31,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
@@ -60,11 +63,15 @@ import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.bills.BillStatus
+import com.dantech.splitvibe.data.payments.PaymentMethodRepository
+import com.dantech.splitvibe.data.proxy.ProxyCache
+import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.domain.BillCurrency
+import com.dantech.splitvibe.domain.payments.PaymentMethod
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
@@ -75,6 +82,7 @@ import com.dantech.splitvibe.ui.home.MonthSpending
 import com.dantech.splitvibe.ui.insights.InsightsPeriod
 import com.dantech.splitvibe.ui.insights.insightsOf
 import com.dantech.splitvibe.ui.recurring.RecurringActions
+import com.dantech.splitvibe.ui.requests.RequestMoneyViewModel
 import com.dantech.splitvibe.ui.requests.RequestTotals
 import com.dantech.splitvibe.ui.settings.AccountActions
 import com.dantech.splitvibe.ui.settings.AccountUiState
@@ -93,8 +101,10 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -104,6 +114,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
+import org.koin.core.context.loadKoinModules
+import org.koin.core.module.dsl.viewModel
+import org.koin.dsl.module
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -315,15 +328,17 @@ class ScreenGalleryTest {
     /**
      * The four main screens on a phone set to Vietnam, whose amounts are written "902.664 ₫" and days
      * "13 Nov": the texts stay English. Home comes last, once the split bill is kept, so that it shows
-     * an amount and a day too. Before each picture is taken, the test checks that the screen writes the
-     * sample bill's total that way and nowhere as a phone in the United States does, so that a picture
-     * of the wrong region is never recorded as a reference.
+     * an amount and a day too. Before any picture is taken, the test checks that the phone is set to
+     * Vietnam and that the app writes the sample bill's total there as "902.664 ₫"; before each picture
+     * that shows the total, that the screen shows it so and not in the app's form for the United States,
+     * so that a picture of the wrong region is never recorded as a reference.
      */
     @Test
     @Config(sdk = [34], qualifiers = PHONE_IN_VIETNAM)
     fun `the four main screens on a phone set to Vietnam`() {
         suffix = "-vi-vn"
-        // The sample bill's total as the screens write it, before any of them is drawn.
+        // The region and the sample bill's total as the screens write it, before any of them is drawn,
+        // the photo and the instruction among them, which show no amount.
         assertEquals("the phone's region", Locale.forLanguageTag("vi-VN"), Locale.getDefault(Locale.Category.FORMAT))
         assertEquals(VIETNAMESE_TOTAL, BillCurrency("VND", 0).format(902_664))
         val viewModel = start(answerDelaySeconds = 0)
@@ -331,8 +346,6 @@ class ScreenGalleryTest {
         show(Screen.SPLIT)
         compose.onNodeWithText("Use the sample bill").performClick()
         awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
-        // The photo and the instruction show no amount yet, so only the American way of writing it is looked for.
-        assertNoTotalWrittenTheAmericanWay()
         shot("03-photo-and-instruction")
 
         compose.onNodeWithText("Read and split the bill").performClick()
@@ -393,6 +406,76 @@ class ScreenGalleryTest {
             // What friends owe, and the currency on the side a phone set to Vietnam puts it.
             compose.onNodeWithContentDescription("651.671 ₫").assertExists()
         }
+    }
+
+    /** The sheet of someone on the bill, which a tap on their row opens, to rename them or take them off the bill. */
+    @Test
+    fun `the sheet of someone on the bill`() {
+        readTheSampleBill()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(rowOf("Minh"))
+        compose.onNode(rowOf("Minh")).performClick()
+        shot("07-person-sheet")
+    }
+
+    /**
+     * A bill in dong for someone whose money is in dollars: the sheet of the rate, with the rate their
+     * card was charged at typed in, then what the app says when the day's rate cannot be fetched, as
+     * when the phone has no connection. A build without the proxy's address, as here, has no rates.
+     */
+    @Test
+    fun `the rate of a bill in another currency, and a day's rate that cannot be fetched`() {
+        val viewModel = readTheSampleBill(localCurrency = "USD")
+        compose.onNodeWithText("Add a rate").performClick()
+        compose.onNode(hasSetTextAction() and hasText("1 VND in USD")).performTextInput(CARD_RATE)
+        shot("05-exchange-rate")
+
+        compose.onNodeWithText("Use the day's rate").performClick()
+        awaitState { viewModel.state.value.notice != null }
+        shot("05-rate-not-fetched")
+    }
+
+    /** On a phone that cannot turn speech into text by itself, the mic first asks whether the phone's speech service may hear the change. */
+    @Test
+    fun `the question before the phone's speech service hears a change`() {
+        TestVoice.recognizeOnDevice(available = false)
+        TestVoice.installSpeechService(context)
+        readTheSampleBill()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Change the split") and hasSetTextAction())
+        compose.onNodeWithContentDescription("Say the change").performClick()
+        compose.onNodeWithText(context.getString(R.string.assistant_speech_service_title)).assertExists()
+        shot("30-assistant-speech-service")
+    }
+
+    /**
+     * The step of the requests for a signed-in user with two bank accounts: the sheet that picks the one
+     * the requests are paid back on, then what the app says when a request could not be kept on the
+     * proxy, which answers every call with an error, as a server that is down does.
+     */
+    @Test
+    fun `the way to be paid back, and a request that could not be kept`() {
+        readTheSampleBill()
+        signInForTheRequests()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = MockResponse().setResponseCode(SERVER_ERROR)
+        }
+        compose.onNode(hasText("Request", substring = true) and hasClickAction()).performClick()
+        val change = hasText("Change") and hasClickAction()
+        awaitState { compose.onAllNodes(change).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(change).performClick()
+        shot("10-requests-method-sheet")
+
+        compose.onNode(hasText("Cancel") and hasClickAction()).performClick()
+        // The people come below the name on the requests, further down than the screen reaches.
+        val send = hasText("Send") and hasClickAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(send)
+        compose.onAllNodes(send).onFirst().performClick()
+        // The request still goes to the share sheet, without its link, and its row then offers to send it again.
+        val untracked = context.getString(R.string.requests_untracked)
+        awaitState {
+            compose.onAllNodesWithText(untracked).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodes(hasText("Again") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()
+        }
+        shot("10-requests-untracked")
     }
 
     private fun everyScreen() {
@@ -646,18 +729,15 @@ class ScreenGalleryTest {
     }
 
     /**
-     * Fails unless the screen shows the sample bill's total as a phone set to Vietnam writes it,
-     * "902.664 ₫", and nowhere as a phone set to the United States does, "₫902,664". An amount in large
-     * type shows in parts and is said whole, so both what nodes show and what they say are read.
+     * Fails unless a node of the screen shows or says the sample bill's total as the app writes it on a
+     * phone set to Vietnam, "902.664 ₫", and none in the app's form for a phone set to the United States,
+     * "₫902,664". An amount in large type shows in parts and is said whole, so both what nodes show and
+     * what they say are read. The AI's own words, such as "902,664 VND" in its account of the bill, are
+     * neither form and are left as they are.
      */
     private fun assertTheTotalWrittenTheVietnameseWay() {
         val vietnamese = compose.onAllNodes(writes(VIETNAMESE_TOTAL), useUnmergedTree = true).fetchSemanticsNodes()
         assertTrue("The screen does not write the total as $VIETNAMESE_TOTAL", vietnamese.isNotEmpty())
-        assertNoTotalWrittenTheAmericanWay()
-    }
-
-    /** Fails if any node of the screen shows or says the sample bill's total as a phone set to the United States writes it. */
-    private fun assertNoTotalWrittenTheAmericanWay() {
         val american = compose.onAllNodes(writes(AMERICAN_TOTAL), useUnmergedTree = true).fetchSemanticsNodes()
         assertTrue("The screen writes the total as $AMERICAN_TOTAL, as a phone in the United States does", american.isEmpty())
     }
@@ -681,7 +761,8 @@ class ScreenGalleryTest {
         assertFalse("The result page runs on below the bottom of the picture", list.value() < list.maxValue())
     }
 
-    private fun start(answerDelaySeconds: Long): SplitBillViewModel {
+    /** Starts the flow on home; the split counts in [localCurrency], the currency the user's money is in. */
+    private fun start(answerDelaySeconds: Long, localCurrency: String = settings.localCurrency): SplitBillViewModel {
         // People split with before, whose names are suggested again.
         storage.rememberTestPeople()
         server.enqueue(Fixtures.proxyAnswer().setHeadersDelay(answerDelaySeconds, TimeUnit.SECONDS))
@@ -692,7 +773,7 @@ class ScreenGalleryTest {
             account = proxy.account.account,
             recognizer = recordedMlKitOutput,
             analyzer = proxy.analyzer,
-            localCurrency = settings.localCurrency,
+            localCurrency = localCurrency,
         )
         assistant = SplitAssistantViewModel(
             host = viewModel,
@@ -803,6 +884,48 @@ class ScreenGalleryTest {
         return viewModel
     }
 
+    /** Reads the sample bill as the user does, without an instruction, and waits for its split; the split counts in [localCurrency]. */
+    private fun readTheSampleBill(localCurrency: String = settings.localCurrency): SplitBillViewModel {
+        val viewModel = start(answerDelaySeconds = 0, localCurrency = localCurrency)
+        show(Screen.SPLIT)
+        compose.onNodeWithText("Use the sample bill").performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+        compose.onNodeWithText("Read and split the bill").performClick()
+        awaitState { viewModel.state.value.let { it.result != null || it.error != null } }
+        assertNull(viewModel.state.value.error)
+        return viewModel
+    }
+
+    /**
+     * Gives the step of the requests what a signed-in user has there: two bank accounts to be paid back
+     * on, the first of them the main one, and their name for the requests. Only that step is signed in.
+     */
+    private fun signInForTheRequests() {
+        val signedIn = TestProxy(server, context).apply { account.saveSession(Session("gallery-session", expiresAt = Long.MAX_VALUE)) }
+        val methods = PaymentMethodRepository(storage.database)
+        runBlocking {
+            methods.add(PaymentMethod.VietQr("970416", "257678859", "DANA NGUYEN"))
+            methods.add(PaymentMethod.VietQr("970436", "0071000123456", "DANA NGUYEN"))
+        }
+        loadKoinModules(
+            module {
+                viewModel {
+                    RequestMoneyViewModel(
+                        paymentMethods = methods,
+                        requests = RequestRepository(signedIn.api, ProxyCache(storage.database.proxyCache()), signedIn.account),
+                        account = signedIn.account.account,
+                        settings = MutableStateFlow(settings.copy(myName = "Dana")),
+                        saveName = {},
+                    )
+                }
+            },
+        )
+    }
+
+    /** The row of [name] on the split, which a tap opens the sheet of. */
+    private fun rowOf(name: String) =
+        SemanticsMatcher("taps to change $name") { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Change $name" }
+
     private fun show(target: Screen) {
         screen = target
         compose.waitForIdle()
@@ -838,7 +961,7 @@ private const val SAMPLE_BILL_DAY = "Nov 13 · "
 /** The sample bill's total as a phone set to Vietnam writes it, with a space that does not break before the symbol. */
 private const val VIETNAMESE_TOTAL = "902.664\u00A0₫"
 
-/** The sample bill's total as a phone set to the United States writes it, which no picture of a phone set to Vietnam may show. */
+/** The sample bill's total in the app's form for a phone set to the United States, which no picture of a phone set to Vietnam may show. */
 private const val AMERICAN_TOTAL = "₫902,664"
 
 /** The day of the sample bill as a list of bills writes it in the year it is of, on a phone set to Vietnam. */
@@ -851,6 +974,10 @@ private const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
 private const val ASSISTANT_INSTRUCTION = "Lan didn't have any water. Add a 5% tip, and Minh paid"
 private const val BEERS = "Bia Saigon Special"
 private const val FIRST_ITEM = "Ốc hương rang muối"
+
+/** What one dong was worth in dollars at the rate a card was charged, about 26,300 dong to the dollar. */
+private const val CARD_RATE = "0.000038"
+private const val SERVER_ERROR = 500
 
 // Places on the screen at xhdpi (2 px per dp).
 

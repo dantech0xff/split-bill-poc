@@ -13,16 +13,22 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.DpRect
 import androidx.navigation3.runtime.NavKey
@@ -67,8 +73,8 @@ import org.robolectric.annotation.GraphicsMode
  * Draws the screens of groups, requests and payment methods with the fixtures' data, the data of
  * the approved designs, and compares them with the reference images in `src/test/screenshots`, like
  * [ScreenGalleryTest] does for the split flow. Record new images after an intended change with
- * `-Pscreenshots=record`. The states the designs leave out, and every screen with text at twice its
- * size, are drawn too, for the owner to approve.
+ * `-Pscreenshots=record`. The states the designs leave out, every screen with text at twice its size,
+ * and every sheet and dialog of these screens are drawn too, for the owner to approve.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(AndroidJUnit4::class)
@@ -219,6 +225,78 @@ class GroupsGalleryTest {
         shot("27-payment-methods-large-text") { PaymentMethods() }
     }
 
+    /** The sheet that makes a group, with the name of the group typed in, kept in baht as the user's money is. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `making a group`() = shot(
+        "22-new-group",
+        then = {
+            compose.onNode(hasText(NEW_GROUP) and hasClickAction()).performClick()
+            compose.onNode(hasSetTextAction() and hasText("Name of the group")).performTextInput("Krabi weekend")
+        },
+    ) { Groups() }
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `renaming a group`() = shot("23-group-rename", then = { pick("More for this group", "Rename the group") }) {
+        GroupScreen(group, ProxyWork(), NO_GROUP_ACTIONS)
+    }
+
+    /** A place kept for Bao, who has no app yet, with his name typed in. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `keeping a place for someone without the app`() = shot(
+        "23-group-keep-place",
+        then = {
+            tapInList(hasText("Keep a place for someone") and hasClickAction())
+            compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog())).performTextInput("Bao")
+        },
+    ) { GroupScreen(group, ProxyWork(), NO_GROUP_ACTIONS) }
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `taking someone out of a group`() = shot("23-group-take-out", then = {
+        pick("More for Minh", "Take out of the group", inList = true)
+    }) {
+        GroupScreen(group, ProxyWork(), NO_GROUP_ACTIONS)
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `leaving a group`() = shot("23-group-leave", then = { pick("More for this group", "Leave the group") }) {
+        GroupScreen(group, ProxyWork(), NO_GROUP_ACTIONS)
+    }
+
+    /** An pays the user back THB35.43, which the user says arrived. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `saying that a payment back arrived`() = shot("23-group-got-it", then = { tapInList(hasText("Got it") and hasClickAction()) }) {
+        GroupScreen(group, ProxyWork(), NO_GROUP_ACTIONS)
+    }
+
+    /** How to pay Dana: her payment code, the details to type and the way to say it is paid. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `paying a request`() = shot(
+        "25-pay",
+        waitFor = "Payment code for VietQR",
+        then = { compose.onNode(hasText("Pay") and hasClickAction()).performClick() },
+    ) { Requests() }
+
+    /** A request to pay by a link that Dana pasted, which the app asks about before it opens the link. */
+    @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `opening a payment link that someone pasted`() {
+        val byLink = listOf(RequestFixtures.toPayByLink)
+        shot(
+            "25-pay-open-link",
+            then = {
+                compose.onNode(hasText("Pay") and hasClickAction()).performClick()
+                compose.onNode(hasText("Open Payment link") and hasClickAction()).performClick()
+            },
+        ) { Requests(requests = byLink, totals = RequestTotals.of(signedIn = true, byLink)) }
+    }
+
     /** The sheet that adds a way to get paid, open on its first kind. */
     @Test
     fun `adding a way to get paid`() {
@@ -340,8 +418,13 @@ class GroupsGalleryTest {
         assertTrue("The last row ends at ${last.bottom}, below the top of the bar at ${bar.top}", last.bottom <= bar.top)
     }
 
-    private fun shot(name: String, waitFor: String? = null, content: @Composable () -> Unit) {
+    /**
+     * Draws [content], does [then] on it, such as opening a sheet, waits for the element described as
+     * [waitFor] when it is given, and compares the screen with the reference image [name].
+     */
+    private fun shot(name: String, waitFor: String? = null, then: () -> Unit = {}, content: @Composable () -> Unit) {
         show(content)
+        then()
         // Something drawn away from the main thread, such as a payment code, is waited for.
         waitFor?.let { label ->
             compose.waitUntil(10_000) {
@@ -352,6 +435,18 @@ class GroupsGalleryTest {
         compose.waitForIdle()
         shadowOf(Looper.getMainLooper()).idle()
         captureScreenRoboImage(File("src/test/screenshots/$name.png"))
+    }
+
+    /** Opens the menu described as [menu], in the screen's list when [inList], and picks its [option]. */
+    private fun pick(menu: String, option: String, inList: Boolean = false) {
+        if (inList) tapInList(hasContentDescription(menu)) else compose.onNodeWithContentDescription(menu).performClick()
+        compose.onNodeWithText(option).performClick()
+    }
+
+    /** Scrolls the screen's list to the element that [matcher] finds, as the list holds only what is in view, and taps it. */
+    private fun tapInList(matcher: SemanticsMatcher) {
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(matcher)
+        compose.onNode(matcher).performClick()
     }
 
     private fun show(content: @Composable () -> Unit) = compose.setContent {
@@ -392,6 +487,9 @@ class GroupsGalleryTest {
 }
 
 private fun tab(name: String) = hasContentDescription(name) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+
+/** A phone screen, as large as a sheet or a dialog shows on. */
+private const val PHONE = "w412dp-h915dp-xhdpi"
 
 /** The group that still waits for its owner to let the user in. */
 private const val PENDING = "Flat 3B"
