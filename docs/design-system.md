@@ -61,7 +61,10 @@ page's colour has to be made there as well: `WindowBackgroundTest` fails until i
 Neutral grounds, vivid violet blocks and a lime accent, with ink text. Every raw colour is declared
 once, as a named colour of `Swatch` in `tokens/SvColors.kt`. Material's colour roles and `SvPalette`
 both point at those colours, so changing a value leaves no stale copy behind. Screens never read the
-raw colours, only the roles and the palette.
+raw colours, only the roles and the palette. Two kinds of copy live outside Compose, because Android
+draws them before or beside the app: the page of the window theme, above, and the violet and lime of
+the launcher icon, `launcher_background` and `launcher_lime` in `app/src/main/res/values/colors.xml`.
+A change of `brand` or `accent` has to be made there as well: `LauncherIconTest` fails until it is.
 
 ### Material's roles
 
