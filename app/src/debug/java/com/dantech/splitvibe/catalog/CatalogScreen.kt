@@ -103,7 +103,6 @@ import com.dantech.splitvibe.designsystem.components.SvNavIcons
 import com.dantech.splitvibe.designsystem.components.SvNavItem
 import com.dantech.splitvibe.designsystem.components.SvOpenListRow
 import com.dantech.splitvibe.designsystem.components.SvOverflowMenu
-import com.dantech.splitvibe.designsystem.components.SvPersonChip
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPersonPickRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
@@ -477,7 +476,7 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader(
                     "People",
-                    hint = "SvAvatarStack, SvPersonChip switched on, off, opened and added, SvPersonPickRow and SvPersonChoiceRow.",
+                    hint = "SvAvatarStack, SvPersonPickRow and SvPersonChoiceRow.",
                 )
                 Row(
                     modifier = Modifier.padding(horizontal = SvSpacing.screen, vertical = SvSpacing.sm),
@@ -486,16 +485,6 @@ fun CatalogScreen() {
                 ) {
                     SvAvatarStack(names = SAMPLE_PEOPLE)
                     SvAvatarStack(names = SAMPLE_PEOPLE, size = 22.dp)
-                }
-                var meIncluded by remember { mutableStateOf(true) }
-                FlowRow(
-                    modifier = Modifier.padding(horizontal = SvSpacing.screen),
-                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm),
-                ) {
-                    SvPersonChip(name = "Me", selected = meIncluded, onClick = { meIncluded = !meIncluded })
-                    SvPersonChip(name = SAMPLE_PEOPLE[2], selected = false, onClick = {})
-                    SvPersonChip(name = SAMPLE_PEOPLE[0], removeLabel = "Remove ${SAMPLE_PEOPLE[0]}", onRemove = {})
-                    SvPersonChip(name = SAMPLE_PEOPLE[1], onClick = {}, onClickLabel = "Change ${SAMPLE_PEOPLE[1]}")
                 }
                 var picked by remember { mutableStateOf(setOf(SAMPLE_PEOPLE[1])) }
                 SAMPLE_PEOPLE.take(2).forEach { name ->

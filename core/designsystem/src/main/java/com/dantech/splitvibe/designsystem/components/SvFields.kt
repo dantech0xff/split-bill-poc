@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.LayoutModifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDataType
 import androidx.compose.ui.semantics.contentType
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dantech.splitvibe.designsystem.R
 import com.dantech.splitvibe.designsystem.tokens.SvElevation
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.surface
@@ -141,13 +143,15 @@ fun SvTextField(
     }
     val outlineWidth = if (enabled && (isError || focused)) STRONG_OUTLINE_WIDTH else OUTLINE_WIDTH
     val textStyle = typography.bodyLarge.copy(color = textColor, lineHeight = FIELD_LINE_HEIGHT)
+    // What a screen reader says of a field whose text cannot be used, in the phone's language.
+    val invalid = stringResource(R.string.sv_field_invalid)
     val shape = MaterialTheme.shapes.medium
 
     BasicTextField(
         value = value,
         onValueChange = { entered -> onValueChange(entered.cutAt(maxLength)) },
         modifier = modifier.semantics {
-            if (isError) error(ERROR_DESCRIPTION)
+            if (isError) error(invalid)
             if (!autofill) {
                 // The text field's own semantics make it a text to autofill, and a password with a
                 // password keyboard; these come after them on the same node, so they take both back.
@@ -469,9 +473,6 @@ const val SV_TEXT_FIELD_MAX_LENGTH = 80
 private val SingleLineKeyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next)
 private val MultiLineKeyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Default)
 private const val MULTI_LINE_MIN_LINES = 3
-
-/** What a screen reader says of a field whose text cannot be used, as Material's own fields say. */
-private const val ERROR_DESCRIPTION = "Invalid input"
 
 /**
  * The autofill hint of a field that is not eligible for autofill, the one androidx.autofill's

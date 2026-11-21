@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.ui
 
+import android.content.Context
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.designsystem.components.SV_TEXT_FIELD_MAX_LENGTH
 import com.dantech.splitvibe.designsystem.components.SvAccountButton
@@ -112,7 +114,6 @@ import com.dantech.splitvibe.designsystem.components.SvMessageCard
 import com.dantech.splitvibe.designsystem.components.SvMeter
 import com.dantech.splitvibe.designsystem.components.SvNavBar
 import com.dantech.splitvibe.designsystem.components.SvNavItem
-import com.dantech.splitvibe.designsystem.components.SvPersonChip
 import com.dantech.splitvibe.designsystem.components.SvPersonChoiceRow
 import com.dantech.splitvibe.designsystem.components.SvPrimaryButton
 import com.dantech.splitvibe.designsystem.components.SvQuietButton
@@ -222,6 +223,22 @@ class ComponentBehaviourTest {
         assertEquals("Phở", search)
     }
 
+    /**
+     * What a screen reader says of a field whose text cannot be used comes from the design system's
+     * resources, so a translation reaches it: on a phone set to the pseudolocale en-XA it is said in
+     * that pseudolocale's dress, not in English.
+     */
+    @Test
+    @Config(qualifiers = "en-rXA")
+    fun `a field whose text cannot be used says so in the phone's language`() {
+        compose.setContent { SplitVibeTheme { SvTextField(value = "25.412", onValueChange = {}, label = "Rate", isError = true) } }
+
+        val said = compose.onNode(hasSetTextAction()).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Error)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertEquals(context.getString(com.dantech.splitvibe.designsystem.R.string.sv_field_invalid), said)
+        assertNotEquals("the pseudolocale's own words", "Invalid input", said)
+    }
+
     @Test
     fun `choice chips select the tapped option and read as radio buttons`() {
         var selected by mutableIntStateOf(0)
@@ -317,23 +334,6 @@ class ComponentBehaviourTest {
     }
 
     @Test
-    fun `a person chip that opens what can be done reads as one button with its action`() {
-        var opened = false
-        compose.setContent { SplitVibeTheme { SvPersonChip(name = "Minh", onClick = { opened = true }, onClickLabel = "Change Minh") } }
-
-        compose.onNodeWithContentDescription("Minh")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(
-                SemanticsMatcher("its action says what it does") {
-                    it.config.getOrNull(SemanticsActions.OnClick)?.label == "Change Minh"
-                },
-            )
-            .performClick()
-
-        assertTrue(opened)
-    }
-
-    @Test
     fun `the arrow of a split button opens its menu, and an option runs and closes it`() {
         var ran = ""
         compose.setContent {
@@ -382,20 +382,6 @@ class ComponentBehaviourTest {
 
         assertTrue(tookPhoto)
         assertFalse(expanded)
-    }
-
-    @Test
-    fun `an added person reads as one button that removes them`() {
-        var removed = false
-        compose.setContent {
-            SplitVibeTheme { SvPersonChip(name = "Lê Thị Lan", removeLabel = "Remove Lê Thị Lan", onRemove = { removed = true }) }
-        }
-
-        compose.onNodeWithContentDescription("Remove Lê Thị Lan")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .performClick()
-
-        assertTrue(removed)
     }
 
     @Test
