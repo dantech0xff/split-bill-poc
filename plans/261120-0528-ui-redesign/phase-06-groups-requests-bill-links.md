@@ -82,14 +82,14 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 
 ## Todo
 
-- [ ] `Groups` thành màn gốc theo bảng, chú thích về số dư được sửa
-- [ ] `Group` với khối vị trí của mình và thanh số dư
-- [ ] `JoinGroup` và bảng thêm vào nhóm
-- [ ] `Requests` với hai ô đọc `RequestTotals`, ba nơi gọi, bài so với trang chủ
-- [ ] `RequestLink`, `PaymentMethods` và bảng của nó
-- [ ] Liên kết hóa đơn ở hai trạng thái
-- [ ] Mười chín lời gọi thẳng thành phần Material; bài kiểm thử cho ô cách nhận tiền
-- [ ] Kiểm thử của các màn này
+- [x] `Groups` thành màn gốc theo bảng, chú thích về số dư được sửa
+- [x] `Group` với khối vị trí của mình và thanh số dư
+- [x] `JoinGroup` và bảng thêm vào nhóm
+- [x] `Requests` với hai ô đọc `RequestTotals`, ba nơi gọi, bài so với trang chủ
+- [x] `RequestLink`, `PaymentMethods` và bảng của nó
+- [x] Liên kết hóa đơn ở hai trạng thái
+- [x] Mười chín lời gọi thẳng thành phần Material; bài kiểm thử cho ô cách nhận tiền
+- [x] Kiểm thử của các màn này
 - [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
