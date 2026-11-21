@@ -113,12 +113,21 @@ fun ComposeTestRule.readTheSampleBill() {
  * In the editor of a bill typed in by hand: [where], one [item] of [amount], in the currency the app
  * works in, and on to the split, where only the user is on the bill. The item added opens itself, the
  * one row of the editor open, so its fields are the only ones of their names.
+ *
+ * "Add an item" is scrolled to and tapped in one go, again until the tap is made: the keyboard that
+ * typing opened may still be shrinking the list, which then no longer makes a button it was scrolled
+ * to a moment before, as on an Android 8.0 emulator.
  */
 fun ComposeTestRule.fillInTheBill(where: String, item: String, amount: String) {
     awaitNode(hasText("Edit bill"))
     field("Where").performTextInput(where)
-    list().performScrollToNode(hasText("Add an item"))
-    onNodeWithText("Add an item").tap()
+    val addAnItem = hasText("Add an item") and hasClickAction()
+    waitUntil(TIMEOUT_MS) {
+        runCatching {
+            list().performScrollToNode(addAnItem)
+            onNode(addAnItem).tap()
+        }.isSuccess
+    }
     scrollToField("Item").performTextInput(item)
     scrollToField("Amount").performTextInput(amount)
     onNodeWithText("Done").tap()
