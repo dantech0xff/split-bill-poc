@@ -127,7 +127,7 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 | 3 | [Điều hướng với thanh dưới](./phase-03-navigation-bottom-bar.md) | 3d | Completed |
 | 4 | [Tiền và ngày theo vùng của máy](./phase-04-money-and-date-formats.md) | 3d | Completed |
 | 5 | [Trang chủ và luồng chia hóa đơn](./phase-05-home-and-split-flow.md) | 6d | Completed |
-| 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | In progress |
+| 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | Completed |
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | In progress |
 | 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | Pending |
 | 9 | [Trang web](./phase-09-web-pages.md) | 5d | Pending, chờ duyệt bảng web |

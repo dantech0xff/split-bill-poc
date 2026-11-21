@@ -1,6 +1,6 @@
 ---
 title: "Phase 6: Nhóm, yêu cầu trả tiền và liên kết hóa đơn"
-status: pending
+status: completed
 phase: 6
 priority: P1
 effort: "4d"
@@ -90,7 +90,7 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 - [x] Liên kết hóa đơn ở hai trạng thái
 - [x] Mười chín lời gọi thẳng thành phần Material; bài kiểm thử cho ô cách nhận tiền
 - [x] Kiểm thử của các màn này
-- [ ] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
+- [x] Cổng kiểm thử, review, ảnh gửi chủ sản phẩm
 
 ## Success Criteria
 
@@ -112,3 +112,41 @@ Lời gọi thẳng thành phần Material được chuyển trong giai đoạn 
 ## Rollback
 
 Hoàn lại các commit của giai đoạn chỉ dùng được khi giai đoạn 7 chưa bắt đầu; sau đó lỗi của giai đoạn này được sửa bằng commit mới, vì các giai đoạn sau đã dựng trên nó. Không có dữ liệu hay lời gọi máy chủ nào đổi.
+
+## Kết quả thực hiện
+
+Làm ngày 20 và 21/11/2026, trong các commit `4b19a97` (nhóm, yêu cầu trả tiền, cách nhận tiền và liên kết hóa đơn) và `e728f1b` (sửa theo review).
+
+- Cổng kiểm thử của plan qua với `-Pscreenshots=compare` trên `e728f1b`: 685 bài kiểm thử đơn vị của `:app`, cùng các bài của `:core:domain` và `:core:designsystem`, ktlint, lint, các gói, bản dựng kiểm thử trên máy và kiểm tra gói phát hành. `git status --porcelain app/src/test/screenshots` rỗng.
+- Trong `ui/groups`, `ui/requests`, `ui/payments` và `ui/claim` không còn lời gọi thẳng `OutlinedTextField`, `FilledTonalButton` hay `AlertDialog`; cả mười chín lời gọi trong danh sách đã được chuyển.
+- Kết quả trên máy:
+  - Trên `4b19a97`, lượt `device-tests.yml` 44845566367 (Android 14 và hồ sơ khởi động) và 44845566378 (Android 8.0, 11 và 16) đều qua.
+  - Trên `e728f1b`, lượt 44859959076 (Android 14 và hồ sơ khởi động) và 44859958305 (Android 8.0, 11 và 16) đều qua, gồm cả phép kiểm mới của hành trình đòi tiền trên ô "Friends owe you".
+  - Lời xin lưu mật khẩu chỉ hiện trên máy có trình quản lý mật khẩu, như Google Password Manager. Máy ảo của GitHub không có trình đó, nên việc ba ô tài khoản không còn bị xin lưu mới được kiểm bằng bài kiểm thử đơn vị trên ngữ nghĩa của ô.
+- Đã sửa sau lượt [review độc lập](./reports/review-phase-06.md); mỗi bài kiểm mới hay được sửa đều được cho chạy hỏng một lần:
+  - Ô số tài khoản, IBAN và UPI giữ bàn phím mật khẩu, để bàn phím không học các số này, và không tham gia tự điền, nên không trình quản lý mật khẩu nào xin lưu hay điền vào chúng.
+  - Chi tiết thanh toán xuống dưới nhãn khi hai phần không vừa một hàng, qua thành phần mới `SvBesideOrBelow`. Tiêu đề lớn cũng dùng thành phần này, nên chữ "Groups" không bị bẻ cạnh nút "New group" trên máy hẹp.
+  - Khi số dư của nhóm không cộng được, thành viên không hiện trạng thái hay thanh, và phần Settle up nói rằng các khoản trả chưa tính được, không nói "Everyone is square.".
+  - Trạng thái nhóm trong bộ nhớ đệm được giải mã và mã hóa ngoài luồng chính, cho mọi nơi gọi.
+  - Thanh của người được nhận lại có token màu riêng, `moneyInBar`, là #17B383 của bảng ở cả hai giao diện; chữ số tiền vẫn dùng `moneyIn`.
+  - Nhóm đang chờ chủ nhóm duyệt là thẻ thường như bảng `Groups`, không còn là nút dẫn tới lỗi.
+  - `Money` và `OpenRequests` nằm cạnh `RequestTotals`, nên trang chủ phụ thuộc màn Requests mà không theo chiều ngược lại. Khối nhóm và ô nhóm của trang chủ dùng chung một quy tắc chữ (`GroupStanding`).
+  - Bài kiểm hai ô của màn Requests chờ cả hai lần tải; hành trình đòi tiền trên máy kiểm thêm ô "Friends owe you".
+- Các giá trị mà giai đoạn để ngỏ, do người thực hiện chọn:
+  - Thanh số dư: "gets back" tô từ trái, "owes" tô từ phải, như bảng và hệ thiết kế vẽ; chữ của giai đoạn nói ngược lại.
+  - Khối đầu trang của nhóm khi số dư bằng 0 có nền tím, "Settled up" và số 0. Khi số dư không cộng được thì không có khối, và dòng tiền tệ trở về dưới "Balances".
+  - Bốn chuỗi đổi mà giai đoạn không liệt kê: "owner" thành "Owner" và "no app yet" thành "No app yet", vì chúng hiện như nhãn; câu hỏi giữ chỗ tách thành một tiêu đề và một dòng gợi ý, cùng chữ như trước.
+  - Hai ô của màn Requests chỉ hiện khi tổng đã biết và danh sách có yêu cầu. Bên không có khoản nào hiện 0 theo tiền tệ của máy; tiền tệ khác nằm ở một dòng chú thích.
+  - Ở cỡ chữ 200%, nút của thẻ yêu cầu xuống dưới chữ khi hết chỗ.
+  - Bảng trả tiền ghi tên người đòi như thẻ, tên nhóm trước.
+  - Chi tiết thanh toán hiện thành các hàng nhãn và giá trị; nút Copy vẫn chép nguyên văn.
+  - Liên kết hóa đơn đang mở có nút tím "Stop picking and split" ở chỗ thanh dưới, như bảng; khi đã khóa, thanh nổi trở lại. Địa chỉ liên kết xuống dòng thay vì nằm trong viên một dòng chữ đơn cách của bảng, vì màn hình không được tự đặt họ phông.
+  - Nút "Join the group" ở cuối màn tham gia nhóm và nổi lên trên bàn phím.
+  - Ô tỉ giá và giá trị nó báo đi cùng cắt ở 24 ký tự; trước đây ô hiện 24 ký tự nhưng báo đi cả chuỗi.
+- Còn mở:
+  - Câu mới cần chủ sản phẩm duyệt: "The payments that settle the group cannot be worked out yet."
+  - Hai ô của màn Requests hiện 0 khi mọi yêu cầu đã được trả, theo mặc định của plan; ảnh đã gửi chủ sản phẩm.
+  - Số tài khoản dùng bàn phím mật khẩu đầy đủ thay vì bàn phím số, vì số tài khoản VietQR có thể có chữ.
+  - Mã QR chưa được quét bằng app ngân hàng thật.
+  - `ui/groups` và `ui/requests` vẫn dùng mã của nhau theo hai chiều (`ShareText` một chiều, `RequestMessages` chiều kia); review chỉ nêu cặp trang chủ và Requests.
+  - `docs/design-system.md` cần ghi `SvBesideOrBelow`, tham số `autofill` của `SvTextField` và token `moneyInBar`; việc này thuộc giai đoạn 10.

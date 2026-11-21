@@ -38,7 +38,7 @@ Tài liệu mô tả giao diện mới, ba tài liệu pháp lý được đối
 
 Tài liệu viết lại hoặc cập nhật:
 
-- `docs/design-system.md`: bảng màu, ba họ phông, hình khối, mức nổi, `SvPalette`, mọi thành phần và quy tắc màu nút mới. Bảng thành phần (`docs/design-system.md:148-164`) khớp với thư mục `components/`. Tài liệu nêu nguồn gốc của phông: kho, commit ghim, và tệp `core/designsystem/font-checksums.sha256` giữ mã băm; nó không chép lại từng mã băm.
+- `docs/design-system.md`: bảng màu, ba họ phông, hình khối, mức nổi, `SvPalette` (cả `moneyInBar`), mọi thành phần (cả `SvBesideOrBelow` và tham số `autofill` của `SvTextField` cho ô không được tự điền) và quy tắc màu nút mới. <!-- Updated: thêm theo lượt sửa của giai đoạn 6 --> Bảng thành phần (`docs/design-system.md:148-164`) khớp với thư mục `components/`. Tài liệu nêu nguồn gốc của phông: kho, commit ghim, và tệp `core/designsystem/font-checksums.sha256` giữ mã băm; nó không chép lại từng mã băm.
 - `docs/architecture.md`: điều hướng là một ngăn xếp với bốn màn gốc dưới thanh điều hướng; danh sách khóa ở `docs/architecture.md:157-159` không còn `RecurringKey`; phần "Texts and languages" nói số tiền và ngày theo vùng của máy; phần về ảnh tham chiếu (`docs/architecture.md:582-603`) khớp với bộ ảnh mới.
 - `docs/testing.md`: cổng kiểm thử chạy tại chỗ, chế độ `-Pscreenshots=compare` và lúc nào dùng nó, hai lượt chạy của `device-tests.yml` và cách đọc kết luận của từng việc, và câu về cách viết tiền trong các hành trình.
 - `docs/web.md`: trang web như giai đoạn 9 để lại; nếu giai đoạn 9 đã cập nhật tệp này thì chỉ đối chiếu lại.
