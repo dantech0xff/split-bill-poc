@@ -8,7 +8,6 @@ import android.os.Build
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,6 +41,7 @@ import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.settings.SettingsStore
 import com.dantech.splitvibe.designsystem.motion.LocalSvSharedTransition
 import com.dantech.splitvibe.designsystem.motion.SvMotion
+import com.dantech.splitvibe.designsystem.motion.SvScreenLayer
 import com.dantech.splitvibe.designsystem.motion.SvSharedTransition
 import com.dantech.splitvibe.notifications.Push
 import com.dantech.splitvibe.ocr.BillImageLoader
@@ -208,8 +208,9 @@ fun AppNavHost(sharedImages: List<Uri> = emptyList(), link: AppLink? = null) {
     // so both stay together when a back swipe scrubs through them.
     val fade = SvMotion.screenChange<Float>()
 
-    // The screens share one layer in which a surface of one screen can grow into the next screen.
-    SharedTransitionLayout {
+    // The screens share one layer in which a surface of one screen can grow into the next screen, on
+    // the colour of the page, so that no change of screen shows the window behind the app.
+    SvScreenLayer {
         NavDisplay(
             backStack = backStack,
             onBack = backStack::goBack,

@@ -1,12 +1,9 @@
 package com.dantech.splitvibe.designsystem.motion
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -24,22 +21,21 @@ import androidx.compose.ui.Modifier
  * the step comes back after the system ends the app, so it is a plain text that is the same in
  * every run of the app.
  *
- * The steps lie on the colour of the page, so that between a step that faded out and the next one
- * fading in the screen shows the page rather than the window behind the app, which is light in the
- * dark theme too.
+ * The steps lie in an [SvScreenLayer], on the colour of the page, so that between a step that faded
+ * out and the next one fading in the screen shows the page.
  */
 @Composable
 fun <S> SvSteps(step: S, stepOf: (S) -> String, modifier: Modifier = Modifier, content: @Composable (S) -> Unit) {
     val leave = SvMotion.stepFadeOut<Float>()
     val arrive = SvMotion.stepFadeIn<Float>()
-    SharedTransitionLayout(modifier.background(MaterialTheme.colorScheme.background)) {
+    SvScreenLayer(modifier) {
         AnimatedContent(
             targetState = step,
             transitionSpec = { fadeIn(arrive) togetherWith fadeOut(leave) },
             contentKey = stepOf,
             label = "steps",
         ) { shown ->
-            val transition = remember(this@SharedTransitionLayout, this) { SvSharedTransition(this@SharedTransitionLayout, this) }
+            val transition = remember(this@SvScreenLayer, this) { SvSharedTransition(this@SvScreenLayer, this) }
             CompositionLocalProvider(LocalSvSharedTransition provides transition) {
                 content(shown)
             }
