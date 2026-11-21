@@ -123,3 +123,62 @@ There are no critical or high findings. The record is exact: 136 images, each dr
 5. The record and the two compare runs, the second forced with `--rerun`, could not be verified here, since Gradle was not to be run.
 
 Sources: android-emulator-runner action.yml and src/emulator-manager.ts at a421e43; the Android Developers blog post on ATD images.
+
+# Follow-up review: defc5cc (English plural rules) and 416330d (night window and SvScreenLayer)
+
+The plural forms are now right on every phone and through every path. The dark window and the new screen layer are also correct, and no reference image needed recording. But defc5cc's English resources are built on the same AssetManager the phone's resources read from. On any non-English phone, the first plural therefore turns the phone's library and system strings English until the next configuration change. That needs fixing before the phase closes.
+
+I read both commits with `git show` only: no edits, no commits, no Gradle. The framework claims are checked against the Android 14 framework jar Robolectric uses, Compose UI 1.12.1 and the API 36 platform resources.
+
+## Findings, most severe first
+
+### D1 (Medium). The English resources reconfigure the phone's AssetManager
+**Where:** `app/src/main/java/com/dantech/splitvibe/text/UiText.kt:109-111` (defc5cc).
+
+**Evidence:**
+- The deprecated `Resources(AssetManager, DisplayMetrics, Configuration)` constructor creates a new `ResourcesImpl` that keeps the AssetManager it is given, not a copy.
+- Its `updateConfiguration` then calls `mAssets.setConfiguration(…)` with the English locale and a left-to-right direction.
+- `resources.assets` is the original `ResourcesImpl`'s own AssetManager.
+- So after `EnglishResources.of(resources)`, every lookup through the original `resources` uses en-US. That lasts until their own `ResourcesImpl` gets the next configuration change, and the next plural flips them again.
+
+**Scenario, on a Vietnamese phone:**
+- The build has no locale filters, so the APK carries every library translation, such as Compose UI's Vietnamese "Đã chọn" for *selected*.
+- Open Home with a bill. "Your share of N bills" is resolved through `LocalResources`, which flips the activity's AssetManager to English. From then on TalkBack says "Selected" instead of "Đã chọn" on the navigation tabs, Material 3's own strings are English, and the text toolbar that Compose opens shows "Copy", "Paste", "Select all" (the framework's `android.R.string.copy` and the rest, read through the activity's resources). After a rotation they are Vietnamese again, until the next plural.
+- On Arabic or Persian phones, the shared AssetManager also loses its right-to-left direction, so `-ldrtl` resources resolve left-to-right.
+- The application's AssetManager is flipped the same way, from background threads: PdfSummary resolves its plurals inside `withContext(Dispatchers.Default)` (`Exporter.kt:53-56`), and Notices does so from a worker (`Notices.kt:121`).
+- So the commit message and the KDoc ("Only the choice of form changes") do not hold.
+
+**Fix:** build the English resources through `createConfigurationContext`, which goes through `ResourcesManager` and gives the new `ResourcesImpl` its own AssetManager. Add a `vi-rVN` test that resolves a plural and then asserts that `context.getString(android.R.string.copy)` (or Compose's `R.string.selected`) still reads in Vietnamese.
+
+### D2 (Low). The cache rebuilds often and outlives its activity
+**Where:** `UiText.kt:100-113`. There is a single entry, keyed by the whole `Configuration`, so alternating callers with different configurations (a screen, then an export or a notice) rebuild it every time, each time repeating D1's reconfiguration under the lock that composition also takes. The process-wide entry keeps the AssetManager of the activity it was built from after that activity is destroyed (it holds no `Context`, so this is not an Activity leak). The KDoc's "made again only when the phone's configuration changes" is inaccurate. **Fix:** falls out of D1's fix.
+
+### D3 (Low). The tests pin only the Vietnamese rule family
+**Where:** `NumbersInTextsTest.kt:88-101`. The KDoc names French, but nothing checks a count of 0 on `fr` or `fa`, which both take "one" for 0 under their own rules. Nothing checks that `ar-XB` keeps its pseudo-localized plurals, or that other resources are unaffected (D1). **Fix:** add those cases.
+
+### T1 (Low). The night parent theme changes more than the window colour
+**Where:** `app/src/main/res/values-night/themes.xml:7-9` (416330d). Compared from the API 36 platform resources, `Theme.Material` against `Theme.Material.Light`:
+- **Status bar.** The starting window on API 26-30 in dark mode now has a black status bar until `enableEdgeToEdge()` takes over; that is better.
+- **Platform popups.** The platform text-selection toolbar and any other platform popup themed by the activity is dark in dark mode; it used to be light.
+- **Task colour.** `colorBackground` is #303030, which the platform reads for the task description background (the placeholder in recents).
+- **Unchanged.** The navigation bar colour, `windowDrawsSystemBarBackgrounds`, and the absence of `windowLight*`; `enableEdgeToEdge()` sets the bar colours and icon appearance at runtime from the night bit.
+
+**Fix:** say so in the phase report, set `android:colorBackground` to `@color/window_dark`, and look at the text toolbar in dark mode on a device.
+
+### T2 (Low). The light window is still not the page
+**Where:** `values/themes.xml` (unchanged). The light window is the platform's #FAFAFA while the light page is #F6F6F4, so a light cold start and the API 31+ splash still show the platform grey before the page. **Optional fix:** a light window colour of #FFF6F6F4, with a light case in the test.
+
+### Informational
+416330d records no image, and correctly so: the only committed capture taken mid-transition through AppNavHost is `14-back-swipe-preview`, where Home is at full opacity and nothing under the navigation shows; the other galleries host their screens in ui-test-manifest's `ComponentActivity`, which has an explicit light theme.
+
+## What I checked and found correct
+- Every plural path goes through `UiText.Plural` (Compose, RequestMoneyContent, ResultContent, ShareEffect, Exporter, PdfSummary, Notices); there is no direct `getQuantityString` or `pluralStringResource` in app or core code, and there are no widgets.
+- The chosen form is right on every phone: vi, fr and fa now read as English; ar and he give the same result as before. The pseudolocale check is right (en-XA by language, ar-XB by its XB region). Values are formatted as before.
+- The cache is thread-safe, and a locale change while the app runs forces a rebuild.
+- `01-home-vi-vn.png`: only a 13×16 px box changed (the "s" of "bills").
+- SvScreenLayer is exactly SvSteps' former construction, so shared elements in flight stay above the page; AppNavHost keeps its shared transition scope; predictive back now reveals the page instead of the window. WindowBackgroundTest cannot pass vacuously.
+
+## Questions
+1. Should the light window also become the page colour (T2)?
+2. Is the dark floating text toolbar in the dark theme wanted (T1)?
+3. After the D1 fix, could someone long-press a text field on a Vietnamese phone and read the toolbar labels?
