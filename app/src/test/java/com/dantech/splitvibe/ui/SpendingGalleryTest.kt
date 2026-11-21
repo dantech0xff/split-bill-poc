@@ -51,8 +51,8 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Draws the screens of what the bills add up to, their export and the recurring bills, and the
  * bills' categories in the editor and the list of bills, with the fixtures' data, in the light and
- * the dark theme, the insights of this month, and the insights, the recurring bills and the list of
- * bills with text at twice the size, and compares them with the reference images in
+ * the dark theme, the insights of this month and of all time, and the insights, the recurring bills
+ * and the list of bills with text at twice the size, and compares them with the reference images in
  * `src/test/screenshots`. Record new images after an intended change with `-Pscreenshots=record`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +67,9 @@ class SpendingGalleryTest {
     private val today = LocalDate.of(2026, 11, 16)
     private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, SpendingFixtures.clock)
     private val thisMonth = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.THIS_MONTH, SpendingFixtures.clock)
+
+    /** All time, which the fixture's bills of 2025 and 2026 chart by year. */
+    private val allTime = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.ALL_TIME, SpendingFixtures.clock)
 
     @Test
     @Config(sdk = [34], qualifiers = WHOLE_PAGE)
@@ -92,6 +95,13 @@ class SpendingGalleryTest {
     @Config(sdk = [34], qualifiers = WHOLE_PAGE)
     fun `the insights of this month, a single month without a chart`() {
         shot("40-insights-this-month") { Insights(thisMonth) }
+        assertWholePage()
+    }
+
+    @Test
+    @Config(sdk = [34], qualifiers = WHOLE_PAGE)
+    fun `the insights of all time, a bar and a line for each year`() {
+        shot("40-insights-all-time") { Insights(allTime) }
         assertWholePage()
     }
 

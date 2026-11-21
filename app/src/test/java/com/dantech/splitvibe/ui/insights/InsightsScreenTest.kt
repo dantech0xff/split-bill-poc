@@ -1,5 +1,8 @@
 package com.dantech.splitvibe.ui.insights
 
+import android.os.Looper
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -25,6 +28,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dantech.splitvibe.SpendingFixtures
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.ui.AppNavBar
@@ -36,13 +40,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
  * The insights as a main screen with the navigation bar under them, on a phone: the export at the end
- * of the list and how it ended, the notes on what the totals leave out, the chart of the months, and
- * the lines of a breakdown with large text.
+ * of the list and how it ended, which comes into view whole, the notes on what the totals leave out,
+ * the chart of the months, and the lines of a breakdown with large text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], qualifiers = "w412dp-h915dp-xhdpi")
@@ -81,6 +86,39 @@ class InsightsScreenTest {
         compose.onNode(hasText(NOT_SAVED))
             .assertIsDisplayed()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+    }
+
+    @Test
+    fun `the whole card that says how an export ended comes into view at the end of the list, its button included`() {
+        show(InsightsPeriod.LAST_12_MONTHS)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(EXPORT))
+
+        export = ExportStatus(message = ExportMessage(UiText.Raw(NOT_SAVED), isError = true))
+        compose.waitForIdle()
+
+        assertWholeInList(compose.onNode(hasText(NOT_SAVED)))
+    }
+
+    @Test
+    fun `with animations off the card that says how an export ended comes into view at once`() {
+        reducedMotion = true
+        show(InsightsPeriod.LAST_12_MONTHS)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(EXPORT))
+
+        // From here on time moves only when the test says so, frame by frame.
+        compose.mainClock.autoAdvance = false
+        export = ExportStatus(message = ExportMessage(UiText.Raw(NOT_SAVED), isError = true))
+        repeat(FEW_FRAMES) {
+            compose.mainClock.advanceTimeByFrame()
+            // What a frame started, such as the scroll that brings the card into view, runs on the main looper.
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+
+        val card = compose.onNode(hasText(NOT_SAVED))
+        assertWholeInList(card)
+        val shown = card.fetchSemanticsNode().positionInRoot
+        compose.mainClock.advanceTimeBy(SETTLE_MS)
+        assertEquals("The list was still on its way to the card", shown, card.fetchSemanticsNode().positionInRoot)
     }
 
     @Test
@@ -123,26 +161,45 @@ class InsightsScreenTest {
     /** How the last export stands, which the screen shows as it changes. */
     private var export by mutableStateOf(ExportStatus())
 
+    /** Whether the screen is drawn with animations off, as the phone's setting turns them off. */
+    private var reducedMotion = false
+
     private fun show(period: InsightsPeriod) {
         val state = insightsOf(SpendingFixtures.year, "VND", period, SpendingFixtures.clock)
         compose.setContent {
             SplitVibeTheme {
-                InsightsScreen(
-                    state = state,
-                    export = export,
-                    actions = InsightsActions(
-                        onChoosePeriod = {},
-                        onShare = {},
-                        onSaveToFolder = {},
-                        onSaveTo = {},
-                        onShared = {},
-                        onPickerMissing = {},
-                        onDismissMessage = {},
-                    ),
-                    bottomBar = { AppNavBar(selected = InsightsKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {}) },
-                )
+                CompositionLocalProvider(LocalReducedMotion provides reducedMotion) { Insights(state) }
             }
         }
+    }
+
+    @Composable
+    private fun Insights(state: InsightsState) = InsightsScreen(
+        state = state,
+        export = export,
+        actions = InsightsActions(
+            onChoosePeriod = {},
+            onShare = {},
+            onSaveToFolder = {},
+            onSaveTo = {},
+            onShared = {},
+            onPickerMissing = {},
+            onDismissMessage = {},
+        ),
+        bottomBar = { AppNavBar(selected = InsightsKey, requests = RequestTotals.SignedOut, onSelect = {}, onSplitBill = {}) },
+    )
+
+    /** Fails unless the whole of [node], wherever it is drawn, lies within the frame of the list it is in. */
+    private fun assertWholeInList(node: SemanticsNodeInteraction) {
+        val list = compose.onNode(hasScrollToIndexAction()).getBoundsInRoot()
+        val shown = node.fetchSemanticsNode()
+        val (top, bottom) = with(compose.density) {
+            shown.positionInRoot.y.toDp() to (shown.positionInRoot.y + shown.size.height).toDp()
+        }
+        assertTrue(
+            "The card runs from $top to $bottom, beyond the list from ${list.top} to ${list.bottom}",
+            top >= list.top && bottom <= list.bottom,
+        )
     }
 
     /** How the text of [node] is laid out. */
@@ -153,6 +210,12 @@ class InsightsScreenTest {
     }
 
     private companion object {
+        /** A few frames, 64ms: enough to lay the list out again, too short for a scroll to glide. */
+        const val FEW_FRAMES = 4
+
+        /** Long enough for any scroll that was still gliding to have ended. */
+        const val SETTLE_MS = 2_000L
+
         const val EXPORT = "Export these bills"
         const val NOT_SAVED = "The files could not be saved."
         const val ENTERTAINMENT = "Entertainment"

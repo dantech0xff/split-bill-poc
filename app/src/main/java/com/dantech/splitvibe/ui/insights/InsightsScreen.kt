@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +56,7 @@ import com.dantech.splitvibe.designsystem.components.SvQuietIconTile
 import com.dantech.splitvibe.designsystem.components.SvRowPosition
 import com.dantech.splitvibe.designsystem.components.SvSectionHeader
 import com.dantech.splitvibe.designsystem.components.SvStatBar
+import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.motion.rowMotion
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
 import com.dantech.splitvibe.designsystem.tokens.amountSmall
@@ -94,6 +97,11 @@ class InsightsActions(
 fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: InsightsActions, bottomBar: @Composable () -> Unit = {}) {
     var exporting by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    val list = rememberLazyListState()
+    // How an export ended stands right above its button, where it was started; a period without
+    // bills has no button, and then it stands at the top.
+    val outcomeByTheButton = state != null && state.anyFinished && state.bills.isNotEmpty()
+    BringExportOutcomeIntoView(export.message?.takeIf { outcomeByTheButton }, list)
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { folder ->
         folder?.let(actions.onSaveToFolder)
     }
@@ -120,6 +128,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            state = list,
             contentPadding = PaddingValues(top = SvSpacing.sm, bottom = SvSpacing.lg),
         ) {
             item(key = "period") {
@@ -130,10 +139,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
                     modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
                 )
             }
-            // How an export ended stands right above its button, where it was started; a period without
-            // bills has no button, and then it stands at the top.
-            val exportShown = state != null && state.anyFinished && state.bills.isNotEmpty()
-            export.message?.takeUnless { exportShown }?.let { message ->
+            export.message?.takeUnless { outcomeByTheButton }?.let { message ->
                 item(key = "message") {
                     ExportOutcome(
                         message = message,
@@ -261,6 +267,28 @@ private fun LazyListScope.insights(state: InsightsState, export: ExportStatus, o
                 top = if (export.message == null) SvSpacing.xl else SvSpacing.md,
             ),
         )
+    }
+}
+
+/**
+ * Brings the whole card that says how an export ended, its button included, into view when it
+ * appears at the end of [list], right above the button that started the export, where the list
+ * would otherwise leave part of it below the screen: at once with animations off, otherwise with the
+ * list's own scroll. The focus stays where it is, and turning the phone moves nothing.
+ */
+@Composable
+private fun BringExportOutcomeIntoView(outcome: ExportMessage?, list: LazyListState) {
+    val reducedMotion = LocalReducedMotion.current
+    val appeared = outcome?.hashCode()
+    // The outcome the list last brought into view, kept when the phone turns.
+    var shown by rememberSaveable { mutableStateOf(appeared) }
+    LaunchedEffect(appeared) {
+        if (appeared != null && appeared != shown) {
+            // The card and the export below it are the last two items, so the end of the list shows both.
+            val end = (list.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+            if (reducedMotion) list.scrollToItem(end) else list.animateScrollToItem(end)
+        }
+        shown = appeared
     }
 }
 
