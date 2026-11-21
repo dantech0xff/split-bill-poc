@@ -1,5 +1,6 @@
 package com.dantech.splitvibe.text
 
+import android.content.res.Configuration
 import android.content.res.Resources
 import android.icu.text.MessageFormat
 import android.icu.util.ULocale
@@ -18,7 +19,8 @@ import com.dantech.splitvibe.domain.TEXT_LOCALE
  * model wrote or a message of `:core:domain`, is [Raw].
  *
  * The values go into the text as [TEXT_LOCALE] writes them, never as the phone's locale does: a
- * count is "300" on a phone set to Persian too, like every other number in the English texts. Every
+ * count is "300" on a phone set to Persian too, like every other number in the English texts, and a
+ * plural takes its form by the rules of English, "1 bill" on a phone set to Vietnamese too. Every
  * text with a count is read through here, and plurals only through here.
  */
 sealed interface UiText {
@@ -47,7 +49,7 @@ sealed interface UiText {
     /** The text in the language of [resources]. */
     fun resolve(resources: Resources): String = when (this) {
         is Res -> if (args.isEmpty()) resources.getString(id) else formatted(resources.getString(id), args, resources)
-        is Plural -> formatted(resources.getQuantityString(id, count), args, resources)
+        is Plural -> formatted(pluralsOf(resources).getQuantityString(id, count), args, resources)
         is Message -> MessageFormat(resources.getString(id), ULocale.forLocale(TEXT_LOCALE)).format(resolved(args, resources))
         is Raw -> text
         is Lines -> parts.joinToString("\n") { it.resolve(resources) }
@@ -78,3 +80,38 @@ private fun formatted(pattern: String, args: List<Any>, resources: Resources): S
 
 private fun resolved(args: List<Any>, resources: Resources): Array<Any> =
     args.map { if (it is UiText) it.resolve(resources) else it }.toTypedArray()
+
+/**
+ * The resources that pick the form of a plural of the app's texts, which are English on every phone,
+ * so their plurals follow English: "1 bill" and "2 bills". In its own language a phone set to
+ * Vietnamese has one form for every count, and one set to French takes the singular for 0 too, so
+ * [resources] then give way to the same resources read in [TEXT_LOCALE]. Only the choice of form
+ * changes that way: the texts are the same, and the amounts and dates that go into them stay as the
+ * phone's region writes them. A phone set to English keeps [resources], and so do the pseudolocales of
+ * a debug build, English texts in another dress whose rules give the singular to 1 alone, as English does.
+ */
+private fun pluralsOf(resources: Resources): Resources {
+    val locale = resources.configuration.locales[0]
+    val english = locale.language == TEXT_LOCALE.language || locale.country in PSEUDOLOCALE_REGIONS
+    return if (english) resources else EnglishResources.of(resources)
+}
+
+/** The app's resources read in [TEXT_LOCALE], made again only when the phone's configuration changes. */
+private object EnglishResources {
+    private var made: Pair<Configuration, Resources>? = null
+
+    @Synchronized
+    fun of(resources: Resources): Resources {
+        val phone = resources.configuration
+        made?.let { (from, english) -> if (from == phone) return english }
+        // Texts are read where no context is at hand, such as in a notification or in the text of a share,
+        // so these resources are made from the app's own assets with only their locale changed.
+        @Suppress("DEPRECATION")
+        val english = Resources(resources.assets, resources.displayMetrics, Configuration(phone).apply { setLocale(TEXT_LOCALE) })
+        made = Configuration(phone) to english
+        return english
+    }
+}
+
+/** The regions of the pseudolocales en-XA and ar-XB that debug builds carry. */
+private val PSEUDOLOCALE_REGIONS = setOf("XA", "XB")

@@ -85,6 +85,21 @@ class NumbersInTextsTest {
     @Config(sdk = [34], qualifiers = "ar")
     fun `the Pro screen, Settings, home and the bills on a phone set to Arabic show no other digits`() = screensInEnglish()
 
+    /** Vietnamese has one form for every count, which in the English texts would read "1 bills". */
+    @Test
+    @Config(sdk = [34], qualifiers = "vi-rVN")
+    fun `on a phone set to Vietnamese a count of one takes the singular and two the plural, as in English`() {
+        val resources = context.resources
+
+        assertEquals("Your share of 1 bill", plural(R.plurals.home_your_share_of, 1).resolve(resources))
+        assertEquals("Your share of 2 bills", plural(R.plurals.home_your_share_of, 2).resolve(resources))
+        // Only the form follows English: an amount in the text stays as a phone in Vietnam writes it.
+        val amount = BillCurrency("VND", 0).format(651_671)
+        assertEquals("651.671 ₫", amount)
+        assertEquals("Request $amount from 1 person", plural(R.plurals.split_request_from, 1, amount, 1).resolve(resources))
+        assertEquals("Request $amount from 2 people", plural(R.plurals.split_request_from, 2, amount, 2).resolve(resources))
+    }
+
     @Test
     fun `a text with a count is read only through UiText, which writes it in English`() {
         val counted = countedResources()
