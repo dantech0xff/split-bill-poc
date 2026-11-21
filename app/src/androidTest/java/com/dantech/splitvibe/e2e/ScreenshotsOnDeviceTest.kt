@@ -14,6 +14,7 @@ import com.dantech.splitvibe.MainActivity
 import java.io.File
 import java.io.FileOutputStream
 import org.junit.Assume.assumeTrue
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,9 +27,16 @@ import org.junit.runner.RunWith
  * an eye on the pictures finds it. Each picture is named after the reference image of the same
  * screen, with the version of Android after it.
  *
+ * The home picture shows whatever bills the journeys that ran before it kept, so it is the first
+ * home of its reference image only when no journey kept a bill.
+ *
  * The pictures go to the folder that the Android Gradle plugin gives a run of the device tests for
  * the files they write, and copies back to the computer once the run ends, under
- * `app/build/outputs/connected_android_test_additional_output/`.
+ * `app/build/outputs/connected_android_test_additional_output/`. Only the api-levels job keeps that
+ * folder, so the test runs only when a run asks for the pictures with the runner argument
+ * [ASKED_FOR_ARGUMENT], as that job does, and is skipped before the app starts in every other run,
+ * such as the one a release waits for. Asked for, a run that gives no folder fails the test, so that
+ * a lost picture shows in the job's conclusion.
  */
 @RunWith(AndroidJUnit4::class)
 class ScreenshotsOnDeviceTest {
@@ -41,10 +49,11 @@ class ScreenshotsOnDeviceTest {
 
     @Test
     fun theHomeAndTheSplitOfTheSampleBillAreSavedAsThisPhoneDrawsThem() {
-        val folder = InstrumentationRegistry.getArguments().getString(OUTPUT_FOLDER_ARGUMENT)
-        // Without the folder nothing would keep the pictures, so the test is skipped rather than passed.
-        assumeTrue("The run gives no folder for the files tests write", folder != null)
-        val pictures = File(checkNotNull(folder))
+        val folder = checkNotNull(InstrumentationRegistry.getArguments().getString(OUTPUT_FOLDER_ARGUMENT)) {
+            "The run asks for the pictures but gives no folder to keep them in: the runner argument $OUTPUT_FOLDER_ARGUMENT, " +
+                "the folder that the Android Gradle plugin copies back after the run, is missing"
+        }
+        val pictures = File(folder)
 
         compose.onNodeWithText("Recent bills").assertIsDisplayed()
         save(pictures, "01-home")
@@ -65,9 +74,20 @@ class ScreenshotsOnDeviceTest {
         }
     }
 
-    private companion object {
+    companion object {
+        /** The runner argument, set to true, with which a run asks for the pictures; the api-levels job sets it. */
+        const val ASKED_FOR_ARGUMENT = "savePictures"
+
         /** The argument in which the Android Gradle plugin names the folder it copies back after the run. */
         const val OUTPUT_FOLDER_ARGUMENT = "additionalTestOutputDir"
+
+        /** Skips the test before its rules start anything, unless the run asks for the pictures. */
+        @JvmStatic
+        @BeforeClass
+        fun onlyWhenThePicturesAreAskedFor() {
+            val asked = InstrumentationRegistry.getArguments().getString(ASKED_FOR_ARGUMENT) == "true"
+            assumeTrue("The run does not ask for the pictures with $ASKED_FOR_ARGUMENT=true", asked)
+        }
 
         /** PNG keeps every pixel and ignores the quality, which compressing still asks for. */
         const val PNG_QUALITY = 100

@@ -2,6 +2,7 @@ package com.dantech.splitvibe.e2e
 
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -34,8 +35,8 @@ import org.junit.runner.RunWith
 
 /**
  * Typing into the split with the on-screen keyboard open, as a finger does. The test images of the
- * Android 11, 14 and 16 emulators that the device tests run on show no keyboard, while the plain
- * image of Android 8.0 does, and that emulator runs only the journeys: this test is one of them so
+ * Android 11, 14 and 16 emulators that the device tests run on have no keyboard, while the plain
+ * image of Android 8.0 has one, and that emulator runs only the journeys: this test is one of them so
  * that at least that run types with a keyboard. The sample bill comes through the fake proxy.
  */
 @RunWith(AndroidJUnit4::class)
@@ -57,11 +58,19 @@ class KeyboardOnDeviceTest {
      * Types a person's part into their row of the split as a finger does, with the keyboard open: the
      * field being typed into stays in view above the bar at the bottom, and the bar above the keyboard.
      * The last row is the one nearest the bar. The emulators that run these tests have a hardware
-     * keyboard, so the phone is set to show its own keyboard anyway while the test runs. On a phone that
-     * still shows none, the test is skipped rather than passed, as it would prove nothing there.
+     * keyboard, so the phone is set to show its own keyboard anyway while the test runs.
+     *
+     * A phone with no on-screen keyboard turned on, as the test images, skips the test rather than
+     * passing it, as it would prove nothing there. On a phone with one, a keyboard that does not show
+     * after the tap fails the test, so that a run that should have typed with it cannot pass unseen.
      */
     @Test
-    fun aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard() = withTheOnScreenKeyboard {
+    fun aPartTypedIntoTheLastRowStaysAboveTheBarAndTheKeyboard() {
+        assumeTrue("The phone has no on-screen keyboard turned on", keyboardTurnedOn())
+        withTheOnScreenKeyboard { typeIntoTheLastRow() }
+    }
+
+    private fun typeIntoTheLastRow() {
         compose.readTheSampleBill()
 
         val list = compose.list()
@@ -72,7 +81,7 @@ class KeyboardOnDeviceTest {
         list.performScrollToNode(part)
         // A tap, as a finger gives it, puts the cursor in the field and opens the keyboard.
         compose.onNode(part).performClick()
-        assumeTrue("The phone shows no keyboard", awaitKeyboard())
+        assertTrue("The keyboard did not show within ${KEYBOARD_TIMEOUT_MS / 1_000} s of the tap", awaitKeyboard())
         compose.onNode(part).performTextReplacement("50")
         compose.waitForIdle()
 
@@ -105,7 +114,13 @@ class KeyboardOnDeviceTest {
         return ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText() }
     }
 
-    /** Waits for the keyboard to show; false when it does not, as on an emulator without one or a phone with keys of its own. */
+    /** Whether the phone has an on-screen keyboard turned on, the one a tap on a text field brings up. */
+    private fun keyboardTurnedOn(): Boolean {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        return checkNotNull(context.getSystemService(InputMethodManager::class.java)).enabledInputMethodList.isNotEmpty()
+    }
+
+    /** Waits for the keyboard to show; false when it does not within [KEYBOARD_TIMEOUT_MS]. */
     private fun awaitKeyboard(): Boolean = try {
         compose.waitUntil(KEYBOARD_TIMEOUT_MS) { keyboardShown() }
         true
@@ -145,8 +160,8 @@ class KeyboardOnDeviceTest {
     }
 
     private companion object {
-        /** Long enough for a keyboard to slide in, short enough not to hold up a run on a phone without one. */
-        const val KEYBOARD_TIMEOUT_MS = 5_000L
+        /** Long enough for a keyboard to come up the first time on a slow emulator, which builds its window then. */
+        const val KEYBOARD_TIMEOUT_MS = 20_000L
 
         /** The setting that shows the on-screen keyboard while a hardware keyboard is attached, as on these emulators. */
         const val SHOW_KEYBOARD_WITH_KEYS = "show_ime_with_hard_keyboard"

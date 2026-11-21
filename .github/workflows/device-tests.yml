@@ -193,7 +193,7 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           profile: pixel_6
-          script: ./gradlew :app:connectedProdDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.dantech.splitvibe.e2e
+          script: ./gradlew :app:connectedProdDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.dantech.splitvibe.e2e -Pandroid.testInstrumentationRunnerArguments.savePictures=true
 
       # Kept whatever the outcome: the results are the measurement.
       - name: Keep the reports
