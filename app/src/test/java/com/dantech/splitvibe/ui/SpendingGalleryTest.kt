@@ -31,6 +31,7 @@ import com.dantech.splitvibe.ui.insights.ExportStatus
 import com.dantech.splitvibe.ui.insights.InsightsActions
 import com.dantech.splitvibe.ui.insights.InsightsPeriod
 import com.dantech.splitvibe.ui.insights.InsightsScreen
+import com.dantech.splitvibe.ui.insights.InsightsState
 import com.dantech.splitvibe.ui.insights.insightsOf
 import com.dantech.splitvibe.ui.recurring.RecurringActions
 import com.dantech.splitvibe.ui.recurring.RecurringRow
@@ -50,9 +51,9 @@ import org.robolectric.annotation.GraphicsMode
 /**
  * Draws the screens of what the bills add up to, their export and the recurring bills, and the
  * bills' categories in the editor and the list of bills, with the fixtures' data, in the light and
- * the dark theme, and the insights and the list of bills with text at twice the size, and compares
- * them with the reference images in `src/test/screenshots`. Record new images after an intended
- * change with `-Pscreenshots=record`.
+ * the dark theme, the insights of this month, and the insights, the recurring bills and the list of
+ * bills with text at twice the size, and compares them with the reference images in
+ * `src/test/screenshots`. Record new images after an intended change with `-Pscreenshots=record`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(AndroidJUnit4::class)
@@ -65,6 +66,7 @@ class SpendingGalleryTest {
 
     private val today = LocalDate.of(2026, 11, 16)
     private val insights = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.LAST_12_MONTHS, SpendingFixtures.clock)
+    private val thisMonth = insightsOf(SpendingFixtures.year, "VND", InsightsPeriod.THIS_MONTH, SpendingFixtures.clock)
 
     @Test
     @Config(sdk = [34], qualifiers = WHOLE_PAGE)
@@ -87,6 +89,13 @@ class SpendingGalleryTest {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = WHOLE_PAGE)
+    fun `the insights of this month, a single month without a chart`() {
+        shot("40-insights-this-month") { Insights(thisMonth) }
+        assertWholePage()
+    }
+
+    @Test
     fun `the export of the bills of a period`() = shot("41-export", open = EXPORT, scrollFirst = true) { Insights() }
 
     @Test
@@ -99,6 +108,12 @@ class SpendingGalleryTest {
     @Test
     @Config(sdk = [34], qualifiers = TALL_AT_NIGHT)
     fun `the recurring bills in the dark theme`() = shot("42-recurring-dark", open = RECURRING) { Recurring() }
+
+    @Test
+    fun `the recurring bills with text at twice the size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        shot("42-recurring-large-text", open = RECURRING) { Recurring() }
+    }
 
     @Test
     fun `a finished bill made to recur from the list of bills`() = shot("43-repeat-bill", menu = RENT_MENU, open = REPEAT) { History() }
@@ -128,8 +143,8 @@ class SpendingGalleryTest {
     }
 
     @Composable
-    private fun Insights() = InsightsScreen(
-        state = insights,
+    private fun Insights(state: InsightsState = insights) = InsightsScreen(
+        state = state,
         export = ExportStatus(),
         actions = InsightsActions(
             onChoosePeriod = {},

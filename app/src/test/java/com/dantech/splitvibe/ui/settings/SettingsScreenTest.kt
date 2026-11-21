@@ -12,11 +12,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.captureToImage
@@ -29,8 +31,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.account.Account
 import com.dantech.splitvibe.data.account.AiStatus
 import com.dantech.splitvibe.data.account.CallsLeft
@@ -38,6 +42,8 @@ import com.dantech.splitvibe.data.account.Plan
 import com.dantech.splitvibe.data.account.Session
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
+import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.LegalLinks
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
@@ -52,8 +58,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * What Settings offers about the phone's online speech service, which only the user's consent brings
- * there, the plan beside the calls left, the keyboard of the local currency, and what deleting the
- * account says about Pro and how its dialog warns that it cannot be undone.
+ * there, the plan beside the calls left, the keyboard of the local currency, what deleting the
+ * account says about Pro and how its dialog warns that it cannot be undone, where deleting the
+ * account says how it went, and how the words on signing in are read out.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -64,6 +71,7 @@ class SettingsScreenTest {
 
     private var settings by mutableStateOf(AppSettings(localCurrency = "VND"))
     private var account by mutableStateOf(Account(installId = "settings", session = null, callsLeft = null, ai = AiStatus.AVAILABLE))
+    private var accountUi by mutableStateOf(AccountUiState())
     private val answers = mutableListOf<Boolean>()
     private var proOpened = 0
     private var legalLinks: LegalLinks? = null
@@ -194,6 +202,40 @@ class SettingsScreenTest {
     }
 
     @Test
+    @Config(sdk = [34], qualifiers = PHONE)
+    fun `deleting the account says how it goes by its button at the end of the page, where the person tapped it`() {
+        // As long as the page gets: signed in, with the AI agreed to, the speech service and the legal links.
+        settings = settings.copy(aiAllowed = true, speechServiceAllowed = true)
+        legalLinks = LegalLinks.of(PROXY)
+        show(callsLeft = MONTH, signedIn = true)
+        compose.onNode(hasText("Delete account") and hasClickAction()).performScrollTo().performClick()
+        compose.onNode(hasText("Delete") and hasClickAction()).performClick()
+
+        // As the view model has it while the deletion runs, and once the proxy refused it.
+        accountUi = AccountUiState(working = true, action = AccountAction.DELETE)
+        compose.onNodeWithText("Working…").assertIsDisplayed()
+        accountUi = AccountUiState(message = text(R.string.account_rate_limited), isError = true, action = AccountAction.DELETE)
+
+        val message = compose.onNodeWithText(REFUSED).assertIsDisplayed().fetchSemanticsNode()
+        // Right above the buttons, which are back, as the account is still there.
+        val signOut = compose.onNode(hasText("Sign out") and hasClickAction()).fetchSemanticsNode()
+        val gap = with(compose.density) { (signOut.positionInRoot.y - message.positionInRoot.y - message.size.height).toDp() }
+        assertTrue("The message is $gap above Sign out", gap >= 0.dp && gap <= SvSpacing.md)
+    }
+
+    @Test
+    fun `the words on how signing in stands change in one element that is read out, so TalkBack says who signed in`() {
+        show()
+        val before = compose.onNodeWithText("Sign in with Google to get calls every month.").fetchSemanticsNode()
+
+        account = account.copy(session = Session("settings-session", expiresAt = Long.MAX_VALUE), signedInAs = "minh.tran@example.com")
+
+        val after = compose.onNodeWithText("Signed in with Google as minh.tran@example.com.").fetchSemanticsNode()
+        assertEquals("The words are in another element", before.id, after.id)
+        assertEquals(LiveRegionMode.Polite, after.config.getOrNull(SemanticsProperties.LiveRegion))
+    }
+
+    @Test
     fun `the local currency takes three capitals, which the keyboard does not correct into a word`() {
         show()
         val field = compose.onNode(hasSetTextAction() and hasText("Local currency"))
@@ -259,7 +301,7 @@ class SettingsScreenTest {
             SettingsScreen(
                 settings = settings,
                 account = account,
-                accountUi = AccountUiState(),
+                accountUi = accountUi,
                 canSignIn = true,
                 actions = AccountActions(onSignIn = {}, onSignOut = {}, onDeleteAccount = { deletions += it }, onOpenPro = { proOpened++ }),
                 onSave = { _, _ -> },
@@ -286,6 +328,10 @@ class SettingsScreenTest {
         const val AI_CONSENT = "Reading bills and changing splits with AI"
         const val PROXY = "https://split-vibe-proxy.example.workers.dev"
         const val WITH_PHONE_DATA = "Also delete the bills, people and payment methods on this phone"
+        const val REFUSED = "That was tried too many times just now, so nothing was changed."
+
+        /** A phone of common size, as the screen galleries draw. */
+        const val PHONE = "w412dp-h915dp-xhdpi"
         val MONTH = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), period = "2026-11", resetsAt = 1_796_083_200_000)
     }
 }

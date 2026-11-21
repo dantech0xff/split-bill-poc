@@ -2,7 +2,6 @@ package com.dantech.splitvibe.ui.recurring
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -16,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvActionIcons
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
 import com.dantech.splitvibe.designsystem.components.SvListRow
@@ -116,11 +116,14 @@ private fun RecurringBillRow(row: RecurringRow, actions: RecurringActions, onDel
         SvQuietIconTile(SvActionIcons.Repeat)
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(bill.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLargeEmphasized)
-                Spacer(Modifier.width(SvSpacing.sm))
-                Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountMedium)
-            }
+            // Beside the name while its longest word fits there, and below it when not, as on the list of all bills.
+            SvBesideOrBelow(
+                first = { Text(bill.name, style = MaterialTheme.typography.bodyLargeEmphasized) },
+                second = { Text(bill.bill.format(bill.bill.totalMinor), style = MaterialTheme.typography.amountMedium) },
+                secondBelowAt = Alignment.Start,
+                gap = SvSpacing.sm,
+                stackedGap = SvSpacing.xs,
+            )
             Text(
                 describe(bill.schedule).resolve(),
                 style = MaterialTheme.typography.bodySmall,

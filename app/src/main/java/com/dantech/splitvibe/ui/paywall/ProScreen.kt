@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -236,12 +237,21 @@ private fun PlanCard(plan: ProPlan, selected: Boolean, enabled: Boolean, onSelec
     val name = nameOf(plan.period).resolve()
     val price = priceText(plan).resolve()
     val offer = offerText(plan)?.resolve()
-    SvCard(modifier = Modifier.fillMaxWidth(), outlined = selected) {
+    val shape = MaterialTheme.shapes.large
+    SvCard(
+        // On the card's own element, so that each plan is one of the group of plans to a screen
+        // reader, which then says how many there are and which of them this is.
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+            .semantics { contentDescription = listOfNotNull(name, price, offer).joinToString(", ") },
+        shape = shape,
+        outlined = selected,
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
-                .semantics { contentDescription = listOfNotNull(name, price, offer).joinToString(", ") }
                 .padding(horizontal = SvSpacing.lg, vertical = SvSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),

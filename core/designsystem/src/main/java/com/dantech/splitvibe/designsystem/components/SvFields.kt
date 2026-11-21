@@ -271,12 +271,6 @@ sealed interface SvFieldWidth {
             require(weight > 0f) { "A share must have a weight above 0, was $weight" }
         }
     }
-
-    /**
-     * As wide as all the child shows on one line, such as an amount beside a name, which is never
-     * broken in two: the shares take what it leaves.
-     */
-    data object Content : SvFieldWidth
 }
 
 /**
@@ -289,8 +283,7 @@ sealed interface SvFieldWidth {
  * field and what stands beside it, such as a currency, decide; a label longer than its field goes on
  * to more lines instead. So the row may change between the two while a number is typed in, but not
  * for a long name in a label. What is no field, such as a name, goes on to more lines beside the
- * fields, between words: a word or number of it too wide for its share decides as a field does. A
- * child as wide as its content, such as an amount beside a name, keeps its own width side by side.
+ * fields, between words: a word or number of it too wide for its share decides as a field does.
  */
 @Composable
 fun SvFieldRow(
@@ -310,11 +303,7 @@ fun SvFieldRow(
         } else {
             measurables.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } + gaps
         }
-        // What a child as wide as its content needs, on one line.
-        val contents = measurables.mapIndexed { index, measurable ->
-            if (widths[index] == SvFieldWidth.Content) measurable.maxIntrinsicWidth(Constraints.Infinity) else 0
-        }
-        val slots = slotsOf(widths, room = width - gaps, contents = contents)
+        val slots = slotsOf(widths, room = width - gaps)
         val sideBySide = slots.all { it >= 0 } &&
             measurables.indices.all { index ->
                 // A field must hold all it shows on one line; what is no field may go on to more lines, but
@@ -353,18 +342,12 @@ fun SvFieldRow(
 }
 
 /**
- * The width of each child side by side, in pixels, out of [room]: the fixed ones and those as wide
- * as their [contents] first, then the shares of what they leave, the last share taking what rounding
- * left over. A width below 0 says that the fixed widths alone do not fit.
+ * The width of each child side by side, in pixels, out of [room]: the fixed ones first, then the
+ * shares of what they leave, the last share taking what rounding left over. A width below 0 says
+ * that the fixed widths alone do not fit.
  */
-private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int, contents: List<Int>): List<Int> {
-    val fixed = widths.indices.sumOf { index ->
-        when (val width = widths[index]) {
-            is SvFieldWidth.Fixed -> width.width.roundToPx()
-            SvFieldWidth.Content -> contents[index]
-            is SvFieldWidth.Share -> 0
-        }
-    }
+private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int): List<Int> {
+    val fixed = widths.sumOf { (it as? SvFieldWidth.Fixed)?.width?.roundToPx() ?: 0 }
     val left = room - fixed
     val weights = widths.sumOf { ((it as? SvFieldWidth.Share)?.weight ?: 0f).toDouble() }
     val lastShare = widths.indexOfLast { it is SvFieldWidth.Share }
@@ -372,8 +355,6 @@ private fun Density.slotsOf(widths: List<SvFieldWidth>, room: Int, contents: Lis
     return widths.mapIndexed { index, width ->
         when (width) {
             is SvFieldWidth.Fixed -> width.width.roundToPx()
-
-            SvFieldWidth.Content -> contents[index]
 
             is SvFieldWidth.Share -> {
                 val share = if (index == lastShare) left - given else (left * width.weight / weights).toInt()
@@ -442,11 +423,12 @@ fun SvCheckbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier
 }
 
 /**
- * One choice out of a few, such as a plan to buy, drawn as the same box as [SvCheckbox], ticked for
- * the chosen one, as [SvPersonChoiceRow] draws it. Put it in a row that is selectable as a whole,
- * with the text of the choice, and pass null for [onClick], so that a screen reader reads the row as
- * one radio button with its text. With [onClick] it is a radio button of its own with a touch target
- * of 48dp, which then needs a label from around it.
+ * One choice out of a few, such as a plan to buy: a round mark 28dp across, a lime disc with a dark
+ * tick for the chosen one and a grey ring for the others, as the approved designs draw it and as
+ * [SvPersonChoiceRow] draws it. Put it in a row or a card that is selectable as a whole, with the text
+ * of the choice, and pass null for [onClick], so that a screen reader reads the row as one radio
+ * button with its text. With [onClick] it is a radio button of its own with a touch target of 48dp,
+ * which then needs a label from around it.
  */
 @Composable
 fun SvRadio(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {
@@ -465,7 +447,7 @@ fun SvRadio(selected: Boolean, onClick: (() -> Unit)?, modifier: Modifier = Modi
             )
     }
     Box(modifier = modifier.then(control), contentAlignment = Alignment.Center) {
-        TickBox(ticked = selected, modifier = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA))
+        RadioMark(chosen = selected, modifier = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA))
     }
 }
 

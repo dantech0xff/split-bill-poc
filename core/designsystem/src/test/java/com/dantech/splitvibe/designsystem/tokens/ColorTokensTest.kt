@@ -26,6 +26,19 @@ class ColorTokensTest {
     fun `the colours of Split Vibe's own palette are readable in the dark theme`() = DarkPalette.assertReadable(DarkColors)
 
     @Test
+    fun `the ring of a choice of one that is not chosen stands out from the page and from a card or sheet, in both themes`() {
+        // A card and a sheet lie on the surface of the first level: white in the light theme.
+        val rings = listOf(
+            Triple("light page", LightPalette.radioRing, LightColors.background),
+            Triple("light card", LightPalette.radioRing, LightColors.surfaceContainerLowest),
+            Triple("dark page", DarkPalette.radioRing, DarkColors.background),
+            Triple("dark card", DarkPalette.radioRing, DarkColors.surfaceContainerLow),
+        )
+        val faint = rings.map { (name, ring, ground) -> name to contrast(ring, ground) }.filter { (_, ratio) -> ratio < OUTLINE_CONTRAST }
+        assertTrue("Ring below $OUTLINE_CONTRAST:1: $faint", faint.isEmpty())
+    }
+
+    @Test
     fun `the bar of money coming back is the boards' green in both themes`() {
         assertEquals("light", BOARDS_GREEN, LightPalette.moneyInBar)
         assertEquals("dark", BOARDS_GREEN, DarkPalette.moneyInBar)

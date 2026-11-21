@@ -1000,8 +1000,8 @@
         <item quantity="other">%1$d bills in %2$s are left out of the totals, as no rate to %3$s is saved with them. To count one, open it and type a rate.</item>
     </plurals>
     <plurals name="insights_by_saved_day">
-        <item quantity="one">%d bill has no date that can be read, so it is counted on the day it was saved.</item>
-        <item quantity="other">%d bills have no date that can be read, so each is counted on the day it was saved.</item>
+        <item quantity="one">%d bill has no date that can be used, so it is counted on the day it was saved.</item>
+        <item quantity="other">%d bills have no date that can be used, so each is counted on the day it was saved.</item>
     </plurals>
     <string name="insights_and_list">%1$s and %2$s</string>
 
@@ -1010,6 +1010,7 @@
     <string name="insights_empty">Bills you finish are added up here: by month, category, person and group.</string>
     <string name="insights_none_in_period">No finished bill is dated in this period.</string>
     <string name="insights_by_month">By month</string>
+    <string name="insights_by_year">By year</string>
     <string name="insights_by_category">By category</string>
     <string name="insights_by_person">By person</string>
     <string name="insights_by_person_hint">What each person\'s part of the bills came to</string>
@@ -1057,8 +1058,9 @@
     <string name="insights_csv_hint">%1$s, %2$s and %3$s, for a spreadsheet app. Numbers are written the way this phone\'s language writes them, so a spreadsheet app on it reads them right.</string>
     <string name="insights_pdf_hint">A summary to read or print: the totals by month, category, person and group, and every bill.</string>
 
-    <!-- The chart of the months of the insights, as a screen reader reads it -->
+    <!-- The chart of the months of the insights, or for all time of the years, as a screen reader reads it -->
     <string name="insights_chart">Spending by month from %1$s to %2$s.</string>
+    <string name="insights_chart_years">Spending by year from %1$s to %2$s.</string>
     <string name="insights_chart_highest">%1$s is the highest.</string>
     <string name="insights_chart_highest_then">%1$s is the highest, then %2$s.</string>
 </resources>

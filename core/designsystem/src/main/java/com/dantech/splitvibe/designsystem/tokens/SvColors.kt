@@ -13,6 +13,7 @@ internal object Swatch {
     val Ink = Color(0xFF111114)
     val Graphite = Color(0xFF5F5E66)
     val Slate = Color(0xFF76757E)
+    val Pewter = Color(0xFF8A8992)
     val Mist = Color(0xFFC6C5CE)
     val Paper = Color(0xFFF4F4F1)
     val White = Color(0xFFFFFFFF)

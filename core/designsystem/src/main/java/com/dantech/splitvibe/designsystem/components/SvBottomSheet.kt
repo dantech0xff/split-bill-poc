@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -31,6 +32,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -125,28 +127,31 @@ fun SvPersonPickRow(
     PersonRow(
         name = name,
         detail = detail,
-        chosen = checked,
         modifier = modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
-    )
+    ) {
+        TickBox(ticked = checked)
+    }
 }
 
 /**
  * A person who can be chosen as the one out of a list, such as the one who paid: the person's
- * colour, name and an optional [detail], and the same box as [SvPersonPickRow], ticked for the
- * chosen person. The whole row is one radio button for a screen reader.
+ * colour, name and an optional [detail], and the round mark of [SvRadio], filled for the chosen
+ * person. The whole row is one radio button for a screen reader.
  */
 @Composable
 fun SvPersonChoiceRow(name: String, selected: Boolean, onSelect: () -> Unit, modifier: Modifier = Modifier, detail: String? = null) {
     PersonRow(
         name = name,
         detail = detail,
-        chosen = selected,
         modifier = modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
-    )
+    ) {
+        RadioMark(chosen = selected)
+    }
 }
 
+/** A row of a person, with [mark] at its end, which says whether the person is ticked or chosen. */
 @Composable
-private fun PersonRow(name: String, detail: String?, chosen: Boolean, modifier: Modifier) {
+private fun PersonRow(name: String, detail: String?, modifier: Modifier, mark: @Composable () -> Unit) {
     Row(
         modifier = modifier
             .semantics { contentDescription = listOfNotNull(name, detail).joinToString(", ") }
@@ -163,9 +168,36 @@ private fun PersonRow(name: String, detail: String?, chosen: Boolean, modifier: 
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        TickBox(ticked = chosen)
+        mark()
     }
 }
+
+/**
+ * The mark of a choice of one, as the approved designs draw it: a lime disc with a dark tick once
+ * chosen, and a grey ring while not, in both themes. Decorative: the row or the control it belongs to
+ * says its state.
+ */
+@Composable
+internal fun RadioMark(chosen: Boolean, modifier: Modifier = Modifier) {
+    val palette = SvTheme.palette
+    Box(
+        modifier = modifier
+            .size(RADIO_SIZE)
+            .then(
+                if (chosen) {
+                    Modifier.background(palette.accent, CircleShape)
+                } else {
+                    Modifier.border(RADIO_RING_WIDTH, palette.radioRing, CircleShape)
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (chosen) Icon(RadioTick, contentDescription = null, modifier = Modifier.size(RADIO_TICK_SIZE), tint = palette.onAccent)
+    }
+}
+
+/** The tick of a chosen [RadioMark], heavier than that of a tick box, as the approved designs draw it. */
+private val RadioTick: ImageVector = lineIcon("RadioTick", "m5 12.5 4.5 4.5L19 7.5", group = "SvRadio", lineWidth = 3.2f)
 
 /**
  * The box of a choice that can be ticked: an outline while it is not ticked, and once ticked a
@@ -198,5 +230,8 @@ private val HANDLE_WIDTH = 40.dp
 private val HANDLE_HEIGHT = 5.dp
 private val PERSON_ROW_HEIGHT = 56.dp
 private val TICK_BOX_SIZE = 24.dp
+private val RADIO_SIZE = 28.dp
+private val RADIO_RING_WIDTH = 2.dp
+private val RADIO_TICK_SIZE = 16.dp
 private val TICK_BOX_OUTLINE = 2.dp
 private val TICK_SIZE = 18.dp

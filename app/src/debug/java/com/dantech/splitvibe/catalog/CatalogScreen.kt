@@ -198,7 +198,8 @@ fun CatalogScreen() {
             item {
                 SvSectionHeader(
                     "Tiles and tags",
-                    hint = "SvTile in its three colours, SvTag, SvIconTile with the style of each category, and SvQuietIconTile.",
+                    hint = "SvTile in its three colours, SvTag, SvIconTile with the style of each category, and SvQuietIconTile, " +
+                        "quiet and blank.",
                 )
                 TileSamples()
             }
@@ -853,7 +854,7 @@ private fun TileSamples() {
         SvCard(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(SvSpacing.lg), horizontalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
                 SvQuietIconTile(SvActionIcons.Repeat)
-                SvQuietIconTile(SvActionIcons.None, size = 40.dp)
+                SvQuietIconTile(SvActionIcons.None, size = 40.dp, blank = true)
             }
         }
     }
@@ -1020,6 +1021,7 @@ private fun ToggleSamples() {
             SvSwitch(checked = true, onCheckedChange = {}, enabled = false)
             SvCheckbox(checked = true, onCheckedChange = {}, enabled = false)
             SvRadio(selected = false, onClick = {})
+            SvRadio(selected = true, onClick = {}, enabled = false)
         }
     }
 }

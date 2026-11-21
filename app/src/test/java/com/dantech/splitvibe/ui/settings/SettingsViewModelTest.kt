@@ -76,6 +76,7 @@ class SettingsViewModelTest {
 
         viewModel.signIn(context)
         assertTrue(viewModel.ui.value.working)
+        assertEquals(AccountAction.SIGN_IN, viewModel.ui.value.action)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertEquals(BigDecimal(10), proxy.account.account.value.callsLeft?.remaining)
@@ -87,15 +88,18 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `deleting the account says it was done`() {
+    fun `deleting the account says it was done, as the outcome of the deletion started here`() {
         proxy.account.saveSession(Session("signed-session", FAR_FUTURE), signedInAs = "minh.tran@example.com")
         val viewModel = viewModel()
 
         viewModel.deleteAccount(withPhoneData = false)
+        assertEquals(AccountUiState(working = true, action = AccountAction.DELETE), viewModel.ui.value)
         awaitOnMain { !viewModel.ui.value.working }
 
         assertEquals("Your account was deleted.", viewModel.ui.value.message.inEnglish())
         assertFalse(viewModel.ui.value.isError)
+        // Settings says it by the button that started it.
+        assertEquals(AccountAction.DELETE, viewModel.ui.value.action)
         assertNull(proxy.account.account.value.session)
     }
 
@@ -208,9 +212,12 @@ class SettingsViewModelTest {
 
         val again = SettingsViewModel(repository)
         assertTrue(again.ui.value.working)
+        // Started on the earlier visit, so it shows in the card at the top, where the person arrives.
+        assertNull(again.ui.value.action)
         awaitOnMain { !again.ui.value.working }
 
         assertEquals("Your account was deleted.", again.ui.value.message.inEnglish())
+        assertNull(again.ui.value.action)
         assertEquals("Settings opening asked for no count meanwhile", 1, server.requestCount)
     }
 

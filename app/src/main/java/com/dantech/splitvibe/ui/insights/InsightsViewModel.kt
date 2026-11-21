@@ -19,6 +19,7 @@ import com.dantech.splitvibe.domain.Insights
 import com.dantech.splitvibe.domain.ME_ID
 import com.dantech.splitvibe.domain.NameMatcher
 import com.dantech.splitvibe.domain.PersonSpending
+import com.dantech.splitvibe.domain.Spending
 import com.dantech.splitvibe.export.ExportContent
 import com.dantech.splitvibe.export.ExportFile
 import com.dantech.splitvibe.export.ExportFormat
@@ -79,11 +80,11 @@ data class InsightsState(
     val periodKey: String,
     val insights: Insights,
     /**
-     * Every month of the period, the earliest first, those without a bill too: this month, or the 12
-     * months up to it, or for all time the months from the first one with a bill to this month, or to
-     * a later month a bill is dated in.
+     * Every month of the period, or for all time every year, the earliest first, with what its bills
+     * add up to, those without a bill too: this month, or the 12 months up to it, or the years from
+     * the first one with a bill to this one. The month or the year that is running always ends it.
      */
-    val months: List<YearMonth>,
+    val spans: List<SpanSpending>,
     /** The finished bills of the period, by the day each counts on, the latest first. */
     val bills: List<SavedBill>,
     /** What the totals leave out and why. */
@@ -91,6 +92,18 @@ data class InsightsState(
     /** Whether there is a finished bill at all, in this period or another. */
     val anyFinished: Boolean,
 )
+
+/** A stretch of time that the insights add up on its own: a calendar month, or for all time a calendar year. */
+sealed interface Span {
+    /** One calendar [month]. */
+    data class Month(val month: YearMonth) : Span
+
+    /** One calendar [year]. */
+    data class Year(val year: Int) : Span
+}
+
+/** What the bills of [span] add up to, nothing for a span without bills. */
+data class SpanSpending(val span: Span, val spending: Spending)
 
 /** A message about the last export: that it was saved, or why it was not. */
 data class ExportMessage(val text: UiText, val isError: Boolean)
@@ -207,14 +220,14 @@ internal fun contentOf(state: InsightsState, read: (UiText) -> String) = ExportC
 /**
  * The insights of the [finished] bills, the latest saved first, for [period] as it is on the day
  * [clock] tells, in the currency [localCurrency] names. A bill counts on its own date, or on the day
- * it was saved when it has none that can be read, in the zone [clock] is in.
+ * it was saved when it has none that can be used ([countedDay]), in the zone [clock] is in.
  */
 internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period: InsightsPeriod, clock: Clock): InsightsState {
     val local = BillCurrency.resolve(localCurrency, null, emptyList())
     val today = LocalDate.now(clock)
     val days = period.days(today)
     // The sort keeps the latest saved first among bills of the same day.
-    val inPeriod = finished.map { it to insightBillOf(it, local.code, clock.zone) }
+    val inPeriod = finished.map { it to insightBillOf(it, local.code, today, clock.zone) }
         .filter { (_, counted) -> days == null || counted.day?.let { it in days } == true }
         .sortedByDescending { (_, counted) -> counted.day }
     val insights = Insights.of(inPeriod.map { (_, counted) -> counted }, local)
@@ -236,40 +249,71 @@ internal fun insightsOf(finished: List<SavedBill>, localCurrency: String, period
             InsightsPeriod.ALL_TIME -> "all-time"
         },
         insights = insights,
-        months = monthsOf(period, today, insights.byMonth.keys),
+        spans = spansOf(period, today, insights.byMonth),
         bills = inPeriod.map { (saved, _) -> saved },
-        notes = notesOf(insights, bySavedDay = inPeriod.count { (saved, _) -> dayOf(saved.bill.date) == null }),
+        notes = notesOf(insights, bySavedDay = inPeriod.count { (saved, _) -> usableDate(saved.bill.date, today) == null }),
         anyFinished = finished.isNotEmpty(),
     )
 }
 
 /**
- * Every month of [period] as it is on [today], the earliest first. All time runs from the first of
- * the months [counted] has bills in, to the month of [today] or to a later month that has bills; with
- * no month counted it has none.
+ * Every span of [period] as it is on [today], the earliest first, with what its bills in [byMonth]
+ * add up to: the months of a period of months, and for all time the years from the first one with a
+ * bill to this year, which has none when no bill is counted at all. Every bill counts on a day up to
+ * [today] ([countedDay]), so the spans hold all of them.
  */
-private fun monthsOf(period: InsightsPeriod, today: LocalDate, counted: Set<YearMonth>): List<YearMonth> {
-    val current = YearMonth.from(today)
-    val first = period.days(today)?.let { YearMonth.from(it.start) } ?: counted.minOrNull() ?: return emptyList()
-    val last = maxOf(current, counted.maxOrNull() ?: current)
-    return generateSequence(first) { it.plusMonths(1) }.takeWhile { it <= last }.toList()
+private fun spansOf(period: InsightsPeriod, today: LocalDate, byMonth: Map<YearMonth, Spending>): List<SpanSpending> {
+    val days = period.days(today)
+    if (days != null) {
+        val months = generateSequence(YearMonth.from(days.start)) { it.plusMonths(1) }.takeWhile { it <= YearMonth.from(days.endInclusive) }
+        return months.map { month -> SpanSpending(Span.Month(month), byMonth[month] ?: NO_SPENDING) }.toList()
+    }
+    val byYear = byMonth.entries.groupBy({ (month, _) -> month.year }, { (_, spending) -> spending }).mapValues { (_, months) ->
+        months.reduce { sum, spending ->
+            Spending(
+                bills = sum.bills + spending.bills,
+                totalMinor = Math.addExact(sum.totalMinor, spending.totalMinor),
+                myShareMinor = Math.addExact(sum.myShareMinor, spending.myShareMinor),
+            )
+        }
+    }
+    val first = byYear.keys.minOrNull() ?: return emptyList()
+    return (first..today.year).map { year -> SpanSpending(Span.Year(year), byYear[year] ?: NO_SPENDING) }
 }
+
+/** What a span without bills adds up to. */
+private val NO_SPENDING = Spending(bills = 0, totalMinor = 0, myShareMinor = 0)
+
+/** The first day a bill's own date can count on in the statistics; an earlier one is taken for a misread or a mistyped one. */
+private val FIRST_COUNTED_DAY: LocalDate = LocalDate.of(2000, 1, 1)
+
+/** [date] as a day the statistics can count on, from 1 January 2000 to [today]; null for one outside those days, or no day at all. */
+private fun usableDate(date: String?, today: LocalDate): LocalDate? = dayOf(date)?.takeIf { it in FIRST_COUNTED_DAY..today }
+
+/**
+ * The day [saved] counts on in the statistics: its own date when that is a day from 1 January 2000 to
+ * [today], and otherwise, as for a date that cannot be read, the day it was saved, in [zone]. A date
+ * outside those days is taken for a misread or a mistyped one, such as 2925 for 2025 or a year of the
+ * Buddhist era. The day it was saved is kept within those days too, against a phone's clock set wrong.
+ */
+internal fun countedDay(saved: SavedBill, today: LocalDate, zone: ZoneId): LocalDate = usableDate(saved.bill.date, today)
+    ?: Instant.ofEpochMilli(saved.createdAt).atZone(zone).toLocalDate().coerceIn(FIRST_COUNTED_DAY, today)
 
 /**
  * [saved] as the statistics count it: the day it counts on, its category, group, currency and total,
  * each participant's part under a key that is the same for the same person on every bill, the
- * user's own part, and its rate when that converts into [localCurrency]. Its day is its date, or, when
- * that is no day that can be read, the day it was saved, in [zone].
+ * user's own part, and its rate when that converts into [localCurrency]. Its day is the one
+ * [countedDay] gives as of [today]: its date, or the day it was saved, in [zone].
  *
  * Everyone but the user is told apart by name, without case, accents or punctuation, as the phone
  * tells the people it remembers apart. So is someone forgotten and added again, who is remembered
  * under a new id, and someone of the same name who joined a bill from its link. The user, and
  * someone without a name, have none here: the screen names them in its language ([personName]).
  */
-internal fun insightBillOf(saved: SavedBill, localCurrency: String, zone: ZoneId): InsightBill {
+internal fun insightBillOf(saved: SavedBill, localCurrency: String, today: LocalDate, zone: ZoneId): InsightBill {
     val bill = saved.bill
     return InsightBill(
-        day = dayOf(bill.date) ?: Instant.ofEpochMilli(saved.createdAt).atZone(zone).toLocalDate(),
+        day = countedDay(saved, today, zone),
         category = bill.category,
         group = saved.group?.let { InsightGroup(it.groupId, it.groupName) },
         currency = bill.currency,
@@ -298,7 +342,7 @@ internal fun personName(person: PersonSpending): UiText = when {
 
 /**
  * What the totals of [insights] leave out and how to count it: bills without a rate, which a rate
- * typed on the bill counts. And how [bySavedDay] bills without a date that can be read are counted.
+ * typed on the bill counts. And how [bySavedDay] bills without a date that can be used are counted.
  */
 private fun notesOf(insights: Insights, bySavedDay: Int): List<UiText> = buildList {
     val withoutRate = insights.withoutRate

@@ -49,6 +49,14 @@ class SvPalette internal constructor(
     val notice: Color,
     /** The ground a bill's photo sits on. */
     val photoZone: Color,
+    /** The ring of a choice of one that is not chosen, which shows on the page and on a card. */
+    val radioRing: Color,
+    /**
+     * The tile of something that stands for none of a kind, such as the bills in no group: a grey that
+     * stands a step further out from what it lies on than a quiet control, with an icon in the colour
+     * of text.
+     */
+    val blankTile: Color,
 )
 
 private val PersonColors = with(Swatch) { listOf(Pink, Orange, Sky, Yellow, Mint, Lavender, Teal) }
@@ -74,6 +82,8 @@ internal val LightPalette = with(Swatch) {
         category = CategoryColors,
         notice = Yellow,
         photoZone = PhotoSand,
+        radioRing = Pewter,
+        blankTile = Pebble,
     )
 }
 
@@ -95,6 +105,8 @@ internal val DarkPalette = with(Swatch) {
         category = CategoryColors,
         notice = Yellow,
         photoZone = Iron,
+        radioRing = Fog,
+        blankTile = Seam,
     )
 }
 

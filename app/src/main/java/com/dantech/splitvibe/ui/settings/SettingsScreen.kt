@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -22,13 +23,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -67,7 +68,7 @@ import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.text.plural
 import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.ui.common.LegalLinks
-import com.dantech.splitvibe.ui.common.openLink
+import com.dantech.splitvibe.ui.common.PageLinks
 import org.koin.compose.koinInject
 
 /** What the account part of Settings can do. */
@@ -114,6 +115,20 @@ fun SettingsScreen(
     // Offered once the user agreed to the AI, and for the rest of this visit, which then says it was taken back.
     val aiConsentShown = rememberSaveable { settings.aiAllowed }
     val signedIn = account.session != null
+    val status = signInStatus(account, canSignIn)
+    // One text says how signing in stands: in the card of the calls while nobody is signed in, and
+    // beside the user's tile once someone is. It moves between the two as one element, so that
+    // TalkBack reads out its new words when a sign-in has worked, as it reads out any change of them.
+    val statusText = remember {
+        movableContentOf { shown: SignInStatus, modifier: Modifier -> SignInStatusText(shown, modifier) }
+    }
+    // Signing out and deleting the account say how they go by their buttons at the end of the page,
+    // where the person tapped; signing in, and signing out once the sign-in ran out, in the card.
+    val byTheButtons = when (accountUi.action) {
+        AccountAction.DELETE -> true
+        AccountAction.SIGN_OUT -> !account.signInExpired
+        AccountAction.SIGN_IN, null -> false
+    }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -133,9 +148,16 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = SvSpacing.screen),
                 verticalArrangement = Arrangement.spacedBy(SvSpacing.md),
             ) {
-                if (signedIn) Profile(name = settings.myName, email = account.signedInAs)
+                if (status?.place == StatusPlace.PROFILE) Profile(name = settings.myName) { statusText(status, Modifier.weight(1f)) }
 
-                AccountCard(account = account, accountUi = accountUi, canSignIn = canSignIn, actions = actions)
+                AccountCard(
+                    account = account,
+                    accountUi = accountUi,
+                    canSignIn = canSignIn,
+                    actions = actions,
+                    progressShown = !byTheButtons,
+                    status = { place -> if (status?.place == place) statusText(status, Modifier) },
+                )
 
                 SvTextField(
                     value = localCurrency,
@@ -179,6 +201,8 @@ fun SettingsScreen(
                     enabled = currencyIsValid,
                 )
 
+                if (byTheButtons) AccountProgress(accountUi)
+
                 // While the account works, or its sign-in has run out, the card of the calls says what can be done.
                 if (signedIn && !account.signInExpired && !accountUi.working) {
                     SvQuietButton(
@@ -208,51 +232,87 @@ fun SettingsScreen(
     }
 }
 
-/** Who is signed in: the user's tile, with the initials of the name they go by, or of "You", and the Google account. */
+/** Where Settings says how signing in stands. */
+private enum class StatusPlace {
+    /** Beside the user's tile above the card of the calls, once someone is signed in. */
+    PROFILE,
+
+    /** In the card, in the place of a count, when the sign-in has run out. */
+    CARD_LEAD,
+
+    /** In the card, below what each use of the AI takes, while nobody is signed in: how to get more calls. */
+    CARD_NOTE,
+}
+
+/** What Settings says about how signing in stands, and where it says it. */
+private class SignInStatus(val words: String, val place: StatusPlace)
+
+/** How signing in stands; nothing while the AI is not set up and nobody is signed in, as the card then says why there is no AI. */
 @Composable
-private fun Profile(name: String, email: String?) {
+private fun signInStatus(account: Account, canSignIn: Boolean): SignInStatus? {
+    val email = account.signedInAs
+    return when {
+        account.session != null -> SignInStatus(
+            email?.let { stringResource(R.string.settings_signed_in_as, it) } ?: stringResource(R.string.settings_signed_in),
+            StatusPlace.PROFILE,
+        )
+
+        account.ai == AiStatus.NOT_SET_UP -> null
+
+        account.signInExpired -> SignInStatus(
+            email?.let { stringResource(R.string.settings_sign_in_expired_as, it) } ?: stringResource(R.string.settings_sign_in_expired),
+            StatusPlace.CARD_LEAD,
+        )
+
+        canSignIn -> SignInStatus(stringResource(R.string.settings_sign_in_for_calls), StatusPlace.CARD_NOTE)
+
+        else -> SignInStatus(stringResource(R.string.settings_sign_in_not_set_up), StatusPlace.CARD_NOTE)
+    }
+}
+
+/** The words of [status], in the look of its place, which TalkBack reads out when they change. */
+@Composable
+private fun SignInStatusText(status: SignInStatus, modifier: Modifier) {
+    val type = MaterialTheme.typography
+    Text(
+        status.words,
+        modifier = modifier.then(announced),
+        // One text in every place, so that it stays one element for TalkBack as it moves.
+        style = when (status.place) {
+            StatusPlace.PROFILE -> type.bodyMedium
+            StatusPlace.CARD_LEAD -> type.bodyMediumEmphasized
+            StatusPlace.CARD_NOTE -> type.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+        },
+    )
+}
+
+/** Who is signed in: the user's tile, with the initials of the name they go by, or of "You", and the [status] that names the account. */
+@Composable
+private fun Profile(name: String, status: @Composable RowScope.() -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
         SvAvatar(name.ifBlank { stringResource(R.string.common_you) }, size = PROFILE_SIZE)
-        // It changes when a sign-in has worked, which TalkBack then reads out.
-        Text(
-            if (email == null) stringResource(R.string.settings_signed_in) else stringResource(R.string.settings_signed_in_as, email),
-            modifier = Modifier
-                .weight(1f)
-                .then(announced),
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        status()
     }
 }
 
 /**
  * The AI calls: the plan they are counted against with the way to Pro, the calls left in words and
- * as a meter, what each use of the AI takes, and how signing in stands, with the button that does
- * what is left to do: signing in, or signing out when the sign-in ran out.
+ * as a meter, what each use of the AI takes, and how signing in stands, which [status] shows in the
+ * place it is given, with the button that does what is left to do: signing in, or signing out when
+ * the sign-in ran out. With [progressShown] it also says how an account action goes.
  */
 @Composable
-private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: Boolean, actions: AccountActions) {
+private fun AccountCard(
+    account: Account,
+    accountUi: AccountUiState,
+    canSignIn: Boolean,
+    actions: AccountActions,
+    progressShown: Boolean,
+    status: @Composable (StatusPlace) -> Unit,
+) {
     val signedIn = account.session != null
     val aiSetUp = account.ai != AiStatus.NOT_SET_UP
     val calls = account.callsLeft
-    val email = account.signedInAs
-    // Without a count, what stands in its place leads the card: AI that is not set up, or a sign-in that ran out.
-    val leading = when {
-        !aiSetUp -> account.ai.notice?.resolve()
-
-        account.signInExpired -> if (email == null) {
-            stringResource(R.string.settings_sign_in_expired)
-        } else {
-            stringResource(R.string.settings_sign_in_expired_as, email)
-        }
-
-        else -> null
-    }
-    // Signed out, a word below the count on how to get more calls; signed in, the row above the card says who.
-    val note = when {
-        !aiSetUp || account.signInExpired || signedIn -> null
-        canSignIn -> stringResource(R.string.settings_sign_in_for_calls)
-        else -> stringResource(R.string.settings_sign_in_not_set_up)
-    }
 
     SvCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(SvSpacing.lg), verticalArrangement = Arrangement.spacedBy(SvSpacing.md)) {
@@ -267,29 +327,19 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
                 Text(callsLeftText(it).resolve(), style = MaterialTheme.typography.bodyMediumEmphasized)
                 SvMeter(value = it.remaining.toFloat(), max = it.limit.toFloat(), description = callsMeterText(it).resolve())
             }
-            // These change when a sign-in or sign-out has worked, which TalkBack then reads out.
-            leading?.let { Text(it, modifier = announced, style = MaterialTheme.typography.bodyMediumEmphasized) }
+            // Without a count, what stands in its place leads the card: AI that is not set up, or a sign-in that ran out.
+            if (!aiSetUp) {
+                account.ai.notice?.let { Text(it.resolve(), modifier = announced, style = MaterialTheme.typography.bodyMediumEmphasized) }
+            }
+            status(StatusPlace.CARD_LEAD)
             if (aiSetUp) {
                 Text(callCosts().resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            note?.let {
-                Text(
-                    it,
-                    modifier = announced,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            status(StatusPlace.CARD_NOTE)
 
             when {
-                accountUi.working -> Row(
-                    modifier = announced,
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
-                ) {
-                    SvLoadingIndicator(modifier = Modifier.size(WORKING_SIZE))
-                    Text(stringResource(R.string.common_working), style = MaterialTheme.typography.bodyMedium)
-                }
+                // While an action runs, nothing else can be started.
+                accountUi.working -> Unit
 
                 // Deleting the account needs a session the proxy accepts, so it waits for a new sign-in.
                 account.signInExpired -> Column(verticalArrangement = Arrangement.spacedBy(SvSpacing.sm)) {
@@ -308,9 +358,25 @@ private fun AccountCard(account: Account, accountUi: AccountUiState, canSignIn: 
                 }
             }
 
-            accountUi.message?.let { SvMessageCard(text = it.resolve(), isError = accountUi.isError, modifier = announced) }
+            if (progressShown) AccountProgress(accountUi)
         }
     }
+}
+
+/** How an account action goes: a row that says it is working while it runs, and then what it came to, which TalkBack reads out. */
+@Composable
+private fun AccountProgress(accountUi: AccountUiState) {
+    if (accountUi.working) {
+        Row(
+            modifier = announced,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(SvSpacing.md),
+        ) {
+            SvLoadingIndicator(modifier = Modifier.size(WORKING_SIZE))
+            Text(stringResource(R.string.common_working), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    accountUi.message?.let { SvMessageCard(text = it.resolve(), isError = accountUi.isError, modifier = announced) }
 }
 
 /**
@@ -356,13 +422,11 @@ private fun CallsHeader(plan: Plan?, offered: Boolean, proIsMain: Boolean, onOpe
  */
 @Composable
 private fun Links(onOpenPaymentMethods: () -> Unit, legalLinks: LegalLinks?) {
-    val context = LocalContext.current
-    var cannotOpen by rememberSaveable { mutableStateOf(false) }
-    val pages = legalLinks?.let {
-        listOf(R.string.legal_privacy_policy to it.privacyPolicy, R.string.legal_terms_of_use to it.terms)
-    }.orEmpty()
-    val rows = pages.size + 1
-    Column {
+    PageLinks(
+        pages = legalLinks?.pages.orEmpty(),
+        noticeModifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm),
+    ) { links ->
+        val rows = links.size + 1
         SvListRow(
             position = SvRowPosition.of(0, rows),
             label = stringResource(R.string.settings_payment_methods),
@@ -379,28 +443,16 @@ private fun Links(onOpenPaymentMethods: () -> Unit, legalLinks: LegalLinks?) {
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
-        pages.forEachIndexed { index, (label, url) ->
-            val name = stringResource(label)
+        links.forEachIndexed { index, link ->
             SvListRow(
                 position = SvRowPosition.of(index + 1, rows),
-                label = name,
+                label = link.label,
                 onClickLabel = stringResource(R.string.common_open),
-                onClick = { cannotOpen = !openLink(context, url) },
+                onClick = link.open,
             ) {
-                Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
+                Text(link.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
             }
-        }
-        if (cannotOpen) {
-            // Read out by TalkBack as it appears, since nothing else happens after the tap.
-            Text(
-                stringResource(R.string.legal_cannot_open),
-                modifier = Modifier
-                    .padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.sm)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
         }
     }
 }

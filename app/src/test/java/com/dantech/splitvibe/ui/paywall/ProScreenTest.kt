@@ -34,6 +34,7 @@ import com.dantech.splitvibe.text.UiText
 import com.dantech.splitvibe.ui.common.LegalLinks
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,6 +93,20 @@ class ProScreenTest {
         compose.onNode(hasText("Manage subscriptions in Google Play") and hasClickAction()).assertExists()
         compose.onNode(hasText("Restore purchases") and hasClickAction()).performScrollTo().performClick()
         assertEquals(listOf("buy YEARLY", "restore"), done)
+    }
+
+    @Test
+    fun `the plans are one group of radio buttons to a screen reader, each of them a direct part of it`() {
+        show(SIGNED_IN)
+
+        val plans = compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+        assertEquals(2, plans.size)
+        // TalkBack counts the choices of a group, and says which one is which, only of its direct parts.
+        for (plan in plans) {
+            val group = plan.parent?.config
+            assertTrue("${plan.config[SemanticsProperties.ContentDescription]} is not a part of the group", group?.contains(GROUP) == true)
+        }
     }
 
     @Test
@@ -231,6 +246,9 @@ class ProScreenTest {
 
     private companion object {
         const val PROXY = "https://split-vibe-proxy.example.workers.dev"
+
+        /** What makes a part of a screen a group of choices of one, to a screen reader. */
+        val GROUP = SemanticsProperties.SelectableGroup
         val TRIAL = CallsLeft(BigDecimal(3), BigDecimal(1), BigDecimal(2), period = "trial", resetsAt = null)
         val FREE = CallsLeft(BigDecimal(10), BigDecimal(3), BigDecimal(7), "2026-11", resetsAt = 1_796_083_200_000, plan = Plan.FREE)
         val SIGNED_IN = ProUiState(sold = true, signedIn = true, callsLeft = FREE, plans = listOf(FakeBilling.MONTHLY, FakeBilling.YEARLY))

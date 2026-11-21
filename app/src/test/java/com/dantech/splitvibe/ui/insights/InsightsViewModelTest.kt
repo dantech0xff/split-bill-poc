@@ -46,6 +46,7 @@ import com.dantech.splitvibe.export.Exporter
 import java.io.File
 import java.math.BigDecimal
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneOffset
@@ -85,6 +86,7 @@ class InsightsViewModelTest {
     private var now = 0L
     private val bills = BillRepository(storage.database, storage.people, storage.pages, contentWords()) { ++now }
     private val clock = SpendingFixtures.clock
+    private val today = LocalDate.now(clock)
     private val watching = MainScope()
     private lateinit var viewModel: InsightsViewModel
 
@@ -281,49 +283,83 @@ class InsightsViewModelTest {
     }
 
     @Test
-    fun `the chart has a bar for every month of the period, and its bars add up to the total at the top`() {
+    fun `the chart has a bar for every month of the period, or every year of all time, and its bars add up to the total at the top`() {
         val month = shown(InsightsPeriod.THIS_MONTH)
-        assertEquals(listOf(YearMonth.of(2026, 11)), monthBars(month).map { it.month })
-        assertEquals(month.insights.overall.totalMinor, monthBars(month).sumOf { it.totalMinor })
+        assertEquals(listOf(Span.Month(YearMonth.of(2026, 11))), month.spans.map { it.span })
+        assertEquals(month.insights.overall.totalMinor, month.spans.sumOf { it.spending.totalMinor })
 
         val year = shown(InsightsPeriod.LAST_12_MONTHS)
-        val months = monthBars(year)
-        assertEquals((0L until 12L).map { YearMonth.of(2025, 12).plusMonths(it) }, months.map { it.month })
-        assertEquals(year.insights.overall.totalMinor, months.sumOf { it.totalMinor })
+        val months = year.spans
+        assertEquals((0L until 12L).map { Span.Month(YearMonth.of(2025, 12).plusMonths(it)) }, months.map { it.span })
+        assertEquals(year.insights.overall.totalMinor, months.sumOf { it.spending.totalMinor })
         // A month without bills is a bar of nothing, which the chart still shows.
-        assertEquals(0L, months.single { it.month == YearMonth.of(2026, 1) }.totalMinor)
-        assertEquals(9_762_024L, months.single { it.month == YearMonth.of(2026, 10) }.totalMinor)
+        assertEquals(NOTHING, months.single { it.span == Span.Month(YearMonth.of(2026, 1)) }.spending)
+        assertEquals(Spending(2, 9_762_024, 3_381_012), months.single { it.span == Span.Month(YearMonth.of(2026, 10)) }.spending)
 
-        // From the month of the first bill, November 2025, to this one.
+        // From the year of the first bill, 2025, to this one.
         val all = shown(InsightsPeriod.ALL_TIME)
-        assertEquals((0L until 13L).map { YearMonth.of(2025, 11).plusMonths(it) }, monthBars(all).map { it.month })
-        assertEquals(all.insights.overall.totalMinor, monthBars(all).sumOf { it.totalMinor })
+        assertEquals(listOf(Span.Year(2025), Span.Year(2026)), all.spans.map { it.span })
+        assertEquals(all.insights.overall.totalMinor, all.spans.sumOf { it.spending.totalMinor })
+        // 7 and 6, of November and December 2025: 2,400,000 + 800,000; 600,000 + 200,000.
+        assertEquals(Spending(2, 3_200_000, 800_000), all.spans.first().spending)
     }
 
     @Test
-    fun `the chart says which months it runs over and which came to most, the later first of two equal months`() {
+    fun `the chart says which months or years it runs over and which came to most, the later first of two equal ones`() {
         val year = shown(InsightsPeriod.LAST_12_MONTHS)
         assertEquals(
             "Spending by month from December 2025 to November 2026. November 2026 is the highest, then October 2026.",
-            chartDescription(monthBars(year)).english(),
+            chartDescription(year.spans).english(),
         )
+        val all = shown(InsightsPeriod.ALL_TIME)
+        assertEquals("Spending by year from 2025 to 2026. 2026 is the highest, then 2025.", chartDescription(all.spans).english())
 
-        val even = listOf(MonthBar(YearMonth.of(2026, 9), 500), MonthBar(YearMonth.of(2026, 10), 500), MonthBar(YearMonth.of(2026, 11), 0))
+        val even = listOf(monthOf(2026, 9, 500), monthOf(2026, 10, 500), monthOf(2026, 11, 0))
         assertEquals(
             "Spending by month from September 2026 to November 2026. October 2026 is the highest, then September 2026.",
             chartDescription(even).english(),
         )
-        val one = listOf(MonthBar(YearMonth.of(2026, 10), 0), MonthBar(YearMonth.of(2026, 11), 700))
+        val one = listOf(monthOf(2026, 10, 0), monthOf(2026, 11, 700))
         assertEquals("Spending by month from October 2026 to November 2026. November 2026 is the highest.", chartDescription(one).english())
-        val none = listOf(MonthBar(YearMonth.of(2026, 10), 0), MonthBar(YearMonth.of(2026, 11), 0))
+        val none = listOf(monthOf(2026, 10, 0), monthOf(2026, 11, 0))
         assertEquals("Spending by month from October 2026 to November 2026.", chartDescription(none).english())
     }
+
+    @Test
+    fun `a date in a year nobody meant counts as the day the bill was saved, as the notice says, and all time starts in 2000 or later`() {
+        // Typed as 2925 for 2025, read off a Thai receipt in the years of the Buddhist era, and typed as 0202.
+        val wrong = listOf("2925-11-13", "2568-11-13", "0202-11-13").mapIndexed { index, date ->
+            SpendingFixtures.finished("w$index", date, "Cinema", ENTERTAINMENT, 100_000, emptyList()).copy(createdAt = SAVED_ON_THE_10TH)
+        }
+        for (bill in wrong) {
+            assertEquals("The bill dated ${bill.bill.date}", LocalDate.of(2026, 11, 10), insightBillOf(bill, "VND", today, clock.zone).day)
+        }
+        val wrongNote = "3 bills have no date that can be used, so each is counted on the day it was saved."
+
+        val month = insightsOf(wrong, "VND", InsightsPeriod.THIS_MONTH, clock)
+        assertEquals(Spending(3, 300_000, 300_000), month.insights.overall)
+        assertEquals(listOf(wrongNote), month.notes.map { it.english() })
+        val all = insightsOf(wrong, "VND", InsightsPeriod.ALL_TIME, clock)
+        assertEquals(listOf(Span.Year(2026)), all.spans.map { it.span })
+        assertEquals(listOf(wrongNote), all.notes.map { it.english() })
+
+        // The earliest day a date still counts on, with the year's bills and the three: a bar for each year from it, and no more.
+        val first = SpendingFixtures.finished("first", "2000-01-01", "Phở Hòa", FOOD_AND_DRINK, 50_000, emptyList())
+        val since2000 = insightsOf(SpendingFixtures.year + wrong + first, "VND", InsightsPeriod.ALL_TIME, clock)
+        assertEquals((2000..2026).map { Span.Year(it) }, since2000.spans.map { it.span })
+        assertEquals(since2000.insights.overall.totalMinor, since2000.spans.sumOf { it.spending.totalMinor })
+        assertEquals(Spending(1, 50_000, 50_000), since2000.spans.first().spending)
+    }
+
+    /** A month of a chart, of [totalMinor] in one bill, or in none for nothing. */
+    private fun monthOf(year: Int, month: Int, totalMinor: Long) =
+        SpanSpending(Span.Month(YearMonth.of(year, month)), if (totalMinor == 0L) NOTHING else Spending(1, totalMinor, 0))
 
     @Test
     fun `a saved bill counts with each person under a key of their own, and its rate only when it converts into the local currency`() {
         val saved = runBlocking { checkNotNull(bills.get("b6")) }
 
-        val counted = insightBillOf(saved, "VND", clock.zone)
+        val counted = insightBillOf(saved, "VND", today, clock.zone)
 
         assertEquals(LocalDate.of(2025, 12, 5), counted.day)
         assertEquals(TRANSPORT, counted.category)
@@ -342,7 +378,7 @@ class InsightsViewModelTest {
             counted.shares,
         )
         assertNull(counted.rate)
-        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", clock.zone).rate
+        fun rateOf(id: String) = insightBillOf(runBlocking { checkNotNull(bills.get(id)) }, "VND", today, clock.zone).rate
         // The day's rate saved as the bill was finished, and a rate the user typed.
         assertEquals(SpendingFixtures.usdDayRate, rateOf("b4"))
         assertEquals(ExchangeRate("THB", "VND", BigDecimal("745.5")), rateOf("b12"))
@@ -351,7 +387,7 @@ class InsightsViewModelTest {
         assertNull(rateOf("b5"))
         // Without a date that can be read, the day it was saved in Ho Chi Minh City, not in UTC.
         val b8 = runBlocking { checkNotNull(bills.get("b8")) }
-        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(b8, "VND", clock.zone).day)
+        assertEquals(LocalDate.of(2026, 11, 1), insightBillOf(b8, "VND", today, clock.zone).day)
     }
 
     @Test
@@ -363,7 +399,7 @@ class InsightsViewModelTest {
         assertEquals(
             listOf(
                 "1 bill in JPY is left out of the totals, as no rate to VND is saved with it. To count it, open it and type a rate.",
-                "1 bill has no date that can be read, so it is counted on the day it was saved.",
+                "1 bill has no date that can be used, so it is counted on the day it was saved.",
             ),
             notes(yen, undated),
         )
@@ -379,7 +415,7 @@ class InsightsViewModelTest {
     @Test
     fun `the user and someone without a name are named by the screen, in the language it shows`() {
         val unnamed = SpendingFixtures.finished("u1", "2026-11-03", "Cafe", FOOD_AND_DRINK, 100_000, listOf(""))
-        val people = Insights.of(listOf(insightBillOf(unnamed, "VND", clock.zone)), SpendingFixtures.vnd).byPerson
+        val people = Insights.of(listOf(insightBillOf(unnamed, "VND", today, clock.zone)), SpendingFixtures.vnd).byPerson
         assertEquals("nothing the insights keep is in a language", listOf("", ""), people.map { it.name })
 
         val inPseudolocale = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag("en-XA")) }
@@ -403,7 +439,7 @@ class InsightsViewModelTest {
             .finished("f2", "2026-11-02", "Bún chả", FOOD_AND_DRINK, 210_000, listOf("Lan"), strangers = listOf("minh"))
             .withPersonIds("Lan" to "lan-again")
 
-        val counted = listOf(newer, older).map { insightBillOf(it, "VND", clock.zone) }
+        val counted = listOf(newer, older).map { insightBillOf(it, "VND", today, clock.zone) }
         val people = Insights.of(counted, SpendingFixtures.vnd).byPerson
 
         // 100,000 + 70,000 each, and Minh named as the newer bill names him. Among equal shares the
@@ -507,7 +543,11 @@ class InsightsViewModelTest {
         const val NOTHING_TO_EXPORT = "Nothing was exported, as this period has no finished bills."
         const val RATE_NOTE = "2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB. " +
             "To count one, open it and type a rate."
-        const val SAVED_DAY_NOTE = "2 bills have no date that can be read, so each is counted on the day it was saved."
+        const val SAVED_DAY_NOTE = "2 bills have no date that can be used, so each is counted on the day it was saved."
+        val NOTHING = Spending(0, 0, 0)
+
+        /** 10 November 2026, in the morning in Ho Chi Minh City. */
+        val SAVED_ON_THE_10TH = Instant.parse("2026-11-10T03:00:00Z").toEpochMilli()
     }
 }
 

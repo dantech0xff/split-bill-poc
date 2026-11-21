@@ -8,7 +8,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -31,11 +30,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dantech.splitvibe.R
 import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvAvatar
 import com.dantech.splitvibe.designsystem.components.SvBarChart
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvChartBar
 import com.dantech.splitvibe.designsystem.components.SvChoiceGroup
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
@@ -66,7 +69,6 @@ import com.dantech.splitvibe.text.resolve
 import com.dantech.splitvibe.text.sentences
 import com.dantech.splitvibe.text.text
 import com.dantech.splitvibe.ui.common.style
-import java.time.YearMonth
 
 /** What the insights screen can ask for. */
 class InsightsActions(
@@ -83,10 +85,10 @@ class InsightsActions(
 
 /**
  * What the user's finished bills add up to in their local currency, for the period they choose:
- * all together, by month as a chart and as a list, by category, by person and by group, with notes
- * on what the totals leave out. The bills of the period can be exported as files, with the button at
- * the end of the list. It is one of the main screens, with the navigation bar the app passes as
- * [bottomBar] and no back button.
+ * all together, by month, or for all time by year, as a chart and as a list, by category, by person
+ * and by group, with notes on what the totals leave out. The bills of the period can be exported as
+ * files, with the button at the end of the list, where the export then says how it went. It is one
+ * of the main screens, with the navigation bar the app passes as [bottomBar] and no back button.
  */
 @Composable
 fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: InsightsActions, bottomBar: @Composable () -> Unit = {}) {
@@ -128,13 +130,14 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
                     modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
                 )
             }
-            export.message?.let { message ->
+            // How an export ended stands right above its button, where it was started; a period without
+            // bills has no button, and then it stands at the top.
+            val exportShown = state != null && state.anyFinished && state.bills.isNotEmpty()
+            export.message?.takeUnless { exportShown }?.let { message ->
                 item(key = "message") {
-                    SvMessageCard(
-                        text = message.text.resolve(),
-                        isError = message.isError,
-                        action = stringResource(R.string.common_ok),
-                        onAction = actions.onDismissMessage,
+                    ExportOutcome(
+                        message = message,
+                        onDismiss = actions.onDismissMessage,
                         modifier = rowMotion().padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
                     )
                 }
@@ -150,7 +153,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
                     )
                 }
 
-                else -> insights(state, exportWorking = export.working, onExport = { exporting = true })
+                else -> insights(state, export = export, onExport = { exporting = true }, onDismissMessage = actions.onDismissMessage)
             }
         }
     }
@@ -178,7 +181,7 @@ fun InsightsScreen(state: InsightsState?, export: ExportStatus, actions: Insight
     }
 }
 
-private fun LazyListScope.insights(state: InsightsState, exportWorking: Boolean, onExport: () -> Unit) {
+private fun LazyListScope.insights(state: InsightsState, export: ExportStatus, onExport: () -> Unit, onDismissMessage: () -> Unit) {
     val insights = state.insights
     val currency = insights.currency
     item(key = "overview") {
@@ -197,7 +200,7 @@ private fun LazyListScope.insights(state: InsightsState, exportWorking: Boolean,
         }
         return
     }
-    months(state)
+    spans(state)
     section(
         key = "category",
         title = R.string.insights_by_category,
@@ -236,16 +239,41 @@ private fun LazyListScope.insights(state: InsightsState, exportWorking: Boolean,
         },
         format = currency::format,
     )
+    export.message?.let { message ->
+        item(key = "message") {
+            ExportOutcome(
+                message = message,
+                onDismiss = onDismissMessage,
+                modifier = rowMotion().padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xl),
+            )
+        }
+    }
     // At the end of the list, as the approved design has it: one bar at the bottom of a main screen is the navigation bar.
     item(key = "export") {
         SvPrimaryButton(
             text = stringResource(R.string.insights_export_bills),
             onClick = onExport,
-            enabled = !exportWorking,
+            enabled = !export.working,
             icon = SvActionIcons.Export,
-            modifier = rowMotion().padding(start = SvSpacing.screen, end = SvSpacing.screen, top = SvSpacing.xl),
+            modifier = rowMotion().padding(
+                start = SvSpacing.screen,
+                end = SvSpacing.screen,
+                top = if (export.message == null) SvSpacing.xl else SvSpacing.md,
+            ),
         )
     }
+}
+
+/** How the last export ended, which TalkBack reads out as it appears, with the button that puts it away. */
+@Composable
+private fun ExportOutcome(message: ExportMessage, onDismiss: () -> Unit, modifier: Modifier) {
+    SvMessageCard(
+        text = message.text.resolve(),
+        isError = message.isError,
+        action = stringResource(R.string.common_ok),
+        onAction = onDismiss,
+        modifier = modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 /** The total of the period and the user's own share of it. */
@@ -271,81 +299,98 @@ private fun Overview(state: InsightsState, modifier: Modifier = Modifier) {
 }
 
 /**
- * The months of the period: a chart of what each month came to, which says in words which months
- * were the highest, and below it each month that has bills, the latest first, with its total, the
- * user's share and how many bills it had. A period of one month has no chart, as it would compare
- * the month with nothing.
+ * The months of the period, or for all time its years: a chart of what each came to, which says in
+ * words which were the highest, and below it each one that has bills, the latest first, with its
+ * total, the user's share and how many bills it had. A period of one month, or all time within one
+ * year, has no chart, as it would compare that one with nothing.
  */
-private fun LazyListScope.months(state: InsightsState) {
-    val byMonth = state.insights.byMonth
-    if (byMonth.isEmpty()) return
+private fun LazyListScope.spans(state: InsightsState) {
+    val spans = state.spans
+    val lines = spans.filter { it.spending.bills > 0 }.reversed()
+    if (lines.isEmpty()) return
     val currency = state.insights.currency
-    val bars = monthBars(state)
-    val chart = bars.size > 1
-    val lines = byMonth.entries.reversed().toList()
-    // The chart is the first part of the card that holds the months.
+    val chart = spans.size > 1
+    // The chart is the first part of the card that holds the lines.
     val before = if (chart) 1 else 0
     val rows = lines.size + before
-    item(key = "month header") { SvSectionHeader(stringResource(R.string.insights_by_month), modifier = rowMotion()) }
+    val title = if (spans.first().span is Span.Year) R.string.insights_by_year else R.string.insights_by_month
+    item(key = "span header") { SvSectionHeader(stringResource(title), modifier = rowMotion()) }
     if (chart) {
-        item(key = "month chart") {
+        item(key = "span chart") {
             SvListRow(position = SvRowPosition.of(0, rows), modifier = rowMotion()) {
                 SvBarChart(
-                    bars = bars.map { bar -> SvChartBar(monthText(bar.month).take(1), bar.totalMinor.toFloat()) },
-                    description = chartDescription(bars).resolve(),
+                    bars = spans.map { SvChartBar(barLabelOf(it.span), it.spending.totalMinor.toFloat()) },
+                    description = chartDescription(spans).resolve(),
                     modifier = Modifier
                         .weight(1f)
                         .padding(vertical = SvSpacing.sm),
-                    // The month the period ends in, the one that is still running.
-                    highlighted = bars.lastIndex,
+                    // The month or the year that is running, which always ends the period.
+                    highlighted = spans.lastIndex,
                 )
             }
         }
     }
-    itemsIndexed(lines, key = { _, (month, _) -> "month $month" }) { index, (month, spending) ->
+    itemsIndexed(lines, key = { _, line -> keyOf(line.span) }) { index, line ->
         SvListRow(position = SvRowPosition.of(index + before, rows), modifier = rowMotion()) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(Exporter.monthName(month), style = MaterialTheme.typography.bodyMediumEmphasized)
-                Text(
-                    shareAndCount(spending, currency::format).resolve(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.width(SvSpacing.md))
-            Text(currency.format(spending.totalMinor), style = MaterialTheme.typography.amountSmall)
+            // Beside the name and the line under it while their longest words fit there, and below them when not.
+            SvBesideOrBelow(
+                first = {
+                    Column {
+                        Text(nameOf(line.span), style = MaterialTheme.typography.bodyMediumEmphasized)
+                        Text(
+                            shareAndCount(line.spending, currency::format).resolve(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                second = { Text(currency.format(line.spending.totalMinor), style = MaterialTheme.typography.amountSmall) },
+                modifier = Modifier.weight(1f),
+                secondBelowAt = Alignment.Start,
+                stackedGap = SvSpacing.xs,
+            )
         }
     }
 }
 
-/** One month of the chart of the insights: the month, and what its bills add up to, 0 for a month without bills. */
-internal class MonthBar(val month: YearMonth, val totalMinor: Long)
+/** What [span] is called in a line and in the words of the chart: "November 2026", or "2026". */
+private fun nameOf(span: Span): String = when (span) {
+    is Span.Month -> Exporter.monthName(span.month)
+    is Span.Year -> span.year.toString()
+}
+
+/** What stands under the bar of [span]: the first letter of its month, or its year. */
+private fun barLabelOf(span: Span): String = when (span) {
+    is Span.Month -> monthText(span.month).take(1)
+    is Span.Year -> span.year.toString()
+}
+
+/** The key of the line of [span] in the list. */
+private fun keyOf(span: Span): String = when (span) {
+    is Span.Month -> "month ${span.month}"
+    is Span.Year -> "year ${span.year}"
+}
 
 /**
- * The bars of the chart of [state]: every month of its period, the earliest first, each with the
- * total of its bills, as the block at the top adds them up.
+ * What the chart of [spans] says to a screen reader: the months or the years it runs over, and the
+ * one that came to most, then the one after it, such as "Spending by month from December 2025 to
+ * November 2026. November 2026 is the highest, then October 2026." Of two with the same total the
+ * later comes first. [spans] holds one at least.
  */
-internal fun monthBars(state: InsightsState): List<MonthBar> =
-    state.months.map { month -> MonthBar(month, state.insights.byMonth[month]?.totalMinor ?: 0L) }
-
-/**
- * What the chart of [bars] says to a screen reader: the months it runs over, and the month that came
- * to most, then the one after it, such as "Spending by month from December 2025 to November 2026.
- * November 2026 is the highest, then October 2026." Of two months with the same total the later comes
- * first. [bars] holds one month at least.
- */
-internal fun chartDescription(bars: List<MonthBar>): UiText {
-    require(bars.isNotEmpty()) { "A chart of no month" }
-    val span = text(R.string.insights_chart, Exporter.monthName(bars.first().month), Exporter.monthName(bars.last().month))
-    val highest = bars.filter { it.totalMinor > 0 }
-        .sortedWith(compareByDescending<MonthBar> { it.totalMinor }.thenByDescending { it.month })
-        .map { Exporter.monthName(it.month) }
+internal fun chartDescription(spans: List<SpanSpending>): UiText {
+    require(spans.isNotEmpty()) { "A chart of nothing" }
+    val words = if (spans.first().span is Span.Year) R.string.insights_chart_years else R.string.insights_chart
+    val range = text(words, nameOf(spans.first().span), nameOf(spans.last().span))
+    val highest = spans.withIndex()
+        .filter { (_, span) -> span.spending.totalMinor > 0 }
+        .sortedWith(compareByDescending<IndexedValue<SpanSpending>> { it.value.spending.totalMinor }.thenByDescending { it.index })
+        .map { nameOf(it.value.span) }
     val most = when (highest.size) {
         0 -> null
         1 -> text(R.string.insights_chart_highest, highest[0])
         else -> text(R.string.insights_chart_highest_then, highest[0], highest[1])
     }
-    return sentences(span, most)
+    return sentences(range, most)
 }
 
 /** What stands at the start of a line of a breakdown. */
@@ -356,7 +401,7 @@ private sealed interface Mark {
     /** The initials of the person or the group the line is about. */
     data object Initials : Mark
 
-    /** A quiet tile with a line across, for the bills in no group. */
+    /** A blank tile with a line across, for the bills in no group. */
     data object NoGroup : Mark
 }
 
@@ -393,15 +438,17 @@ private fun SpendingRow(line: SpendingLine, fraction: Float, format: (Long) -> S
         when (line.mark) {
             is Mark.Category -> category?.let { SvIconTile(it.icon, it.color) }
             Mark.Initials -> SvAvatar(label)
-            Mark.NoGroup -> SvQuietIconTile(SvActionIcons.None, size = AVATAR_SIZE)
+            Mark.NoGroup -> SvQuietIconTile(SvActionIcons.None, size = AVATAR_SIZE, blank = true)
         }
         Spacer(Modifier.width(SvSpacing.md))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SvSpacing.xs)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMediumEmphasized)
-                Spacer(Modifier.width(SvSpacing.md))
-                Text(format(line.amountMinor), style = MaterialTheme.typography.amountSmall)
-            }
+            // Beside the name while its longest word fits there, and below it when not, as with large text.
+            SvBesideOrBelow(
+                first = { Text(label, style = MaterialTheme.typography.bodyMediumEmphasized) },
+                second = { Text(format(line.amountMinor), style = MaterialTheme.typography.amountSmall) },
+                secondBelowAt = Alignment.Start,
+                stackedGap = SvSpacing.xs,
+            )
             // The bar only repeats the amount beside it, so it says nothing to a screen reader.
             SvStatBar(fraction = fraction, description = null, color = category?.color ?: MaterialTheme.colorScheme.onSurface)
             Text(line.detail.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

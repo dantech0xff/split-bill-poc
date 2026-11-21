@@ -59,9 +59,9 @@ import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -481,7 +481,7 @@ class BackNavigationTest {
         signIn()
         awaitState { exists(hasText("Sign out")) }
 
-        compose.onNodeWithText("Sign out").performClick()
+        compose.onNodeWithText("Sign out").performScrollTo().performClick()
         awaitState { accountStore().account.value.session == null }
         compose.waitForIdle()
 
@@ -523,7 +523,7 @@ class BackNavigationTest {
         assertNavigationBarOn("Home")
 
         compose.onNodeWithContentDescription("Settings").performClick()
-        compose.onNodeWithText("Sign out").performClick()
+        compose.onNodeWithText("Sign out").performScrollTo().performClick()
         awaitState { accountStore().account.value.session == null }
         onBackDispatcher { onBackPressed() }
         compose.onNodeWithText("Recent bills").assertIsDisplayed()
@@ -549,11 +549,14 @@ class BackNavigationTest {
     /**
      * Empties what the phone kept of the account, off the main thread, which goes on running while the
      * test waits. A fetch of the requests can hold the cache while it waits to go on on the main thread,
-     * so blocking the main thread until the cache is empty would wait for ever.
+     * so blocking the main thread until the cache is empty would wait for ever. A clear that failed
+     * fails the test, as the cache then still holds what it kept.
      */
     private fun clearTheCache() {
-        val clearing = CoroutineScope(Dispatchers.Default).launch { GlobalContext.get().get<ProxyCache>().clear() }
+        val clearing = CoroutineScope(Dispatchers.Default).async { GlobalContext.get().get<ProxyCache>().clear() }
         awaitState { clearing.isCompleted }
+        // It has ended, so this only hands on how: it throws what the clear threw.
+        runBlocking { clearing.await() }
     }
 
     private fun accountStore(): AccountStore = GlobalContext.get().get()

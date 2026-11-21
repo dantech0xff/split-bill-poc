@@ -189,18 +189,20 @@ fun SvIconTile(icon: ImageVector, color: Color, modifier: Modifier = Modifier, s
 }
 
 /**
- * An icon on a quiet tile, for something without a colour of its own, such as a recurring bill or
- * the bills in no group: the tile takes the quiet shade of what it lies on, light grey on a card, and
- * the icon the colour of text, in both themes. It has the shape of [SvIconTile] at the same [size].
- * Decorative: say the same in text beside it.
+ * An icon on a quiet tile, for something without a colour of its own, such as a recurring bill: the
+ * tile takes the quiet shade of what it lies on, light grey on a card, and the icon the colour of
+ * text, in both themes. With [blank] the tile takes the palette's grey of a blank tile, which stands
+ * a step further out, for what stands for none of a kind, such as the bills in no group beside the
+ * groups' own colours. It has the shape of [SvIconTile] at the same [size]. Decorative: say the same
+ * in text beside it.
  */
 @Composable
-fun SvQuietIconTile(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = ICON_TILE_SIZE) {
+fun SvQuietIconTile(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = ICON_TILE_SIZE, blank: Boolean = false) {
     val ground = LocalSvGround.current
     Box(
         modifier = modifier
             .size(size)
-            .background(ground.quiet, IconTileShape),
+            .background(if (blank) SvTheme.palette.blankTile else ground.quiet, IconTileShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(size * ICON_SCALE), tint = ground.onQuiet)

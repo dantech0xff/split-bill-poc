@@ -2,7 +2,7 @@ Spending summary
 All time. Finished bills, in VND.
 10 bills came to ₫24,711,433. Your share was ₫8,004,050.
 2 bills are left out of the totals, as no rate to VND is saved with them: 1 in EUR and 1 in THB. To count one, open it and type a rate.
-2 bills have no date that can be read, so each is counted on the day it was saved.
+2 bills have no date that can be used, so each is counted on the day it was saved.
 By month
 Month | Bills | Total | Your share
 November 2026 | 6 | ₫11,749,409 | ₫3,823,038

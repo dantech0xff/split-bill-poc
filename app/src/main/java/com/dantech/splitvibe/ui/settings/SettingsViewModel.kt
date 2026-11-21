@@ -23,7 +23,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /** What the account part of Settings is doing, and how the last action ended, if there is anything to say. */
-data class AccountUiState(val working: Boolean = false, val message: UiText? = null, val isError: Boolean = false)
+data class AccountUiState(
+    val working: Boolean = false,
+    val message: UiText? = null,
+    val isError: Boolean = false,
+    /**
+     * The action the person started on this visit to Settings that runs or that ended with [message],
+     * which shows by the button that started it; null for what Settings found out by itself, such as a
+     * count it could not get, or a deletion started on an earlier visit.
+     */
+    val action: AccountAction? = null,
+)
+
+/** What the person can do with their account in Settings. */
+enum class AccountAction { SIGN_IN, SIGN_OUT, DELETE }
 
 /** Signing in and out, deleting the account, and the calls left, for the Settings screen. */
 class SettingsViewModel(private val repository: AccountRepository) : ViewModel() {
@@ -33,16 +46,20 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
 
     val canSignIn: Boolean get() = repository.canSignIn
 
+    /** Whether the deletion that runs was started here, rather than on an earlier visit to Settings. */
+    private var deletingHere = false
+
     init {
         // A deletion goes on after Settings is left, so Settings follows it whenever it shows, and
         // says how one that ended while it was closed came out.
         viewModelScope.launch {
             repository.deletion.collect { deletion ->
+                val action = AccountAction.DELETE.takeIf { deletingHere }
                 when (deletion) {
                     null -> Unit
-                    Deletion.Running -> state.value = AccountUiState(working = true)
-                    is Deletion.Ended -> said(textOf(deletion.outcome), isError = deletion.outcome !in DONE)
-                    is Deletion.Refused -> said(messageOf(deletion.error), isError = true)
+                    Deletion.Running -> state.value = AccountUiState(working = true, action = action)
+                    is Deletion.Ended -> said(textOf(deletion.outcome), isError = deletion.outcome !in DONE, action = action)
+                    is Deletion.Refused -> said(messageOf(deletion.error), isError = true, action = action)
                 }
             }
         }
@@ -68,9 +85,9 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
     }
 
     /** [activity] shows Google's account picker; it is used for this call only. */
-    fun signIn(activity: Context) = act { repository.signIn(activity) }
+    fun signIn(activity: Context) = act(AccountAction.SIGN_IN) { repository.signIn(activity) }
 
-    fun signOut(context: Context) = act { repository.signOut(context) }
+    fun signOut(context: Context) = act(AccountAction.SIGN_OUT) { repository.signOut(context) }
 
     /**
      * Deletes the account, and [withPhoneData] also what only this phone keeps, once the proxy has
@@ -79,15 +96,16 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
     fun deleteAccount(withPhoneData: Boolean) {
         if (state.value.working) return
         refreshing.cancel()
-        state.value = AccountUiState(working = true)
+        deletingHere = true
+        state.value = AccountUiState(working = true, action = AccountAction.DELETE)
         repository.deleteAccount(withPhoneData)
     }
 
     /** Runs one account action at a time. */
-    private fun act(block: suspend () -> Unit) {
+    private fun act(action: AccountAction, block: suspend () -> Unit) {
         if (state.value.working) return
         refreshing.cancel()
-        state.value = AccountUiState(working = true)
+        state.value = AccountUiState(working = true, action = action)
         viewModelScope.launch {
             state.value = try {
                 block()
@@ -95,14 +113,15 @@ class SettingsViewModel(private val repository: AccountRepository) : ViewModel()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                AccountUiState(message = messageOf(e), isError = true)
+                AccountUiState(message = messageOf(e), isError = true, action = action)
             }
         }
     }
 
     /** Shows [message] about how the last deletion ended, which then counts as said. */
-    private fun said(message: UiText?, isError: Boolean) {
-        state.value = AccountUiState(message = message, isError = isError)
+    private fun said(message: UiText?, isError: Boolean, action: AccountAction?) {
+        state.value = AccountUiState(message = message, isError = isError, action = action)
+        deletingHere = false
         repository.deletionShown()
     }
 

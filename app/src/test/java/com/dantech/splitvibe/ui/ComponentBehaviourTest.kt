@@ -3,6 +3,7 @@ package com.dantech.splitvibe.ui
 import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +34,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
@@ -86,6 +90,7 @@ import com.dantech.splitvibe.designsystem.components.SvActionIcons
 import com.dantech.splitvibe.designsystem.components.SvActionTile
 import com.dantech.splitvibe.designsystem.components.SvAvatarStack
 import com.dantech.splitvibe.designsystem.components.SvBarChart
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvBottomBar
 import com.dantech.splitvibe.designsystem.components.SvBrandTopBar
 import com.dantech.splitvibe.designsystem.components.SvCard
@@ -126,6 +131,7 @@ import com.dantech.splitvibe.designsystem.components.SvTopBar
 import com.dantech.splitvibe.designsystem.motion.LocalReducedMotion
 import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.designsystem.tokens.SvSpacing
+import com.dantech.splitvibe.designsystem.tokens.SvTheme
 import com.dantech.splitvibe.domain.Bill
 import com.dantech.splitvibe.domain.BillCategory
 import com.dantech.splitvibe.domain.BillCurrency
@@ -682,6 +688,41 @@ class ComponentBehaviourTest {
     }
 
     @Test
+    // The colours are read off the drawn picture.
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = PHONE)
+    fun `a choice of one is round, a lime disc once chosen and a grey ring while not, in both themes`() {
+        var dark by mutableStateOf(false)
+        var colours = RadioColours(Color.Unspecified, Color.Unspecified, Color.Unspecified)
+        compose.setContent {
+            SplitVibeTheme(darkTheme = dark) {
+                colours = RadioColours(SvTheme.palette.accent, SvTheme.palette.radioRing, MaterialTheme.colorScheme.background)
+                Row(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+                    SvRadio(selected = true, onClick = {})
+                    SvRadio(selected = false, onClick = {})
+                }
+            }
+        }
+
+        for (theme in listOf("light", "dark")) {
+            dark = theme == "dark"
+            compose.waitForIdle()
+            val picture = compose.onRoot().captureToImage().toPixelMap()
+            val (chosen, open) = compose.onAllNodes(hasRole(Role.RadioButton)).fetchSemanticsNodes().map { it.boundsInRoot.center }
+            with(compose.density) {
+                // Inside the round mark by its left edge, and in the corner of the square it fits in, outside the round.
+                val edge = RADIO_EDGE_PROBE.toPx()
+                val corner = RADIO_CORNER_PROBE.toPx()
+                fun at(centre: Offset, dx: Float, dy: Float) = picture[(centre.x - dx).toInt(), (centre.y - dy).toInt()]
+                assertEquals("The chosen mark in the $theme theme", colours.chosen, at(chosen, edge, 0f))
+                assertEquals("The corner by the chosen mark in the $theme theme", colours.page, at(chosen, corner, corner))
+                assertEquals("The ring in the $theme theme", colours.ring, at(open, edge, 0f))
+                assertEquals("The middle of the ring in the $theme theme", colours.page, at(open, 0f, 0f))
+            }
+        }
+    }
+
+    @Test
     fun `a tick box in a row that is ticked as a whole adds no control of its own`() {
         var ticked by mutableStateOf(false)
         compose.setContent {
@@ -1076,13 +1117,12 @@ class ComponentBehaviourTest {
             SplitVibeTheme {
                 val density = LocalDensity.current
                 CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
-                    SvFieldRow(
-                        widths = listOf(SvFieldWidth.Share(1f, mustFit = false), SvFieldWidth.Content),
+                    SvBesideOrBelow(
+                        first = { Text("Tops Market") },
+                        second = { Text("THB 412.50") },
                         modifier = Modifier.width(NAME_AND_AMOUNT_WIDTH),
-                    ) {
-                        Text("Tops Market")
-                        Text("THB 412.50")
-                    }
+                        secondBelowAt = Alignment.Start,
+                    )
                 }
             }
         }
@@ -1286,6 +1326,17 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit, onSplit: () -> Unit) 
 private fun hasRole(role: Role) = SemanticsMatcher.expectValue(SemanticsProperties.Role, role)
 
 private fun tab(name: String) = hasContentDescription(name) and hasRole(Role.Tab)
+
+/** The colours of a choice of one in a theme: the disc of the chosen one, the ring of one not chosen, and the page they lie on. */
+private class RadioColours(val chosen: Color, val ring: Color, val page: Color)
+
+/**
+ * From the middle of a choice of one: 13dp to the left lies inside the round mark of 28dp, on its
+ * ring when it is not chosen, and 12dp up and to the left lies outside the round, in the corner of the
+ * square it fits in.
+ */
+private val RADIO_EDGE_PROBE = 13.dp
+private val RADIO_CORNER_PROBE = 12.dp
 
 /** How the text of [node] is laid out. */
 private fun layoutOf(node: SemanticsNodeInteraction): TextLayoutResult {

@@ -15,9 +15,13 @@ class DesignSystemBoundaryTest {
 
     @Test
     fun `screens leave theme, colour, type, shadow, motion and controls to the design system`() {
-        val files = SOURCE_DIRECTORIES.flatMap { directory -> File(directory).walkTopDown().filter { it.extension == "kt" }.toList() }
-        // A wrong working directory would otherwise make the test pass without looking at anything.
-        assertTrue("Only ${files.size} source files found in $SOURCE_DIRECTORIES", files.size >= MIN_SOURCE_FILES)
+        val files = SOURCE_DIRECTORIES.flatMap { (directory, fewest) ->
+            val found = File(directory).walkTopDown().filter { it.extension == "kt" }.toList()
+            // A wrong working directory, or a tree that moved, would otherwise go unseen, and the test
+            // would pass without looking at what it should.
+            assertTrue("Only ${found.size} source files found in $directory", found.size >= fewest)
+            found
+        }
 
         val violations = files.flatMap { file ->
             file.readLines().flatMapIndexed { index, line ->
@@ -145,6 +149,5 @@ private val FORBIDDEN = listOf(
     ),
 )
 
-/** The app's screens, and the catalog that shows the components in debug builds. */
-private val SOURCE_DIRECTORIES = listOf("src/main/java", "src/debug/java")
-private const val MIN_SOURCE_FILES = 20
+/** The app's screens, and the catalog that shows the components in debug builds, each with the fewest source files it must hold. */
+private val SOURCE_DIRECTORIES = listOf("src/main/java" to 20, "src/debug/java" to 2)

@@ -31,10 +31,9 @@ import com.dantech.splitvibe.R
 import com.dantech.splitvibe.data.bills.BillListing
 import com.dantech.splitvibe.data.bills.BillStatus
 import com.dantech.splitvibe.data.bills.dayOf
+import com.dantech.splitvibe.designsystem.components.SvBesideOrBelow
 import com.dantech.splitvibe.designsystem.components.SvDialog
 import com.dantech.splitvibe.designsystem.components.SvEmptyState
-import com.dantech.splitvibe.designsystem.components.SvFieldRow
-import com.dantech.splitvibe.designsystem.components.SvFieldWidth
 import com.dantech.splitvibe.designsystem.components.SvIconTile
 import com.dantech.splitvibe.designsystem.components.SvListRow
 import com.dantech.splitvibe.designsystem.components.SvLoadingIndicator
@@ -108,33 +107,34 @@ fun HistoryScreen(
                 .padding(padding),
             contentPadding = PaddingValues(top = SvSpacing.sm, bottom = SvSpacing.xl),
         ) {
-            // Searching finds bills only, so the Recurring tab has no field to search with.
-            if (tab == BillsTab.ALL) {
-                item(key = "search") {
-                    SvTextField(
-                        value = typed,
-                        onValueChange = {
-                            typed = it
-                            onQueryChanged(it)
-                        },
-                        // The magnifier and the words in the field say what it is for, as the design draws it.
-                        label = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
-                        placeholder = stringResource(R.string.history_search),
-                        leadingIcon = Icons.Default.Search,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            // The field is part of the item of the tabs, so it comes back at the top of the list with
+            // All bills: an item put in above the first one shown would open above the screen.
+            item(key = "tabs") {
+                Column(modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md)) {
+                    // Searching finds bills only, so the Recurring tab has no field to search with.
+                    if (tab == BillsTab.ALL) {
+                        SvTextField(
+                            value = typed,
+                            onValueChange = {
+                                typed = it
+                                onQueryChanged(it)
+                            },
+                            // The magnifier and the words in the field say what it is for, as the design draws it.
+                            label = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = SvSpacing.md),
+                            placeholder = stringResource(R.string.history_search),
+                            leadingIcon = Icons.Default.Search,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        )
+                    }
+                    SvTabs(
+                        tabs = listOf(stringResource(R.string.history_all_bills), stringResource(R.string.history_recurring)),
+                        selected = tab.ordinal,
+                        onSelect = { tab = BillsTab.entries[it] },
                     )
                 }
-            }
-            item(key = "tabs") {
-                SvTabs(
-                    tabs = listOf(stringResource(R.string.history_all_bills), stringResource(R.string.history_recurring)),
-                    selected = tab.ordinal,
-                    onSelect = { tab = BillsTab.entries[it] },
-                    modifier = Modifier.padding(start = SvSpacing.screen, end = SvSpacing.screen, bottom = SvSpacing.md),
-                )
             }
             when (tab) {
                 BillsTab.ALL -> when {
@@ -265,10 +265,12 @@ internal fun BillListingRow(
                 name()
             } else {
                 // Beside the name while its longest word fits there, and below it when not, as with large text.
-                SvFieldRow(widths = NAME_AND_TOTAL, alignment = Alignment.CenterVertically) {
-                    name()
-                    Text(total, style = MaterialTheme.typography.amountSmall)
-                }
+                SvBesideOrBelow(
+                    first = name,
+                    second = { Text(total, style = MaterialTheme.typography.amountSmall) },
+                    secondBelowAt = Alignment.Start,
+                    gap = SvSpacing.sm,
+                )
             }
             Text(
                 listOfNotNull(day, categoryName.takeIf { withCategory }, people).joinToString(" · "),
@@ -293,9 +295,6 @@ internal fun BillListingRow(
 
 @Composable
 private fun titleOf(listing: BillListing): String = listing.merchant?.takeIf { it.isNotBlank() } ?: stringResource(R.string.common_bill)
-
-/** The name of a bill, which goes on to more lines between words, and its total, which keeps its width. */
-private val NAME_AND_TOTAL = listOf(SvFieldWidth.Share(1f, mustFit = false), SvFieldWidth.Content)
 
 /**
  * The day of [listing] as a list of bills writes it: its date written short as of [today] when the
