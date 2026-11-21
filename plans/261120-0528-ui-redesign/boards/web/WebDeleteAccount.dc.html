@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Web: delete your account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 2680px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 0 20px 40px; display: flex; flex-direction: column">
+
+<header style="height: 56px; flex: none; display: flex; align-items: center">
+<p style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 24px; letter-spacing: -0.01em; color: #111114">Split Vibe</p>
+</header>
+
+<main style="padding-top: 16px; display: flex; flex-direction: column; gap: 24px">
+
+<section aria-labelledby="delete-title" style="position: relative; overflow: hidden; border-radius: 32px; background: #5B34F5; color: #FFFFFF; padding: 24px; display: flex; flex-direction: column; gap: 8px">
+<div aria-hidden="true" style="position: absolute; top: -48px; right: -40px; width: 168px; height: 168px; border-radius: 50%; background: #FFFFFF; opacity: 0.1"></div>
+<h1 id="delete-title" style="position: relative; margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 28px; line-height: 34px; letter-spacing: -0.02em">Delete your Split Vibe account</h1>
+<p style="position: relative; margin: 0; font-size: 16px; line-height: 24px">Deleting your account removes what Split Vibe's server keeps about you, apart from what is listed under What stays. It cannot be undone.</p>
+</section>
+
+<section aria-labelledby="deleted-title" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="deleted-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">What is deleted</h2>
+<ul style="margin: 0; padding: 20px; list-style: none; background: #FFFFFF; border-radius: 24px; display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 24px">
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">Your account, your Pro plan as Split Vibe knows it, and your purchase history at RevenueCat, which handles Pro purchases for Split Vibe.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">Your place in groups. You show as "Former member", and every amount stays as it was, so nobody else's balance changes. A group you own passes to another member.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">How to pay you, on the payment requests you made that are not confirmed yet.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">The bill links you shared, which stop working, and what people picked on them.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">The phones that get Split Vibe's notifications for you.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">Your sign-in on every phone. A phone still signed in to the account is signed out: Split Vibe's server no longer accepts its sign-in, so it cannot use the account until you sign in again.</span></li>
+</ul>
+</section>
+
+<section aria-labelledby="kept-title" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="kept-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">What stays</h2>
+<ul style="margin: 0; padding: 20px; list-style: none; background: #FFFFFF; border-radius: 24px; display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 24px">
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">Bills, people and payment methods on your phone stay on your phone. To delete them too, delete your account in the app and tick "Also delete the bills, people and payment methods on this phone", or uninstall Split Vibe.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">A Pro subscription goes on until you cancel it in Google Play: deleting your account does not cancel it. <a href="#" target="_blank" rel="noopener noreferrer" style="color: #5B34F5; font-weight: 600; text-decoration: underline; text-underline-offset: 3px">Manage your subscriptions on Google Play</a>.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">How many AI calls your account used this month, until the month ends, so that deleting the account and signing in again does not start them over.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">When your account was deleted, for 30 days, so that phones still signed in to it are signed out.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">Counts of what your account did in the last hour, until the next daily clean-up.</span></li>
+<li style="display: flex; gap: 12px"><span aria-hidden="true" style="width: 8px; height: 8px; flex: none; margin-top: 8px; border-radius: 50%; background: #5B34F5"></span><span style="flex: 1; min-width: 0">The bills and settlements of your groups, so that their balances stay right, and the payment requests between you and others, for the other person.</span></li>
+</ul>
+</section>
+
+<section aria-labelledby="action-title" style="background: #FFFFFF; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="action-title" tabindex="-1" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Delete your account</h2>
+<p style="margin: 0; font-size: 16px; line-height: 24px">Sign in with the Google account you use in Split Vibe. You can still change your mind after that.</p>
+<div style="margin-top: 4px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px">
+<button style="height: 44px; box-sizing: border-box; padding: 0 24px; border: 1px solid #76757E; border-radius: 22px; background: #FFFFFF; color: #111114; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer">Sign in with Google</button>
+<span style="font-size: 11px; line-height: 16px; color: #5F5E66">Drawn by Google</span>
+</div>
+</section>
+
+<section aria-labelledby="in-app-title" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="in-app-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Delete it in the app</h2>
+<ol style="margin: 0; padding: 8px 0; list-style: none; background: #FFFFFF; border-radius: 24px; display: flex; flex-direction: column; gap: 8px">
+<li style="min-height: 56px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C9F73A; color: #111114; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center">1</span>
+<span style="flex: 1; min-width: 0; font-size: 16px; line-height: 24px">Open Split Vibe on your phone.</span>
+</li>
+<li style="min-height: 56px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C9F73A; color: #111114; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center">2</span>
+<span style="flex: 1; min-width: 0; font-size: 16px; line-height: 24px">Go to Settings.</span>
+</li>
+<li style="min-height: 56px; box-sizing: border-box; padding: 12px 16px; display: flex; align-items: center; gap: 12px">
+<span aria-hidden="true" style="width: 32px; height: 32px; flex: none; border-radius: 50%; background: #C9F73A; color: #111114; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center">3</span>
+<span style="flex: 1; min-width: 0; font-size: 16px; line-height: 24px">Tap Delete account.</span>
+</li>
+</ol>
+</section>
+
+</main>
+
+<footer style="margin-top: auto; padding-top: 24px; font-size: 13px; line-height: 20px; color: #5F5E66">
+<nav aria-label="Split Vibe">
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; column-gap: 8px">
+<li><a href="#" style="min-height: 48px; padding: 0 8px; display: inline-flex; align-items: center; color: #5F5E66; text-decoration: underline; text-underline-offset: 3px">Privacy policy</a></li>
+<li><a href="#" style="min-height: 48px; padding: 0 8px; display: inline-flex; align-items: center; color: #5F5E66; text-decoration: underline; text-underline-offset: 3px">Terms of use</a></li>
+<li><a href="#" aria-current="page" style="min-height: 48px; padding: 0 8px; display: inline-flex; align-items: center; color: #111114; font-weight: 700; text-decoration: none">Delete account</a></li>
+</ul>
+</nav>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2680}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

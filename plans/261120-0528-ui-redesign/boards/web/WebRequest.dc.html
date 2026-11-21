@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Web: a payment request</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 1380px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 0 20px 40px; display: flex; flex-direction: column">
+
+<header style="height: 56px; flex: none; display: flex; align-items: center">
+<p style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 24px; letter-spacing: -0.01em; color: #111114">Split Vibe</p>
+</header>
+
+<main style="padding-top: 16px; display: flex; flex-direction: column; gap: 24px">
+
+<section aria-labelledby="request-title" style="position: relative; overflow: hidden; border-radius: 32px; background: #5B34F5; color: #FFFFFF; padding: 24px; display: flex; flex-direction: column; gap: 4px">
+<div aria-hidden="true" style="position: absolute; top: -48px; right: -40px; width: 168px; height: 168px; border-radius: 50%; background: #FFFFFF; opacity: 0.1"></div>
+<h1 id="request-title" style="position: relative; margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Lan asks Minh for</h1>
+<p style="position: relative; margin: 0; display: flex; align-items: baseline; gap: 4px; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 60px"><span style="font-size: 30px">₫</span><span style="font-size: 56px">150,000</span></p>
+<p style="position: relative; margin: 0; font-size: 16px; font-weight: 500; line-height: 24px">For Hot pot</p>
+<p style="position: relative; align-self: flex-start; margin: 8px 0 0; height: 28px; padding: 0 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.16); color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center">Not paid yet</p>
+</section>
+
+<section aria-labelledby="pay-title" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="pay-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">How to pay</h2>
+<p style="margin: 0; font-size: 15px; line-height: 22px; color: #5F5E66">The person who sent this link wrote these payment details. Split Vibe does not check them. <a href="#" style="color: #5B34F5; font-weight: 600; text-decoration: underline; text-underline-offset: 3px">Report abuse</a></p>
+<a href="#" target="_blank" rel="noopener noreferrer" style="height: 56px; border-radius: 28px; background: #5B34F5; color: #FFFFFF; text-decoration: none; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"></path></svg>
+<span>Pay on paypal.me</span>
+</a>
+<figure style="margin: 0; background: #FFFFFF; border-radius: 24px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px">
+<svg width="200" height="200" viewBox="0 0 25 25" role="img" aria-label="QR code to pay ₫150,000" shape-rendering="crispEdges" style="display: block; background: #FFFFFF">
+<rect width="25" height="25" fill="#FFFFFF"></rect>
+<g fill="#000000" fill-rule="evenodd">
+<path d="M0 0h7v7h-7zM1 1v5h5v-5zM2 2h3v3h-3z"></path>
+<path d="M18 0h7v7h-7zM19 1v5h5v-5zM20 2h3v3h-3z"></path>
+<path d="M0 18h7v7h-7zM1 19v5h5v-5zM2 20h3v3h-3z"></path>
+</g>
+<g fill="none" stroke="#000000" stroke-width="1">
+<path d="M8 0.5h9" stroke-dasharray="1 1 2 1 1 3"></path>
+<path d="M8 1.5h9" stroke-dasharray="2 1 1 2 1 2"></path>
+<path d="M8 2.5h9" stroke-dasharray="1 2 1 1 3 1"></path>
+<path d="M8 3.5h9" stroke-dasharray="3 1 1 1 2 1"></path>
+<path d="M8 4.5h9" stroke-dasharray="1 1 1 2 2 2"></path>
+<path d="M8 5.5h9" stroke-dasharray="2 2 1 1 1 2"></path>
+<path d="M8 6.5h9" stroke-dasharray="1 1"></path>
+<path d="M0 8.5h25" stroke-dasharray="2 1 1 2 3 1 1 1 2 2"></path>
+<path d="M0 9.5h25" stroke-dasharray="1 2 2 1 1 3 2 1 1 1"></path>
+<path d="M0 10.5h25" stroke-dasharray="3 1 1 1 2 2 1 2 1 1"></path>
+<path d="M0 11.5h25" stroke-dasharray="1 1 2 3 1 1 2 1 3 2"></path>
+<path d="M0 12.5h25" stroke-dasharray="2 2 1 1 1 2 3 1 1 1"></path>
+<path d="M0 13.5h25" stroke-dasharray="1 3 2 1 2 1 1 2 2 1"></path>
+<path d="M0 14.5h25" stroke-dasharray="2 1 3 2 1 1 1 1 2 3"></path>
+<path d="M0 15.5h25" stroke-dasharray="1 1 1 2 2 3 1 2 1 1"></path>
+<path d="M0 16.5h25" stroke-dasharray="3 2 1 1 1 1 2 2 1 2"></path>
+<path d="M8 18.5h17" stroke-dasharray="1 2 2 1 3 1 1 2"></path>
+<path d="M8 19.5h17" stroke-dasharray="2 1 1 3 1 2 2 1"></path>
+<path d="M8 20.5h17" stroke-dasharray="1 1 3 1 2 1 1 2"></path>
+<path d="M8 21.5h17" stroke-dasharray="3 2 1 1 1 2 2 1"></path>
+<path d="M8 22.5h17" stroke-dasharray="1 1 2 2 1 3 1 1"></path>
+<path d="M8 23.5h17" stroke-dasharray="2 3 1 1 2 1 1 2"></path>
+<path d="M8 24.5h17" stroke-dasharray="1 2 1 2 3 1 2 1"></path>
+</g>
+</svg>
+<figcaption style="font-size: 15px; font-weight: 500; line-height: 22px; text-align: center">Scan it in your banking app.</figcaption>
+</figure>
+<div style="background: #F0EFEA; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+<p style="margin: 0; font-size: 16px; font-weight: 500; line-height: 24px; white-space: pre-line">Bank: ACB (970416)
+Account: 257678859
+Name: LAN NGUYEN</p>
+<button style="align-self: flex-start; height: 48px; margin-left: -4px; padding: 0 4px; border: none; background: none; color: #111114; font-family: inherit; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; display: flex; align-items: center; gap: 8px; cursor: pointer">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>
+<span>Copy the details</span>
+</button>
+</div>
+<p style="margin: 0; font-size: 15px; line-height: 22px; color: #5F5E66">The amount, ₫150,000, is filled in for you.</p>
+</section>
+
+<section aria-labelledby="app-title" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="app-title" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Keep track in Split Vibe</h2>
+<p style="margin: 0; font-size: 15px; line-height: 22px; color: #5F5E66">Split Vibe can tell Lan that you paid, and remind you while it is open.</p>
+<a href="#" target="_blank" rel="noopener noreferrer" style="height: 48px; border-radius: 24px; background: #F0EFEA; color: #111114; text-decoration: none; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center">Get Split Vibe on Google Play</a>
+<p style="margin: 0; font-size: 13px; line-height: 20px; color: #5F5E66">Split Vibe is an app for Android phones.</p>
+</section>
+
+</main>
+
+<footer style="margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; align-items: center; text-align: center; font-size: 13px; line-height: 20px; color: #5F5E66">
+<p style="margin: 0">Split Vibe never holds or moves money.</p>
+<p style="margin: 0"><a href="#" style="min-height: 48px; padding: 0 8px; display: inline-flex; align-items: center; color: #5F5E66; text-decoration: underline; text-underline-offset: 3px">Report abuse</a></p>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1380}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

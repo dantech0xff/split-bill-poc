@@ -1,6 +1,6 @@
 ---
 title: "Phase 8: Kiểm thử, ảnh tham chiếu và hồ sơ khởi động"
-status: in-progress
+status: completed
 phase: 8
 priority: P1
 effort: "3d"
@@ -81,7 +81,7 @@ Toàn bộ giao diện mới được kiểm một lượt cuối. Ảnh tham ch
 - [x] Ghi lại một lần vào thư mục đã dọn trống, sáu ảnh thừa bị xóa, không bài chụp nào bị mất
 - [x] Chế độ so mặc định qua hai lần, lần hai ép chạy lại; ảnh được commit
 - [x] Ảnh tối, cỡ chữ 200%, `en-XA` và `vi-VN` đã soát; các sửa gom vào một lượt ghi lại
-- [ ] Chủ sản phẩm duyệt các bảng ảnh và các trạng thái không có bảng riêng
+- [x] Chủ sản phẩm duyệt các bảng ảnh và các trạng thái không có bảng riêng
 - [x] `AppLaunchTest` đi qua bốn tab
 - [ ] Hai phông xem bằng mắt trên API 26, các chuyển động thử tay (phông đã xem qua ảnh chụp trên Android 8.0 của GitHub; chuyển động chờ máy thật)
 - [x] Cổng kiểm thử ở chế độ so mặc định, review độc lập, sửa phát hiện
@@ -148,8 +148,8 @@ Làm ngày 21/11/2026, trong các commit `381f1b9` (nền trang dưới các bư
   - Hiệu ứng nở từ nút giữa, vuốt lùi có xem trước từ một màn gốc về Home, bảng trượt kéo theo tay, và app khi tắt chuyển động, trên Android 14 trở lên.
   - TalkBack đọc nhóm nút chọn gói của Pro ("1 of 2") và lời báo đăng nhập xong.
   - Thanh chữ của hệ thống trên máy đặt tiếng Việt ở giao diện tối.
+- Chủ sản phẩm duyệt 12 bảng ảnh so với `boards/`, cùng các trạng thái không có bảng riêng, ngày 21/11/2026.
 - Còn mở:
-  - Chủ sản phẩm duyệt các bảng ảnh so với `boards/` và các trạng thái không có bảng riêng (12 bảng ảnh đã gửi).
   - Câu giải thích của AI trên màn kết quả viết "902,664 VND" theo kiểu Mỹ cạnh "902.664 ₫", vì đó là chữ của mô hình.
   - `01-home-loading` và `01-home-signed-out` giống hệt nhau, như plan định.
   - `docs/testing.md` được cập nhật ở giai đoạn 10.

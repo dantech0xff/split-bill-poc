@@ -22,7 +22,7 @@ Mười giai đoạn đưa bản thiết kế lại đã duyệt vào app Androi
 ## Nguồn thiết kế
 
 - App: 37 bảng đã duyệt (32 sáng, 5 tối) nằm trong [`boards/`](./boards/README.md), kèm danh sách mã băm. Người thực hiện và người review so với các tệp này, không so với canvas đang sống. Mỗi bảng là một tệp HTML rộng 390 px với kiểu dáng viết ngay trên phần tử; 1 px trên bảng ứng với 1 dp trong app.
-- Trang web: các bảng web nằm trên trang "Trang web" của cùng canvas và đang chờ chủ sản phẩm duyệt. Khi được duyệt, chúng được lưu vào `boards/web/` trong cùng commit cập nhật giai đoạn 9. Giai đoạn 9 không bắt đầu trước lúc đó.
+- Trang web: 12 bảng web trên trang "Trang web" của cùng canvas được chủ sản phẩm duyệt ngày 21/11/2026 và lưu vào [`boards/web/`](./boards/web/README.md) cùng mã băm. <!-- Updated: chủ sản phẩm duyệt bảng web -->
 - Sửa trên canvas sau ngày lưu là một yêu cầu thay đổi: chủ sản phẩm duyệt, rồi bảng, mã băm và phần plan bị ảnh hưởng được cập nhật cùng nhau.
 - Khi bảng và app khác nhau về chữ, chuỗi trong `app/src/main/res/values/strings.xml` thắng, trừ các nhãn mới và các chuỗi đổi chữ mà từng giai đoạn liệt kê.
 - Bảng vẽ số tiền và ngày theo kiểu của máy đặt vùng Mỹ ("₫902,664", "Nov 13"). Ảnh tham chiếu cũng được ghi trên máy đặt vùng Mỹ, nên so được với bảng.
@@ -129,8 +129,8 @@ Hoàn lại commit chỉ dùng được khi giai đoạn kế tiếp chưa bắt
 | 5 | [Trang chủ và luồng chia hóa đơn](./phase-05-home-and-split-flow.md) | 6d | Completed |
 | 6 | [Nhóm, yêu cầu trả tiền và liên kết hóa đơn](./phase-06-groups-requests-bill-links.md) | 4d | Completed |
 | 7 | [Hóa đơn, thống kê, cài đặt và Pro](./phase-07-bills-insights-settings-pro.md) | 3d | Completed |
-| 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | In progress, chờ chủ sản phẩm duyệt ảnh và thử chuyển động trên máy thật |
-| 9 | [Trang web](./phase-09-web-pages.md) | 5d | Pending, chờ duyệt bảng web |
+| 8 | [Kiểm thử, ảnh tham chiếu và hồ sơ khởi động](./phase-08-tests-screenshots-profile.md) | 3d | Completed, còn thử chuyển động trên máy thật |
+| 9 | [Trang web](./phase-09-web-pages.md) | 5d | In progress |
 | 10 | [Tài liệu, ảnh cửa hàng và hoàn tất](./phase-10-docs-store-finish.md) | 2d | Pending |
 
 ## Ngoài phạm vi

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Web: the steps of deleting an account</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 2000px; box-sizing: border-box; position: relative; overflow: hidden; background: #F6F6F4; color: #111114; font-family: 'Be Vietnam Pro', system-ui, sans-serif; padding: 20px 20px 40px; display: flex; flex-direction: column; gap: 16px">
+
+<div style="border: 1px solid #D9D8D2; border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 11px; font-weight: 600; line-height: 16px; color: #5F5E66">Step: confirm</p>
+<section aria-labelledby="confirm-title" style="background: #FFFFFF; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="confirm-title" tabindex="-1" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Delete this account?</h2>
+<p style="margin: 0; font-size: 16px; line-height: 24px">You signed in as minh@example.com. Deleting the account cannot be undone. It signs out every phone still signed in to it, and it does not cancel a Pro subscription: cancel that on Google Play.</p>
+<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 8px">
+<button style="height: 56px; border: none; border-radius: 28px; background: #C4321A; color: #FFFFFF; font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer">Delete my account</button>
+<button style="align-self: center; height: 48px; padding: 0 16px; border: none; background: none; color: #111114; font-family: inherit; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer">Cancel</button>
+</div>
+</section>
+</div>
+
+<div style="border: 1px solid #D9D8D2; border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 11px; font-weight: 600; line-height: 16px; color: #5F5E66">Step: deleting</p>
+<section aria-labelledby="deleting-title" aria-busy="true" style="background: #FFFFFF; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="deleting-title" tabindex="-1" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Delete this account?</h2>
+<p style="margin: 0; font-size: 16px; line-height: 24px">You signed in as minh@example.com. Deleting the account cannot be undone. It signs out every phone still signed in to it, and it does not cancel a Pro subscription: cancel that on Google Play.</p>
+<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 8px">
+<button disabled style="height: 56px; border: none; border-radius: 28px; background: #C4321A; color: #FFFFFF; font-family: inherit; font-size: 16px; font-weight: 700; opacity: 0.5; cursor: default">Deleting your account…</button>
+<button disabled style="align-self: center; height: 48px; padding: 0 16px; border: none; background: none; color: #111114; font-family: inherit; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; opacity: 0.5; cursor: default">Cancel</button>
+</div>
+</section>
+</div>
+
+<div style="border: 1px solid #D9D8D2; border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 11px; font-weight: 600; line-height: 16px; color: #5F5E66">Step: failed, no connection</p>
+<section aria-labelledby="failed-title" style="background: #FFFFFF; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="failed-title" tabindex="-1" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Your account was not deleted</h2>
+<p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; color: #C4321A; font-size: 15px; font-weight: 500; line-height: 22px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg>
+<span style="flex: 1; min-width: 0">Split Vibe could not be reached, and nothing was deleted. Check your connection, then try again.</span>
+</p>
+<div style="margin-top: 4px; display: flex; flex-direction: column; gap: 8px">
+<button style="height: 48px; border: none; border-radius: 24px; background: #F0EFEA; color: #111114; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer">Try again</button>
+<button style="align-self: center; height: 48px; padding: 0 16px; border: none; background: none; color: #111114; font-family: inherit; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer">Cancel</button>
+</div>
+</section>
+</div>
+
+<div style="border: 1px solid #D9D8D2; border-radius: 28px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 11px; font-weight: 600; line-height: 16px; color: #5F5E66">Step: deleted</p>
+<section aria-labelledby="deleted-title" style="background: #FFFFFF; border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<h2 id="deleted-title" tabindex="-1" style="margin: 0; font-family: 'Bricolage Grotesque', 'Arial Black', system-ui, sans-serif; font-weight: 800; font-size: 20px; line-height: 26px; letter-spacing: -0.01em">Your account is deleted</h2>
+<p style="margin: 0; font-size: 16px; line-height: 24px">Split Vibe's server has deleted your account, apart from what this page lists under What stays. The bills, people and payment methods on your phone are still there until you delete them in the app or uninstall it.</p>
+<p style="margin: 0; font-size: 16px; line-height: 24px">Phones that were still signed in to the account are now signed out: Split Vibe's server no longer accepts their sign-in, so they cannot use the account until you sign in again.</p>
+<p style="margin: 0; font-size: 16px; line-height: 24px">If you have Pro, cancel the subscription on Google Play: deleting your account does not cancel it. <a href="#" target="_blank" rel="noopener noreferrer" style="color: #5B34F5; font-weight: 600; text-decoration: underline; text-underline-offset: 3px">Manage your subscriptions on Google Play</a>.</p>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

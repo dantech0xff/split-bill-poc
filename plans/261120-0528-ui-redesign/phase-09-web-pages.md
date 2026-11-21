@@ -1,6 +1,6 @@
 ---
 title: "Phase 9: Trang web"
-status: pending
+status: in-progress
 phase: 9
 priority: P1
 effort: "5d"
@@ -18,7 +18,7 @@ Giai đoạn này chỉ bắt đầu khi chủ sản phẩm đã duyệt các b�
 ## Context
 
 - Mọi trang, trạng thái, câu chữ, kiểu dáng, chính sách bảo mật nội dung và bài kiểm thử hiện có: [rà các trang web](./reports/scout-web-pages.md).
-- Bảng web trên trang "Trang web" của canvas, sẽ được lưu vào `boards/web/` khi được duyệt: `WebBill`, `WebBillClosing`, `WebBillSettled`, `WebStates`, `WebDarkBill`, `WebRequest`, `WebInvite`, `WebDeleteAccount`, `WebDeleteSteps`, `WebLegal`, `WebDarkRequest`, `WebWide`.
+- Bảng web trên trang "Trang web" của canvas, chủ sản phẩm duyệt ngày 21/11/2026 và lưu trong [`boards/web/`](./boards/web/README.md) cùng mã băm: `WebBill`, `WebBillClosing`, `WebBillSettled`, `WebStates`, `WebDarkBill`, `WebRequest`, `WebInvite`, `WebDeleteAccount`, `WebDeleteSteps`, `WebLegal`, `WebDarkRequest`, `WebWide`.
 - Quy tắc viết tiền và ngày: [giai đoạn 4](./phase-04-money-and-date-formats.md).
 - Nguồn và mã băm của tệp phông: [giai đoạn 1](./phase-01-colors-type-shapes.md).
 
@@ -70,7 +70,7 @@ Giai đoạn này chỉ bắt đầu khi chủ sản phẩm đã duyệt các b�
 
 ## Todo
 
-- [ ] Chủ sản phẩm duyệt bảng web, bảng được lưu vào `boards/web/`
+- [x] Chủ sản phẩm duyệt bảng web, bảng được lưu vào `boards/web/`
 - [ ] Ba tệp phông WOFF2 được tạo, đo và ghi mã băm; quyết định về trần 120 KB được ghi lại
 - [ ] Chính sách, kiểu nội dung và ba kịch bản nhận phông, có kiểm thử
 - [ ] `WebTokensTest` xuất token cho web, `tokens.css` ghi lại
