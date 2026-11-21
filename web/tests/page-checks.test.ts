@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PAGE_FILES, pageProblems } from "../scripts/page-checks.mjs";
+import { PAGE_FILES, assetType, pageProblems, stylesheetProblems, stylesheetUrls } from "../scripts/page-checks.mjs";
 
 /** A page as `vite build` writes it, with [head] and [body] added to its head and body. */
 function page(head = "", body = ""): string {
@@ -131,5 +131,54 @@ describe("the checks of the other pages", () => {
 
   it("refuse a kind of page they do not know", () => {
     expect(pageProblems(legalPage(), "other" as never)).toEqual(["an unknown kind of page: other"]);
+  });
+});
+
+describe("the files under assets/, which the build and the proxy's embed script both check", () => {
+  it("are the pages' scripts, their stylesheet and its fonts, each with the content type the Worker serves it with", () => {
+    expect(assetType("index-AbC123.js")).toBe("text/javascript; charset=utf-8");
+    expect(assetType("index-DeF456.css")).toBe("text/css; charset=utf-8");
+    expect(assetType("bricolage-grotesque-800-Gh7_8-i.woff2")).toBe("font/woff2");
+  });
+
+  it.each([
+    ["an image", "logo-AbC123.png"],
+    ["an older font format", "be-vietnam-pro-400.woff"],
+    ["a font file of the app", "be_vietnam_pro_regular.ttf"],
+    ["a source map", "index-AbC123.js.map"],
+    ["a page", "index.html"],
+    ["a file in a folder", "fonts/x.woff2"],
+    ["a way out of the folder", "../index.js"],
+    ["a name with a space", "index AbC.js"],
+    ["an ending in capitals", "index-AbC123.JS"],
+    ["a name that is only an ending", ".woff2x"],
+  ])("refuse %s", (_label, name) => {
+    expect(assetType(name)).toBeNull();
+  });
+});
+
+describe("the checks of the built stylesheet", () => {
+  const assets = new Set(["index-DeF456.css", "bricolage-grotesque-800-Gh78.woff2", "be-vietnam-pro-400-Ij90.woff2"]);
+  const fonts =
+    '@font-face{font-family:"Bricolage Grotesque";src:url(/assets/bricolage-grotesque-800-Gh78.woff2)format("woff2")}' +
+    "@font-face{font-family:Be Vietnam Pro;src:url('/assets/be-vietnam-pro-400-Ij90.woff2') format(\"woff2\")}";
+
+  it("find the files a stylesheet loads, quoted or not", () => {
+    expect(stylesheetUrls(fonts)).toEqual(["/assets/bricolage-grotesque-800-Gh78.woff2", "/assets/be-vietnam-pro-400-Ij90.woff2"]);
+  });
+
+  it("take a stylesheet that loads only fonts of its own that are under assets/", () => {
+    expect(stylesheetProblems(`${fonts}body{margin:0}`, assets)).toEqual([]);
+  });
+
+  it.each([
+    ["a font that is not under assets/", "@font-face{src:url(/assets/missing-Kl12.woff2)}"],
+    ["a font from another origin", "@font-face{src:url(https://fonts.gstatic.com/s/x.woff2)}"],
+    ["a font of another kind", "@font-face{src:url(/assets/x.ttf)}"],
+    ["an image", ".hero{background:url(/assets/x.png)}"],
+    ["an image inline as data", ".hero{background:url(data:image/png;base64,AAAA)}"],
+    ["another stylesheet", '@import "/assets/other.css";'],
+  ])("refuse a stylesheet that loads %s", (_label, css) => {
+    expect(stylesheetProblems(`${fonts}${css}`, assets)).toHaveLength(1);
   });
 });

@@ -1,7 +1,47 @@
-// What the built pages must be for the Worker to serve them under their Content-Security-Policy.
-// Both `npm run build` (scripts/verify-build.mjs) and the proxy's scripts/embed-web.mjs, which puts
-// the pages into the Worker, check them with these, so that neither lets through what the other
-// refuses.
+// What the built pages and the files under assets/ must be for the Worker to serve them under the
+// pages' Content-Security-Policy. Both `npm run build` (scripts/verify-build.mjs) and the proxy's
+// scripts/embed-web.mjs, which puts the pages into the Worker, check them with these, so that
+// neither lets through what the other refuses.
+
+/**
+ * The kinds of file under assets/, by their ending, with the content type the Worker serves each
+ * with: the pages' scripts, their stylesheet, and the fonts that stylesheet loads.
+ */
+export const ASSET_TYPES = {
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".woff2": "font/woff2",
+};
+
+/** A file the Worker serves under /assets/: a name of letters, digits, `.`, `_` and `-`, of a kind in [ASSET_TYPES]. */
+const ASSET_FILE = /^[A-Za-z0-9_.-]+(\.js|\.css|\.woff2)$/;
+
+/** The content type of [name], a file under assets/, or null when the Worker serves no such file. */
+export function assetType(name) {
+  const ending = ASSET_FILE.exec(name)?.[1];
+  return ending === undefined ? null : ASSET_TYPES[ending];
+}
+
+/** The addresses [css] loads files from, those of its `url(...)`s, in order. */
+export function stylesheetUrls(css) {
+  return [...css.matchAll(/\burl\(\s*(["']?)([^"')]*)\1\s*\)/gi)].map((match) => match[2].trim());
+}
+
+/**
+ * What is wrong with [css], a stylesheet under assets/, given [assets], the names of the files
+ * there; empty when nothing is. It may load fonts of its own, `/assets/<name>.woff2` files that are
+ * there, which `font-src 'self'` lets it, and nothing else: no image, no other origin, no `@import`.
+ */
+export function stylesheetProblems(css, assets) {
+  const problems = [];
+  if (/@import\b/i.test(css)) problems.push("an @import");
+  for (const url of stylesheetUrls(css)) {
+    const name = /^\/assets\/([^/?#]+\.woff2)$/.exec(url)?.[1];
+    if (name === undefined) problems.push(`a url() to something other than an /assets/ font: ${url.slice(0, 80)}`);
+    else if (!assets.has(name)) problems.push(`a font that is not under assets/: ${url}`);
+  }
+  return problems;
+}
 
 /**
  * The pages `npm run build` writes, each with the kind of checks it passes: `link` for the page of

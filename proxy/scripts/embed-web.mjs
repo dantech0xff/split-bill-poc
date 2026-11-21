@@ -2,13 +2,15 @@
 // `src/web-assets.generated.ts`, which git ignores. The Worker serves its pages at /s/, /r/ and
 // /g/ (`index.html`), at /delete-account (`delete-account.html`), and at /privacy and /terms
 // (`privacy.html` and `terms.html`, which `npm run build` in `web/` renders from
-// docs/privacy-policy.md and docs/terms.md), and their scripts and styles at /assets/<name>;
-// Workers Static Assets are not used, because the Worker is deployed through the Cloudflare API,
-// which cannot upload them the same way.
+// docs/privacy-policy.md and docs/terms.md), and their scripts, styles and fonts at
+// /assets/<name>; Workers Static Assets are not used, because the Worker is deployed through the
+// Cloudflare API, which cannot upload them the same way.
 //
 // It reads `web/dist`, where `npm run build` in `web/` writes those pages and, in `assets/`, their
-// hashed `.js` and `.css` files. Until a page is there, it writes a small placeholder page in its
-// place, so that the proxy's typecheck, tests and `wrangler dev` work without the web app. With
+// hashed `.js` and `.css` files and the `.woff2` fonts the stylesheet loads, which the module
+// holds as base64 and the Worker serves as bytes. Until a page is there, it writes a small
+// placeholder page in its place, so that the proxy's typecheck, tests and `wrangler dev` work
+// without the web app. With
 // `--require`, or `REQUIRE_WEB=1`, it stops instead, as a bundle for a deploy must hold the web
 // app: `npm run bundle` asks for that.
 //
@@ -19,19 +21,17 @@
 // `npm run build` in `web/` makes (a script or style not under `/assets/`, a reference with a
 // scheme or to another origin but the links of a legal page, an inline script or style, a `style`
 // attribute or an inline event handler, which the page's Content-Security-Policy would block, or a
-// missing meta tag); a script or style it refers to that is not in `assets/`; or any other kind of
-// file in `assets/`.
+// missing meta tag); a script or style it refers to that is not in `assets/`; a stylesheet that
+// loads anything but a font that is in `assets/`; or any other kind of file in `assets/`.
 
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { pageProblems } from "../../web/scripts/page-checks.mjs";
+import { ASSET_TYPES, assetType, pageProblems, stylesheetProblems } from "../../web/scripts/page-checks.mjs";
 
 const DIST = fileURLToPath(new URL("../../web/dist/", import.meta.url));
 const OUT = fileURLToPath(new URL("../src/web-assets.generated.ts", import.meta.url));
-const CONTENT_TYPES = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
-const ASSET_NAME = /^[A-Za-z0-9._-]+$/;
 
 /** The pages the Worker serves, by their names in the module: the file, its kind of checks, and the meta tags the Worker fills in it. */
 const PAGES = {
@@ -109,25 +109,41 @@ export function checkPage(page, assets, kind = PAGES.link.kind, file = PAGES.lin
   }
 }
 
-/** The pages' scripts and styles, by name. */
+/**
+ * The pages' scripts, styles and fonts in [directory], by name: a script or a style as its text, a
+ * font as its bytes. Stops on any other kind of file, and on a stylesheet that loads anything but a
+ * font among them.
+ */
 async function assetsIn(directory) {
   const assets = new Map();
   if (!existsSync(directory)) return assets;
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const type = CONTENT_TYPES[extname(entry.name).toLowerCase()];
-    if (!entry.isFile() || type === undefined || !ASSET_NAME.test(entry.name)) {
-      throw new EmbedError(`web/dist/assets/${entry.name} is not a script or a style; the Worker serves only .js and .css files there.`);
+    const type = entry.isFile() ? assetType(entry.name) : null;
+    if (type === null) {
+      throw new EmbedError(`web/dist/assets/${entry.name} is not a script, a style or a font; the Worker serves only .js, .css and .woff2 files there.`);
     }
-    assets.set(entry.name, { type, body: await readFile(join(directory, entry.name), "utf8") });
+    const bytes = await readFile(join(directory, entry.name));
+    assets.set(entry.name, { type, body: extname(entry.name) === ".woff2" ? bytes : bytes.toString("utf8") });
+  }
+  const names = new Set(assets.keys());
+  for (const [name, asset] of assets) {
+    if (asset.type !== ASSET_TYPES[".css"]) continue;
+    const problems = stylesheetProblems(asset.body, names);
+    if (problems.length > 0) throw new EmbedError(`web/dist/assets/${name} loads what the Worker does not serve:\n- ${problems.join("\n- ")}`);
   }
   return assets;
+}
+
+/** [body] as the module writes it: text as a string, the bytes of a font as base64 that the module decodes. */
+function bodyOf(body) {
+  return typeof body === "string" ? JSON.stringify(body) : `bytesOf(${JSON.stringify(body.toString("base64"))})`;
 }
 
 /** The TypeScript module that holds [pages] and [assets]. */
 function moduleOf(source, pages, assets) {
   const entries = [...assets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, asset]) => `  [${JSON.stringify(name)}, { type: ${JSON.stringify(asset.type)}, body: ${JSON.stringify(asset.body)} }],`);
+    .map(([name, asset]) => `  [${JSON.stringify(name)}, { type: ${JSON.stringify(asset.type)}, body: ${bodyOf(asset.body)} }],`);
   return `// Generated by scripts/embed-web.mjs from ${source}. Git ignores it; do not edit it: run \`npm run build:web\` in proxy/.
 
 /** The page every bill, request and invite link opens in a browser, with the meta tags the Worker fills left empty. */
@@ -142,8 +158,16 @@ export const LEGAL_PAGES: { readonly privacy: string; readonly terms: string } =
   terms: ${JSON.stringify(pages.terms)},
 };
 
-/** The pages' scripts and styles, by their names under /assets/. */
-export const WEB_ASSETS: ReadonlyMap<string, { type: string; body: string }> = new Map<string, { type: string; body: string }>([
+/** [base64] as the bytes it stands for: the module holds each font as base64 text. */
+function bytesOf(base64: string): Uint8Array {
+  const text = atob(base64);
+  const bytes = new Uint8Array(text.length);
+  for (let index = 0; index < text.length; index += 1) bytes[index] = text.charCodeAt(index);
+  return bytes;
+}
+
+/** The pages' scripts and styles, as text, and the fonts their stylesheet loads, as bytes, by their names under /assets/. */
+export const WEB_ASSETS: ReadonlyMap<string, { type: string; body: string | Uint8Array }> = new Map<string, { type: string; body: string | Uint8Array }>([
 ${entries.join("\n")}
 ]);
 `;
@@ -162,7 +186,7 @@ async function main() {
     throw new EmbedError(`web/dist lacks ${missing.join(", ")}, and this bundle must hold the web app: run \`npm ci --prefix ../web\`, then \`npm run build:web\`.`);
   }
   const assets = await assetsIn(join(DIST, "assets"));
-  if (missing.length > 0) assets.set("placeholder.css", { type: CONTENT_TYPES[".css"], body: PLACEHOLDER_STYLE });
+  if (missing.length > 0) assets.set("placeholder.css", { type: ASSET_TYPES[".css"], body: PLACEHOLDER_STYLE });
   const pages = {};
   for (const [name, page] of Object.entries(PAGES)) {
     const html = missing.includes(page.file) ? PLACEHOLDERS[page.kind] : await readFile(join(DIST, page.file), "utf8");

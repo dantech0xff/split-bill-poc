@@ -1,0 +1,1 @@
+document.title="Split Vibe";

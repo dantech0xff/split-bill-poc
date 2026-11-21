@@ -1,7 +1,8 @@
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/index";
 import { DELETE_ACCOUNT_PAGE, LEGAL_PAGES, WEB_ASSETS } from "../src/web-assets.generated";
-import { send } from "./requests";
+import { fetchWorker, send } from "./requests";
 
 // These hold for the web app built from web/ and for the placeholder the proxy embeds without it,
 // so they read nothing of what the page says.
@@ -16,6 +17,7 @@ function policyFor(host: string): string {
     "default-src 'none'",
     "script-src 'self' https://challenges.cloudflare.com",
     "style-src 'self'",
+    "font-src 'self'",
     "img-src 'self' data:",
     `connect-src 'self' wss://${host}`,
     "frame-src https://challenges.cloudflare.com",
@@ -128,7 +130,7 @@ describe("the privacy policy and the terms", () => {
 
       expectPageHeaders(page);
       expect(page.headers.get("content-security-policy"), path).toBe(
-        "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       );
       expect(page.headers.get("referrer-policy")).toBe("no-referrer");
       expect(page.body).toBe(body);
@@ -158,6 +160,7 @@ describe("the page to delete an account", () => {
         "default-src 'none'",
         "script-src 'self' https://accounts.google.com/gsi/client",
         "style-src 'self' https://accounts.google.com/gsi/style",
+        "font-src 'self'",
         "img-src 'self' data:",
         "connect-src 'self' https://accounts.google.com/gsi/",
         "frame-src https://accounts.google.com/gsi/",
@@ -225,7 +228,16 @@ describe("every page", () => {
   });
 });
 
-describe("the page's scripts and styles", () => {
+/** The bytes the Worker answers a GET of [path] with, and its headers. */
+async function getBytes(path: string): Promise<{ status: number; headers: Headers; bytes: Uint8Array }> {
+  const ctx = createExecutionContext();
+  const response = await fetchWorker(new Request(`https://proxy.test${path}`), ctx);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  await waitOnExecutionContext(ctx);
+  return { status: response.status, headers: response.headers, bytes };
+}
+
+describe("the page's scripts, styles and fonts", () => {
   it("are served under /assets/ to be cached for a year, every one the pages refer to", async () => {
     const referred: string[] = [];
     for (const path of ["/s/", "/delete-account", "/privacy", "/terms"]) {
@@ -237,6 +249,7 @@ describe("the page's scripts and styles", () => {
     expect(referred.length).toBeGreaterThan(0);
     for (const name of referred) expect(WEB_ASSETS.has(name), name).toBe(true);
     for (const [name, asset] of WEB_ASSETS) {
+      if (typeof asset.body !== "string") continue;
       const served = await get(`/assets/${name}`);
       expect(served.status, name).toBe(200);
       expect(served.headers.get("content-type")).toBe(asset.type);
@@ -247,8 +260,43 @@ describe("the page's scripts and styles", () => {
     }
   });
 
+  it("serve as WOFF2 bytes, cached for a year, the fonts the stylesheet loads, at most three of them", async () => {
+    const loaded = [...WEB_ASSETS.values()]
+      .filter((asset) => asset.type === "text/css; charset=utf-8" && typeof asset.body === "string")
+      .flatMap((asset) => [...String(asset.body).matchAll(/url\(\s*["']?\/assets\/([^"')]+)["']?\s*\)/g)].map((match) => match[1]));
+    const fonts = [...WEB_ASSETS].filter(([, asset]) => typeof asset.body !== "string");
+    // The placeholder the proxy embeds without the web app has no font.
+    if (!WEB_ASSETS.has("placeholder.css")) expect(fonts).toHaveLength(3);
+    expect(fonts.map(([name]) => name).sort()).toEqual([...new Set(loaded)].sort());
+
+    for (const [name, asset] of fonts) {
+      expect(name).toMatch(/\.woff2$/);
+      expect(asset.type).toBe("font/woff2");
+      for (let time = 0; time < 2; time += 1) {
+        const served = await getBytes(`/assets/${name}`);
+        expect(served.status, name).toBe(200);
+        expect(served.headers.get("content-type")).toBe("font/woff2");
+        expect(served.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+        expect(served.headers.get("x-content-type-options")).toBe("nosniff");
+        expect(served.bytes).toEqual(asset.body);
+        // Every WOFF2 file starts with its signature.
+        expect(new TextDecoder().decode(served.bytes.subarray(0, 4))).toBe("wOF2");
+      }
+    }
+  });
+
   it("are all there is under /assets/: any other name is 404", async () => {
-    for (const path of ["/assets/", "/assets/nothing-here.js", "/assets/index.ts", "/assets/a/b.js", "/assets/..%2Fsrc%2Findex.ts", "/assets/constructor"]) {
+    for (const path of [
+      "/assets/",
+      "/assets/nothing-here.js",
+      "/assets/index.ts",
+      "/assets/a/b.js",
+      "/assets/..%2Fsrc%2Findex.ts",
+      "/assets/constructor",
+      "/assets/nothing-here.woff2",
+      "/assets/be-vietnam-pro-400.woff",
+      "/assets/logo.png",
+    ]) {
       const sent = await get(path);
       expect(sent.status, path).toBe(404);
     }

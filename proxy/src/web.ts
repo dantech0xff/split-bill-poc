@@ -50,15 +50,17 @@ function filled(page: string, name: string, value: string): string {
 }
 
 /**
- * The Content-Security-Policy of the link pages: their own scripts and styles and Cloudflare's
- * Turnstile only, images of their own or inline as data, and connections to the proxy itself, the
- * live connection's `wss://` named outright for browsers that do not count it as `'self'`.
+ * The Content-Security-Policy of the link pages: their own scripts, styles and fonts and
+ * Cloudflare's Turnstile only, images of their own or inline as data, and connections to the proxy
+ * itself, the live connection's `wss://` named outright for browsers that do not count it as
+ * `'self'`.
  */
 function linkPagePolicy(host: string): string {
   return [
     "default-src 'none'",
     "script-src 'self' https://challenges.cloudflare.com",
     "style-src 'self'",
+    "font-src 'self'",
     "img-src 'self' data:",
     `connect-src 'self' wss://${host}`,
     "frame-src https://challenges.cloudflare.com",
@@ -68,20 +70,27 @@ function linkPagePolicy(host: string): string {
   ].join("; ");
 }
 
-/** The policy of the privacy policy and the terms, which run no script: their own styles, and images of their own or inline as data. */
-const LEGAL_PAGE_POLICY = ["default-src 'none'", "style-src 'self'", "img-src 'self' data:", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'"].join(
-  "; ",
-);
+/** The policy of the privacy policy and the terms, which run no script: their own styles and fonts, and images of their own or inline as data. */
+const LEGAL_PAGE_POLICY = [
+  "default-src 'none'",
+  "style-src 'self'",
+  "font-src 'self'",
+  "img-src 'self' data:",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
 
 /**
  * The policy of `/delete-account`, the one page that loads Google Identity Services: the page's own
- * scripts and styles, and exactly the origins Google's guide asks for its library, its stylesheet,
- * the iframe of its button and its endpoints, all under `https://accounts.google.com/gsi/`.
+ * scripts, styles and fonts, and exactly the origins Google's guide asks for its library, its
+ * stylesheet, the iframe of its button and its endpoints, all under `https://accounts.google.com/gsi/`.
  */
 const DELETE_ACCOUNT_PAGE_POLICY = [
   "default-src 'none'",
   "script-src 'self' https://accounts.google.com/gsi/client",
   "style-src 'self' https://accounts.google.com/gsi/style",
+  "font-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self' https://accounts.google.com/gsi/",
   "frame-src https://accounts.google.com/gsi/",
@@ -146,8 +155,9 @@ export async function deleteAccountPageRoute(_request: Request, env: Env): Promi
 }
 
 /**
- * `GET /assets/<name>`: one of the page's scripts or styles. Their names carry a hash of what they
- * hold, so they may be cached for a year; any other name is 404.
+ * `GET /assets/<name>`: one of the page's scripts, styles or fonts, with the content type
+ * `scripts/embed-web.mjs` gave it, such as `font/woff2`. Their names carry a hash of what they hold,
+ * so they may be cached for a year; any other name is 404.
  */
 export async function webAssetRoute(_request: Request, _env: Env, _ctx: ExecutionContext, params: string[]): Promise<Response> {
   const asset = WEB_ASSETS.get(params[0]);

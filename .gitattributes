@@ -1,5 +1,9 @@
 # The bundled fonts and their licences are compared byte for byte with the files at their source
 # (core/designsystem/font-checksums.sha256), so no checkout may change their line endings.
 *.ttf binary
+*.woff2 binary
 core/designsystem/src/main/res/raw/*_ofl.txt -text
 core/designsystem/font-checksums.sha256 text eol=lf
+# The web pages' fonts, cut from those files, and their licences, by web/src/fonts/font-checksums.sha256.
+web/src/fonts/*-OFL.txt -text
+web/src/fonts/font-checksums.sha256 text eol=lf
