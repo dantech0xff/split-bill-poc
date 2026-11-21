@@ -143,7 +143,7 @@ class GatewayBillAnalyzerTest {
             Case(ndjson("""{"type":"wait"}""", "not json"), Kind.BAD_RESPONSE, "could not be read"),
             Case(ndjson("""{"type":"error","code":{"name":"refused"}}"""), Kind.BAD_RESPONSE, "could not be read"),
             Case(ndjson("""{"type":"result","answer":"Read 7 items.","usage":$ONE_USED}"""), Kind.BAD_RESPONSE, "could not be read"),
-            Case(ndjson("""{"type":"result","answer":{"status":"ok","items":"seven"}}"""), Kind.BAD_RESPONSE, "not in the expected format"),
+            Case(ndjson("""{"type":"result","answer":{"status":"ok","items":"seven"}}"""), Kind.BAD_RESPONSE, "could not be read"),
         )
 
         for (case in cases) {

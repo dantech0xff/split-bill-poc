@@ -10,6 +10,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -41,10 +42,16 @@ import com.dantech.splitvibe.designsystem.theme.SplitVibeTheme
 import com.dantech.splitvibe.domain.BillCurrency
 import com.dantech.splitvibe.domain.Division
 import com.dantech.splitvibe.domain.ME_ID
+import com.dantech.splitvibe.llm.ProxyModelCall
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ocr.OcrResult
 import com.dantech.splitvibe.testSplitViewModel
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -176,6 +183,32 @@ class SplitFlowTest {
         assertEquals(listOf("Minh", "Lan"), saved.plan.participants.drop(1).map { it.name })
     }
 
+    /**
+     * An answer of the AI that the app cannot use, one in the wrong format or one with an amount no
+     * bill holds, as when a tax number is read as the total, shows on the screen as the app's own
+     * words for it, which do not name the model behind the AI, and the read can be tried again.
+     */
+    @Test
+    fun `an answer the app cannot use shows the app's own words for it, which do not name the model`() {
+        val sample = Json.parseToJsonElement(Fixtures.text("sample_bill_answer.json")).jsonObject
+        val wrongFormat = JsonObject(mapOf("status" to JsonPrimitive("ok"), "items" to JsonPrimitive("seven")))
+        val implausibleTotal = JsonObject(sample + ("total" to JsonPrimitive(TAX_NUMBER)))
+        val viewModel = showSplitScreen(answer = Fixtures.proxyAnswer(wrongFormat))
+        compose.onNodeWithText("Use the sample bill").performScrollTo().performClick()
+        awaitState { viewModel.state.value.let { (it.photo != null || it.error != null) && !it.isBusy } }
+
+        for (next in listOf(Fixtures.proxyAnswer(implausibleTotal), null)) {
+            val asked = server.requestCount
+            compose.onNodeWithText("Read and split the bill").performClick()
+            awaitState { server.requestCount > asked && viewModel.state.value.let { it.error != null && !it.isBusy } }
+
+            assertEquals(ProxyModelCall.UNREADABLE_ANSWER, viewModel.state.value.error)
+            compose.onNodeWithText("The AI's answer could not be read. Please try again.").performScrollTo().assertIsDisplayed()
+            compose.onAllNodes(hasText("Claude", substring = true, ignoreCase = true)).assertCountEquals(0)
+            next?.let(server::enqueue)
+        }
+    }
+
     @Test
     fun `the round button at the top of the request step leaves the split, as Back does there`() {
         var left = 0
@@ -209,9 +242,13 @@ class SplitFlowTest {
         compose.onNodeWithText("Bill total").assertDoesNotExist()
     }
 
-    /** Shows the split screen with the recorded text of the sample bill and the recorded answer for it, [onExit] called as it is left. */
-    private fun showSplitScreen(onExit: () -> Unit = {}): SplitBillViewModel {
-        server.enqueue(Fixtures.proxyAnswer())
+    /**
+     * Shows the split screen with the recorded text of the sample bill, whose read the stand-in for the
+     * proxy answers with [answer], the recorded answer unless a test gives another; [onExit] is called
+     * as it is left.
+     */
+    private fun showSplitScreen(onExit: () -> Unit = {}, answer: MockResponse = Fixtures.proxyAnswer()): SplitBillViewModel {
+        server.enqueue(answer)
         val proxy = TestProxy(server, context)
         val viewModel = testSplitViewModel(
             context,
@@ -242,6 +279,9 @@ class SplitFlowTest {
 
     private companion object {
         const val INSTRUCTION = "Split with Minh and Lan. Minh had the beers."
+
+        /** A thirteen-digit tax number, which a model may read as the total of a bill. */
+        const val TAX_NUMBER = 3_012_345_678_901L
         const val TIMEOUT_MS = 30_000L
 
         /** A switch that says its state in words, such as whether the user shares the bill. */

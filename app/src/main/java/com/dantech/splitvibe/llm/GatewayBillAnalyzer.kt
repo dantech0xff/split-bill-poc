@@ -48,7 +48,15 @@ class GatewayBillAnalyzer(
                 put("localCurrency", localCurrency)
             }
         },
-        read = { answer -> BillAnalysisParser.parse(answer.toString(), localCurrency) },
+        read = { answer ->
+            try {
+                BillAnalysisParser.parse(answer.toString(), localCurrency)
+            } catch (e: BillAnalyzerException) {
+                // The parser's messages are for developers and name the model; the person reads the app's
+                // own words for an answer it cannot use, as the assistant gives them.
+                throw modelCallFailure(Kind.BAD_RESPONSE, ProxyModelCall.UNREADABLE_ANSWER, e)
+            }
+        },
     )
 
     private companion object {

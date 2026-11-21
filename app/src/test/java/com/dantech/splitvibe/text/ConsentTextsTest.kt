@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -33,8 +34,41 @@ class ConsentTextsTest {
         }
     }
 
+    /**
+     * Outside the consent and what Settings says the user agreed to, the app speaks of "the AI" in its
+     * own voice: no other text of the app or of its design system names the model behind it.
+     */
+    @Test
+    fun `no text but those of the consent names the model behind the AI`() {
+        val texts = listOf("src/main/res", "../core/designsystem/src/main/res").flatMap { folder ->
+            File(folder).walkTopDown()
+                .filter { it.extension == "xml" && it.parentFile?.name?.startsWith("values") == true }
+                .flatMap { file -> TEXT.findAll(file.readText()).map { it.groupValues[2] to it.groupValues[3] } }
+                .toList()
+        }
+        // A wrong working directory, or a pattern that no longer matches, would pass without looking at anything.
+        assertTrue("only ${texts.size} texts found", texts.size > MOST_TEXTS_EXPECTED)
+        val naming = texts.filter { (_, text) -> MODEL in text.lowercase() }.map { (name, _) -> name }.toSet()
+        assertTrue("the consent names the model: $naming", "ai_consent_where" in naming)
+
+        val elsewhere = naming.filterNot { it.startsWith(CONSENT_PREFIX) || it == CONSENT_GIVEN }
+        assertEquals("texts that name the model", emptyList<String>(), elsewhere)
+    }
+
     private companion object {
         const val CONSENT_PREFIX = "ai_consent_"
+
+        /** What Settings says the user agreed to, the one text outside the consent that may name the model. */
+        const val CONSENT_GIVEN = "settings_ai_consent_given"
+
+        /** The model behind the AI, as a text would name it, in lower case. */
+        const val MODEL = "claude"
+
+        /** Fewer texts than the app has, so that a scan that reads only part of them fails. */
+        const val MOST_TEXTS_EXPECTED = 500
+
+        /** A string, plurals or string array resource, with its name and everything it holds. */
+        val TEXT = Regex("""<(string|plurals|string-array) name="([^"]+)"[^>]*>(.*?)</\1>""", RegexOption.DOT_MATCHES_ALL)
 
         /** A string or plurals resource whose name starts with [CONSENT_PREFIX]. */
         val CONSENT = Regex("""<(string|plurals) name="($CONSENT_PREFIX[^"]*)"""")

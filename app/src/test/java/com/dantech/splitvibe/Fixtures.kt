@@ -4,6 +4,7 @@ import com.dantech.splitvibe.ocr.OcrLine
 import com.dantech.splitvibe.ocr.OcrPoint
 import com.dantech.splitvibe.ocr.OcrResult
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.float
@@ -44,13 +45,13 @@ object Fixtures {
     }
 
     /**
-     * The AI proxy's reply to a read of the sample bill: a wait line, then the recorded answer with
-     * the calls left after it.
+     * The AI proxy's reply to a read of the sample bill: a wait line, then the recorded answer, or
+     * [answer] in its place, with the calls left after it.
      */
-    fun proxyAnswer(): MockResponse {
+    fun proxyAnswer(answer: JsonElement = Json.parseToJsonElement(text("sample_bill_answer.json"))): MockResponse {
         val result = buildJsonObject {
             put("type", "result")
-            put("answer", Json.parseToJsonElement(text("sample_bill_answer.json")))
+            put("answer", answer)
             putJsonObject("usage") {
                 put("limit", 3)
                 put("used", 1)
