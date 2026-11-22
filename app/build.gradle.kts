@@ -98,8 +98,9 @@ check(uploadKey.isEmpty() || hasUploadKey) {
 }
 
 // The Android image that Robolectric runs the local tests on, a dependency like any other: Gradle
-// checks it against gradle/verification-metadata.xml, retries when Maven Central is busy, and CI
-// keeps it in its Gradle cache. robolectricImages puts it in the folder the tests read it from.
+// downloads it (from where settings.gradle.kts says), checks it against
+// gradle/verification-metadata.xml, and CI keeps it in its Gradle cache. robolectricImages puts it
+// in the folder the tests read it from.
 val robolectricAndroid: Configuration = configurations.create("robolectricAndroid") {
     isCanBeConsumed = false
 }

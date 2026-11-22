@@ -695,7 +695,9 @@ Plugin; after a plugin upgrade each system's variant has to be recorded again on
 Android image that the local UI tests run on is a dependency too, `robolectric-android` in the
 version catalog: the build copies it into the app's build folder and Robolectric reads it there
 instead of downloading it itself, which failed whole CI runs when Maven Central answered 429 Too
-Many Requests. Its version is the one the Robolectric release names for the tests' SDK (`sdk=34` in
+Many Requests. Gradle takes this one file from Google's copy of Maven Central and from nowhere else
+(`exclusiveContent` in `settings.gradle.kts`), as Maven Central kept answering GitHub's runners 429,
+or not found, for it; the checksum is the same wherever it comes from. Its version is the one the Robolectric release names for the tests' SDK (`sdk=34` in
 `app/src/test/resources/robolectric.properties`), not the newest, so Dependabot leaves it alone.
 After a Robolectric update that names another image, the unit tests fail with `Path is not a file:`
 and the file the new release wants; set `robolectricAndroid` to its version and take the new
