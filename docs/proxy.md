@@ -48,7 +48,7 @@ flowchart LR
 | `/v1/shares…` | the app, signed in; a browser with the link | bill links and their claims, [below](#bill-links-and-the-web-pages) |
 | `POST /v1/request-links/view`, `POST /v1/invites/preview` | a browser with the link | what the web page of a payment request or an invite shows |
 | `GET /.well-known/assetlinks.json`, `GET /s/`, `GET /r/`, `GET /g/`, `GET /assets/…` | Android, a browser | App Links, and the web app for a link opened without the app |
-| `GET /privacy`, `GET /terms`, `GET /delete-account` | a browser, the app's links | the privacy policy, the terms of use and the page to delete an account, [below](#the-pages) |
+| `GET /`, `GET /privacy`, `GET /terms`, `GET /delete-account` | a browser, the app's links | the home page, the privacy policy, the terms of use and the page to delete an account, [below](#the-pages) |
 
 Every request names its install with `X-SplitVibe-Install` (a random id the app makes for itself) and
 its version with `X-SplitVibe-Version`; the exchange rates, the shared data, the links, the pages
@@ -1125,6 +1125,12 @@ The live connection:
   - `content-security-policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' wss://<host>; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
   - `referrer-policy: no-referrer`, `x-robots-tag: noindex, nofollow`, `x-content-type-options: nosniff`
   - `cache-control: no-store`
+- `GET /` answers the home page, which says what Split Vibe does in the words of its Google Play
+  listing, with the app's screenshots, and that it is coming to Google Play ([web.md](web.md#the-home-page)).
+  `npm run build` in `web/` writes it as a static page; it runs no script and loads nothing but the
+  link pages' stylesheet, the fonts it loads and its WebP screenshots under `/assets/`. Its headers
+  are those of the privacy policy and the terms below, so that it too stays out of search engines
+  until the app is out.
 - `GET /privacy` and `GET /terms` answer the privacy policy and the terms of use, which
   `npm run build` in `web/` renders from [`docs/privacy-policy.md`](privacy-policy.md) and
   [`docs/terms.md`](terms.md) into static pages, so the Worker parses no Markdown. They run no
@@ -1145,9 +1151,9 @@ The live connection:
     Services tells the page's origin from the referrer, and refuses its button without it. A
     request to another origin carries the origin alone, and the page's address holds nothing
     else.
-- These three, like the link pages, answer GET and HEAD at their paths as written only. HEAD gets
+- These four, like the link pages, answer GET and HEAD at their paths as written only. HEAD gets
   the status and headers GET gets, without the body, for link checkers and uptime monitors.
-  `/privacy/` or `/terms.html` is 404, and any other method 405.
+  `/privacy/`, `/terms.html` or `/index.html` is 404, and any other method 405.
 - `GET /assets/<name>` serves the pages' scripts, stylesheets and WOFF2 fonts (`font/woff2`) with
   `cache-control: public, max-age=31536000, immutable` and `x-content-type-options: nosniff`; any
   other name is 404.

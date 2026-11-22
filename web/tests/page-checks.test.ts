@@ -93,6 +93,17 @@ function legalPage(content = "<h1>Privacy policy</h1>"): string {
 `;
 }
 
+/** The home page's picture of a screenshot, light and dark, as scripts/static-pages.mjs writes it. */
+const PICTURE = `<picture class="home-phone">
+<source srcset="/assets/landing-result-dark-9876543210.webp" media="(prefers-color-scheme: dark)" width="600" height="1333">
+<img src="/assets/landing-result-0123456789.webp" alt="A bill read" width="600" height="1333" loading="lazy" decoding="async">
+</picture>`;
+
+/** The home page as scripts/static-pages.mjs writes it, with [content] in its main. */
+function homePage(content = `<h1>Scan a bill.</h1>${PICTURE}<a href="/privacy">Privacy policy</a>`): string {
+  return legalPage(content);
+}
+
 describe("the checks of the other pages", () => {
   it("know each page the build writes, and the kind of checks it passes", () => {
     expect(PAGE_FILES).toEqual([
@@ -100,6 +111,7 @@ describe("the checks of the other pages", () => {
       { file: "delete-account.html", kind: "delete-account" },
       { file: "privacy.html", kind: "legal" },
       { file: "terms.html", kind: "legal" },
+      { file: "home.html", kind: "home" },
     ]);
   });
 
@@ -119,6 +131,7 @@ describe("the checks of the other pages", () => {
   it.each([
     ["a script of its own", '<script type="module" src="/assets/index-AbC123.js"></script>'],
     ["an image of its own", '<img src="/assets/logo.png" alt="">'],
+    ["a picture of its own", PICTURE],
     ["an image from another origin", '<img src="https://tracker.example/p.gif" alt="">'],
     ["a link that runs script", '<a href="javascript:alert(1)">x</a>'],
     ["a link to another origin without a scheme", '<a href="//evil.example">x</a>'],
@@ -127,6 +140,36 @@ describe("the checks of the other pages", () => {
     ["an inline event handler", '<p onclick="x()">x</p>'],
   ])("refuse a legal page with %s", (_label, content) => {
     expect(pageProblems(legalPage(content), "legal")).not.toEqual([]);
+  });
+
+  it("take the home page with its screenshots, light and dark, and links to the web, to sections and to the Worker's pages", () => {
+    const links = '<a href="https://play.google.com/store">a</a> <a href="#more">b</a> <a href="/terms">c</a>';
+    expect(pageProblems(homePage(), "home")).toEqual([]);
+    expect(pageProblems(homePage(`${PICTURE}${PICTURE}<p>${links}</p>`), "home")).toEqual([]);
+  });
+
+  it.each([
+    ["a script of its own", '<script type="module" src="/assets/index-AbC123.js"></script>'],
+    ["an image from another origin", '<img src="https://tracker.example/p.webp" alt="">'],
+    ["an image that is not WebP", '<img src="/assets/logo-AbC123.png" alt="">'],
+    ["an image not under /assets/", '<img src="/landing-result.webp" alt="">'],
+    ["an image in a folder of /assets/", '<img src="/assets/x/landing-result.webp" alt="">'],
+    ["an image as data", '<img src="data:image/webp;base64,UklGRg==" alt="">'],
+    ["two images in one srcset", '<picture><source srcset="/assets/a.webp 1x, /assets/b.webp 2x"><img src="/assets/a.webp" alt=""></picture>'],
+    ["a srcset on an img", '<img src="/assets/a.webp" srcset="/assets/b.webp" alt="">'],
+    ["an image in single quotes", "<img src='/assets/a.webp' alt=''>"],
+    ["an image without quotes", '<img src=/assets/a.webp alt="">'],
+    ["a frame", '<iframe src="/assets/a.webp"></iframe>'],
+    ["a link that runs script", '<a href="javascript:alert(1)">x</a>'],
+    ["a style attribute", '<p style="color:red">x</p>'],
+  ])("refuse a home page with %s", (_label, content) => {
+    expect(pageProblems(homePage(`<h1>Scan a bill.</h1>${content}`), "home")).not.toEqual([]);
+  });
+
+  it("refuse a home page without the tags every page carries", () => {
+    for (const tag of ['<meta name="robots" content="noindex, nofollow">', '<meta name="referrer" content="no-referrer">', '<html lang="en">']) {
+      expect(pageProblems(homePage().replace(tag, ""), "home"), tag).toHaveLength(1);
+    }
   });
 
   it("refuse a kind of page they do not know", () => {
@@ -139,6 +182,7 @@ describe("the files under assets/, which the build and the proxy's embed script 
     expect(assetType("index-AbC123.js")).toBe("text/javascript; charset=utf-8");
     expect(assetType("index-DeF456.css")).toBe("text/css; charset=utf-8");
     expect(assetType("bricolage-grotesque-800-Gh7_8-i.woff2")).toBe("font/woff2");
+    expect(assetType("landing-result-dark-0123456789.webp")).toBe("image/webp");
   });
 
   it.each([

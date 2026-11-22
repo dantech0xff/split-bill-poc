@@ -1,19 +1,23 @@
-// The checks that keep the Worker from serving anything but the web app's scripts, stylesheets and
-// fonts, run on builds made in a temporary folder: the embed script's reading of `assets/` and the
-// web app's own check of its build. Each build holds a stray image or a stylesheet that loads a
-// file from another origin, and both refuse it.
+// The checks that keep the Worker from serving anything but the web app's scripts, stylesheets,
+// fonts and the home page's WebP images, run on builds made in a temporary folder: the embed
+// script's reading of `assets/` and the web app's own check of its build. Each build holds a stray
+// image or a stylesheet that loads a file from another origin, and both refuse it.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { buildProblems } from "../../../web/scripts/verify-build.mjs";
-import { EmbedError, assetsIn } from "../embed-web.mjs";
+import { EmbedError, assetsIn, checkPage } from "../embed-web.mjs";
 
 const SCRIPT = "index-AbC123.js";
 const STYLESHEET = "index-DeF456.css";
 const FONT = "bricolage-grotesque-800-Gh78.woff2";
 const FONT_FACE = `@font-face{font-family:"Bricolage Grotesque";src:url(/assets/${FONT})format("woff2")}`;
+const IMAGE = "landing-result-0123456789.webp";
+const DARK_IMAGE = "landing-result-dark-9876543210.webp";
+/** The home page's picture of [IMAGE], with [DARK_IMAGE] in a dark theme. */
+const PICTURE = `<picture><source srcset="/assets/${DARK_IMAGE}" media="(prefers-color-scheme: dark)"><img src="/assets/${IMAGE}" alt="A bill read"></picture>`;
 
 const folders = [];
 after(() => {
@@ -33,26 +37,52 @@ function build(assets) {
     "privacy.html": `<!doctype html>\n<html lang="en">\n<head>\n${head}\n<meta name="referrer" content="no-referrer">\n<link rel="stylesheet" crossorigin href="/assets/${STYLESHEET}">\n</head>\n<body><main><h1>Privacy policy</h1></main></body>\n</html>\n`,
   };
   pages["terms.html"] = pages["privacy.html"].replace("Privacy policy", "Terms of use");
+  pages["home.html"] = pages["privacy.html"].replace("<h1>Privacy policy</h1>", `<h1>Split Vibe</h1>${PICTURE}`);
   for (const [name, html] of Object.entries(pages)) writeFileSync(join(folder, name), html);
   for (const [name, body] of Object.entries(assets)) writeFileSync(join(folder, "assets", name), body);
   return folder;
 }
 
-const SOUND = { [SCRIPT]: 'document.title="Split Vibe";', [STYLESHEET]: `${FONT_FACE}h1{font-family:"Bricolage Grotesque"}`, [FONT]: "wOF2" };
+const SOUND = {
+  [SCRIPT]: 'document.title="Split Vibe";',
+  [STYLESHEET]: `${FONT_FACE}h1{font-family:"Bricolage Grotesque"}`,
+  [FONT]: "wOF2",
+  [IMAGE]: "RIFF\u0000\u0000\u0000\u0000WEBP",
+  [DARK_IMAGE]: "RIFF\u0000\u0000\u0000\u0000WEBP",
+};
 
 describe("the checks of the web app's build", () => {
-  it("take a build of a script, a stylesheet and the font it loads", async () => {
+  it("take a build of a script, a stylesheet, the font it loads and the home page's images", async () => {
     const folder = build(SOUND);
 
     assert.deepEqual(buildProblems(folder).problems, []);
-    assert.deepEqual([...(await assetsIn(join(folder, "assets"))).keys()].sort(), [FONT, SCRIPT, STYLESHEET]);
+    const assets = await assetsIn(join(folder, "assets"));
+    assert.deepEqual([...assets.keys()].sort(), [FONT, SCRIPT, STYLESHEET, IMAGE, DARK_IMAGE].sort());
+    // A font and an image are held as bytes, a script and a style as text.
+    assert.equal(Buffer.isBuffer(assets.get(IMAGE).body), true);
+    assert.equal(assets.get(IMAGE).type, "image/webp");
+    assert.equal(Buffer.isBuffer(assets.get(FONT).body), true);
+    assert.equal(typeof assets.get(SCRIPT).body, "string");
   });
 
-  it("refuse an image under assets/", async () => {
+  it("refuse an image under assets/ that is not WebP", async () => {
     const folder = build({ ...SOUND, "logo.png": "not an image" });
 
     assert.deepEqual(buildProblems(folder).problems, ["unexpected file in the build: assets/logo.png"]);
-    await assert.rejects(assetsIn(join(folder, "assets")), (error) => error instanceof EmbedError && /logo\.png is not a script, a style or a font/.test(error.message));
+    await assert.rejects(
+      assetsIn(join(folder, "assets")),
+      (error) => error instanceof EmbedError && /logo\.png is not a script, a style, a font or a WebP image/.test(error.message),
+    );
+  });
+
+  it("refuse a home page that shows an image the build does not hold", async () => {
+    const folder = build(SOUND);
+    const assets = await assetsIn(join(folder, "assets"));
+    const page = `<!doctype html>\n<html lang="en">\n<head>\n<meta name="robots" content="noindex, nofollow">\n<meta name="referrer" content="no-referrer">\n</head>\n<body>${PICTURE}</body>\n</html>\n`;
+
+    assert.doesNotThrow(() => checkPage(page, assets, "home", "home.html"));
+    assets.delete(DARK_IMAGE);
+    assert.throws(() => checkPage(page, assets, "home", "home.html"), (error) => error instanceof EmbedError && error.message.includes(DARK_IMAGE));
   });
 
   it("refuse a stylesheet that loads a file from another origin", async () => {

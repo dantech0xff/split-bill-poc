@@ -5,19 +5,24 @@
 
 /**
  * The kinds of file under assets/, by their ending, with the content type the Worker serves each
- * with: the pages' scripts, their stylesheet, and the fonts that stylesheet loads.
+ * with: the pages' scripts, their stylesheet, the fonts that stylesheet loads, and the home page's
+ * screenshots.
  */
 export const ASSET_TYPES = {
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".woff2": "font/woff2",
+  ".webp": "image/webp",
 };
 
 /**
  * A file the Worker serves under /assets/: a name that starts with a letter or a digit, then
  * letters, digits, `.`, `_` and `-`, of a kind in [ASSET_TYPES].
  */
-const ASSET_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]*(\.js|\.css|\.woff2)$/;
+const ASSET_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]*(\.js|\.css|\.woff2|\.webp)$/;
+
+/** An image a page may show: a WebP file under /assets/, by its name alone. */
+const PAGE_IMAGE = /^\/assets\/[A-Za-z0-9][A-Za-z0-9_.-]*\.webp$/;
 
 /** The content type of [name], a file under assets/, or null when the Worker serves no such file. */
 export function assetType(name) {
@@ -54,13 +59,15 @@ export function stylesheetProblems(css, assets) {
 
 /**
  * The pages `npm run build` writes, each with the kind of checks it passes: `link` for the page of
- * /s/, /r/ and /g/, `delete-account` for /delete-account, and `legal` for /privacy and /terms.
+ * /s/, /r/ and /g/, `delete-account` for /delete-account, `legal` for /privacy and /terms, and
+ * `home` for the home page, /.
  */
 export const PAGE_FILES = [
   { file: "index.html", kind: "link" },
   { file: "delete-account.html", kind: "delete-account" },
   { file: "privacy.html", kind: "legal" },
   { file: "terms.html", kind: "legal" },
+  { file: "home.html", kind: "home" },
 ];
 
 /** The tags each kind of page must carry, the meta tags the Worker fills among them. */
@@ -80,7 +87,11 @@ const REQUIRED = {
     /<meta name="sv-google-client-id" content="">/,
   ],
   legal: [/<html lang="en">/, /<meta name="robots" content="noindex, nofollow">/, /<meta name="referrer" content="no-referrer">/],
+  home: [/<html lang="en">/, /<meta name="robots" content="noindex, nofollow">/, /<meta name="referrer" content="no-referrer">/],
 };
+
+/** The kinds of page that run no script, and whose links may go to the web, to an address or to the Worker's own pages. */
+const STATIC_KINDS = new Set(["legal", "home"]);
 
 /** Where a link of a legal page may go: a web page, an address to write to, a section of the page, or a path of the Worker. */
 const LEGAL_LINK = /^(?:https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|#[^\s"'<>]*|\/(?!\/)[^\s"'<>]*)$/i;
@@ -90,16 +101,17 @@ const LEGAL_LINK = /^(?:https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|#[^\s"'<>]*|\/(?
  * Scripts and styles must be files under `/assets/`; no inline script or style, `style` attribute
  * or inline event handler, which the policy blocks; no reference with a scheme or to another
  * origin, but the empty `data:,` icon, which loads nothing; and the tags of [REQUIRED]. A legal
- * page runs no script and embeds nothing, and its links may go to the web, to an address or to the
- * Worker's own pages.
+ * page and the home page run no script, and their links may go to the web, to an address or to the
+ * Worker's own pages. A legal page embeds nothing; the home page shows WebP images under /assets/,
+ * each an `<img src>` or the `<source srcset>` of a picture, one image to an attribute.
  */
 export function pageProblems(html, kind = "link") {
   const problems = [];
   const required = REQUIRED[kind];
   if (required === undefined) return [`an unknown kind of page: ${kind}`];
   for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    if (kind === "legal") {
-      problems.push("a script, which a legal page does not run");
+    if (STATIC_KINDS.has(kind)) {
+      problems.push(`a script, which a ${kind} page does not run`);
       continue;
     }
     const [, attributes, body] = match;
@@ -115,12 +127,13 @@ export function pageProblems(html, kind = "link") {
     if (!/^\/assets\/[^"]+\.css$/.test(href)) problems.push(`a link to something other than an /assets/ stylesheet: ${href}`);
   }
   let references = html;
-  if (kind === "legal") {
-    if (/\ssrc\s*=/i.test(html)) problems.push("an image or other embedded resource, which a legal page does not show");
+  if (kind === "legal" && /\ssrc(?:set)?\s*=/i.test(html)) problems.push("an image or other embedded resource, which a legal page does not show");
+  if (kind === "home") problems.push(...imageProblems(html));
+  if (STATIC_KINDS.has(kind)) {
     // Its links are judged here, and left out of the check of references below.
     references = html.replace(/<a\b[^>]*>/gi, (tag) => {
       const href = /\bhref="([^"]*)"/.exec(tag)?.[1];
-      if (href === undefined || !LEGAL_LINK.test(href)) problems.push(`a link a legal page may not have: ${tag.slice(0, 80)}`);
+      if (href === undefined || !LEGAL_LINK.test(href)) problems.push(`a link a ${kind} page may not have: ${tag.slice(0, 80)}`);
       return "";
     });
   }
@@ -132,5 +145,25 @@ export function pageProblems(html, kind = "link") {
   for (const pattern of required) {
     if (!pattern.test(html)) problems.push(`no ${pattern.source}`);
   }
+  return problems;
+}
+
+/**
+ * What the home page in [html] embeds that is not an image it may show: every `src` must be the
+ * `src` of an `<img>`, every `srcset` that of a `<source>`, each one WebP file under /assets/ in
+ * double quotes, as [PAGE_IMAGE] says.
+ */
+function imageProblems(html) {
+  const problems = [];
+  const attributes = [...html.matchAll(/\ssrc(?:set)?\s*=/gi)].length;
+  let images = 0;
+  for (const [tag, name] of html.matchAll(/<([a-z]+)\b[^>]*>/gi)) {
+    for (const [, attribute, value] of tag.matchAll(/\s(src|srcset)="([^"]*)"/gi)) {
+      images += 1;
+      const element = attribute.toLowerCase() === "src" ? "img" : "source";
+      if (name.toLowerCase() !== element || !PAGE_IMAGE.test(value)) problems.push(`an image the home page may not show: ${tag.slice(0, 80)}`);
+    }
+  }
+  if (images !== attributes) problems.push("an image whose address is not in double quotes");
   return problems;
 }

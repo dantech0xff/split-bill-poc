@@ -133,6 +133,7 @@ is not in the repository yet; Play recommends that it carry no words of ranking 
   insurance, taxes, portfolio/trading, tip calculators". Splitting bills and asking for payments
   fits it best of Play's categories; Productivity is the alternative. Tags are chosen in Play
   Console.
-- Contact email: `<contact email>`, which Play requires. A website (`https://<the proxy's host>`) and
-  a phone number are optional.
+- Contact email: `<contact email>`, which Play requires. A website and a phone number are optional;
+  the website can be the Worker's home page, `https://<the proxy's host>/`, which says what the app
+  does in this listing's words ([web.md](web.md#the-home-page)).
 - Privacy policy: `https://<the proxy's host>/privacy` ([play-console.md](play-console.md#privacy-policy)).

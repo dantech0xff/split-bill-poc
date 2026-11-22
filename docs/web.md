@@ -19,6 +19,7 @@ picks the page from the path:
   request on, and the request stays in those two people's apps.
 - `/g/#<token>`: a group invite, with how to get the app to join.
 - `/delete-account`: deleting an account by signing in with Google, [below](#deleting-an-account-on-the-web).
+- `/`: the home page, which says what Split Vibe does, [below](#the-home-page).
 
 How to pay, on a payment request and on each amount of a settled bill link, is what the person who
 sent the link wrote: a link, a code to scan and details. So above it the page says "The person who
@@ -133,6 +134,28 @@ nothing else.
   Markdown file is missing, saying which, so that `npm run bundle` in `proxy/` never bundles a
   deploy without them.
 
+## The home page
+
+`/` says what Split Vibe does and how to get it, for someone who meets the app before they have it.
+[`scripts/static-pages.mjs`](../web/scripts/static-pages.mjs) writes it as `home.html`, a static
+page that runs no script and loads the link pages' stylesheet, under the same policy as the legal
+pages.
+
+- Its text is that of the Google Play listing in [store-listing.md](store-listing.md), which says
+  only what the app does today; keep the two together. Its description is the listing's short
+  description, which a test compares.
+- Its screenshots are the store's reference images, light and dark, which the screenshot tests draw:
+  [`src/landing/make-images.py`](../web/src/landing/make-images.py) cuts each to its top 824 x 1830
+  pixels and writes a WebP copy 600 pixels wide into `src/landing/`. Run it again when those images
+  change. The build copies each file into `assets/` under a name with a hash of its bytes; a page
+  shows the dark file in a dark theme, and each screenshot below the first two loads only when it
+  comes near the screen.
+- Until the app is on Google Play, the page says "Coming soon to Google Play" (`GET_THE_APP` in
+  `static-pages.mjs`) and links nowhere for it. Once the app is out, make that statement a link to
+  its page on Google Play; the page's checks take links to the web.
+- Like every page of the Worker, it carries `noindex, nofollow` and is not cached, so search engines
+  leave it out until the app is out.
+
 ## Commands
 
 Node 22 and npm, from `web/`:
@@ -148,16 +171,18 @@ npm run size      # the initial download gzipped, against its 150 KB budget, and
 ```
 
 `npm run build` writes `web/dist/index.html` and hashed scripts, styles and fonts under
-`web/dist/assets/`, then `delete-account.html`, `privacy.html` and `terms.html` beside
-`index.html`, which the proxy's `npm run build:web` embeds into the Worker. Nothing else is served:
-the build, and the embedding too, stop on any other kind of file under `assets/`, and on a
-stylesheet with a `url()` to anything but a WOFF2 font there, an `@import`, an `image-set()` or a
-backslash, with which an escape could hide a `url()`.
+`web/dist/assets/`, then `delete-account.html`, `privacy.html`, `terms.html` and `home.html` beside
+`index.html`, and the home page's WebP screenshots under `assets/`, which the proxy's
+`npm run build:web` embeds into the Worker. Nothing else is served: the build, and the embedding
+too, stop on any other kind of file under `assets/`, on an image the home page shows that is not
+one of those WebP files, and on a stylesheet with a `url()` to anything but a WOFF2 font there, an
+`@import`, an `image-set()` or a backslash, with which an escape could hide a `url()`.
 
 `npm run size` counts `index.html` and the scripts and styles it loads, gzipped, against a budget
 of 150 KB, and the fonts the stylesheet loads, as they are, since WOFF2 is compressed already,
 against a cap of their own: at most three files and 120 KB together. It fails when either is over.
-KB here is 1000 bytes.
+KB here is 1000 bytes. The home page is not in that count: it loads no script, and its screenshots
+are 24 to 48 KB each, about 280 KB for a theme's seven, two of them at once.
 
 ## End-to-end tests
 

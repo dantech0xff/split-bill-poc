@@ -164,10 +164,11 @@ test the whole subscription cycle, is in [docs/pro-subscription.md](docs/pro-sub
 
 Invite links (`/g/#…`) and request links (`/r/#…`) are on the proxy's own address and open in the app
 through Android App Links, once the proxy's `ANDROID_CERT_SHA256` variable lists the certificate the
-app is signed with (see [docs/proxy.md](docs/proxy.md)). The proxy also serves the privacy policy
-(`/privacy`), the terms of use (`/terms`) and the page that deletes an account with Sign in with
-Google (`/delete-account`). Settings and the Pro screen link the first two, and a build without the
-proxy's address hides those links.
+app is signed with (see [docs/proxy.md](docs/proxy.md)). The proxy also serves a home page (`/`)
+that says what Split Vibe does, with the app's screenshots, the privacy policy (`/privacy`), the
+terms of use (`/terms`) and the page that deletes an account with Sign in with Google
+(`/delete-account`). Settings and the Pro screen link the privacy policy and the terms, and a build
+without the proxy's address hides those links.
 
 Without signing in, each install gets 3 free calls to Claude: reading a bill takes a whole call, and
 changing a split by a sentence takes 0.2. **Settings** (the round button at the top of Home) shows

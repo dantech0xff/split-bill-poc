@@ -1,7 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/index";
-import { DELETE_ACCOUNT_PAGE, LEGAL_PAGES, WEB_ASSETS } from "../src/web-assets.generated";
+import { DELETE_ACCOUNT_PAGE, HOME_PAGE, LEGAL_PAGES, WEB_ASSETS } from "../src/web-assets.generated";
 import { fetchWorker, send } from "./requests";
 
 // These hold for the web app built from web/ and for the placeholder the proxy embeds without it,
@@ -150,6 +150,30 @@ describe("the privacy policy and the terms", () => {
   });
 });
 
+describe("the home page", () => {
+  it("is the page written when the web app was built, which runs no script and shows only images of its own", async () => {
+    const page = await get("/");
+
+    expectPageHeaders(page);
+    expect(page.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
+    expect(page.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(page.body).toBe(HOME_PAGE);
+    expect(page.body).not.toMatch(/<script\b/i);
+    expect(HOME_PAGE).not.toBe("");
+  });
+
+  it("is served at / only, to GET and HEAD", async () => {
+    for (const path of ["/index.html", "/home.html", "/home", "//"]) {
+      expect((await get(path)).status, path).toBe(404);
+    }
+    for (const method of ["POST", "PUT", "DELETE"]) {
+      expect((await send(new Request("https://proxy.test/", { method }))).status, method).toBe(405);
+    }
+  });
+});
+
 describe("the page to delete an account", () => {
   it("loads Google's sign-in only from the origins its guide names, and tells Google its origin alone", async () => {
     const page = await get("/delete-account", {}, "https://links.example.org");
@@ -213,7 +237,7 @@ describe("the page to delete an account", () => {
 
 describe("every page", () => {
   it("answers HEAD as it answers GET, with the same status and headers but no body, as link checkers and uptime monitors ask", async () => {
-    for (const path of ["/s/", "/r/", "/g/", "/privacy", "/terms", "/delete-account"]) {
+    for (const path of ["/", "/s/", "/r/", "/g/", "/privacy", "/terms", "/delete-account"]) {
       const got = await get(path);
       const head = await send(new Request(`https://proxy.test${path}`, { method: "HEAD" }));
 
@@ -240,12 +264,12 @@ async function getBytes(path: string): Promise<{ status: number; headers: Header
   return { status: response.status, headers: response.headers, bytes };
 }
 
-describe("the page's scripts, styles and fonts", () => {
+describe("the page's scripts, styles, fonts and images", () => {
   it("are served under /assets/ to be cached for a year, every one the pages refer to", async () => {
     const referred: string[] = [];
-    for (const path of ["/s/", "/delete-account", "/privacy", "/terms"]) {
+    for (const path of ["/", "/s/", "/delete-account", "/privacy", "/terms"]) {
       const page = await get(path);
-      referred.push(...[...page.body.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g)].map((match) => match[1]));
+      referred.push(...[...page.body.matchAll(/(?:src|srcset|href)="\/assets\/([^"]+)"/g)].map((match) => match[1]));
     }
 
     expect(WEB_ASSETS.size).toBeGreaterThan(0);
@@ -268,7 +292,7 @@ describe("the page's scripts, styles and fonts", () => {
     const loaded = [...WEB_ASSETS.values()]
       .filter((asset) => asset.type === "text/css; charset=utf-8" && typeof asset.body === "string")
       .flatMap((asset) => [...String(asset.body).matchAll(/url\(\s*["']?\/assets\/([^"')]+)["']?\s*\)/g)].map((match) => match[1]));
-    const fonts = [...WEB_ASSETS].filter(([, asset]) => typeof asset.body !== "string");
+    const fonts = [...WEB_ASSETS].filter(([, asset]) => asset.type === "font/woff2");
     expect(fonts).toHaveLength(3);
     expect(fonts.map(([name]) => name).sort()).toEqual([...new Set(loaded)].sort());
 
@@ -288,6 +312,27 @@ describe("the page's scripts, styles and fonts", () => {
     }
   });
 
+  // The placeholder has no image either.
+  it.skipIf(PLACEHOLDER)("serve the home page's screenshots, light and dark, as WebP bytes cached for a year (skipped without the web app)", async () => {
+    const shown = [...HOME_PAGE.matchAll(/(?:src|srcset)="\/assets\/([^"]+)"/g)].map((match) => match[1]);
+    const images = [...WEB_ASSETS].filter(([, asset]) => asset.type === "image/webp");
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.filter((name) => name.includes("-dark-"))).toHaveLength(shown.length / 2);
+    expect(images.map(([name]) => name).sort()).toEqual([...new Set(shown)].sort());
+
+    for (const [name, asset] of images) {
+      const served = await getBytes(`/assets/${name}`);
+      expect(served.status, name).toBe(200);
+      expect(served.headers.get("content-type")).toBe("image/webp");
+      expect(served.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+      expect(served.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(served.bytes).toEqual(asset.body);
+      // A WebP file is a RIFF container of the kind WEBP.
+      expect(new TextDecoder().decode(served.bytes.subarray(0, 4)), name).toBe("RIFF");
+      expect(new TextDecoder().decode(served.bytes.subarray(8, 12)), name).toBe("WEBP");
+    }
+  });
+
   it("are all there is under /assets/: any other name is 404", async () => {
     for (const path of [
       "/assets/",
@@ -299,6 +344,7 @@ describe("the page's scripts, styles and fonts", () => {
       "/assets/nothing-here.woff2",
       "/assets/be-vietnam-pro-400.woff",
       "/assets/logo.png",
+      "/assets/nothing-here.webp",
     ]) {
       const sent = await get(path);
       expect(sent.status, path).toBe(404);

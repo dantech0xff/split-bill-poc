@@ -1,7 +1,7 @@
 import type { Env } from "./index";
 import { errorResponse } from "./respond";
 import { signInReady } from "./session";
-import { DELETE_ACCOUNT_PAGE, LEGAL_PAGES, WEB_ASSETS, WEB_PAGE } from "./web-assets.generated";
+import { DELETE_ACCOUNT_PAGE, HOME_PAGE, LEGAL_PAGES, WEB_ASSETS, WEB_PAGE } from "./web-assets.generated";
 
 /** A Turnstile site key: letters, digits, `_` and `-`. */
 const SITE_KEY = /^[A-Za-z0-9_-]{1,128}$/;
@@ -70,8 +70,11 @@ function linkPagePolicy(host: string): string {
   ].join("; ");
 }
 
-/** The policy of the privacy policy and the terms, which run no script: their own styles and fonts, and images of their own or inline as data. */
-const LEGAL_PAGE_POLICY = [
+/**
+ * The policy of the pages that run no script, the home page, the privacy policy and the terms:
+ * their own styles and fonts, and images of their own or inline as data.
+ */
+const STATIC_PAGE_POLICY = [
   "default-src 'none'",
   "style-src 'self'",
   "font-src 'self'",
@@ -130,14 +133,22 @@ export async function webPageRoute(request: Request, env: Env): Promise<Response
   return pageResponse(page, linkPagePolicy(new URL(request.url).host));
 }
 
+/**
+ * `GET /`: the home page, which says what Split Vibe does and how to get it, with the app's
+ * screenshots under /assets/; written when the web app was built, and running no script.
+ */
+export async function homePageRoute(): Promise<Response> {
+  return pageResponse(HOME_PAGE, STATIC_PAGE_POLICY);
+}
+
 /** `GET /privacy`: the privacy policy, rendered from `docs/privacy-policy.md` when the web app was built. */
 export async function privacyPageRoute(): Promise<Response> {
-  return pageResponse(LEGAL_PAGES.privacy, LEGAL_PAGE_POLICY);
+  return pageResponse(LEGAL_PAGES.privacy, STATIC_PAGE_POLICY);
 }
 
 /** `GET /terms`: the terms of use, rendered from `docs/terms.md` when the web app was built. */
 export async function termsPageRoute(): Promise<Response> {
-  return pageResponse(LEGAL_PAGES.terms, LEGAL_PAGE_POLICY);
+  return pageResponse(LEGAL_PAGES.terms, STATIC_PAGE_POLICY);
 }
 
 /**
@@ -155,7 +166,7 @@ export async function deleteAccountPageRoute(_request: Request, env: Env): Promi
 }
 
 /**
- * `GET /assets/<name>`: one of the page's scripts, styles or fonts, with the content type
+ * `GET /assets/<name>`: one of the pages' scripts, styles, fonts or images, with the content type
  * `scripts/embed-web.mjs` gave it, such as `font/woff2`. Their names carry a hash of what they hold,
  * so they may be cached for a year; any other name is 404.
  */

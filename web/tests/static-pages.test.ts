@@ -1,20 +1,27 @@
 // @vitest-environment node
 // The build writes files, so these run in Node rather than in a page.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { pageProblems } from "../scripts/page-checks.mjs";
 import {
+  GET_THE_APP,
+  LANDING_DIRECTORY,
+  LANDING_IMAGES,
   LEGAL_PAGES,
   SITE_LINKS,
   StaticPageError,
   assetTagsOf,
+  copyLandingImages,
   deleteAccountPage,
+  homePage,
   legalPage,
   missingSources,
   renderLegalMarkdown,
   writeStaticPages,
 } from "../scripts/static-pages.mjs";
 import { SITE_LINKS as FOOTER_LINKS } from "../src/ui/site-footer";
+import { bytesOf, filesIn, removeFolder, temporaryFolder } from "./build-files.mjs";
 import privacyFixture from "./fixtures/legal/privacy-policy.md?raw";
+import { sourceText } from "./source-text.mjs";
 import termsFixture from "./fixtures/legal/terms.md?raw";
 
 /** The fixtures' folder, which holds a privacy-policy.md and a terms.md as docs/ does. */
@@ -154,6 +161,94 @@ describe("the page /delete-account", () => {
     expect(assetTagsOf(INDEX)).toEqual({ script: SCRIPT, stylesheet: STYLESHEET });
     expect(() => assetTagsOf(INDEX.replace(SCRIPT, ""))).toThrow(StaticPageError);
     expect(() => assetTagsOf(INDEX.replace(STYLESHEET, `${STYLESHEET}\n${STYLESHEET}`))).toThrow(StaticPageError);
+  });
+});
+
+/** The files of the screenshot [name] as copyLandingImages gives them: a light and a dark path under /assets/. */
+function shotOf(name: string): { light: string; dark: string } {
+  return { light: `/assets/landing-${name}-0123456789.webp`, dark: `/assets/landing-${name}-dark-0123456789.webp` };
+}
+
+const SHOTS = Object.fromEntries(LANDING_IMAGES.map(({ name }) => [name, shotOf(name)]));
+
+/** The short description of docs/store-listing.md, the text block under its heading. */
+function shortDescription(): string {
+  const listing = sourceText("../docs/store-listing.md");
+  const block = /## Short description\s+```text\n([^\n]+)\n```/.exec(listing)?.[1];
+  if (block === undefined) throw new Error("docs/store-listing.md has no short description in a text block");
+  return block;
+}
+
+describe("the home page", () => {
+  const page = homePage(STYLESHEET, SHOTS);
+
+  it("is a whole page that loads the link pages' stylesheet and no script, and passes the checks of a home page", () => {
+    expect(pageProblems(page, "home")).toEqual([]);
+    expect(page).toContain(STYLESHEET);
+    expect(page).not.toContain("<script");
+    expect(page.match(/<h1\b/g)).toHaveLength(1);
+    expect(page).toContain("<title>Split Vibe: scan a bill, say how to split it</title>");
+  });
+
+  it("shows every screenshot in a phone, the dark file in a dark theme, each with what it shows", () => {
+    for (const { name, alt } of LANDING_IMAGES) {
+      const { light, dark } = shotOf(name);
+      expect(page).toContain(`<source srcset="${dark}" media="(prefers-color-scheme: dark)" width="600" height="1333">`);
+      expect(page).toContain(`<img src="${light}" alt="${alt.replace(/'/g, "&#39;")}" width="600" height="1333"`);
+    }
+    // The two screens at the top load at once; the others when they come near the screen.
+    expect(page.match(/loading="eager"/g)).toHaveLength(2);
+    expect(page.match(/loading="lazy"/g)).toHaveLength(LANDING_IMAGES.length - 2);
+  });
+
+  it("describes the app as its Google Play listing does, and says it is coming there without linking to it", () => {
+    expect(page).toContain(`<meta name="description" content="${shortDescription()}">`);
+    expect(page.split(GET_THE_APP)).toHaveLength(3);
+    expect(page).not.toContain("play.google.com");
+  });
+
+  it("links the same pages in its footer as the legal pages, none of them marked as the page shown", () => {
+    for (const { path, label } of SITE_LINKS) expect(page).toContain(`<a class="footer__link" href="${path}">${label}</a>`);
+    expect(page).not.toContain("aria-current");
+  });
+
+  it("stops at a screenshot it does not know", () => {
+    const { result: _result, ...withoutResult } = SHOTS;
+    expect(() => homePage(STYLESHEET, withoutResult)).toThrow(new StaticPageError("the home page has no screenshot named result"));
+  });
+});
+
+describe("the home page's screenshots", () => {
+  const folders: string[] = [];
+  afterEach(() => {
+    for (const folder of folders.splice(0)) removeFolder(folder);
+  });
+
+  it("are copied under assets/ with a hash of their bytes in their names, as WebP files the build takes", async () => {
+    const output = temporaryFolder();
+    folders.push(output);
+
+    const shots = await copyLandingImages(LANDING_DIRECTORY, output);
+
+    expect(Object.keys(shots)).toEqual(LANDING_IMAGES.map(({ name }) => name));
+    const written = filesIn(output, "assets").sort();
+    expect(written).toHaveLength(LANDING_IMAGES.length * 2);
+    for (const { name } of LANDING_IMAGES) {
+      for (const [theme, file] of [["light", `${name}.webp`], ["dark", `${name}-dark.webp`]] as const) {
+        const path = shots[name]?.[theme] ?? "";
+        expect(path).toMatch(new RegExp(`^/assets/landing-${file.replace(".webp", "")}-[0-9a-f]{10}\\.webp$`));
+        expect(bytesOf(output, path)).toEqual(bytesOf(LANDING_DIRECTORY, file));
+      }
+    }
+  });
+
+  it("stop the build when one is missing, saying how to make them", async () => {
+    const output = temporaryFolder();
+    folders.push(output);
+
+    await expect(copyLandingImages("/no/such/folder/", output)).rejects.toThrow(
+      new StaticPageError("the home page shows web/src/landing/home-owed.webp, which is missing: run `python3 web/src/landing/make-images.py`."),
+    );
   });
 });
 

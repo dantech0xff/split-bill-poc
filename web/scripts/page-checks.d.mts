@@ -1,11 +1,11 @@
-/** The kinds of page the Worker serves: the link pages, /delete-account, and the legal pages. */
-export type PageKind = "link" | "delete-account" | "legal";
+/** The kinds of page the Worker serves: the link pages, /delete-account, the legal pages, and the home page. */
+export type PageKind = "link" | "delete-account" | "legal" | "home";
 
 /** The pages `npm run build` writes, each with the kind of checks it passes. */
 export const PAGE_FILES: ReadonlyArray<{ file: string; kind: PageKind }>;
 
 /** The kinds of file under assets/, by their ending, with the content type the Worker serves each with. */
-export const ASSET_TYPES: Readonly<Record<".js" | ".css" | ".woff2", string>>;
+export const ASSET_TYPES: Readonly<Record<".js" | ".css" | ".woff2" | ".webp", string>>;
 
 /** The content type of [name], a file under assets/, or null when the Worker serves no such file. */
 export function assetType(name: string): string | null;

@@ -1338,6 +1338,396 @@ h2[tabindex="-1"]:focus {
   border-top: 1px solid var(--sv-outline-variant);
 }
 
+/*
+ * The home page, /: the brand's purple field with the app's mark and two of its screens, a section
+ * for each thing the app does, and an ink band at the end. Its four sizes beyond the app's scale
+ * are its own: the headline, up to twice and a quarter the app's display type; the sections'
+ * titles; the lead text; and the space between sections, twice the app's largest step and up to
+ * three and a half times on wide screens.
+ */
+.home {
+  --home-content: 1120px;
+  --home-gutter: var(--sv-space-screen);
+  --home-section: calc(var(--sv-space-xxl) * 2);
+  --home-display-size: clamp(40px, 4.4vw + 24px, 72px);
+  --home-title-size: clamp(28px, 1.6vw + 22px, 40px);
+  --home-lead-size: 18px;
+  --home-lead-line-height: 28px;
+  /* The frame of a phone around a screenshot: ink, or a step above the panels in the dark. */
+  --home-bezel: var(--sv-bar);
+}
+
+@media (prefers-color-scheme: dark) {
+  .home {
+    --home-bezel: var(--sv-outline-variant);
+  }
+}
+
+@media (min-width: 960px) {
+  .home {
+    --home-gutter: var(--sv-space-xxl);
+    --home-section: calc(var(--sv-space-xxl) * 3.5);
+  }
+}
+
+.home-mark__first {
+  fill: var(--sv-on-brand);
+}
+
+.home-mark__second {
+  fill: var(--sv-accent);
+}
+
+.home-hero {
+  overflow: hidden;
+  background: var(--sv-brand);
+  color: var(--sv-on-brand);
+}
+
+.home-hero__inner {
+  display: grid;
+  gap: var(--sv-space-xxl);
+  width: 100%;
+  max-width: var(--home-content);
+  margin-inline: auto;
+  padding: var(--sv-space-xl) var(--home-gutter) 0;
+}
+
+.home-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sv-space-xl);
+}
+
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sv-space-sm);
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
+  letter-spacing: var(--sv-type-title-large-tracking);
+}
+
+.home-mark--brand {
+  width: 32px;
+  height: auto;
+}
+
+.home-hero__title {
+  max-width: 11ch;
+  margin-top: var(--sv-space-lg);
+  font: var(--sv-type-display-small-weight) var(--home-display-size) / 1.04 var(--sv-type-display-small-family);
+  letter-spacing: var(--sv-type-display-small-tracking);
+  text-wrap: balance;
+}
+
+.home-hero__lede {
+  max-width: 32ch;
+  font-size: var(--home-lead-size);
+  line-height: var(--home-lead-line-height);
+  text-wrap: pretty;
+}
+
+.home-get {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sv-space-md) var(--sv-space-lg);
+}
+
+/* What the page says about getting the app: a statement, not a button, as there is nothing to press yet. */
+.home-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding-inline: var(--sv-space-xl);
+  border-radius: 999px;
+  background: var(--sv-accent);
+  color: var(--sv-on-accent);
+  font-weight: var(--sv-type-body-large-emphasized-weight);
+}
+
+.home-get__note {
+  font: var(--sv-type-body-small-weight) var(--sv-type-body-small-size) / var(--sv-type-body-small-line-height) var(--sv-type-body-small-family);
+}
+
+/*
+ * Two of the app's screens rising in front of its mark, whose two halves show above them, cut off
+ * where the purple field ends. The phones start lower than the mark by a share of its width.
+ */
+.home-hero__visual {
+  --home-signature: min(80vw, 340px);
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  height: clamp(380px, 112vw, 520px);
+  margin-inline: calc(var(--home-gutter) * -1);
+  overflow: hidden;
+}
+
+.home-hero__visual > * {
+  grid-area: 1 / 1;
+}
+
+.home-mark--signature {
+  width: var(--home-signature);
+  height: auto;
+}
+
+.home-phone {
+  display: block;
+}
+
+.home-phone img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 6px solid var(--home-bezel);
+  border-radius: var(--sv-shape-extra-large);
+  background: var(--home-bezel);
+  box-shadow: var(--sv-elevation-4);
+}
+
+.home-phone--back {
+  width: min(46vw, 240px);
+  margin-top: calc(var(--home-signature) * 0.42);
+  translate: -38% 0;
+}
+
+.home-phone--front {
+  width: min(52vw, 270px);
+  margin-top: calc(var(--home-signature) * 0.3);
+  translate: 28% 0;
+}
+
+.home-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-feature {
+  display: grid;
+  gap: var(--sv-space-xxl);
+  width: 100%;
+  max-width: var(--home-content);
+  margin-inline: auto;
+  padding: var(--home-section) var(--home-gutter) 0;
+}
+
+.home-feature__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sv-space-lg);
+  max-width: 34rem;
+}
+
+.home-title {
+  font: var(--sv-type-display-small-weight) var(--home-title-size) / 1.12 var(--sv-type-display-small-family);
+  letter-spacing: var(--sv-type-display-small-tracking);
+  text-wrap: balance;
+}
+
+.home-subtitle {
+  font: var(--sv-type-headline-small-weight) var(--sv-type-headline-small-size) / var(--sv-type-headline-small-line-height) var(--sv-type-headline-small-family);
+  letter-spacing: var(--sv-type-headline-small-tracking);
+}
+
+.home-body {
+  font-size: var(--home-lead-size);
+  line-height: var(--home-lead-line-height);
+  text-wrap: pretty;
+}
+
+.home-aside {
+  color: var(--sv-on-surface-variant);
+  text-wrap: pretty;
+}
+
+/* What someone types or says to the app, as a message they sent. */
+.home-say {
+  padding: var(--sv-space-md) var(--sv-space-lg);
+  border-radius: var(--sv-shape-medium) var(--sv-shape-medium) var(--sv-shape-extra-small) var(--sv-shape-medium);
+  background: var(--sv-primary-container);
+  color: var(--sv-on-primary-container);
+  font-weight: var(--sv-type-body-large-emphasized-weight);
+  text-wrap: balance;
+}
+
+.home-feature__visual {
+  border-radius: var(--sv-shape-extra-large);
+  background: var(--sv-surface-container);
+}
+
+/* A screenshot rises from the bottom of its panel, its top showing. */
+.home-feature__visual--shot {
+  display: flex;
+  justify-content: center;
+  height: clamp(360px, 96vw, 460px);
+  padding-top: var(--sv-space-xxl);
+  overflow: hidden;
+}
+
+.home-phone--feature {
+  width: min(64vw, 280px);
+}
+
+.home-feature__visual--modes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--sv-space-xxl) * 1.5) var(--sv-space-xl);
+}
+
+.home-modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sv-space-md);
+  max-width: 26rem;
+}
+
+.home-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding-inline: var(--sv-space-xl);
+  border-radius: 999px;
+  background: var(--sv-surface-container-lowest);
+  color: var(--sv-on-surface);
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-medium-size) / var(--sv-type-title-medium-line-height) var(--sv-type-title-large-family);
+}
+
+.home-band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-xl);
+  width: 100%;
+  max-width: var(--home-content);
+  margin-inline: auto;
+  padding: var(--home-section) var(--home-gutter) 0;
+}
+
+.home-more {
+  display: grid;
+  column-gap: var(--sv-space-xxl);
+  margin: 0;
+}
+
+.home-more__item {
+  padding-block: var(--sv-space-xl);
+  border-top: 1px solid var(--sv-outline-variant);
+}
+
+.home-more__term {
+  font: var(--sv-type-title-large-weight) var(--sv-type-title-large-size) / var(--sv-type-title-large-line-height) var(--sv-type-title-large-family);
+  letter-spacing: var(--sv-type-title-large-tracking);
+}
+
+.home-more__detail {
+  max-width: 34rem;
+  margin: var(--sv-space-sm) 0 0;
+  color: var(--sv-on-surface-variant);
+  text-wrap: pretty;
+}
+
+.home-band--notes {
+  gap: var(--sv-space-lg);
+}
+
+.home-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-space-sm);
+  max-width: 40rem;
+  color: var(--sv-on-surface-variant);
+}
+
+.home-notes > li {
+  position: relative;
+  padding-inline-start: var(--sv-space-xl);
+}
+
+.home-notes > li::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  inset-inline-start: var(--sv-space-xs);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.home-end {
+  margin-top: var(--home-section);
+  background: var(--sv-bar);
+  color: var(--sv-on-bar);
+}
+
+.home-end__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sv-space-xl);
+  width: 100%;
+  max-width: var(--home-content);
+  margin-inline: auto;
+  padding: var(--home-section) var(--home-gutter);
+}
+
+.home-mark--end {
+  width: 56px;
+  height: auto;
+}
+
+.home-end .home-title {
+  max-width: 16ch;
+}
+
+@media (min-width: 720px) {
+  .home-more {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .home-hero__inner {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    align-items: center;
+    padding-top: var(--sv-space-xxl);
+  }
+
+  .home-hero__copy {
+    padding-block: var(--sv-space-xxl) calc(var(--sv-space-xxl) * 2);
+  }
+
+  .home-hero__visual {
+    --home-signature: 400px;
+    align-self: end;
+    height: 600px;
+    margin-inline: 0;
+  }
+
+  .home-feature {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: center;
+    column-gap: calc(var(--sv-space-xxl) * 2);
+  }
+
+  .home-feature--flip {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  }
+
+  .home-feature--flip .home-feature__text {
+    order: 2;
+  }
+
+  .home-feature__visual--shot {
+    height: 520px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
