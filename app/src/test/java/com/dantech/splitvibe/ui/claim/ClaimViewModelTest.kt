@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.dantech.splitvibe.DatabaseThreads
 import com.dantech.splitvibe.GroupFixtures
 import com.dantech.splitvibe.TestProxy
 import com.dantech.splitvibe.TestStorage
@@ -60,7 +61,8 @@ class ClaimViewModelTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
-    private val storage = TestStorage(context)
+    private val databaseThreads = DatabaseThreads()
+    private val storage = TestStorage(context, databaseThreads)
 
     /** The requests the server got. Its thread adds to them while the test looks through them, so each look goes over a copy of its own. */
     private val received: MutableList<RecordedRequest> = CopyOnWriteArrayList()
@@ -309,11 +311,13 @@ class ClaimViewModelTest {
         runBlocking { methods.add(saved) }
         linked(settledWith(saved))
 
-        val viewModel = viewModel()
-
-        // The database answers on another thread, and its answer reaches the screen only when the main looper runs.
-        assertNull(viewModel.methods.value)
-        assertFalse("Changed before the saved methods were there", viewModel.methodChanged.value)
+        // The database is held while the screen starts, as an answer it gave before the screen waited for it would be there at once.
+        val viewModel = databaseThreads.holding {
+            viewModel().also {
+                assertNull(it.methods.value)
+                assertFalse("Changed before the saved methods were there", it.methodChanged.value)
+            }
+        }
         awaitOnMain { viewModel.method.value != null }
         assertFalse("Changed once the saved methods were there", viewModel.methodChanged.value)
     }

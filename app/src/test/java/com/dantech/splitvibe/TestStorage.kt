@@ -24,6 +24,9 @@ import com.dantech.splitvibe.ocr.BillImageLoader
 import com.dantech.splitvibe.ocr.BillTextRecognizer
 import com.dantech.splitvibe.ui.split.SplitBillViewModel
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -32,12 +35,13 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * The bills, the people and the photos of a phone that has none yet, kept in memory for one test.
- * Close it when the test ends.
+ * Close it when the test ends. The database works on [threads] when the test gives them, else on Room's own.
  */
-class TestStorage(context: Context) : AutoCloseable {
+class TestStorage(context: Context, threads: Executor? = null) : AutoCloseable {
     val database: SplitVibeDatabase = Room.inMemoryDatabaseBuilder(context, SplitVibeDatabase::class.java)
         // A test reads what was saved from its own thread, which under Robolectric is the main one.
         .allowMainThreadQueries()
+        .apply { if (threads != null) setQueryExecutor(threads) }
         .build()
     val pages = BillPages(context)
     val people = PeopleRepository(database)
@@ -77,6 +81,40 @@ class TestStorage(context: Context) : AutoCloseable {
         val stopping = readers.map { reader -> reader.viewModelScope.coroutineContext.job.apply { cancel() } }
         awaitOnMain { stopping.all { it.isCompleted } }
         database.close()
+    }
+}
+
+/**
+ * Threads for the database to work on, as Room's own, which a test can hold back with [holding]. A
+ * read that Room finishes before the main thread starts to wait for it reaches the screen at once,
+ * without the main looper, so a test that looks at a screen before the database has answered holds
+ * the database meanwhile.
+ */
+class DatabaseThreads : Executor {
+    private val threads = Executors.newCachedThreadPool { work -> Thread(work, "test-database").apply { isDaemon = true } }
+
+    /** Opens once the work held back may run; null while nothing is held. */
+    @Volatile
+    private var held: CountDownLatch? = null
+
+    override fun execute(work: Runnable) {
+        val gate = held
+        threads.execute {
+            gate?.await()
+            work.run()
+        }
+    }
+
+    /** Runs [block] while the work given to these threads waits, and lets that work run after it. */
+    fun <T> holding(block: () -> T): T {
+        val gate = CountDownLatch(1)
+        held = gate
+        try {
+            return block()
+        } finally {
+            held = null
+            gate.countDown()
+        }
     }
 }
 
