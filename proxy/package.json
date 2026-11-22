@@ -22,7 +22,7 @@
     "wrangler": "4.165.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "1.8.0",
+    "@anthropic-ai/sdk": "1.10.0",
     "jose": "6.2.18"
   }
 }
