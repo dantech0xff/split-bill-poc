@@ -27,6 +27,7 @@ import com.dantech.splitvibe.domain.Payment
 import com.dantech.splitvibe.domain.SplitPlan
 import java.io.File
 import java.math.BigDecimal
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,7 +50,9 @@ class AddToGroupViewModelTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val storage = TestStorage(context)
-    private val received = mutableListOf<RecordedRequest>()
+
+    /** The requests the server got. Its thread adds to them while the test looks through them, so each look goes over a copy of its own. */
+    private val received: MutableList<RecordedRequest> = CopyOnWriteArrayList()
 
     /** The group refuses the next bill, as when its copy was deleted. */
     @Volatile

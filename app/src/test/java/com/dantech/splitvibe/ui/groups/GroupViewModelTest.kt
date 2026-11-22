@@ -19,6 +19,7 @@ import com.dantech.splitvibe.data.requests.RequestRepository
 import com.dantech.splitvibe.data.settings.AppSettings
 import com.dantech.splitvibe.domain.Transfer
 import com.dantech.splitvibe.domain.payments.PaymentMethod
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -41,7 +42,9 @@ class GroupViewModelTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val server = MockWebServer()
     private val storage = TestStorage(context)
-    private val received = mutableListOf<RecordedRequest>()
+
+    /** The requests the server got. Its thread adds to them while the test looks through them, so each look goes over a copy of its own. */
+    private val received: MutableList<RecordedRequest> = CopyOnWriteArrayList()
     private lateinit var viewModel: GroupViewModel
 
     /** An pays the user 35.43 THB to settle the fixture's trip. */
