@@ -23,6 +23,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # The types of the Node that builds and tests the pages, 22 in CI and in "engines". A newer
+      # major would type APIs that Node 22 does not have; it comes with a move to that Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # The actions in .github/workflows, which are pinned by commit.
   - package-ecosystem: github-actions
