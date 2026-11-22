@@ -692,8 +692,14 @@ Four things to keep in mind. Source and documentation jars are exempt (`trusted-
 top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the
 Linux, macOS and Windows variants of the resource packaging tool for the current Android Gradle
 Plugin; after a plugin upgrade each system's variant has to be recorded again on that system. The
-Android images that Robolectric downloads for the local UI tests are fetched by Robolectric itself,
-outside Gradle's verification. And the marker POMs of the Kotlin compose and serialization plugins
+Android image that the local UI tests run on is a dependency too, `robolectric-android` in the
+version catalog: the build copies it into the app's build folder and Robolectric reads it there
+instead of downloading it itself, which failed whole CI runs when Maven Central answered 429 Too
+Many Requests. Its version is the one the Robolectric release names for the tests' SDK (`sdk=34` in
+`app/src/test/resources/robolectric.properties`), not the newest, so Dependabot leaves it alone.
+After a Robolectric update that names another image, the unit tests fail with `Path is not a file:`
+and the file the new release wants; set `robolectricAndroid` to its version and take the new
+checksums as above. And the marker POMs of the Kotlin compose and serialization plugins
 have two trusted checksums each (`also-trust`): Maven Central's, and that of the Gradle Plugin
 Portal, which publishes its own marker for these two plugins. When Maven Central answers 429 Too
 Many Requests, Gradle turns to the portal for the rest of the build, and the plugins' jars and

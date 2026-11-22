@@ -9,6 +9,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # The Android image the local tests run on is the one Robolectric's release names for their
+      # SDK, not the newest; it changes with those two (docs/architecture.md, dependency checksums).
+      - dependency-name: "org.robolectric:android-all-instrumented"
 
   # The AI proxy's packages in proxy/package.json, which are pinned to exact versions.
   - package-ecosystem: npm
