@@ -93,42 +93,85 @@ const REQUIRED = {
 /** The kinds of page that run no script, and whose links may go to the web, to an address or to the Worker's own pages. */
 const STATIC_KINDS = new Set(["legal", "home"]);
 
-/** Where a link of a legal page may go: a web page, an address to write to, a section of the page, or a path of the Worker. */
+/** Where a link of a legal page or of the home page may go: a web page, an address to write to, a section of the page, or a path of the Worker. */
 const LEGAL_LINK = /^(?:https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|#[^\s"'<>]*|\/(?!\/)[^\s"'<>]*)$/i;
+
+/**
+ * Where a browser may start reading an attribute's name: after whitespace, after the `/` that HTML
+ * lets stand between attributes, or right after a quoted value. A check that looked for whitespace
+ * alone would miss `<p/style=…>` and `alt="x"src=…`.
+ */
+const ATTRIBUTE_START = String.raw`(?:^|[\s/"'])`;
+
+/** Whether [html] has an attribute whose name [name] matches, by [ATTRIBUTE_START]. */
+function hasAttribute(html, name) {
+  return new RegExp(`${ATTRIBUTE_START}(?:${name})\\s*=`, "i").test(html);
+}
+
+/**
+ * The attributes, besides `href`, `src` and `srcset`, with which an element loads or sends to an
+ * address, or with which a meta tag acts on the page; a page that runs no script has none of them.
+ */
+const OTHER_LOADING_ATTRIBUTES = "http-equiv|poster|data|imagesrcset|imagesizes|background|formaction|action|ping|xlink:href|cite|longdesc|usemap|manifest|codebase|archive|lowsrc|dynsrc|profile";
+
+/** The elements the home page is made of; it may have no other. */
+const HOME_ELEMENTS = new Set([
+  "html", "head", "meta", "link", "title", "body", "div", "main", "section", "footer", "nav", "p", "h1", "h2",
+  "ul", "li", "dl", "dt", "dd", "span", "a", "picture", "source", "img", "svg", "path",
+]);
+
+/** The attributes the home page's elements may carry, besides the `aria-` ones. */
+const HOME_ATTRIBUTES = new Set([
+  "class", "id", "lang", "charset", "name", "content", "rel", "href", "crossorigin", "src", "srcset", "media",
+  "width", "height", "alt", "loading", "decoding", "role", "focusable", "viewbox", "d",
+]);
+
+/**
+ * A start tag as the home page writes it: a name, then attributes that each follow whitespace, each
+ * with no value or with one in double quotes that holds no `<`, `>` or `"`.
+ */
+const START_TAG = /^<([a-z][a-z0-9-]*)((?:\s+[a-z][a-z0-9:-]*(?:="[^"<>]*")?)*)\s*\/?>$/i;
 
 /**
  * What is wrong with [html] as a page of [kind] that the Worker serves; empty when nothing is.
  * Scripts and styles must be files under `/assets/`; no inline script or style, `style` attribute
  * or inline event handler, which the policy blocks; no reference with a scheme or to another
  * origin, but the empty `data:,` icon, which loads nothing; and the tags of [REQUIRED]. A legal
- * page and the home page run no script, and their links may go to the web, to an address or to the
- * Worker's own pages. A legal page embeds nothing; the home page shows WebP images under /assets/,
- * each an `<img src>` or the `<source srcset>` of a picture, one image to an attribute.
+ * page and the home page run no script and have no attribute that loads or sends to an address
+ * but their links, which may go to the web, to an address or to the Worker's own pages. A legal
+ * page embeds nothing. The home page is made only of the elements and attributes it uses, and
+ * shows WebP images under /assets/, each an `<img src>` or the `<source srcset>` of a picture.
+ *
+ * These checks stop a build whose pages would not work under their Content-Security-Policy, or
+ * would do more than they are meant to; the policy that the Worker sends is what keeps a page from
+ * running script or loading from elsewhere.
  */
 export function pageProblems(html, kind = "link") {
   const problems = [];
   const required = REQUIRED[kind];
   if (required === undefined) return [`an unknown kind of page: ${kind}`];
-  for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
-    if (STATIC_KINDS.has(kind)) {
-      problems.push(`a script, which a ${kind} page does not run`);
-      continue;
+  if (STATIC_KINDS.has(kind)) {
+    // Any script element, closed or not, as `<svg><script href="…"/></svg>` would be.
+    if (/<script\b/i.test(html)) problems.push(`a script, which a ${kind} page does not run`);
+    if (hasAttribute(html, OTHER_LOADING_ATTRIBUTES)) problems.push(`an attribute that loads or acts on its own, which a ${kind} page does not have`);
+  } else {
+    for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      const [, attributes, body] = match;
+      if (!/\bsrc="\/assets\/[^"]+\.js"/.test(attributes)) problems.push(`a script that does not load an /assets/ file: ${match[0].slice(0, 80)}`);
+      if (body.trim() !== "") problems.push("an inline script");
     }
-    const [, attributes, body] = match;
-    if (!/\bsrc="\/assets\/[^"]+\.js"/.test(attributes)) problems.push(`a script that does not load an /assets/ file: ${match[0].slice(0, 80)}`);
-    if (body.trim() !== "") problems.push("an inline script");
   }
   if (/<style\b/i.test(html)) problems.push("an inline <style> element");
-  if (/\sstyle\s*=/i.test(html)) problems.push("a style attribute");
-  if (/\son[a-z]+\s*=/i.test(html)) problems.push("an inline event handler");
+  if (hasAttribute(html, "style")) problems.push("a style attribute");
+  if (hasAttribute(html, "on[a-z]+")) problems.push("an inline event handler");
   for (const match of html.matchAll(/<link\b([^>]*)>/gi)) {
     const href = /\bhref="([^"]*)"/.exec(match[1])?.[1] ?? "";
     if (/\brel="icon"/.test(match[1]) && href === "data:,") continue;
     if (!/^\/assets\/[^"]+\.css$/.test(href)) problems.push(`a link to something other than an /assets/ stylesheet: ${href}`);
   }
   let references = html;
-  if (kind === "legal" && /\ssrc(?:set)?\s*=/i.test(html)) problems.push("an image or other embedded resource, which a legal page does not show");
-  if (kind === "home") problems.push(...imageProblems(html));
+  if (kind === "legal" && hasAttribute(html, "src(?:set)?")) problems.push("an image or other embedded resource, which a legal page does not show");
+  if (kind === "home") problems.push(...homeProblems(html));
   if (STATIC_KINDS.has(kind)) {
     // Its links are judged here, and left out of the check of references below.
     references = html.replace(/<a\b[^>]*>/gi, (tag) => {
@@ -149,21 +192,33 @@ export function pageProblems(html, kind = "link") {
 }
 
 /**
- * What the home page in [html] embeds that is not an image it may show: every `src` must be the
- * `src` of an `<img>`, every `srcset` that of a `<source>`, each one WebP file under /assets/ in
- * double quotes, as [PAGE_IMAGE] says.
+ * What in the home page [html] is not made of what the page uses: every start tag must be one of
+ * [START_TAG]'s shape, of an element of [HOME_ELEMENTS], with attributes of [HOME_ATTRIBUTES] or
+ * `aria-` ones; a `src` only on an `<img>` and a `srcset` only on a `<source>`, each one WebP file
+ * under /assets/ as [PAGE_IMAGE] says; an `href` only on a link or a stylesheet.
  */
-function imageProblems(html) {
+function homeProblems(html) {
   const problems = [];
-  const attributes = [...html.matchAll(/\ssrc(?:set)?\s*=/gi)].length;
-  let images = 0;
-  for (const [tag, name] of html.matchAll(/<([a-z]+)\b[^>]*>/gi)) {
-    for (const [, attribute, value] of tag.matchAll(/\s(src|srcset)="([^"]*)"/gi)) {
-      images += 1;
-      const element = attribute.toLowerCase() === "src" ? "img" : "source";
-      if (name.toLowerCase() !== element || !PAGE_IMAGE.test(value)) problems.push(`an image the home page may not show: ${tag.slice(0, 80)}`);
+  for (const [tag] of html.matchAll(/<[a-z][^>]*>/gi)) {
+    const match = START_TAG.exec(tag);
+    if (match === null) {
+      problems.push(`a tag the home page may not have: ${tag.slice(0, 80)}`);
+      continue;
+    }
+    const element = match[1].toLowerCase();
+    if (!HOME_ELEMENTS.has(element)) problems.push(`an element the home page may not have: <${element}>`);
+    for (const [, name, value = ""] of match[2].matchAll(/\s+([a-z][a-z0-9:-]*)(?:="([^"]*)")?/gi)) {
+      const attribute = name.toLowerCase();
+      if (!HOME_ATTRIBUTES.has(attribute) && !attribute.startsWith("aria-")) {
+        problems.push(`an attribute the home page may not have: ${attribute} on <${element}>`);
+      } else if ((attribute === "src" && element !== "img") || (attribute === "srcset" && element !== "source")) {
+        problems.push(`an image the home page may not show: ${tag.slice(0, 80)}`);
+      } else if ((attribute === "src" || attribute === "srcset") && !PAGE_IMAGE.test(value)) {
+        problems.push(`an image the home page may not show: ${tag.slice(0, 80)}`);
+      } else if (attribute === "href" && element !== "a" && element !== "link") {
+        problems.push(`an href the home page may not have: ${tag.slice(0, 80)}`);
+      }
     }
   }
-  if (images !== attributes) problems.push("an image whose address is not in double quotes");
   return problems;
 }

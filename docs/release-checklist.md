@@ -114,7 +114,8 @@ Check these on the signed app bundle that will be uploaded to production.
       and their "Report abuse" link only appears with an address to write to. `release.yml` refuses a
       tag whose `proxy/wrangler.jsonc` leaves it empty.
 - [ ] **The legal pages are reviewed** and their placeholders filled ([compliance.md](compliance.md)),
-      and `https://<the proxy's host>/privacy`, `/terms` and `/delete-account` answer.
+      and `https://<the proxy's host>/privacy`, `/terms` and `/delete-account` answer, and so does
+      the home page, `/`, which the store listing gives as the app's website.
 
 ## The owner's steps, in order
 

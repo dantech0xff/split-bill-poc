@@ -162,6 +162,8 @@ describe("the home page", () => {
     expect(page.body).toBe(HOME_PAGE);
     expect(page.body).not.toMatch(/<script\b/i);
     expect(HOME_PAGE).not.toBe("");
+    // Every image it shows is one of its WebP screenshots under /assets/.
+    for (const [, address] of page.body.matchAll(/\b(?:src|srcset)="([^"]*)"/g)) expect(address).toMatch(/^\/assets\/[A-Za-z0-9][A-Za-z0-9_.-]*\.webp$/);
   });
 
   it("is served at / only, to GET and HEAD", async () => {

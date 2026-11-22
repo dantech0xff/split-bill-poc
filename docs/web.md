@@ -19,15 +19,16 @@ picks the page from the path:
   request on, and the request stays in those two people's apps.
 - `/g/#<token>`: a group invite, with how to get the app to join.
 - `/delete-account`: deleting an account by signing in with Google, [below](#deleting-an-account-on-the-web).
-- `/`: the home page, which says what Split Vibe does, [below](#the-home-page).
 
 How to pay, on a payment request and on each amount of a settled bill link, is what the person who
 sent the link wrote: a link, a code to scan and details. So above it the page says "The person who
 sent this link wrote these payment details. Split Vibe does not check them.", followed by the
 "Report abuse" link while the Worker has an `ABUSE_EMAIL`.
 
-The same Worker serves two static pages beside them, `/privacy` and `/terms`,
-[below](#the-privacy-policy-and-the-terms). The app's Settings and its Pro screen link to both.
+The same Worker serves three static pages beside them, which run no script: the home page, `/`,
+which says what Split Vibe does ([below](#the-home-page)), and `/privacy` and `/terms`
+([below](#the-privacy-policy-and-the-terms)). The app's Settings and its Pro screen link to the
+last two.
 
 The routes they call, and the headers the Worker serves them with, are in
 [proxy.md](proxy.md#bill-links-and-the-web-pages). The token is read from the
@@ -139,11 +140,14 @@ nothing else.
 `/` says what Split Vibe does and how to get it, for someone who meets the app before they have it.
 [`scripts/static-pages.mjs`](../web/scripts/static-pages.mjs) writes it as `home.html`, a static
 page that runs no script and loads the link pages' stylesheet, under the same policy as the legal
-pages.
+pages. The build takes it only when it is made of the elements and attributes it uses
+([`scripts/page-checks.mjs`](../web/scripts/page-checks.mjs)), with no script, meta refresh or
+other attribute that loads on its own, and with images that are its WebP files under `/assets/`.
 
 - Its text is that of the Google Play listing in [store-listing.md](store-listing.md), which says
-  only what the app does today; keep the two together. Its description is the listing's short
-  description, which a test compares.
+  only what the app does today; keep the two together. Tests compare its description with the
+  listing's short description, its AI allowance with the listing's, and what it says stays on the
+  phone with the privacy policy's own sentence.
 - Its screenshots are the store's reference images, light and dark, which the screenshot tests draw:
   [`src/landing/make-images.py`](../web/src/landing/make-images.py) cuts each to its top 824 x 1830
   pixels and writes a WebP copy 600 pixels wide into `src/landing/`. Run it again when those images
@@ -174,9 +178,10 @@ npm run size      # the initial download gzipped, against its 150 KB budget, and
 `web/dist/assets/`, then `delete-account.html`, `privacy.html`, `terms.html` and `home.html` beside
 `index.html`, and the home page's WebP screenshots under `assets/`, which the proxy's
 `npm run build:web` embeds into the Worker. Nothing else is served: the build, and the embedding
-too, stop on any other kind of file under `assets/`, on an image the home page shows that is not
-one of those WebP files, and on a stylesheet with a `url()` to anything but a WOFF2 font there, an
-`@import`, an `image-set()` or a backslash, with which an escape could hide a `url()`.
+too, stop on any other kind of file under `assets/`, on a page that refers to a file under
+`/assets/` that the build does not hold, and on a stylesheet with a `url()` to anything but a
+WOFF2 font there, an `@import`, an `image-set()` or a backslash, with which an escape could hide a
+`url()`; the build also stops on a WebP file that no page shows.
 
 `npm run size` counts `index.html` and the scripts and styles it loads, gzipped, against a budget
 of 150 KB, and the fonts the stylesheet loads, as they are, since WOFF2 is compressed already,

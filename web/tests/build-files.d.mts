@@ -2,7 +2,7 @@
 export function temporaryFolder(): string;
 /** The names of the files in the folder at [parts], joined. */
 export function filesIn(...parts: string[]): string[];
-/** The bytes of the file at [parts], joined. */
-export function bytesOf(...parts: string[]): Uint8Array;
+/** The bytes of the file at [parts], joined, in a buffer of their own. */
+export function bytesOf(...parts: string[]): Uint8Array<ArrayBuffer>;
 /** Deletes the folder [folder] and all it holds. */
 export function removeFolder(folder: string): void;

@@ -188,6 +188,10 @@ describe("the home page", () => {
     expect(page).not.toContain("<script");
     expect(page.match(/<h1\b/g)).toHaveLength(1);
     expect(page).toContain("<title>Split Vibe: scan a bill, say how to split it</title>");
+    // Its headline, and everything but the footer, is in its main landmark.
+    expect(page.indexOf("<main")).toBeLessThan(page.indexOf("<h1"));
+    expect(page.indexOf("</main>")).toBeGreaterThan(page.indexOf("Split the next bill"));
+    expect(page.indexOf("</main>")).toBeLessThan(page.indexOf("<footer"));
   });
 
   it("shows every screenshot in a phone, the dark file in a dark theme, each with what it shows", () => {
@@ -205,6 +209,21 @@ describe("the home page", () => {
     expect(page).toContain(`<meta name="description" content="${shortDescription()}">`);
     expect(page.split(GET_THE_APP)).toHaveLength(3);
     expect(page).not.toContain("play.google.com");
+  });
+
+  it("says what stays on the phone in the privacy policy's own words", () => {
+    const kept =
+      "Your bills, the people you split with and your ways to get paid are kept on your phone. Our server keeps only what you share with other people: bills you add to a group, payment requests you send, and bills you open for picking with a link.";
+    expect(sourceText("../docs/privacy-policy.md")).toContain(kept);
+    expect(page).toContain(kept);
+  });
+
+  it("gives the AI allowance as the listing does, a sentence's change costing a fifth of a call", () => {
+    const listing = sourceText("../docs/store-listing.md");
+    for (const part of ["changing a split by a sentence a fifth of one", "3 calls to try", "10 a month when you sign in with Google", "300 a month with Pro"]) {
+      expect(page, part).toContain(part);
+      expect(listing, part).toContain(part);
+    }
   });
 
   it("links the same pages in its footer as the legal pages, none of them marked as the page shown", () => {
@@ -235,9 +254,23 @@ describe("the home page's screenshots", () => {
     expect(written).toHaveLength(LANDING_IMAGES.length * 2);
     for (const { name } of LANDING_IMAGES) {
       for (const [theme, file] of [["light", `${name}.webp`], ["dark", `${name}-dark.webp`]] as const) {
-        const path = shots[name]?.[theme] ?? "";
-        expect(path).toMatch(new RegExp(`^/assets/landing-${file.replace(".webp", "")}-[0-9a-f]{10}\\.webp$`));
-        expect(bytesOf(output, path)).toEqual(bytesOf(LANDING_DIRECTORY, file));
+        const bytes = bytesOf(LANDING_DIRECTORY, file);
+        const digest = await crypto.subtle.digest("SHA-256", bytes);
+        const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 10);
+        expect(shots[name]?.[theme]).toBe(`/assets/landing-${file.replace(".webp", "")}-${hash}.webp`);
+        expect(bytesOf(output, `/assets/landing-${file.replace(".webp", "")}-${hash}.webp`)).toEqual(bytes);
+      }
+    }
+  });
+
+  it("are WebP files light enough for a phone, each under 60 KB", () => {
+    for (const { name } of LANDING_IMAGES) {
+      for (const file of [`${name}.webp`, `${name}-dark.webp`]) {
+        const bytes = bytesOf(LANDING_DIRECTORY, file);
+        // A WebP file is a RIFF container of the kind WEBP.
+        expect(new TextDecoder().decode(bytes.subarray(0, 4)), file).toBe("RIFF");
+        expect(new TextDecoder().decode(bytes.subarray(8, 12)), file).toBe("WEBP");
+        expect(bytes.length, file).toBeLessThan(60_000);
       }
     }
   });

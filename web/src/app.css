@@ -1,8 +1,9 @@
 /*
  * The pages' look, as the approved web designs draw it, from the app's design tokens in
  * tokens.css: colours and the palette, type, shapes, spacing and elevation. Mobile first; the
- * content keeps to one column of at most 600px on wide screens. What belongs to one component
- * alone, such as the size of an icon's tile or the steps of a large amount, is set with it here.
+ * content keeps to one column of at most 600px on wide screens, but on the home page, which lays
+ * its sections out in two columns up to 1120px. What belongs to one component alone, such as the
+ * size of an icon's tile or the steps of a large amount, is set with it here.
  */
 
 /*
@@ -44,6 +45,8 @@
   --web-on-tick: var(--sv-accent);
   /* The links of the footer. */
   --web-footer-link: var(--sv-on-surface-variant);
+  /* The frame of a phone around a screenshot on the home page: ink, or a step above its panels in the dark. */
+  --web-frame: var(--sv-inverse-surface);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,6 +56,7 @@
     --web-tick: var(--sv-accent);
     --web-on-tick: var(--sv-on-accent);
     --web-footer-link: var(--sv-primary);
+    --web-frame: var(--sv-outline-variant);
   }
 }
 
@@ -1353,14 +1357,6 @@ h2[tabindex="-1"]:focus {
   --home-title-size: clamp(28px, 1.6vw + 22px, 40px);
   --home-lead-size: 18px;
   --home-lead-line-height: 28px;
-  /* The frame of a phone around a screenshot: ink, or a step above the panels in the dark. */
-  --home-bezel: var(--sv-bar);
-}
-
-@media (prefers-color-scheme: dark) {
-  .home {
-    --home-bezel: var(--sv-outline-variant);
-  }
 }
 
 @media (min-width: 960px) {
@@ -1435,16 +1431,27 @@ h2[tabindex="-1"]:focus {
   gap: var(--sv-space-md) var(--sv-space-lg);
 }
 
-/* What the page says about getting the app: a statement, not a button, as there is nothing to press yet. */
-.home-badge {
+/*
+ * What the page says about getting the app: a status, not a button, as there is nothing to press
+ * yet. An outline with a dot, so that it does not look like the pages' filled buttons.
+ */
+.home-status {
   display: inline-flex;
   align-items: center;
-  min-height: 48px;
-  padding-inline: var(--sv-space-xl);
+  gap: var(--sv-space-sm);
+  min-height: 40px;
+  padding-inline: var(--sv-space-lg);
+  border: 2px solid var(--sv-accent);
   border-radius: 999px;
-  background: var(--sv-accent);
-  color: var(--sv-on-accent);
   font-weight: var(--sv-type-body-large-emphasized-weight);
+}
+
+.home-status::before {
+  content: "";
+  width: var(--sv-space-sm);
+  height: var(--sv-space-sm);
+  border-radius: 50%;
+  background: var(--sv-accent);
 }
 
 .home-get__note {
@@ -1482,9 +1489,9 @@ h2[tabindex="-1"]:focus {
   display: block;
   width: 100%;
   height: auto;
-  border: 6px solid var(--home-bezel);
+  border: 6px solid var(--web-frame);
   border-radius: var(--sv-shape-extra-large);
-  background: var(--home-bezel);
+  background: var(--web-frame);
   box-shadow: var(--sv-elevation-4);
 }
 
@@ -1595,7 +1602,8 @@ h2[tabindex="-1"]:focus {
   border-radius: 999px;
   background: var(--sv-surface-container-lowest);
   color: var(--sv-on-surface);
-  font: var(--sv-type-title-large-weight) var(--sv-type-title-medium-size) / var(--sv-type-title-medium-line-height) var(--sv-type-title-large-family);
+  font: var(--sv-type-title-medium-weight) var(--sv-type-title-medium-size) / var(--sv-type-title-medium-line-height) var(--sv-type-title-medium-family);
+  letter-spacing: var(--sv-type-title-medium-tracking);
 }
 
 .home-band {

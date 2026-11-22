@@ -1,11 +1,12 @@
 // Checks that the built pages are what the Worker can serve under their CSPs: index.html, the
 // page of the links, and the pages scripts/static-pages.mjs writes beside it, each loading only
-// /assets/ files, with no inline script, inline style, style attribute or inline event handler, no
-// reference to another origin but a legal page's links, and with the meta tags the Worker fills;
-// and that assets/ holds only scripts, stylesheets and fonts, a stylesheet's `url()`s leading only
-// to those fonts, with no `@import`, `image-set()` or backslash. The checks are those of
-// scripts/page-checks.mjs, which the proxy's embed script makes too. Exits with 1 and says what is
-// wrong otherwise.
+// /assets/ files that the build holds, with no inline script, inline style, style attribute or
+// inline event handler, no reference to another origin but the links of a legal page or the home
+// page, and with the meta tags the Worker fills; and that assets/ holds only scripts, stylesheets,
+// fonts and the home page's WebP screenshots, every screenshot shown by a page, a stylesheet's
+// `url()`s leading only to those fonts, with no `@import`, `image-set()` or backslash. The checks of
+// each page are those of scripts/page-checks.mjs, which the proxy's embed script makes too. Exits
+// with 1 and says what is wrong otherwise.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,13 +39,22 @@ export function buildProblems(directory = OUTPUT_DIRECTORY) {
     const css = readFileSync(join(directory, "assets", name), "utf8");
     problems.push(...stylesheetProblems(css, assets).map((problem) => `assets/${name}: ${problem}`));
   }
+  const shown = new Set();
   for (const { file, kind } of PAGE_FILES) {
     const path = join(directory, file);
     if (!existsSync(path)) {
       problems.push(`no ${file}`);
       continue;
     }
-    problems.push(...pageProblems(readFileSync(path, "utf8"), kind).map((problem) => `${file}: ${problem}`));
+    const html = readFileSync(path, "utf8");
+    problems.push(...pageProblems(html, kind).map((problem) => `${file}: ${problem}`));
+    for (const [, name] of html.matchAll(/\b(?:src|srcset|href)="\/assets\/([^"?#]+)"/g)) {
+      shown.add(name);
+      if (!assets.has(name)) problems.push(`${file}: refers to /assets/${name}, which the build does not hold`);
+    }
+  }
+  for (const name of assets) {
+    if (name.endsWith(".webp") && !shown.has(name)) problems.push(`assets/${name}: an image no page shows`);
   }
   return { problems, assets };
 }

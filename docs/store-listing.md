@@ -60,7 +60,7 @@ Recurring bills
 Rent or a weekly dinner: a finished bill can repeat every week or month, as a draft for you to check.
 
 Private by design
-• Your bills, the people you split with and your ways to get paid stay on your phone.
+• Your bills, the people you split with and your ways to get paid are kept on your phone. Our server keeps only what you share with other people: bills you add to a group, payment requests you send, and bills you open for picking with a link.
 • No ads, and no analytics or advertising SDK.
 • Split Vibe never holds or moves money. Payment links and codes open your own bank or payment app.
 
@@ -74,7 +74,7 @@ Good to know
 • Needs Android 8.0 or later.
 ```
 
-3,242 characters, counting each line break as one; Play allows 4,000. Every statement in it
+3,399 characters, counting each line break as one; Play allows 4,000. Every statement in it
 is something the app does today, as the [README](../README.md) and [proxy.md](proxy.md) describe.
 Keep it that way when the text changes: Play's Metadata policy forbids misleading descriptions,
 repeated keywords and unattributed testimonials. Recount after any change, for example with

@@ -271,12 +271,12 @@ Residual risk:
 
 ### The web pages and their CSP
 
-`proxy/src/web.ts` serves `/s/`, `/r/`, `/g/`, `/privacy`, `/terms`, `/delete-account` and
+`proxy/src/web.ts` serves `/`, `/s/`, `/r/`, `/g/`, `/privacy`, `/terms`, `/delete-account` and
 `/assets/`, built from `web/`.
 
 | Threat | STRIDE | In place | Where |
 |---|---|---|---|
-| Script injected through what people typed | T, E | Preact renders text, and `web/src` uses no HTML sink; a policy per page: link pages run their own scripts and Turnstile's, the legal pages none, `/delete-account` its own and Google Identity Services' paths; `base-uri`, `form-action` and `frame-ancestors` are `'none'`; the build refuses inline scripts and styles and foreign references | `proxy/src/web.ts:57-109`; [proxy.md](proxy.md#the-pages) |
+| Script injected through what people typed | T, E | Preact renders text, and `web/src` uses no HTML sink; a policy per page: link pages run their own scripts and Turnstile's, the home page and the legal pages none, `/delete-account` its own and Google Identity Services' paths; `base-uri`, `form-action` and `frame-ancestors` are `'none'`; the build refuses inline scripts and styles and foreign references | `proxy/src/web.ts:57-109`; [proxy.md](proxy.md#the-pages) |
 | Meta tags filled from variables | T | Each value shape-checked, then HTML-escaped | `proxy/src/web.ts:7-50` |
 | Tokens leaking from a page | I | The token comes from the fragment only, 22 base64url characters, and goes in bodies sent with no referrer; the claim's key is stored under a hash of the token; link pages send no referrer | `web/src/route.ts:17-22`; `web/src/api.ts:85-100`; `web/src/claim-store.ts:25`, `:138-149` |
 | The deletion page framed | T | `frame-ancestors 'none'` | `proxy/src/web.ts:81-91` |

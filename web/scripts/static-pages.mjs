@@ -35,7 +35,7 @@ export const LEGAL_PAGES = [
   { file: "terms.html", source: "terms.md", path: "/terms", title: "Terms of use" },
 ];
 
-/** The links in the footer of the legal pages and of /delete-account, which `src/ui/site-footer.tsx` draws the same. */
+/** The links in the footer of the home page, the legal pages and /delete-account, which `src/ui/site-footer.tsx` draws the same. */
 export const SITE_LINKS = [
   { path: "/privacy", label: "Privacy policy" },
   { path: "/terms", label: "Terms of use" },
@@ -290,8 +290,14 @@ export function homePage(stylesheet, shots) {
   const more = [
     ["Everyone picks their items", "Send a link to the table. Everyone opens it in a browser, without the app or an account, types their name and taps what they had. You see the picks as they happen."],
     ["Recurring bills", "Rent or a weekly dinner: a finished bill can repeat every week or month, as a draft for you to check."],
-    ["Private by design", "Your bills, the people you split with and your ways to get paid stay on your phone. No ads, and no analytics or advertising SDK. Split Vibe never holds or moves money: payment links and codes open your own bank or payment app."],
-    ["Free, with Pro for more AI", "Typing bills in, splitting, groups, payment requests, insights, exports and recurring bills are free. Reading a bill with AI takes one call: you get 3 to try, 10 a month when you sign in with Google, or 300 a month with Pro, a monthly or yearly subscription through Google Play that you can cancel at any time."],
+    [
+      "Private by design",
+      "Your bills, the people you split with and your ways to get paid are kept on your phone. Our server keeps only what you share with other people: bills you add to a group, payment requests you send, and bills you open for picking with a link. No ads, and no analytics or advertising SDK. Split Vibe never holds or moves money: payment links and codes open your own bank or payment app.",
+    ],
+    [
+      "Free, with Pro for more AI",
+      "Typing bills in, splitting, groups, payment requests, insights, exports and recurring bills are free. Reading a bill with AI takes one call, and changing a split by a sentence a fifth of one: you get 3 calls to try, 10 a month when you sign in with Google, or 300 a month with Pro, a monthly or yearly subscription through Google Play that you can cancel at any time.",
+    ],
   ]
     .map(([term, detail]) => `<div class="home-more__item">\n<dt class="home-more__term">${term}</dt>\n<dd class="home-more__detail">${detail}</dd>\n</div>`)
     .join("\n");
@@ -349,13 +355,14 @@ ${stylesheet}
 </head>
 <body>
 <div id="app" class="home">
-<header class="home-hero">
+<main class="home-main">
+<section class="home-hero">
 <div class="home-hero__inner">
 <div class="home-hero__copy">
 <p class="home-brand">${mark("home-mark--brand")}Split Vibe</p>
 <h1 class="home-hero__title">Scan a bill. Say how to split it.</h1>
 <p class="home-hero__lede">Split Vibe works out who owes what and gives everyone a message to pay you, with a link or a QR code.</p>
-<p class="home-get"><span class="home-badge">${GET_THE_APP}</span><span class="home-get__note">For Android 8.0 and later</span></p>
+<p class="home-get"><span class="home-status">${GET_THE_APP}</span><span class="home-get__note">For Android 8.0 and later</span></p>
 </div>
 <div class="home-hero__visual">
 ${mark("home-mark--signature")}
@@ -363,8 +370,7 @@ ${shot(shots, "home-owed", "home-phone--back", true)}
 ${shot(shots, "result", "home-phone--front", true)}
 </div>
 </div>
-</header>
-<main class="home-main">
+</section>
 ${sections.join("\n")}
 <section class="home-band" aria-labelledby="more">
 <h2 class="home-title" id="more">And there is more</h2>
@@ -378,14 +384,14 @@ ${more}
 ${notes}
 </ul>
 </section>
-</main>
 <section class="home-end" aria-labelledby="get-the-app">
 <div class="home-end__inner">
 ${mark("home-mark--end")}
 <h2 class="home-title" id="get-the-app">Split the next bill with Split Vibe</h2>
-<p class="home-get"><span class="home-badge">${GET_THE_APP}</span><span class="home-get__note">For Android 8.0 and later</span></p>
+<p class="home-get"><span class="home-status">${GET_THE_APP}</span><span class="home-get__note">For Android 8.0 and later</span></p>
 </div>
 </section>
+</main>
 ${footer("/")}
 </div>
 </body>

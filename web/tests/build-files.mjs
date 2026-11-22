@@ -15,7 +15,7 @@ export function filesIn(...parts) {
   return readdirSync(join(...parts));
 }
 
-/** The bytes of the file at [parts], joined. */
+/** The bytes of the file at [parts], joined, in a buffer of their own. */
 export function bytesOf(...parts) {
   return new Uint8Array(readFileSync(join(...parts)));
 }

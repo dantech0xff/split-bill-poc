@@ -1154,14 +1154,16 @@ The live connection:
 - These four, like the link pages, answer GET and HEAD at their paths as written only. HEAD gets
   the status and headers GET gets, without the body, for link checkers and uptime monitors.
   `/privacy/`, `/terms.html` or `/index.html` is 404, and any other method 405.
-- `GET /assets/<name>` serves the pages' scripts, stylesheets and WOFF2 fonts (`font/woff2`) with
+- `GET /assets/<name>` serves the pages' scripts, stylesheets, WOFF2 fonts (`font/woff2`) and the
+  home page's WebP screenshots (`image/webp`) with
   `cache-control: public, max-age=31536000, immutable` and `x-content-type-options: nosniff`; any
   other name is 404.
 - The web app is built from [`web/`](../web) and put into the Worker's bundle, as the module
   `proxy/src/web-assets.generated.ts` that
   [`proxy/scripts/embed-web.mjs`](../proxy/scripts/embed-web.mjs) writes from what `npm run build`
-  in `web/` leaves in `web/dist`: `index.html`, `delete-account.html`, `privacy.html` and
-  `terms.html`, and the `.js`, `.css` and `.woff2` files of its `assets/`. Git ignores the module.
+  in `web/` leaves in `web/dist`: `index.html`, `delete-account.html`, `privacy.html`,
+  `terms.html` and `home.html`, and the `.js`, `.css`, `.woff2` and `.webp` files of its `assets/`.
+  Git ignores the module.
   `npm run build:web` in `proxy/` builds `web/` and writes the module; the proxy's typecheck, tests
   and `npm run dev` write it too, from `web/dist` as it is, with a placeholder for each page it
   lacks, as while `web/` is not built. With `REQUIRE_WEB=1` in its environment, or `--require`, the
@@ -1171,12 +1173,17 @@ The live connection:
   on a page the Worker could not serve whole, by the checks of
   [`web/scripts/page-checks.mjs`](../web/scripts/page-checks.mjs), which `npm run build` in `web/`
   makes too: a script or a style that is not under `/assets/`, a reference with a scheme or to
-  another origin, but for the links of a legal page, an inline script or style, a `style`
-  attribute or an inline event handler, which the page's policy would block, a script or an image
-  on a legal page, or a page without the meta tags above; on a stylesheet with a `url()` to
-  anything but a WOFF2 font in `assets/`, an `@import`, an `image-set()` or a backslash, with which
-  an escape could hide a `url()`; and on any other kind of file in `assets/`. Workers Static
-  Assets are not used, since the Worker is deployed through the Cloudflare API.
+  another origin, but for the links of a legal page or the home page, an inline script or style,
+  a `style` attribute or an inline event handler, which the page's policy would block, a script, a
+  meta refresh or another attribute that loads on its own on a legal page or the home page, an
+  image on a legal page, an element or attribute the home page does not use or an image it shows
+  that is not one of its WebP files in `assets/`, or a page without the meta tags above; on a
+  stylesheet with a `url()` to anything but a WOFF2 font in `assets/`, an `@import`, an
+  `image-set()` or a backslash, with which an escape could hide a `url()`; and on any other kind of
+  file in `assets/`. These checks catch a build that would not work under its pages' policies or
+  would do more than it should; the policy the Worker sends is what keeps a page from running
+  script or loading from elsewhere. Workers Static Assets are not used, since the Worker is
+  deployed through the Cloudflare API.
 - `/s/` links are not App Links, so they always open in the browser. `/r/` and `/g/` links open the
   app where it is installed, and the page elsewhere.
 

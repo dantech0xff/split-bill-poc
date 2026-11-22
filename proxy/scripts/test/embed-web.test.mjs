@@ -1,7 +1,8 @@
 // The checks that keep the Worker from serving anything but the web app's scripts, stylesheets,
 // fonts and the home page's WebP images, run on builds made in a temporary folder: the embed
-// script's reading of `assets/` and the web app's own check of its build. Each build holds a stray
-// image or a stylesheet that loads a file from another origin, and both refuse it.
+// script's reading of `assets/` and of a page, and the web app's own check of its build. A build
+// that holds a stray file, a stylesheet that loads from another origin or a page that shows an
+// image it does not hold is refused by both.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -75,7 +76,15 @@ describe("the checks of the web app's build", () => {
     );
   });
 
-  it("refuse a home page that shows an image the build does not hold", async () => {
+  it("refuse a home page that shows an image the build does not hold, and an image no page shows", () => {
+    const { [DARK_IMAGE]: _dark, ...withoutDark } = SOUND;
+    assert.deepEqual(buildProblems(build(withoutDark)).problems, [`home.html: refers to /assets/${DARK_IMAGE}, which the build does not hold`]);
+    assert.deepEqual(buildProblems(build({ ...SOUND, "landing-stray-0000000000.webp": SOUND[IMAGE] })).problems, [
+      "assets/landing-stray-0000000000.webp: an image no page shows",
+    ]);
+  });
+
+  it("refuse in the embedding a home page that shows an image the build does not hold", async () => {
     const folder = build(SOUND);
     const assets = await assetsIn(join(folder, "assets"));
     const page = `<!doctype html>\n<html lang="en">\n<head>\n<meta name="robots" content="noindex, nofollow">\n<meta name="referrer" content="no-referrer">\n</head>\n<body>${PICTURE}</body>\n</html>\n`;
