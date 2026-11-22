@@ -500,13 +500,13 @@ everyone is in [docs/release-checklist.md](docs/release-checklist.md), and the l
 
 ## Toolchain
 
-Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.4.1, Kotlin 2.3.21, Compose BOM 2026.09.00
+Android Gradle Plugin 9.1.1 (built-in Kotlin), Gradle 9.9.1, Kotlin 2.4.21, Compose BOM 2026.09.00
 (Compose UI 1.12.1) with material3 pinned to 1.5.0-rc01, compileSdk 37, targetSdk 36, minSdk 26,
 Koin 4.2.2, Navigation 3 1.2.1, Room 2.8.5 with KSP 2.3.12, WorkManager 2.12.0, ML Kit
-text-recognition 16.0.1 and document scanner 16.0.0, OkHttp 4.12.0, ZXing 3.5.4, Firebase Messaging
+text-recognition 16.0.1 and document scanner 16.0.0, OkHttp 5.5.1, ZXing 3.5.4, Firebase Messaging
 26.0.1, Credential Manager 1.6.0 with Google ID 1.2.1, RevenueCat 11.3.0 with Google Play Billing
-Library 9.1.0. The AI proxy: TypeScript 5.9 on Cloudflare Workers with Durable Objects and D1,
-wrangler 4.162.0, `@anthropic-ai/sdk` 1.8.0, jose 6.2.17, vitest 5.1.0. The web pages: Preact 11.2,
+Library 9.1.0. The AI proxy: TypeScript 7.0 on Cloudflare Workers with Durable Objects and D1,
+wrangler 4.165.0, `@anthropic-ai/sdk` 1.10.0, jose 6.2.18, vitest 5.1.1. The web pages: Preact 11.2,
 Vite 8.3, Playwright for their end-to-end tests.
 
 ## License
