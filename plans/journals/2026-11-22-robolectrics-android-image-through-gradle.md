@@ -1,7 +1,7 @@
 ---
 title: "Robolectric's Android image through Gradle"
 date: 2026-11-22
-summary: "CI's unit tests no longer depend on Robolectric downloading its 151 MB Android image from Maven Central: Gradle downloads, checks and caches it, and Robolectric runs offline."
+summary: "CI's unit tests no longer depend on Robolectric downloading its 151 MB Android image from Maven Central: Gradle takes it from Google's copy of Maven Central, checks and caches it, and Robolectric runs offline."
 ---
 
 # Robolectric's Android image through Gradle
@@ -21,18 +21,22 @@ summary: "CI's unit tests no longer depend on Robolectric downloading its 151 MB
   - Bài trên máy ảo qua. Job ghi hồ sơ khởi động hỏng lần đầu vì không tìm thấy plugin Kotlin Compose (Maven Central giới hạn), và qua khi chạy lại.
   - `checksums.yml` gặp 429 với jar, nhưng danh sách nó ghi trùng từng byte với tệp đã commit: Gradle giữ những dòng đã có cho tệp nó không tải được.
 - Lượt `checksums.yml` đầu tiên trên nhánh chạy 54 phút rồi mất máy chạy ("The hosted runner lost communication with the server"), như đã xảy ra trên `main` trước bản sửa.
-- Từ 04:28 đến 08:40 UTC, Maven Central trả 429 cho năm trong tám lần máy GitHub tải tệp này mà kết quả được biết rõ, dù người tải là Robolectric hay Gradle. Một tệp lớn khác của Robolectric, `nativeruntime-dist-compat` 1.0.19, cũng gặp 429 trên máy sạch.
+- CI của commit journal (`24fbcec`) hỏng vì Gradle báo không tìm thấy jar trên `repo.maven.apache.org` (`Could not find …jar`), và lần chạy lại hỏng y hệt sau 30 giây. Lần chạy lại lấy lại bộ đệm mà lần hỏng vừa lưu dưới cùng khóa. Không rõ trong bộ đệm đó Gradle đã ghi tệp là không tìm thấy, hay Maven Central lại trả không tìm thấy.
+- Từ 04:28 đến 08:45 UTC, sáu trong chín lần máy GitHub tải tệp này mà kết quả được biết rõ đã hỏng (năm lần 429, một lần không tìm thấy), dù người tải là Robolectric hay Gradle. Một tệp lớn khác của Robolectric, `nativeruntime-dist-compat` 1.0.19, cũng gặp 429 trên máy sạch.
+- Chủ sản phẩm chọn lấy riêng tệp này từ bản sao Maven Central của Google: khối `exclusiveContent` trong `settings.gradle.kts`, chỉ cho `org.robolectric:android-all-instrumented` (commit `013edd1`). Bản sao trả jar 151.142.227 byte, cùng cỡ với tệp trên Maven Central.
+  - Trên nhánh: cổng chín bước qua, bài trên máy ảo qua, và lượt `checksums.yml` đầu tiên qua trọn vẹn trong ngày. Máy sạch tải jar từ bản sao của Google, và danh sách nó ghi trùng từng byte với tệp đã commit, nên checksum của jar cũng được máy sạch xác nhận.
+  - Trên `main` ở `013edd1`, mọi lượt chạy qua ngay lần đầu: CI, bài trên máy ảo, `checksums.yml` (danh sách lại trùng từng byte), dependency graph và security. CI lấy lại bộ đệm của `24fbcec` mà vẫn qua, vì Gradle không còn hỏi Maven Central về tệp này. `setup-gradle` lưu Gradle home mới và một gói thư viện mới (`gradle-dependencies-v2-48be9aa…`) có ảnh, nên các lần chạy sau lấy ảnh từ bộ đệm.
 
 ## Quyết định
 
 - Ảnh Android của bài Robolectric đi qua Gradle như mọi thư viện: có checksum, có thử lại, có bộ đệm. Robolectric chạy offline.
-- Nguồn tải vẫn là Maven Central. Bộ đệm của CI là thứ giữ CI khỏi 429; một lần bộ đệm trống thì có thể phải chạy lại job, như với mọi thư viện khác.
+- Ảnh đến từ bản sao Maven Central của Google và chỉ từ đó; mọi thư viện khác vẫn từ Maven Central. Checksum không đổi, nên tệp khác đi một byte là bản build dừng. Lý do: Maven Central trả 429 hay không tìm thấy cho phần lớn các lần máy GitHub tải tệp 151 MB này, và một lần tải hỏng lưu Gradle home không có ảnh dưới khóa của commit, nên chạy lại không làm đầy bộ đệm.
 - Phiên bản của ảnh theo bản Robolectric và SDK của bài (`sdk=34`), không theo bản mới nhất, nên Dependabot bỏ qua `org.robolectric:android-all-instrumented`. Một bản Robolectric mới đổi ảnh thì bài hỏng với `Path is not a file:`, kèm tên tệp nó cần; khi đó đổi `robolectricAndroid` và lấy checksum mới.
 
 ## Bước tiếp
 
-- Lần chạy CI tiếp theo trên `main` tải ảnh thêm một lần nữa và lưu vào bộ đệm. Sau đó CI không tải nó nữa, cho tới khi phiên bản đổi hoặc bộ đệm hết hạn (bảy ngày không có lần chạy nào).
-- Nếu 429 vẫn làm hỏng những lần bộ đệm trống, có thể lấy riêng tệp này từ bản sao Maven Central của Google. Việc đó thêm một nguồn tải vào bản build, nên chủ sản phẩm quyết.
+- CI chỉ tải lại ảnh khi phiên bản đổi hoặc bộ đệm hết hạn (bảy ngày không có lần chạy nào), và khi đó tải từ bản sao của Google.
+- Sau một bản Robolectric dùng ảnh mới, bản sao của Google cần có tệp mới thì Gradle mới tải được; nếu nó chưa có, Gradle báo không tìm thấy.
 - Gradle 10 sẽ bỏ hẳn `val ktlint by configurations.creating` ở `build.gradle.kts` gốc; cần đổi trước khi lên Gradle 10. Hai cảnh báo còn lại (`Configuration.setVisible`, `Project` làm ký hiệu thư viện) đến từ Android Gradle Plugin.
 
 > Historical work record — not durable authority. Prefer docs/specs/ADRs for current decisions.
