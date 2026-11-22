@@ -97,6 +97,17 @@ check(uploadKey.isEmpty() || hasUploadKey) {
         (uploadKeyParts - uploadKey.keys).joinToString { "SPLITVIBE_UPLOAD_$it" }
 }
 
+// The Android image that Robolectric runs the local tests on, a dependency like any other: Gradle
+// checks it against gradle/verification-metadata.xml, retries when Maven Central is busy, and CI
+// keeps it in its Gradle cache. robolectricImages puts it in the folder the tests read it from.
+val robolectricAndroid: Configuration = configurations.create("robolectricAndroid") {
+    isCanBeConsumed = false
+}
+val robolectricImages = tasks.register<Sync>("robolectricImages") {
+    from(robolectricAndroid)
+    into(layout.buildDirectory.dir("robolectric"))
+}
+
 android {
     namespace = "com.dantech.splitvibe"
     // Compose 1.12 and material3 1.5 need the Android 17 SDK to compile against.
@@ -181,6 +192,11 @@ android {
             test.systemProperty("roborazzi.test.$screenshots", "true")
             // Draws shadows and other hardware-rendered effects the way a device does.
             test.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+            // Robolectric takes its Android image from robolectricImages and downloads nothing. Its own
+            // download, without a retry or a cache, failed whole CI runs on Maven Central's 429.
+            test.inputs.files(robolectricImages).withPropertyName("robolectricImages").withPathSensitivity(PathSensitivity.NAME_ONLY)
+            test.systemProperty("robolectric.offline", "true")
+            test.systemProperty("robolectric.dependency.dir", robolectricImages.get().destinationDir.path)
             // Amounts and dates follow the phone's region. Robolectric sets it from a test's qualifiers,
             // the United States without them; a plain JUnit test has the machine's, set here to the same.
             test.systemProperty("user.language", "en")
@@ -296,6 +312,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
+    robolectricAndroid(libs.robolectric.android)
     testImplementation(libs.roborazzi)
     testImplementation(libs.koin.test)
     testImplementation(libs.androidx.work.testing)
