@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Debug builds only: plain HTTP to the phone's own loopback address, for a proxy run with
-         `wrangler dev` and for the local stand-in the on-device tests use. -->
+    <!-- Debug builds only: plain HTTP to the phone's own loopback address, for the local stand-in
+         for the AI proxy that the on-device tests use. -->
     <application android:networkSecurityConfig="@xml/debug_network_security_config">
 
         <!-- Debug builds only: a second launcher entry that shows every design system component. -->

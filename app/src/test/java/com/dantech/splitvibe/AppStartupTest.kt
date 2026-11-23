@@ -23,6 +23,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.Configuration
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.dantech.splitvibe.data.account.AccountStore
 import com.dantech.splitvibe.data.bills.BillRepository
 import com.dantech.splitvibe.data.recurring.RecurringBillRepository
 import com.dantech.splitvibe.domain.BillCategory
@@ -34,8 +35,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
+import org.koin.core.context.loadKoinModules
+import org.koin.dsl.module
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -48,7 +53,18 @@ import org.robolectric.annotation.Config
 @Config(qualifiers = "w412dp-h915dp-xhdpi")
 class AppStartupTest {
 
-    @get:Rule
+    /**
+     * The build may know no proxy, and then Settings leaves out what needs it, such as Pro. The
+     * account is taken as having one, and kept in plain text, as local tests have no Keystore.
+     */
+    @get:Rule(order = 0)
+    val proxySetUp = object : ExternalResource() {
+        override fun before() {
+            loadKoinModules(module { single { AccountStore(androidContext(), proxySetUp = true, cipher = PlainCipher) } })
+        }
+    }
+
+    @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
     @Test

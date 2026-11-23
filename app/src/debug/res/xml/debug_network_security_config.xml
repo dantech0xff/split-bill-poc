@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Plain HTTP stays blocked everywhere except the device's own loopback address, where a debug
-     build reaches `wrangler dev` through `adb reverse` and the instrumented tests run a local
-     stand-in for the AI proxy. -->
+<!-- Plain HTTP stays blocked everywhere except the device's own loopback address, where the
+     instrumented tests run a local stand-in for the AI proxy. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">

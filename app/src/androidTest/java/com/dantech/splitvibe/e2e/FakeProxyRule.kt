@@ -14,6 +14,7 @@ import com.dantech.splitvibe.di.spendingModule
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.rules.ExternalResource
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.loadKoinModules
 import org.koin.core.context.unloadKoinModules
@@ -23,8 +24,8 @@ import org.koin.dsl.module
 /**
  * Runs the app against a [FakeProxy] for one test, on a MockWebServer at the phone's loopback
  * address, which debug builds may reach over plain HTTP. The app's own modules stay as they are but
- * for one definition loaded on top of them: [ProxyApi] reaches the fake rather than the build's
- * address. Objects the app made before, also in an earlier test of the same process, still hold the
+ * for two definitions loaded on top of them: [ProxyApi] reaches the fake rather than the build's
+ * address, and [AccountStore] takes the proxy as set up. Objects the app made before, also in an earlier test of the same process, still hold the
  * build's address, so every object of the app's modules is let go first and made again when next
  * asked for. After the test they are let go once more, and made again as the app makes them.
  *
@@ -43,7 +44,13 @@ class FakeProxyRule(private val signedIn: Boolean = false) : ExternalResource() 
             server.dispatcher = proxy
             server.start()
             val address = server.url("/").toString()
-            makeAppObjectsAgain(module { single { ProxyApi(address, account = get(), appVersion = BuildConfig.VERSION_CODE) } })
+            makeAppObjectsAgain(
+                module {
+                    // The build may know no proxy, and then its store would report AI reading as not set up.
+                    single { AccountStore(androidContext(), proxySetUp = true) }
+                    single { ProxyApi(address, account = get(), appVersion = BuildConfig.VERSION_CODE) }
+                },
+            )
             if (signedIn) signIn() else signOut()
             withoutAiConsent()
         } catch (failure: Throwable) {

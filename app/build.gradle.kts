@@ -9,32 +9,21 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Where the app reaches the AI proxy (see proxy/ and docs/proxy.md). No key of any kind is built into
-// the app. local.properties (git-ignored) may set splitvibe.aiProxyUrl; a debug build otherwise uses
-// `wrangler dev` on the computer, reached from the phone through `adb reverse tcp:8787 tcp:8787`.
-// A release build must use https, and without the setting it is built with AI reading off.
+// Where the app reaches the AI proxy (see proxy/ and docs/proxy.md), set as splitvibe.aiProxyUrl in
+// local.properties (git-ignored). Debug and release builds use the same deployed proxy. No key of
+// any kind is built into the app, and without the setting it is built with AI reading off.
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use(::load)
 }
-val aiProxyUrl: String? = localProperties.getProperty("splitvibe.aiProxyUrl")?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() }
-// Something that is not an address, such as one with <your-subdomain> still in it, would only turn AI
-// reading off once the app runs, so it stops every build.
-aiProxyUrl?.let { url ->
-    val address = runCatching { URI(url) }.getOrNull()
-    check(address != null && address.scheme in setOf("http", "https") && !address.host.isNullOrEmpty()) {
-        "splitvibe.aiProxyUrl must be an address such as https://split-vibe-proxy.example.workers.dev, but it is $url"
+val aiProxyUrl: String = localProperties.getProperty("splitvibe.aiProxyUrl")?.trim()?.trimEnd('/').orEmpty()
+// Something that is not an https address, such as one with <your-subdomain> still in it, would only
+// turn AI reading off once the app runs, so it stops every build.
+if (aiProxyUrl.isNotEmpty()) {
+    val address = runCatching { URI(aiProxyUrl) }.getOrNull()
+    check(address != null && address.scheme == "https" && !address.host.isNullOrEmpty()) {
+        "splitvibe.aiProxyUrl must be an https address such as https://split-vibe-proxy.example.workers.dev, but it is $aiProxyUrl"
     }
-}
-val debugAiProxyUrl: String = aiProxyUrl ?: "http://127.0.0.1:8787"
-val releaseAiProxyUrl: String = aiProxyUrl.orEmpty()
-// Only a release build must use https, so only building one checks it: a plain-http address of a
-// computer on the local network still serves debug builds and the tests.
-val releaseAiProxyUrlProblem: String? = releaseAiProxyUrl.takeIf { it.isNotEmpty() && !it.startsWith("https://") }
-    ?.let { "splitvibe.aiProxyUrl must start with https:// for release builds, but it is $it" }
-tasks.matching { it.name.startsWith("pre") && it.name.endsWith("ReleaseBuild") }.configureEach {
-    val problem = releaseAiProxyUrlProblem
-    doFirst { problem?.let { throw GradleException(it) } }
 }
 // The app's web client ID at Google (public): Google's ID tokens for the app are made out to it, and
 // the proxy checks that. Without it the app is built with signing in turned off.
@@ -126,8 +115,8 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         buildConfigField("String", "REVENUECAT_API_KEY", "\"$revenueCatApiKey\"")
         firebaseSettings.keys.forEach { field -> buildConfigField("String", "FIREBASE_$field", "\"${firebase[field].orEmpty()}\"") }
-        // Every build type made from release, such as the baseline profile's, uses the release address.
-        manifestPlaceholders["linkHost"] = linkHostOf(releaseAiProxyUrl)
+        buildConfigField("String", "AI_PROXY_URL", "\"$aiProxyUrl\"")
+        manifestPlaceholders["linkHost"] = linkHostOf(aiProxyUrl)
     }
 
     signingConfigs {
@@ -143,14 +132,11 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "AI_PROXY_URL", "\"$debugAiProxyUrl\"")
-            manifestPlaceholders["linkHost"] = linkHostOf(debugAiProxyUrl)
             // The pseudolocales en-XA (longer text with accents) and ar-XB (right to left), to find text
             // that is cut off, overlaps or is not in the resources. Release builds leave them out.
             isPseudoLocalesEnabled = true
         }
         release {
-            buildConfigField("String", "AI_PROXY_URL", "\"$releaseAiProxyUrl\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
