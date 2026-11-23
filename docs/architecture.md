@@ -689,7 +689,9 @@ every package, `npm ci` refuses a package that does not match it, and `package.j
 an exact version. Dependabot opens the npm updates for `/proxy`, and the "AI proxy" job checks them.
 
 Four things to keep in mind. Source and documentation jars are exempt (`trusted-artifacts` at the
-top of the file): only an IDE downloads them, and they are never compiled or run. The file lists the
+top of the file): only an IDE downloads them, and they are never compiled or run. So is Gradle's own
+source archive (`gradle-<version>-src.zip`), which Android Studio fetches from services.gradle.org
+during sync to show Gradle's API in the build files. The file lists the
 Linux, macOS and Windows variants of the resource packaging tool for the current Android Gradle
 Plugin; after a plugin upgrade each system's variant has to be recorded again on that system. The
 Android image that the local UI tests run on is a dependency too, `robolectric-android` in the
