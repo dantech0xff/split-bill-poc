@@ -118,17 +118,10 @@ newer.
 The `dev` flavor installs as `com.dantech.splitvibe.dev`, next to the real app and with its own data.
 The `prod` flavor is the app for Google Play.
 
-Reading a bill needs the AI proxy. A debug build looks for it at `http://127.0.0.1:8787`: run it
-on your computer as [docs/proxy.md](docs/proxy.md) describes (`npm ci`, a `.dev.vars` file with the
-key, `npm run dev`), then forward the port to the phone or emulator:
-
-```bash
-adb reverse tcp:8787 tcp:8787
-```
-
-A deployed proxy and Google sign-in are set in `local.properties` (git-ignored). A release build
-requires https, and without an address it is built with AI reading off. A value that is not a real
-address or client ID, such as one with a `<placeholder>` still in it, stops the build:
+Reading a bill needs the AI proxy ([docs/proxy.md](docs/proxy.md)). Debug and release builds both
+use the deployed one, set with Google sign-in in `local.properties` (git-ignored). Without an
+address the app is built with AI reading off. An address that is not https, or a value that is not
+a real address or client ID, such as one with a `<placeholder>` still in it, stops the build:
 
 ```properties
 splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev

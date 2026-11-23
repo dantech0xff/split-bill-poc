@@ -1242,15 +1242,8 @@ Then start it on port 8787:
 npm run dev
 ```
 
-A debug build of the app reaches it at `http://127.0.0.1:8787` once the phone or emulator forwards
-that port to the computer:
-
-```bash
-adb reverse tcp:8787 tcp:8787
-```
-
-To sign in from a debug build, also put the web client ID (see below) into `GOOGLE_CLIENT_ID` in
-`wrangler.jsonc` and into `local.properties`. To try the page
+The app does not use this local proxy: debug builds, like release builds, use the deployed one
+(step 8 of the deployment below). To try the page
 `http://localhost:8787/delete-account`, use a separate OAuth client of type *Web application*, best
 in a Google Cloud project kept for testing, with `http://localhost` and `http://localhost:8787` as
 its Authorized JavaScript origins, and its client ID in `GOOGLE_CLIENT_ID` in `proxy/.dev.vars`
@@ -1503,9 +1496,9 @@ These steps need the owner's accounts.
    an install that held calls in between counts from the time kept and is forgotten that much
    sooner.
 
-8. **The app.** Put the Worker's address and the web client ID into `local.properties` before a
-   release build. A release build refuses an address that is not https, and every build stops at
-   a value with a placeholder such as `<your-subdomain>` still in it.
+8. **The app.** Put the Worker's address and the web client ID into `local.properties`; debug and
+   release builds both use them. Every build refuses an address that is not https, and stops at a
+   value with a placeholder such as `<your-subdomain>` still in it.
 
    ```properties
    splitvibe.aiProxyUrl=https://split-vibe-proxy.<your-subdomain>.workers.dev
